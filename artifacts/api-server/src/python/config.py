@@ -126,8 +126,68 @@ DEFAULT_WATCHLIST: list[str] = [
     "SBIN", "WIPRO", "LT", "BAJFINANCE", "MARUTI",
 ]
 
-# ── Zerodha integration ───────────────────────────────────────────────────────
+# ── Intraday universe selection ───────────────────────────────────────────────
+from enum import Enum
 import os as _os
+
+
+class UniverseMode(str, Enum):
+    """Scanner universe choices. Both modes remain paper-trading only."""
+
+    NIFTY_50 = "NIFTY_50"
+    CUSTOM_LOW_PRICE_SECTOR = "CUSTOM_LOW_PRICE_SECTOR"
+
+
+_active_universe_raw = _os.getenv(
+    "ACTIVE_INTRADAY_UNIVERSE", UniverseMode.NIFTY_50.value
+).upper().strip()
+try:
+    ACTIVE_INTRADAY_UNIVERSE = UniverseMode(_active_universe_raw)
+except ValueError:
+    # Fail safe to the long-standing NIFTY universe when deployment
+    # configuration is mistyped. The custom universe is always opt-in.
+    ACTIVE_INTRADAY_UNIVERSE = UniverseMode.NIFTY_50
+
+
+def get_active_intraday_universe() -> UniverseMode:
+    """Return the operator-selected universe, falling back to deploy config."""
+    try:
+        from phase20_store import get_settings
+        persisted = str(get_settings().get("active_intraday_universe") or "").upper()
+        return UniverseMode(persisted)
+    except Exception:
+        return ACTIVE_INTRADAY_UNIVERSE
+
+# Human/provider sector names are intentionally normalised before custom
+# universe filtering. Keep this mapping close to configuration rather than
+# scattering synonym handling throughout refresh and scan code.
+LOW_PRICE_SECTOR_ALIASES: dict[str, str] = {
+    "IT": "IT",
+    "INFORMATION TECHNOLOGY": "IT",
+    "SOFTWARE": "IT",
+    "TECHNOLOGY": "IT",
+    "INFRASTRUCTURE": "INFRA",
+    "CONSTRUCTION": "INFRA",
+    "POWER": "INFRA",
+    "TELECOM": "INFRA",
+    "RAILWAYS": "INFRA",
+    "PORTS": "INFRA",
+    "ROADS": "INFRA",
+    "UTILITIES": "INFRA",
+    "BANK": "BANK",
+    "BANKS": "BANK",
+    "BANKING": "BANK",
+    "PSU BANK": "BANK",
+    "PRIVATE BANK": "BANK",
+}
+
+
+def normalize_low_price_sector(value: str | None) -> str | None:
+    """Map provider sector variants to IT, INFRA, or BANK."""
+    cleaned = " ".join(str(value or "").upper().replace("&", " ").split())
+    return LOW_PRICE_SECTOR_ALIASES.get(cleaned)
+
+# ── Zerodha integration ───────────────────────────────────────────────────────
 
 ZERODHA_ENABLED: bool = False
 ZERODHA_API_KEY: str = ""

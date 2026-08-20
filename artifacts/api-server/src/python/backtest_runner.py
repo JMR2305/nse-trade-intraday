@@ -112,11 +112,40 @@ def resolve_sizing(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Universe resolution ──────────────────────────────────────────────────────
 
-def resolve_universe(cfg: Dict[str, Any]) -> List[str]:
+def resolve_universe(
+    cfg: Dict[str, Any],
+    universe_mode: Optional[str] = None,
+    as_of_date: Optional[str] = None,
+) -> List[str]:
     symbols = cfg.get("symbols")
     if symbols:
         return [str(s).upper() for s in symbols]
-    universe = str(cfg.get("universe") or "configured").lower()
+    universe = str(universe_mode or cfg.get("universe_mode") or cfg.get("universe") or "configured").lower()
+    if universe in ("custom_low_price_sector", "custom-low-price-sector"):
+        target_date = str(as_of_date or cfg.get("as_of_date") or cfg.get("end") or "")[:10]
+        try:
+            from custom_universe_store import get_active_symbols_as_of, get_active_symbols
+            historical = get_active_symbols_as_of(target_date)
+            if historical:
+                cfg["universe_evidence"] = "HISTORICAL_SNAPSHOT"
+                return historical
+            # Current membership is future information for a historical run.
+            # Keep the legacy fallback available only by an explicit operator
+            # opt-in, and persist evidence quality in the run configuration.
+            if cfg.get("allow_current_universe_fallback") is True:
+                cfg["universe_evidence"] = "CURRENT_MEMBERSHIP_FALLBACK"
+                logger = __import__("logging").getLogger(__name__)
+                logger.warning(
+                    "CUSTOM_LOW_PRICE_SECTOR has no snapshot on/before %s; "
+                    "using explicitly opted-in current membership",
+                    target_date or "unknown",
+                )
+                return get_active_symbols()
+            cfg["universe_evidence"] = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+            return []
+        except Exception:
+            cfg["universe_evidence"] = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+            return []
     if universe in ("nifty50", "nifty_50", "nifty"):
         try:
             from config import NIFTY_50
@@ -562,6 +591,15 @@ def execute_run(run_id: str) -> Dict[str, Any]:
     end = str(cfg.get("end"))[:10]
     capital = float(cfg.get("capital") or 100000.0)
     universe = resolve_universe(cfg)
+    if not universe:
+        reason = (
+            "No historical CUSTOM_LOW_PRICE_SECTOR snapshot exists on or "
+            "before this run's as-of date. Choose a later date or explicitly "
+            "opt in to current-membership fallback."
+        )
+        bp._emergency_mark_failed(run_id, reason)
+        return {"ok": False, "run_id": run_id, "error": reason,
+                "universe_evidence": cfg.get("universe_evidence")}
 
     # Atomic PENDING→RUNNING claim: a duplicate or retried backtest_exec must
     # never replay the same run twice (would corrupt trades/metrics/events).

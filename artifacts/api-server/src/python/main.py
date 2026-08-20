@@ -331,7 +331,7 @@ def cmd_strategies() -> list:
 
 
 def cmd_market_scan() -> dict:
-    """Sprint 1.5 — full NIFTY 50 universe scan (paper trading, no real orders)."""
+    """Configured scanner universe (paper trading only; no real orders)."""
     from market_scanner import run_market_scan
     state = _load_state()
     cash = state.get("cash", 5000.0)
@@ -1034,6 +1034,20 @@ def main():
             # Trigger post-market daily-bar append immediately (no gate).
             from post_market_data_refresh import run_postmarket_refresh
             result = run_postmarket_refresh()
+
+        # ── Custom low-price IT/Infra/Bank universe ─────────────────────────
+        elif command == "universe_custom_status":
+            from custom_universe_store import get_status
+            result = get_status()
+        elif command == "universe_custom_symbols":
+            from custom_universe_store import get_all_symbols
+            result = {"success": True, "symbols": get_all_symbols()}
+        elif command == "universe_custom_refresh":
+            from low_price_universe_refresh import refresh_low_price_sector_universe
+            result = refresh_low_price_sector_universe()
+        elif command == "universe_custom_report":
+            from low_price_universe_report import get_report
+            result = get_report()
 
         elif command == "pre_market_data_readiness":
             # Run pre-market data readiness check and return verdict.
@@ -2576,6 +2590,13 @@ def main():
                 "capital": float(p.get("capital") or 100000.0),
                 "symbols": p.get("symbols"),
                 "universe": p.get("universe") or "configured",
+                # Preserve the explicit custom-universe request rather than
+                # collapsing it into the legacy generic universe field.
+                "universe_mode": p.get("universe_mode"),
+                "as_of_date": p.get("as_of_date") or p.get("end"),
+                "allow_current_universe_fallback": (
+                    p.get("allow_current_universe_fallback") is True
+                ),
             }
             # Capital-deployment settings (optional; defaults preserve
             # historical behaviour — scale-in OFF, 1% risk, 25% cap).
@@ -2586,38 +2607,59 @@ def main():
             if not cfg["start"] or not cfg["end"]:
                 result = {"ok": False, "error": "start and end dates required"}
             else:
-                rid = _bp.create_run(cfg)
-                run_status = _bp.get_run_status(rid)
-                if run_status == "QUEUED":
-                    # At concurrency cap — worker will be spawned when a slot opens
-                    result = {"ok": True, "run_id": rid, "status": "QUEUED",
-                              "log": None,
-                              "label": ("BACKTEST — QUEUED "
-                                        f"(max {_bp.MAX_CONCURRENT_BACKTESTS} concurrent runs; "
-                                        "will start automatically when a slot opens)")}
+                # Fail historical custom-universe requests closed before
+                # creating a queued run that can never obtain valid evidence.
+                rid = None
+                if str(cfg.get("universe_mode") or cfg.get("universe") or "").upper() == "CUSTOM_LOW_PRICE_SECTOR" \
+                        and not cfg.get("symbols"):
+                    from backtest_runner import resolve_universe as _resolve_universe
+                    if not _resolve_universe(cfg):
+                        result = {
+                            "ok": False,
+                            "error": (
+                                "No historical custom-universe snapshot exists "
+                                "for this as-of date. Select a date with a "
+                                "snapshot or explicitly opt in to current "
+                                "membership fallback."
+                            ),
+                            "universe_evidence": cfg.get("universe_evidence"),
+                        }
+                    else:
+                        rid = _bp.create_run(cfg)
                 else:
-                    log_path = f"/tmp/backtest_{rid}.log"
-                    try:
-                        with open(log_path, "ab") as lf:
-                            subprocess.Popen(
-                                [sys.executable, os.path.abspath(__file__),
-                                 "backtest_exec", json.dumps({"run_id": rid})],
-                                stdout=lf, stderr=lf,
-                                cwd=os.path.dirname(os.path.abspath(__file__)),
-                                start_new_session=True)
-                        result = {"ok": True, "run_id": rid, "status": "PENDING",
-                                  "log": log_path,
-                                  "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
-                    except Exception as _spawn_err:
-                        # Atomic conditional revert: single DB UPDATE WHERE
-                        # status='PENDING' — safe if a worker already claimed it.
+                    rid = _bp.create_run(cfg)
+                if rid is not None:
+                    run_status = _bp.get_run_status(rid)
+                    if run_status == "QUEUED":
+                        # At concurrency cap — worker will be spawned when a slot opens
+                        result = {"ok": True, "run_id": rid, "status": "QUEUED",
+                                  "log": None,
+                                  "label": ("BACKTEST — QUEUED "
+                                            f"(max {_bp.MAX_CONCURRENT_BACKTESTS} concurrent runs; "
+                                            "will start automatically when a slot opens)")}
+                    else:
+                        log_path = f"/tmp/backtest_{rid}.log"
                         try:
-                            _bp.revert_pending_to_queued(rid)
-                        except Exception:
-                            pass
-                        result = {"ok": False, "run_id": rid, "status": "QUEUED",
-                                  "error": (f"Spawn failed ({_spawn_err}); "
-                                            "run reverted to QUEUED for auto-retry")}
+                            with open(log_path, "ab") as lf:
+                                subprocess.Popen(
+                                    [sys.executable, os.path.abspath(__file__),
+                                     "backtest_exec", json.dumps({"run_id": rid})],
+                                    stdout=lf, stderr=lf,
+                                    cwd=os.path.dirname(os.path.abspath(__file__)),
+                                    start_new_session=True)
+                            result = {"ok": True, "run_id": rid, "status": "PENDING",
+                                      "log": log_path,
+                                      "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
+                        except Exception as _spawn_err:
+                            # Atomic conditional revert: single DB UPDATE WHERE
+                            # status='PENDING' — safe if a worker already claimed it.
+                            try:
+                                _bp.revert_pending_to_queued(rid)
+                            except Exception:
+                                pass
+                            result = {"ok": False, "run_id": rid, "status": "QUEUED",
+                                      "error": (f"Spawn failed ({_spawn_err}); "
+                                                "run reverted to QUEUED for auto-retry")}
         elif command == "backtest_exec":
             from backtest_runner import execute_run
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}

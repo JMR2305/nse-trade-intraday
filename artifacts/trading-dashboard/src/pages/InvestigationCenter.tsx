@@ -393,6 +393,7 @@ export default function InvestigationCenter() {
   const [end, setEnd] = useState(rangePreset(30).end);
   const [symbolsText, setSymbolsText] = useState("");
   const [universe, setUniverse] = useState("configured");
+  const [allowCurrentUniverseFallback, setAllowCurrentUniverseFallback] = useState(false);
   const [capital, setCapital] = useState(100000);
 
   useEffect(() => {
@@ -435,6 +436,11 @@ export default function InvestigationCenter() {
           interval, start, end, capital,
           symbols: symbolsText.trim() ? symbolsText.split(/[\s,]+/).filter(Boolean) : undefined,
           universe,
+          universe_mode: universe === "custom_low_price_sector" ? "CUSTOM_LOW_PRICE_SECTOR" : undefined,
+          as_of_date: universe === "custom_low_price_sector" ? end : undefined,
+          allow_current_universe_fallback: universe === "custom_low_price_sector"
+            ? allowCurrentUniverseFallback
+            : undefined,
           ...(overrides ?? {}),
         }),
       }, 30_000),
@@ -947,8 +953,24 @@ export default function InvestigationCenter() {
               onChange={(e) => setUniverse(e.target.value)} data-testid="select-universe">
               <option value="configured">Configured universe</option>
               <option value="nifty50">Nifty 50</option>
+              <option value="custom_low_price_sector">Low-price IT / Infra / Bank</option>
             </select>
           </label>
+          {universe === "custom_low_price_sector" && (
+            <label className="flex max-w-72 items-start gap-2 text-xs text-amber-300">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={allowCurrentUniverseFallback}
+                onChange={(e) => setAllowCurrentUniverseFallback(e.target.checked)}
+                data-testid="checkbox-current-universe-fallback"
+              />
+              <span>
+                If no snapshot exists on or before the end date, use today&apos;s membership
+                (degraded evidence; otherwise the run fails closed).
+              </span>
+            </label>
+          )}
           <label className="flex flex-col gap-1 min-w-48">
             <span className="text-xs text-muted-foreground">Symbols (optional, overrides universe)</span>
             <input className="bg-background border rounded px-2 py-1.5" placeholder="e.g. RELIANCE, TCS"
@@ -964,6 +986,11 @@ export default function InvestigationCenter() {
           </Button>
           {launch.data && !launch.data.ok && (
             <span className="text-xs text-red-500">{String(launch.data.error)}</span>
+          )}
+          {universe === "custom_low_price_sector" && (
+            <span className="text-xs text-amber-400" data-testid="custom-universe-evidence-note">
+              Uses membership verified on or before {end || "the selected end date"} to prevent look-ahead.
+            </span>
           )}
           {interval !== "1d" && start && end &&
             (new Date(end).getTime() - new Date(start).getTime()) / 86400_000 > 55 && (

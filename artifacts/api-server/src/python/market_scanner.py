@@ -429,7 +429,25 @@ def run_market_scan(
 
     Paper trading only — no real orders are placed.
     """
-    universe = symbols if symbols else list(NIFTY_50)
+    universe_mode = "NIFTY_50"
+    custom_metadata: dict[str, dict] = {}
+    if symbols is None:
+        try:
+            from config import get_active_intraday_universe, UniverseMode
+            if get_active_intraday_universe() == UniverseMode.CUSTOM_LOW_PRICE_SECTOR:
+                from custom_universe_store import (
+                    get_active_symbol_metadata, get_active_symbols,
+                )
+                universe = get_active_symbols()
+                custom_metadata = get_active_symbol_metadata()
+                universe_mode = UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value
+            else:
+                universe = list(NIFTY_50)
+        except Exception:
+            universe = list(NIFTY_50)
+    else:
+        universe = list(symbols)
+        universe_mode = "EXPLICIT"
 
     # ── Priority 3 (#26): filter junk symbols so one bad entry can never
     # fail the full scan. Rejections are logged with reasons + audited.
@@ -445,7 +463,10 @@ def run_market_scan(
 
     items: list[ScanItem] = []
     for sym in universe:
-        items.append(scan_stock(sym, capital=capital))
+        item = scan_stock(sym, capital=capital)
+        if sym.upper() in custom_metadata:
+            item["sector"] = str(custom_metadata[sym.upper()].get("sector") or item["sector"])
+        items.append(item)
 
     # Rank by opportunity score (errors sink to the bottom)
     items.sort(key=lambda it: (it["error"] is None, it["opportunity_score"]), reverse=True)
@@ -544,4 +565,8 @@ def run_market_scan(
         summary=summary,
     )
     result["learning"] = learning_meta  # type: ignore[typeddict-unknown-key]
+    result["universe_mode"] = universe_mode  # type: ignore[typeddict-unknown-key]
+    result["sector_counts"] = {
+        sector["sector"]: sector["stock_count"] for sector in sectors
+    }  # type: ignore[typeddict-unknown-key]
     return result

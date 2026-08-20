@@ -40,6 +40,14 @@ CONFIRMATION_TEXT = (
 
 # Safe defaults per Phase 20 spec. auto_paper_entries MUST default to False.
 DEFAULT_SETTINGS: Dict[str, Any] = {
+    # Scanner mode is operational configuration, never a broker execution mode.
+    # The process environment provides the initial default; operators may select
+    # one of these same validated values from Mission Control.
+    "active_intraday_universe": (
+        os.environ.get("ACTIVE_INTRADAY_UNIVERSE", "NIFTY_50").upper().strip()
+        if os.environ.get("ACTIVE_INTRADAY_UNIVERSE", "NIFTY_50").upper().strip()
+        in ("NIFTY_50", "CUSTOM_LOW_PRICE_SECTOR") else "NIFTY_50"
+    ),
     "auto_scan_enabled": True,
     "scan_interval_minutes": 5,
     "auto_paper_entries": False,
@@ -287,6 +295,12 @@ def _validate_patch(patch: Dict[str, Any], current: Dict[str, Any]) -> Dict[str,
         if key == "auto_paper_entries_confirmed_at":
             continue  # server-managed
         default = DEFAULT_SETTINGS[key]
+        if key == "active_intraday_universe":
+            if value not in ("NIFTY_50", "CUSTOM_LOW_PRICE_SECTOR"):
+                raise ValueError(
+                    "active_intraday_universe must be NIFTY_50 or "
+                    "CUSTOM_LOW_PRICE_SECTOR")
+            clean[key] = value
         if key == "scan_interval_minutes":
             iv = int(value)
             if iv not in ALLOWED_INTERVALS:

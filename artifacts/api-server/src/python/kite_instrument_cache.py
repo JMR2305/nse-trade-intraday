@@ -71,6 +71,21 @@ def _cache_is_fresh(cache: Dict[str, Any]) -> bool:
     return cache.get("date") == _today_iso() and bool(cache.get("instruments"))
 
 
+def _normalise_instrument(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Read both legacy Kite-cache rows and the current normalized schema."""
+    symbol = str(raw.get("symbol") or raw.get("tradingsymbol") or "").upper().strip()
+    return {
+        "symbol": symbol,
+        "name": str(raw.get("name") or raw.get("company_name") or symbol),
+        "token": raw.get("token", raw.get("instrument_token")),
+        "exchange": str(raw.get("exchange") or "NSE"),
+        "instrument_type": str(raw.get("instrument_type") or ""),
+        "lot_size": raw.get("lot_size", 1),
+        "tick_size": raw.get("tick_size"),
+        "segment": str(raw.get("segment") or ""),
+    }
+
+
 # ── Instrument fetch ──────────────────────────────────────────────────────────
 
 def _fetch_from_kite() -> List[Dict[str, Any]]:
@@ -146,7 +161,7 @@ def get_token(symbol: str) -> Optional[int]:
     """Return the Kite instrument token for an NSE symbol, or None."""
     cache = _load_cache()
     sym = symbol.upper().strip()
-    for inst in cache.get("instruments", []):
+    for inst in get_cached_instruments():
         if inst.get("symbol", "").upper() == sym:
             return inst.get("token")
     return None
@@ -162,7 +177,7 @@ def search(query: str, limit: int = MAX_SEARCH_RESULTS) -> List[Dict[str, Any]]:
         return []
 
     cache = _load_cache()
-    instruments = cache.get("instruments", [])
+    instruments = get_cached_instruments()
     q = query.upper().strip()
 
     exact: List[Dict[str, Any]] = []
@@ -203,6 +218,16 @@ def cache_status() -> Dict[str, Any]:
         "is_fresh": _cache_is_fresh(cache),
         "path": _CACHE_PATH,
     }
+
+
+def get_cached_instruments() -> List[Dict[str, Any]]:
+    """Return normalized cached instruments without triggering a broker request."""
+    cache = _load_cache()
+    return [
+        _normalise_instrument(row)
+        for row in (cache.get("instruments") or [])
+        if isinstance(row, dict)
+    ]
 
 
 if __name__ == "__main__":

@@ -22,7 +22,7 @@
  * PAPER TRADING / RESEARCH ONLY.
  */
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactElement } from "react";
-import { useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useMutation, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { useLiveStream, type PipelineStreamEvent } from "@/hooks/useLiveStream";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -31,9 +31,10 @@ import { Badge } from "@/components/ui/badge";
 import {
   Activity, AlertTriangle, CheckCircle2, ChevronRight, Clock, Cpu,
   HeartPulse, LayoutGrid, PieChart, Radar, Radio, Rocket, Search, Smartphone,
-  Timer, Wallet, Wifi, WifiOff, XCircle,
+  RefreshCw, Timer, Wallet, Wifi, WifiOff, XCircle,
 } from "lucide-react";
 import { Widget, useWidgetQuery, fmtINR, timeAgo, PnlText } from "@/components/mission/Widget";
+import { apiJson } from "@/lib/api";
 import { CommandBar } from "@/components/mission/CommandBar";
 import { MissionMapWidget, AlertCenterWidget } from "@/components/mission/IntelWidgets";
 import { useLedgerToday } from "@/components/mission/SessionWidgets";
@@ -154,6 +155,32 @@ interface ReplayStage {
   duration_ms: number | null; status: string;
 }
 interface ReplayResp { stages?: ReplayStage[]; scan_id?: string; snapshot_ts?: string; error?: string }
+interface CustomUniverseStatus {
+  active_universe?: string;
+  custom_universe_name?: string;
+  price_filter?: { min?: number; max?: number };
+  sectors?: string[];
+  active_count?: number;
+  excluded_count?: number;
+  sector_counts?: Record<string, number>;
+  last_refresh?: string | null;
+  ohlcv_cache_hit_rate_pct?: number;
+  kite_ltp?: { available_symbols?: number; status?: string };
+}
+interface CustomUniverseSymbol {
+  symbol: string;
+  company_name?: string | null;
+  sector?: string | null;
+  last_ltp?: number | null;
+  last_ltp_source?: string | null;
+  avg_volume_20d?: number | null;
+  avg_turnover_20d?: number | null;
+  is_active?: boolean;
+  reason_included?: string | null;
+  reason_excluded?: string | null;
+  ohlcv_available?: boolean;
+}
+interface CustomUniverseSymbolsResponse { symbols?: CustomUniverseSymbol[] }
 interface ScanStatus {
   success?: boolean; status?: string; scan_id?: string; snapshot_ts?: string;
   age_minutes?: number | null;
@@ -1856,6 +1883,146 @@ export function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStrea
   );
 }
 
+function LowPriceUniverseCard({
+  statusQ,
+  symbolsQ,
+}: {
+  statusQ: UseQueryResult<CustomUniverseStatus>;
+  symbolsQ: UseQueryResult<CustomUniverseSymbolsResponse>;
+}) {
+  const queryClient = useQueryClient();
+  const refresh = useMutation({
+    mutationFn: () => apiJson("/universe/custom/refresh", { method: "POST" }, 180_000),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-symbols"] });
+    },
+  });
+  const status = statusQ.data;
+  if (status?.active_universe !== "CUSTOM_LOW_PRICE_SECTOR") return null;
+  const symbols = symbolsQ.data?.symbols ?? [];
+  const included = symbols.filter((symbol) => symbol.is_active);
+  const excluded = symbols.filter((symbol) => !symbol.is_active);
+  const band = status.price_filter ?? {};
+
+  return (
+    <Widget
+      title="Low Price Universe Builder"
+      icon={PieChart}
+      query={statusQ}
+      refreshMs={15_000}
+      testId="mc-low-price-universe"
+      headerExtra={<Badge variant="outline" className="text-[9px] border-teal-700/50 text-teal-300">PAPER ONLY</Badge>}
+      skeletonClass="h-48"
+    >
+      <div className="space-y-3 text-[10px]">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Badge className="text-[9px] bg-teal-950 text-teal-300 border border-teal-800">
+            {status.custom_universe_name ?? "CUSTOM_LOW_PRICE_SECTOR"}
+          </Badge>
+          <span className="text-muted-foreground">Price ₹{band.min ?? 20}–₹{band.max ?? 200}</span>
+          <span className="text-muted-foreground">Sectors: {(status.sectors ?? ["IT", "INFRA", "BANK"]).join(" · ")}</span>
+          <button
+            type="button"
+            className="ml-auto inline-flex items-center gap-1 rounded-md border border-teal-700/60 px-2 py-1 text-[10px] text-teal-300 hover:bg-teal-950/50 disabled:opacity-50"
+            onClick={() => refresh.mutate()}
+            disabled={refresh.isPending}
+            data-testid="mc-refresh-low-price-universe"
+          >
+            <RefreshCw className={`h-3 w-3 ${refresh.isPending ? "animate-spin" : ""}`} />
+            {refresh.isPending ? "Refreshing…" : "Refresh Universe"}
+          </button>
+        </div>
+        {refresh.isError && <p className="text-red-400">Refresh failed: {(refresh.error as Error).message}</p>}
+        {refresh.isSuccess && <p className="text-emerald-400">Universe refresh completed.</p>}
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Active</p><p className="font-semibold text-teal-300">{status.active_count ?? 0}</p></div>
+          <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">OHLCV cache</p><p className="font-semibold">{status.ohlcv_cache_hit_rate_pct ?? 0}%</p></div>
+          <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Kite LTP</p><p className="font-semibold">{status.kite_ltp?.status ?? "UNKNOWN"}</p></div>
+          <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Last refresh</p><p className="font-semibold">{timeAgo(status.last_refresh)}</p></div>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {Object.entries(status.sector_counts ?? {}).map(([sector, count]) => (
+            <Badge key={sector} variant="outline" className="text-[9px]">{sector}: {count}</Badge>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <div className="min-w-0">
+            <p className="mb-1 font-medium text-emerald-300">Included ({included.length})</p>
+            <div className="max-h-44 overflow-auto rounded-md border border-border/60">
+              <table className="w-full text-left">
+                <thead className="sticky top-0 bg-card text-muted-foreground"><tr><th className="p-1.5">Symbol</th><th>LTP</th><th>Sector</th><th>20D vol</th><th>20D turnover</th></tr></thead>
+                <tbody>{included.map((row) => <tr key={row.symbol} className="border-t border-border/40">
+                  <td className="p-1.5 font-mono">{row.symbol}</td><td>{fmtINR(row.last_ltp, 2)}</td><td>{row.sector ?? "—"}</td>
+                  <td>{(row.avg_volume_20d ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}</td><td>{fmtINR(row.avg_turnover_20d)}</td>
+                </tr>)}{!included.length && <tr><td className="p-2 text-muted-foreground" colSpan={5}>No active symbols yet.</td></tr>}</tbody>
+              </table>
+            </div>
+          </div>
+          <div className="min-w-0">
+            <p className="mb-1 font-medium text-amber-300">Excluded ({excluded.length})</p>
+            <div className="max-h-44 overflow-auto rounded-md border border-border/60">
+              <table className="w-full text-left"><thead className="sticky top-0 bg-card text-muted-foreground"><tr><th className="p-1.5">Symbol</th><th>Reason</th></tr></thead>
+                <tbody>{excluded.map((row) => <tr key={row.symbol} className="border-t border-border/40"><td className="p-1.5 font-mono">{row.symbol}</td><td className="text-muted-foreground">{row.reason_excluded ?? "Not eligible"}</td></tr>)}
+                {!excluded.length && <tr><td className="p-2 text-muted-foreground" colSpan={2}>No exclusions recorded.</td></tr>}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Widget>
+  );
+}
+
+function UniverseModeControl({ statusQ }: { statusQ: UseQueryResult<CustomUniverseStatus> }) {
+  const queryClient = useQueryClient();
+  const active = statusQ.data?.active_universe ?? "NIFTY_50";
+  const updateMode = useMutation({
+    mutationFn: (active_intraday_universe: string) => apiJson(
+      "/universe/active",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ active_intraday_universe }),
+      },
+      30_000,
+    ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-symbols"] });
+      void queryClient.invalidateQueries({ queryKey: ["mc", "scan-status"] });
+    },
+  });
+
+  return (
+    <div className="rounded-lg border border-teal-800/50 bg-teal-950/20 px-3 py-2 flex flex-wrap items-center gap-3"
+      data-testid="mc-universe-mode-control">
+      <div className="min-w-44">
+        <p className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">Active intraday universe</p>
+        <p className="text-[10px] text-teal-300">Paper-only scan selection · risk caps unchanged</p>
+      </div>
+      <select
+        value={active}
+        onChange={(event) => updateMode.mutate(event.target.value)}
+        disabled={statusQ.isLoading || updateMode.isPending}
+        className="rounded-md border border-teal-700/60 bg-background px-2 py-1.5 text-xs font-mono text-foreground disabled:opacity-50"
+        data-testid="mc-select-intraday-universe"
+      >
+        <option value="NIFTY_50">NIFTY 50</option>
+        <option value="CUSTOM_LOW_PRICE_SECTOR">Low-price IT / Infra / Bank</option>
+      </select>
+      <Badge variant="outline" className="text-[9px] border-teal-700/50 text-teal-300">
+        {active === "CUSTOM_LOW_PRICE_SECTOR" ? "CUSTOM MODE ACTIVE" : "NIFTY 50 ACTIVE"}
+      </Badge>
+      {statusQ.isError && <span className="text-xs text-red-400">Unable to read active universe.</span>}
+      {updateMode.isError && <span className="text-xs text-red-400">Selection failed: {(updateMode.error as Error).message}</span>}
+      {updateMode.isSuccess && <span className="text-xs text-emerald-400">Saved — the next scan uses this universe.</span>}
+    </div>
+  );
+}
+
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 // Stable section ids + labels for the customization layout (Part 11).
@@ -1917,6 +2084,19 @@ export default function MissionControl() {
     ...scanQ,
     data: monotonicScan.data,
   } as UseQueryResult<ScanStatus>;
+  const customUniverseStatusQ = useWidgetQuery<CustomUniverseStatus>({
+    queryKey: ["mc", "custom-universe-status"],
+    path: "/universe/custom/status",
+    refetchInterval: 15_000,
+    timeoutMs: 30_000,
+  });
+  const customUniverseSymbolsQ = useWidgetQuery<CustomUniverseSymbolsResponse>({
+    queryKey: ["mc", "custom-universe-symbols"],
+    path: "/universe/custom/symbols",
+    refetchInterval: 30_000,
+    timeoutMs: 30_000,
+    enabled: customUniverseStatusQ.data?.active_universe === "CUSTOM_LOW_PRICE_SECTOR",
+  });
   const scanning = !!monotonicScan.data?.progress?.stage;
   // Unified replay snapshot — fetched ONCE and shared by the pipeline panel,
   // Mission Map and Replay widget (no separate fetch of stage counts).
@@ -2090,6 +2270,12 @@ export default function MissionControl() {
 
       {/* Top status bar (always rendered — not part of customizable sections) */}
       <StatusBar portfolio={portfolioQ.data} portfolioErr={portfolioQ.isError} stream={stream} />
+
+      <UniverseModeControl statusQ={customUniverseStatusQ} />
+
+      {customUniverseStatusQ.data?.active_universe === "CUSTOM_LOW_PRICE_SECTOR" && (
+        <LowPriceUniverseCard statusQ={customUniverseStatusQ} symbolsQ={customUniverseSymbolsQ} />
+      )}
 
       {layout.customizing && (
         <p className="text-[10px] text-muted-foreground rounded-lg border border-teal-500/30 bg-teal-500/5 px-3 py-1.5" data-testid="mc-customize-hint">

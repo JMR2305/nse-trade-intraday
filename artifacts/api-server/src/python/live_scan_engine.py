@@ -227,6 +227,8 @@ class Phase7ScanResult:
     phase: str = "7"
     label: str = "PAPER / LIVE DATA VALIDATION"
     timings: Dict[str, Any] = field(default_factory=dict)  # stage breakdown (s)
+    universe_mode: str = "NIFTY_50"
+    sector_counts: Dict[str, int] = field(default_factory=dict)
 
 
 def _bootstrap_ineligibility_reason(r: "Phase7Recommendation") -> str:
@@ -723,7 +725,27 @@ def run_live_scan(
     """
     scan_id = uuid.uuid4().hex[:12]
     snapshot_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    universe = sorted(symbols if symbols else list(NIFTY_50))
+    universe_mode = "NIFTY_50"
+    custom_metadata: Dict[str, Dict[str, Any]] = {}
+    if symbols is None:
+        try:
+            from config import get_active_intraday_universe, UniverseMode
+            if get_active_intraday_universe() == UniverseMode.CUSTOM_LOW_PRICE_SECTOR:
+                from custom_universe_store import (
+                    get_active_symbol_metadata, get_active_symbols,
+                )
+                universe = get_active_symbols()
+                custom_metadata = get_active_symbol_metadata()
+                universe_mode = UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value
+            else:
+                universe = list(NIFTY_50)
+        except Exception:
+            universe = list(NIFTY_50)
+    else:
+        # Caller-provided universes are intentional and must not be replaced.
+        universe = list(symbols)
+        universe_mode = "EXPLICIT"
+    universe = sorted({str(symbol).upper() for symbol in universe if symbol})
     t0 = time.monotonic()
 
     if _log:
@@ -737,7 +759,8 @@ def run_live_scan(
         _pe_emit = lambda *a, **k: None          # type: ignore
         _pe_emit_many = lambda *a, **k: None     # type: ignore
     _pe_emit("SCAN_STARTED", "SUPERVISOR", scan_id=scan_id,
-             payload={"snapshot_ts": snapshot_ts, "universe_size": len(universe)})
+             payload={"snapshot_ts": snapshot_ts, "universe_size": len(universe),
+                      "universe_mode": universe_mode})
 
     # ── Phase 1: Fetch all data up-front (consistent snapshot) ────────────────
     _set_progress("FETCHING", scan_id, {"symbols_total": len(universe),
@@ -796,7 +819,10 @@ def run_live_scan(
                                    fetch_ts=snapshot_ts, fetch_latency_ms=0,
                                    retries_used=0, error="Symbol missing from fetch batch",
                                    bars=0)
-        recs.append(_scan_one(sym, fr, scan_id, snapshot_ts, capital))
+        rec = _scan_one(sym, fr, scan_id, snapshot_ts, capital)
+        if sym in custom_metadata:
+            rec.sector = str(custom_metadata[sym].get("sector") or rec.sector)
+        recs.append(rec)
 
     analysis_s = round(time.monotonic() - t_analysis0, 2)
 
@@ -939,6 +965,9 @@ def run_live_scan(
     quality_counts: Dict[str, int] = {}
     for r in recs:
         quality_counts[r.data_quality] = quality_counts.get(r.data_quality, 0) + 1
+    sector_counts: Dict[str, int] = {}
+    for rec in recs:
+        sector_counts[rec.sector] = sector_counts.get(rec.sector, 0) + 1
 
     bootstrap_elig = sum(1 for r in valid if r.bootstrap_eligible)
     avg_score = round(sum(r.opportunity_score for r in valid) / len(valid), 1) if valid else 0.0
@@ -949,7 +978,8 @@ def run_live_scan(
 
     summary = {
         "scan_id": scan_id, "snapshot_ts": snapshot_ts,
-        "universe_size": len(universe), "symbols_analysed": len(recs),
+        "universe_size": len(universe), "universe_mode": universe_mode,
+        "sector_counts": sector_counts, "symbols_analysed": len(recs),
         "symbols_with_errors": sum(1 for r in recs if r.error),
         "strong_buy_count": strong_buy, "buy_count": buy,
         "watch_count": watch, "ignore_count": ignore,
@@ -1058,6 +1088,8 @@ def run_live_scan(
         paper_eligible=overall_paper_eligible,
         safety=safety,
         timings=timings,
+        universe_mode=universe_mode,
+        sector_counts=sector_counts,
     )
 
     # ── Persist cache (Phase 19B: durable shared store + local warm cache) ───
@@ -1083,6 +1115,7 @@ def run_live_scan(
 
     _pe_emit("SCAN_COMPLETED", "SUPERVISOR", scan_id=scan_id, payload={
         "duration_s": duration_s, "universe_size": len(universe),
+        "universe_mode": universe_mode, "sector_counts": sector_counts,
         "buy_count": buy + strong_buy, "watch_count": watch,
         "ignore_count": ignore, "paper_eligible_count": paper_elig,
         "symbols_with_errors": summary["symbols_with_errors"],

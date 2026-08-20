@@ -72,8 +72,12 @@ def run_postmarket_refresh() -> Dict[str, Any]:
     logger.info("post_market_data_refresh: starting for %s", today)
 
     try:
-        from config import NIFTY_50 as _universe
-        symbols: List[str] = list(_universe)
+        from config import get_active_intraday_universe, NIFTY_50, UniverseMode
+        if get_active_intraday_universe() == UniverseMode.CUSTOM_LOW_PRICE_SECTOR:
+            from custom_universe_store import get_active_symbols
+            symbols = get_active_symbols()
+        else:
+            symbols = list(NIFTY_50)
     except Exception as exc:
         return {"success": False, "error": f"config import: {exc!s:.100}"}
 

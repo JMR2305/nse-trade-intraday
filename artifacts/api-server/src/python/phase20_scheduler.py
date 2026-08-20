@@ -344,6 +344,68 @@ def _maybe_run_phase26c_validation(mstate: str) -> Any:
         return maybe_run_session_validation(mstate)
     except Exception as exc:
         return {"ran": False, "error": str(exc)[:200]}
+
+
+def _custom_low_price_universe_enabled() -> bool:
+    """Avoid importing refresh dependencies unless the opt-in mode is active."""
+    try:
+        from config import get_active_intraday_universe, UniverseMode
+        return get_active_intraday_universe() == UniverseMode.CUSTOM_LOW_PRICE_SECTOR
+    except Exception:
+        return False
+
+
+def _maybe_refresh_low_price_universe_pre_market() -> Optional[Dict[str, Any]]:
+    """Run the custom-universe refresh once in the 08:45–09:05 IST window."""
+    if not _custom_low_price_universe_enabled():
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Kolkata"))
+        minutes = now.hour * 60 + now.minute
+        if not (8 * 60 + 45 <= minutes <= 9 * 60 + 5):
+            return None
+        claim = f"low_price_sector_universe_preopen:{now.date().isoformat()}"
+        if not store.kv_claim_once(claim, ttl_seconds=86_400):
+            return {"ran": False, "reason": "already_refreshed_today"}
+        # Import only after configuration/time/claim gates so normal NIFTY mode
+        # never pays refresh import cost.
+        from low_price_universe_refresh import refresh_low_price_sector_universe
+        result = refresh_low_price_sector_universe()
+        if not result.get("success"):
+            # A failed refresh must not consume the daily work slot; a later
+            # tick can retry after the cache/database recovers.
+            store.kv_release(claim)
+        return {"ran": True, **result}
+    except Exception as exc:
+        try:
+            store.kv_release(claim)
+        except Exception:
+            pass
+        return {"ran": False, "error": str(exc)[:200]}
+
+
+def _maybe_refresh_low_price_universe_after_scan() -> Optional[Dict[str, Any]]:
+    """Apply the session's first observed prices after the first successful scan."""
+    if not _custom_low_price_universe_enabled():
+        return None
+    try:
+        today = _today_ist_date()
+        claim = f"low_price_sector_universe_postscan:{today}"
+        if not store.kv_claim_once(claim, ttl_seconds=86_400):
+            return {"ran": False, "reason": "already_refreshed_after_scan"}
+        from low_price_universe_refresh import refresh_low_price_sector_universe
+        result = refresh_low_price_sector_universe()
+        if not result.get("success"):
+            store.kv_release(claim)
+        return {"ran": True, **result}
+    except Exception as exc:
+        try:
+            store.kv_release(claim)
+        except Exception:
+            pass
+        return {"ran": False, "error": str(exc)[:200]}
+
 def _live_validation_brief(lv: Any) -> Any:
     """Keep the tick output small — full snapshot lives in the store."""
     if not isinstance(lv, dict):
@@ -1041,6 +1103,10 @@ def run_tick() -> Dict[str, Any]:
     except Exception as exc:
         session_alert = {"alerted": False, "error": str(exc)[:200]}
 
+    # Custom universe pre-market refresh lives before the non-OPEN early
+    # return. It is independently time-gated and cannot cause scans/orders.
+    premarket_universe_refresh = _maybe_refresh_low_price_universe_pre_market()
+
     if mstate != "OPEN":
         report = _maybe_generate_session_report(mstate)
         eod_recon = _maybe_run_eod_reconciliation() if mstate == "CLOSED" else None
@@ -1157,6 +1223,8 @@ def run_tick() -> Dict[str, Any]:
             out["phase26d_daily_report"] = p26d_daily
         if p26c is not None:
             out["phase26c_validation"] = p26c
+        if premarket_universe_refresh is not None:
+            out["low_price_universe_refresh"] = premarket_universe_refresh
         # ── Post-close orphan seal ────────────────────────────────────────────
         # Covers the "last-tick-of-session" gap: if the last scan of the day
         # completed while mstate was still OPEN but the market crossed 15:30
@@ -1306,6 +1374,9 @@ def run_tick() -> Dict[str, Any]:
                 context={"scan_id": snap.get("scan_id"),
                          "snapshot_ts": snap.get("snapshot_ts")},
             )
+            result_refresh = _maybe_refresh_low_price_universe_after_scan()
+        else:
+            result_refresh = None
         store.update_scheduler_state(
             last_attempt_at=now_iso, last_success_at=_iso_now(),
             last_scan_id=snap.get("scan_id"),
@@ -1318,6 +1389,8 @@ def run_tick() -> Dict[str, Any]:
                   "scan_id": snap.get("scan_id"),
                   "snapshot_ts": snap.get("snapshot_ts"),
                   "duration_s": round(duration, 2)}
+        if result_refresh is not None:
+            result["low_price_universe_refresh"] = result_refresh
         if pipeline is not None:
             result["pipeline"] = {
                 "status": pipeline.get("status"),
