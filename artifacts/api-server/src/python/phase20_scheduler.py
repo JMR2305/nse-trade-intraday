@@ -603,6 +603,7 @@ def check_overnight_carry_on_startup() -> Dict[str, Any]:
     try:
         # kv_claim_once stores True on claim; kv_get returns True if claimed.
         _eod_key = f"eod_squareoff:{yesterday_ist}"
+        _retry_key = f"eod_squareoff_unresolved:{yesterday_ist}"
         _eod_claimed = bool(store.kv_get(_eod_key))
 
         if _eod_claimed:
@@ -611,10 +612,33 @@ def check_overnight_carry_on_startup() -> Dict[str, Any]:
                     "reason": "eod_squareoff_ran_yesterday",
                     "yesterday": yesterday_ist}
 
+        # An earlier cold-start may have recorded an unresolved audit write.
+        # Retry only that write; do not re-submit a sell for positions whose
+        # original close-window outcome was already persisted.
+        retry_outcomes = store.kv_get(_retry_key)
+        if isinstance(retry_outcomes, list) and retry_outcomes:
+            from phase20_store import get_settings as _ls
+            from phase20_exits import eod_force_close_open_positions
+            eod_result = eod_force_close_open_positions(
+                _ls(), session_date=yesterday_ist, retry_outcomes=retry_outcomes,
+            )
+            unresolved = list((eod_result or {}).get("unresolved") or [])
+            if unresolved:
+                store.kv_set(_retry_key, unresolved)
+                store.kv_release(_startup_claim_key)
+            else:
+                store.kv_release(_retry_key)
+                store.kv_claim_once(_eod_key, ttl_seconds=86400)
+            return {
+                "ran": True, "eod_claimed": False, "yesterday": yesterday_ist,
+                "prior_session_count": 0, "symbols": [],
+                "eod_force_close": eod_result, "retryable": bool(unresolved),
+            }
+
         # Yesterday's EOD squareoff was never claimed — server was likely
         # down during the POST_CLOSE/CLOSED window.  Check for OPEN positions.
-        from phase20_executor import get_open_trades
-        open_trades = get_open_trades()
+        from phase20_executor import get_all_open_trades
+        open_trades = get_all_open_trades()
 
         if not open_trades:
             # No OPEN positions — mark yesterday's EOD as complete so the
@@ -703,13 +727,26 @@ def check_overnight_carry_on_startup() -> Dict[str, Any]:
         )
 
         # Run EOD force-close immediately, regardless of current mstate.
+        # Process only the trades that were proven to predate today's session:
+        # fresh positions must never be swept just because a server restarted.
         from phase20_store import get_settings as _ls
         from phase20_exits import eod_force_close_open_positions
-        eod_result = eod_force_close_open_positions(_ls())
+        eod_result = eod_force_close_open_positions(
+            _ls(), open_trades=prior_session_trades, session_date=yesterday_ist,
+        )
 
-        # Claim yesterday's eod_squareoff so the normal POST_CLOSE tick
-        # (if the server remains up through the evening) is a no-op.
-        store.kv_claim_once(_eod_key, ttl_seconds=86400)
+        # A durable CLOSED or BLOCKED outcome completes the old close window.
+        # An unresolved audit write does not: release the startup claim so a
+        # later restart can try again instead of silently accepting a carry.
+        unresolved = list((eod_result or {}).get("unresolved") or [])
+        if unresolved:
+            store.kv_set(_retry_key, unresolved)
+            store.kv_release(_startup_claim_key)
+        else:
+            store.kv_release(_retry_key)
+            # Claim yesterday's eod_squareoff so the normal POST_CLOSE tick
+            # (if the server remains up through the evening) is a no-op.
+            store.kv_claim_once(_eod_key, ttl_seconds=86400)
 
         return {
             "ran": True,
@@ -718,6 +755,7 @@ def check_overnight_carry_on_startup() -> Dict[str, Any]:
             "prior_session_count": len(prior_session_trades),
             "symbols": carry_symbols,
             "eod_force_close": eod_result,
+            "retryable": bool(unresolved),
         }
 
     except Exception as exc:
@@ -1288,6 +1326,44 @@ def run_tick() -> Dict[str, Any]:
         # Never raises.
         eod_squareoff = None
         if mstate in ("POST_CLOSE", "CLOSED"):
+            _claim_key: Optional[str] = None
+            _claim_taken = False
+            _retry_key: Optional[str] = None
+
+            def _report_eod_scheduler_failure(error: Exception | str) -> None:
+                """Surface a scheduler-level failure that produced no outcome."""
+                message = str(error)[:200]
+                try:
+                    from pipeline_events import emit as _emit
+                    _emit(
+                        "MARKET_CLOSE_EXIT_BLOCKED", "PORTFOLIO",
+                        payload={
+                            "reason": (
+                                "POST_CLOSE_FORCE_EXIT scheduler failure before "
+                                "per-position outcomes were persisted"
+                            ),
+                            "error": message,
+                            "session_date_ist": _today_ist_date(),
+                        },
+                        dedupe_key=(
+                            f"market-close-scheduler-failure:{_today_ist_date()}"
+                        ),
+                    )
+                except Exception:
+                    pass
+                try:
+                    store.add_notification(
+                        "MARKET_CLOSE_EXIT_BLOCKED",
+                        "EOD force-close scheduler failed before completion",
+                        (f"POST_CLOSE_FORCE_EXIT did not complete: {message}. "
+                         "The daily claim was released so the next scheduler "
+                         "tick can retry."),
+                        severity="WARN",
+                        context={"error": message, "claim_key": _claim_key},
+                    )
+                except Exception:
+                    pass
+
             try:
                 from phase20_store import kv_claim_once, kv_release
                 from phase20_store import get_settings as _ls
@@ -1299,17 +1375,39 @@ def run_tick() -> Dict[str, Any]:
                 # all imports first we guarantee the claim is only written when
                 # the full close logic is known to be available.
                 from phase20_exits import eod_force_close_open_positions
-                import datetime as _dt
-                _today = _dt.date.today().isoformat()
-                _claim_key = f"eod_squareoff:{_today}"
+                _today_ist = _today_ist_date()
+                _claim_key = f"eod_squareoff:{_today_ist}"
+                _retry_key = f"eod_squareoff_unresolved:{_today_ist}"
                 if kv_claim_once(_claim_key, ttl_seconds=86400):
-                    eod_squareoff = eod_force_close_open_positions(_ls())
-                    # If any positions are still blocked (no price or sell failed),
-                    # release the claim so the next POST_CLOSE/CLOSED tick can retry
-                    # those specific open trades.  Already-closed rows are excluded
-                    # from future runs because get_open_trades() returns only OPEN rows.
-                    if eod_squareoff and eod_squareoff.get("blocked"):
+                    _claim_taken = True
+                    _retry_outcomes = store.kv_get(_retry_key)
+                    if isinstance(_retry_outcomes, list) and _retry_outcomes:
+                        eod_squareoff = eod_force_close_open_positions(
+                            _ls(), session_date=_today_ist,
+                            retry_outcomes=_retry_outcomes,
+                        )
+                    else:
+                        eod_squareoff = eod_force_close_open_positions(_ls())
+                    # A blocked trade already has one durable, per-position
+                    # outcome and must not emit duplicate blocked events on
+                    # every post-close tick.  Release only when the event
+                    # write itself was unresolved, leaving no audit trail.
+                    if (not eod_squareoff
+                            or eod_squareoff.get("unresolved")
+                            or eod_squareoff.get("error")):
+                        if _retry_key:
+                            store.kv_set(
+                                _retry_key,
+                                list((eod_squareoff or {}).get("unresolved") or []),
+                            )
                         kv_release(_claim_key)
+                        _claim_taken = False
+                        _report_eod_scheduler_failure(
+                            (eod_squareoff or {}).get("error")
+                            or "EOD close returned unresolved audit outcomes"
+                        )
+                    elif _retry_key:
+                        store.kv_release(_retry_key)
             except (ImportError, ModuleNotFoundError, AttributeError) as exc:
                 # Setup / dependency error — kv_claim_once was never reached
                 # (all imports run before it), so the daily retry slot is still
@@ -1317,8 +1415,19 @@ def run_tick() -> Dict[str, Any]:
                 # blocking tomorrow's retry.
                 eod_squareoff = {"error": f"setup_error: {str(exc)[:200]}",
                                  "claim_consumed": False}
+                _report_eod_scheduler_failure(eod_squareoff["error"])
             except Exception as exc:
                 eod_squareoff = {"error": str(exc)[:200]}
+                # Runtime errors happen after the claim in the failure mode
+                # that previously stranded positions.  Make this retryable and
+                # visible instead of consuming the close window silently.
+                if _claim_taken and _claim_key:
+                    try:
+                        kv_release(_claim_key)
+                    except Exception:
+                        pass
+                    _claim_taken = False
+                _report_eod_scheduler_failure(exc)
 
         # Post-market OHLCV cache refresh — append today's final daily bar for
         # all NIFTY 50 symbols so tomorrow's scans use local cache and skip

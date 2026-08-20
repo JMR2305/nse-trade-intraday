@@ -464,7 +464,7 @@ def _delete_row(trade_id: str) -> None:
     _with_db(to_db, to_file)
 
 
-def _update_row(trade_id: str, fields: Dict[str, Any]) -> None:
+def _update_row(trade_id: str, fields: Dict[str, Any]) -> bool:
     def to_db(conn):
         sets = ", ".join(f"{k} = %s" for k in fields) + ", updated_at = NOW()"
         with conn.cursor() as cur:
@@ -472,17 +472,20 @@ def _update_row(trade_id: str, fields: Dict[str, Any]) -> None:
                 f"UPDATE phase20_paper_trades SET {sets} WHERE trade_id = %s",
                 list(fields.values()) + [trade_id],
             )
+            updated = cur.rowcount == 1
         conn.commit()
-        return True
+        return updated
 
     def to_file():
         rows = _read_ledger_file()
+        updated = False
         for r in rows:
             if r.get("trade_id") == trade_id:
                 r.update(fields)
-        _write_ledger_file(rows)
+                updated = True
+        return updated and _write_ledger_file(rows)
 
-    _with_db(to_db, to_file)
+    return bool(_with_db(to_db, to_file))
 
 
 def _read_ledger_file() -> List[Dict[str, Any]]:
@@ -493,12 +496,16 @@ def _read_ledger_file() -> List[Dict[str, Any]]:
         return []
 
 
-def _write_ledger_file(rows: List[Dict[str, Any]]) -> None:
+def _write_ledger_file(rows: List[Dict[str, Any]]) -> bool:
     try:
         with open(_LEDGER_FILE, "w") as f:
-            json.dump(rows[-500:], f, default=str)
+            # The file fallback is the safety ledger when Postgres is
+            # unavailable.  It must retain every OPEN row so EOD recovery
+            # cannot lose an older position behind a dashboard-sized history.
+            json.dump(rows, f, default=str)
+        return True
     except Exception:
-        pass
+        return False
 
 
 def get_ledger(limit: int = 200) -> List[Dict[str, Any]]:
@@ -566,7 +573,42 @@ def get_trade(trade_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_open_trades() -> List[Dict[str, Any]]:
+    """Return recent OPEN rows for normal intraday callers."""
     return [t for t in get_ledger(500) if t.get("status") == "OPEN"]
+
+
+def get_all_open_trades() -> List[Dict[str, Any]]:
+    """Return every OPEN ledger row, not just rows inside the activity feed cap.
+
+    ``get_ledger(500)`` is intentionally bounded for dashboard activity.  It
+    must never be used to drive an end-of-session safety action: an older OPEN
+    position can otherwise be hidden by 500 newer closed rows and carry
+    overnight without a close or blocked outcome.
+    """
+    def from_db(conn) -> List[Dict[str, Any]]:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(_COLS)}, created_at "
+                f"FROM phase20_paper_trades "
+                f"WHERE status = 'OPEN' ORDER BY created_at ASC"
+            )
+            rows = cur.fetchall()
+        out = []
+        for r in rows:
+            item = dict(zip(_COLS, r[:-1]))
+            if isinstance(item.get("evidence"), str):
+                try:
+                    item["evidence"] = json.loads(item["evidence"])
+                except Exception:
+                    pass
+            item["created_at"] = _iso(r[-1]) if isinstance(r[-1], datetime) else r[-1]
+            out.append(item)
+        return out
+
+    def from_file() -> List[Dict[str, Any]]:
+        return [r for r in _read_ledger_file() if r.get("status") == "OPEN"]
+
+    return _with_db(from_db, from_file)
 
 
 def get_exit_pending_trades() -> List[Dict[str, Any]]:
@@ -1991,21 +2033,29 @@ def seal_execution_outcomes(scan_id: str,
 # ── Exit recording (called by phase20_exits) ─────────────────────────────────
 
 def record_exit(trade_id: str, exit_price: float, exit_rule: str,
-                exit_scan_id: Optional[str], status: str = "CLOSED") -> None:
+                exit_scan_id: Optional[str], status: str = "CLOSED") -> bool:
     trade = get_trade(trade_id)
     if not trade:
-        return
+        return False
     qty = int(trade.get("quantity") or 0)
     fill = float(trade.get("fill_price") or 0)
     pnl = round((exit_price - fill) * qty, 2) if status == "CLOSED" else None
-    _update_row(trade_id, {
+    if not _update_row(trade_id, {
         "status": status,
         "exit_ts": _iso() if status in ("CLOSED", "EXIT_PENDING") else None,
         "exit_price": exit_price if status == "CLOSED" else None,
         "exit_rule": exit_rule,
         "exit_scan_id": exit_scan_id,
         "realized_pnl": pnl,
-    })
+    }):
+        return False
+
+    # Do not acknowledge a terminal close until the canonical ledger can read
+    # it back.  This prevents a successful paper sell plus failed persistence
+    # from being misreported as a closed position.
+    persisted = get_trade(trade_id)
+    if not persisted or persisted.get("status") != status:
+        return False
     # Phase 23: pipeline events (fail-safe)
     try:
         from pipeline_events import emit as _pe
@@ -2034,6 +2084,7 @@ def record_exit(trade_id: str, exit_price: float, exit_rule: str,
             pass
     except Exception:
         pass
+    return True
 
 
 # ── Deterministic replay ─────────────────────────────────────────────────────

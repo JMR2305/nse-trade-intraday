@@ -54,6 +54,10 @@ EVENT_TYPES = [
     "SCALE_IN_APPROVED", "SCALE_IN_REJECTED", "SCALE_IN_EXECUTED",
     "POSITION_OPENED", "POSITION_UPDATED", "POSITION_CLOSED",
     "PORTFOLIO_UPDATED", "PNL_UPDATED",
+    # End-of-session paper-trading outcomes.  These are queried directly by
+    # the EOD status panel and carry a durable per-trade audit payload.
+    "PAPER_TRADE_FORCE_CLOSED", "MARKET_CLOSE_EXIT_BLOCKED",
+    "MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED",
     "SCAN_COMPLETED", "SCAN_FAILED",
     # A scheduled scan was due and the scheduler began an attempt. This is
     # intentionally distinct from SCAN_STARTED (the actual scanner) so the
@@ -94,9 +98,17 @@ def _ensure_schema(conn) -> None:
                 event_type TEXT NOT NULL,
                 stage TEXT NOT NULL,
                 symbol TEXT,
-                payload JSONB
+                payload JSONB,
+                dedupe_key TEXT
             )
             """
+        )
+        # CREATE TABLE IF NOT EXISTS does not add columns to an existing
+        # production table.  The optional key makes exceptional, operator-facing
+        # outcomes idempotent at the durable-store boundary.
+        cur.execute(
+            "ALTER TABLE pipeline_events "
+            "ADD COLUMN IF NOT EXISTS dedupe_key TEXT"
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_pipeline_events_scan"
@@ -105,6 +117,11 @@ def _ensure_schema(conn) -> None:
         cur.execute(
             "CREATE INDEX IF NOT EXISTS idx_pipeline_events_mode_id"
             " ON pipeline_events (mode, id DESC)"
+        )
+        cur.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_pipeline_events_dedupe_key"
+            " ON pipeline_events (dedupe_key)"
+            " WHERE dedupe_key IS NOT NULL"
         )
     conn.commit()
     _SCHEMA_READY = True
@@ -115,24 +132,34 @@ def _ensure_schema(conn) -> None:
 def emit(event_type: str, stage: str, *, scan_id: Optional[str] = None,
          symbol: Optional[str] = None, payload: Optional[Dict[str, Any]] = None,
          mode: str = "LIVE", run_id: Optional[str] = None,
-         ts: Optional[str] = None) -> None:
-    """Append one event. NEVER raises — pipeline safety first.
+         ts: Optional[str] = None, dedupe_key: Optional[str] = None) -> bool:
+    """Append one event and report whether its durable row exists.
 
     `ts` (optional ISO-8601 string) records the TRUE processing time of the
     event. When omitted, insert time is used. Batch-emitted events (e.g.
     derive_symbol_events) should pass per-event timestamps captured at the
     moment each stage actually ran, otherwise all events in a batch share one
     insert timestamp and stage-timing analytics read as 0 ms.
+
+    ``dedupe_key`` is optional.  When supplied it is enforced by a unique
+    partial index in Postgres (and checked by the development file fallback).
+    This is for safety-critical audit outcomes that must be visible once even
+    when scheduler ticks overlap.  A duplicate key returns ``True`` because
+    the original durable event already exists.  Write failures return ``False``
+    and never raise into the caller.
     """
     try:
-        _emit_unsafe(event_type, stage, scan_id=scan_id, symbol=symbol,
-                     payload=payload, mode=mode, run_id=run_id, ts=ts)
+        return _emit_unsafe(
+            event_type, stage, scan_id=scan_id, symbol=symbol,
+            payload=payload, mode=mode, run_id=run_id, ts=ts,
+            dedupe_key=dedupe_key,
+        )
     except Exception:
-        pass
+        return False
 
 
 def _emit_unsafe(event_type: str, stage: str, *, scan_id, symbol, payload,
-                 mode, run_id, ts=None) -> None:
+                 mode, run_id, ts=None, dedupe_key=None) -> bool:
     # Guardrail: canonical ORDER_* events in LIVE mode must carry a P20- trade_id.
     # Any event with an explicit non-P20- trade_id (e.g. BTT-, EXP-) is a replay or
     # backtest event that must not pollute the canonical live execution stream.
@@ -147,7 +174,7 @@ def _emit_unsafe(event_type: str, stage: str, *, scan_id, symbol, payload,
                 "Call emit_replay() for backtest/replay events.",
                 event_type, _tid,
             )
-            return
+            return False
 
     if db_available():
         conn = _connect()
@@ -157,17 +184,21 @@ def _emit_unsafe(event_type: str, stage: str, *, scan_id, symbol, payload,
                 cur.execute(
                     """
                     INSERT INTO pipeline_events
-                        (ts, mode, run_id, scan_id, event_type, stage, symbol, payload)
+                        (ts, mode, run_id, scan_id, event_type, stage, symbol, payload,
+                         dedupe_key)
                     VALUES (COALESCE(%s::timestamptz, NOW()),
-                            %s, %s, %s, %s, %s, %s, %s)
+                            %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL
+                    DO NOTHING
                     """,
                     (ts, mode, run_id, scan_id, event_type, stage.upper(),
-                     (symbol or None), json.dumps(payload or {}, default=str)),
+                     (symbol or None), json.dumps(payload or {}, default=str),
+                     (dedupe_key or None)),
                 )
             conn.commit()
         finally:
             conn.close()
-        return
+        return True
 
     # File fallback (dev/tests without DATABASE_URL)
     rows: List[Dict[str, Any]] = []
@@ -176,17 +207,21 @@ def _emit_unsafe(event_type: str, stage: str, *, scan_id, symbol, payload,
             rows = json.load(f)
     except Exception:
         rows = []
+    if dedupe_key and any(r.get("dedupe_key") == dedupe_key for r in rows):
+        return True
     next_id = (rows[-1]["id"] + 1) if rows else 1
     rows.append({
         "id": next_id, "ts": (ts or _now_iso()), "mode": mode, "run_id": run_id,
         "scan_id": scan_id, "event_type": event_type, "stage": stage.upper(),
         "symbol": symbol, "payload": payload or {},
+        "dedupe_key": dedupe_key or None,
     })
     rows = rows[-_FALLBACK_MAX:]
     tmp = FALLBACK_FILE + ".tmp"
     with open(tmp, "w") as f:
         json.dump(rows, f, default=str)
     os.replace(tmp, FALLBACK_FILE)
+    return True
 
 
 def emit_replay(event_type: str, stage: str, *, scan_id: Optional[str] = None,

@@ -121,3 +121,4 @@
 - [Scheduled scan cache invalidation](scheduled-scan-cache-invalidation.md) — lifecycle events must invalidate status/history caches; no-store headers and browser cache busting cannot clear server TTL entries.
 - [Public build-ID labels](public-build-id-labels.md) — shared APEXQUANT_BUILD_ID bumped in 3 places together; missing prod value = production-unidentified, never development; verify published bundles by curling the hashed asset.
 - [Custom universe historical membership](custom-universe-history.md) — mutable universe masters need append-only refresh snapshots for no-look-ahead backtests; current rows are never historical truth.
+- [EOD paper outcome audit](eod-paper-outcome-audit.md) — EOD requires an acknowledged ledger close or one deduped blocked outcome; retry audit writes only, never repeat a sell.

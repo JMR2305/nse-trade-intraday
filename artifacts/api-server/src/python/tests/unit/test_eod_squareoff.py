@@ -92,6 +92,7 @@ def _build_stubs(
     # phase20_executor
     pe = types.ModuleType("phase20_executor")
     pe.get_open_trades = MagicMock(return_value=open_trades)
+    pe.get_all_open_trades = MagicMock(return_value=open_trades)
     pe.get_exit_pending_trades = MagicMock(return_value=[])   # needed by _resolve_timeout_exit_pending
     pe.record_exit = MagicMock()
     stubs["phase20_executor"] = pe
@@ -363,7 +364,7 @@ class TestEodForceClose(unittest.TestCase):
         stubs = _build_stubs(trades, kite_ltp=0.0, yf_price=0.0,
                               scan_ok=True, quote_reliable=False)
         # Also patch fill_price to 0 so fallback fails
-        stubs["phase20_executor"].get_open_trades = MagicMock(
+        stubs["phase20_executor"].get_all_open_trades = MagicMock(
             return_value=[{**_trade(), "fill_price": 0.0}])
         orig = {}
         for k, v in stubs.items():
@@ -561,12 +562,136 @@ class TestEodForceClose(unittest.TestCase):
                          "force_closed must be empty when sell fails")
         self.assertEqual(len(result["blocked"]), 1,
                          "blocked list must contain the failed trade")
-        self.assertIn("execute_sell failed",
+        self.assertIn("execute_sell rejected",
                       result["blocked"][0].get("reason", ""),
                       f"Unexpected blocked reason: {result['blocked'][0]}")
         emitted_types = [c[0][0] for c in emit_calls]
         self.assertIn("MARKET_CLOSE_EXIT_BLOCKED", emitted_types,
                       f"MARKET_CLOSE_EXIT_BLOCKED not emitted; got {emitted_types}")
+
+    def test_entries_created_after_1520_sweep_receive_one_close_window_outcome(self):
+        """Late entries missed by the 15:20 sweep are never invisible at 15:30.
+
+        The production failure involved positions that remained OPEN after the
+        intraday sweep.  This regression pins one successful post-close exit
+        and one rejected paper sell: each trade must produce exactly one
+        terminal or explicitly blocked outcome in the force-close result.
+        """
+        late_fill = "2026-08-20T09:55:00Z"  # 15:25 IST, after the 15:20 sweep
+        drreddy = _trade("P20-late-drreddy", "DRREDDY", 1186.98, 1)
+        trent = _trade("P20-late-trent", "TRENT", 5300.0, 1)
+        drreddy["fill_ts"] = late_fill
+        trent["fill_ts"] = late_fill
+        stubs = _build_stubs([drreddy, trent], yf_price=1183.0)
+        stubs["paper_trader"].execute_sell.side_effect = (
+            lambda symbol, *_args, **_kwargs:
+            (True, "ok") if symbol == "DRREDDY"
+            else (False, "portfolio position missing")
+        )
+
+        orig = {}
+        for key, value in stubs.items():
+            orig[key] = sys.modules.get(key)
+            sys.modules[key] = value
+        try:
+            sys.modules.pop("phase20_exits", None)
+            from phase20_exits import eod_force_close_open_positions
+            result = eod_force_close_open_positions(
+                _settings(), session_date="2026-08-20",
+            )
+            event_calls = stubs["pipeline_events"].emit.call_args_list
+            notifications = stubs["phase20_store"].add_notification.call_args_list
+        finally:
+            for key in list(stubs):
+                previous = orig.get(key)
+                if previous is None:
+                    sys.modules.pop(key, None)
+                else:
+                    sys.modules[key] = previous
+            sys.modules.pop("phase20_exits", None)
+
+        self.assertEqual(result["evaluated"], 2)
+        self.assertEqual(
+            {row["trade_id"] for row in result["force_closed"]},
+            {"P20-late-drreddy"},
+        )
+        self.assertEqual(
+            {row["trade_id"] for row in result["blocked"]},
+            {"P20-late-trent"},
+        )
+        self.assertEqual(result["unresolved"], [])
+        terminal_and_blocked = (
+            {row["trade_id"] for row in result["force_closed"]}
+            | {row["trade_id"] for row in result["blocked"]}
+        )
+        self.assertEqual(terminal_and_blocked,
+                         {"P20-late-drreddy", "P20-late-trent"})
+        event_types = [call.args[0] for call in event_calls]
+        self.assertIn("PAPER_TRADE_FORCE_CLOSED", event_types)
+        self.assertIn("MARKET_CLOSE_EXIT_BLOCKED", event_types)
+        notification_kinds = [call.args[0] for call in notifications]
+        self.assertIn("MARKET_CLOSE_EXIT_BLOCKED", notification_kinds)
+
+    def test_failed_ledger_acknowledgement_becomes_blocked_not_terminal(self):
+        """A successful sell is not a terminal EOD result until ledger confirms it."""
+        trade = _trade("P20-ledger-failure", "DRREDDY", 1186.98, 1)
+        stubs = _build_stubs([trade], yf_price=1183.0)
+        stubs["phase20_executor"].record_exit = MagicMock(return_value=False)
+        orig = {}
+        for key, value in stubs.items():
+            orig[key] = sys.modules.get(key)
+            sys.modules[key] = value
+        try:
+            sys.modules.pop("phase20_exits", None)
+            from phase20_exits import eod_force_close_open_positions
+            result = eod_force_close_open_positions(
+                _settings(), session_date="2026-08-20",
+            )
+        finally:
+            for key in list(stubs):
+                previous = orig.get(key)
+                if previous is None:
+                    sys.modules.pop(key, None)
+                else:
+                    sys.modules[key] = previous
+            sys.modules.pop("phase20_exits", None)
+
+        self.assertEqual(result["force_closed"], [])
+        self.assertEqual(len(result["blocked"]), 1)
+        self.assertIn("ledger close record failed", result["blocked"][0]["reason"])
+
+    def test_unresolved_audit_retry_never_submits_another_sell(self):
+        """Retrying an event-store failure writes only the missing EOD outcome."""
+        stubs = _build_stubs([])
+        orig = {}
+        for key, value in stubs.items():
+            orig[key] = sys.modules.get(key)
+            sys.modules[key] = value
+        try:
+            sys.modules.pop("phase20_exits", None)
+            from phase20_exits import eod_force_close_open_positions
+            result = eod_force_close_open_positions(
+                _settings(), session_date="2026-08-20",
+                retry_outcomes=[{
+                    "trade_id": "P20-retry-only", "symbol": "TRENT",
+                    "reason": "POST_CLOSE_FORCE_EXIT execute_sell rejected: timeout",
+                    "scan_id": "scan-close",
+                }],
+            )
+            sell_calls = stubs["paper_trader"].execute_sell.call_args_list
+        finally:
+            for key in list(stubs):
+                previous = orig.get(key)
+                if previous is None:
+                    sys.modules.pop(key, None)
+                else:
+                    sys.modules[key] = previous
+            sys.modules.pop("phase20_exits", None)
+
+        self.assertTrue(result["retrying_audit_outcomes"])
+        self.assertEqual(len(result["blocked"]), 1)
+        self.assertEqual(result["unresolved"], [])
+        self.assertEqual(sell_calls, [])
 
 
 class TestSchedulerEodIntegration(unittest.TestCase):
@@ -607,9 +732,8 @@ class TestSchedulerEodIntegration(unittest.TestCase):
 
         return stubs
 
-    def test_auto_paper_exits_false_skips_force_close(self):
-        """When auto_paper_exits is False, eod_force_close_open_positions must
-        return immediately without calling execute_sell or record_exit."""
+    def test_auto_paper_exits_false_records_blocked_outcome_without_selling(self):
+        """Disabled exits must still leave each OPEN position auditable."""
         trades = [_trade(fill_price=1186.98)]
         stubs = _build_stubs(trades, yf_price=1183.0)
         orig = {}
@@ -632,10 +756,12 @@ class TestSchedulerEodIntegration(unittest.TestCase):
                     sys.modules[k] = v
             sys.modules.pop("phase20_exits", None)
 
-        self.assertEqual(result["evaluated"], 0,
-                         "evaluated must be 0 when auto_paper_exits is False")
+        self.assertEqual(result["evaluated"], 1)
         self.assertEqual(result["force_closed"], [],
                          "force_closed must be empty when auto_paper_exits is False")
+        self.assertEqual(len(result["blocked"]), 1,
+                         "disabled exits require one blocked outcome per trade")
+        self.assertEqual(result["blocked"][0]["reason"], "auto_paper_exits_disabled")
         self.assertEqual(sell_calls, [],
                          "execute_sell must not be called when auto_paper_exits is False")
         self.assertEqual(record_exit_calls, [],
@@ -739,13 +865,11 @@ class TestSchedulerEodIntegration(unittest.TestCase):
         out = self._run_scheduler_eod_block("POST_CLOSE", claim_returns=False)
         out["force_close_mock"].assert_not_called()
 
-    def test_claim_released_when_trades_blocked_allowing_retry(self):
-        """When eod_force_close returns blocked trades (no price / sell failed),
-        the scheduler must release the KV claim so the next tick can retry.
-        This prevents positions being stranded overnight after a transient failure.
+    def test_claim_is_retained_when_trades_have_durable_blocked_outcomes(self):
+        """A visible blocked outcome completes the close window once.
 
-        This test exercises the scheduler's claim-release logic directly using
-        the same pattern the scheduler employs, with all dependencies mocked.
+        Retrying a trade that was already recorded as blocked creates duplicate
+        operator alerts.  Only a failed audit write is retryable.
         """
         import datetime as _dt
         _today = _dt.date.today().isoformat()
@@ -764,12 +888,12 @@ class TestSchedulerEodIntegration(unittest.TestCase):
             # Directly replicate the scheduler's EOD block logic with mocks
             if kv_claim_mock(_claim_key, ttl_seconds=86400):
                 eod_result = eod_mock(settings_mock())
-                if eod_result and eod_result.get("blocked"):
+                if eod_result and eod_result.get("unresolved"):
                     kv_release_mock(_claim_key)
         except Exception as exc:
             self.fail(f"Scheduler EOD block raised: {exc}")
 
-        kv_release_mock.assert_called_once_with(_claim_key)
+        kv_release_mock.assert_not_called()
         self.assertIsNotNone(eod_result)
         self.assertEqual(len(eod_result["blocked"]), 1)
 
@@ -1115,9 +1239,10 @@ class TestOvernightCarryOnStartup(unittest.TestCase):
         # ── phase20_executor ──────────────────────────────────────────────────
         pe = types.ModuleType("phase20_executor")
         if get_open_trades_side_effect is not None:
-            pe.get_open_trades = MagicMock(side_effect=get_open_trades_side_effect)
+            pe.get_all_open_trades = MagicMock(
+                side_effect=get_open_trades_side_effect)
         else:
-            pe.get_open_trades = MagicMock(return_value=open_trades)
+            pe.get_all_open_trades = MagicMock(return_value=open_trades)
         stubs["phase20_executor"] = pe
 
         # ── pipeline_events ───────────────────────────────────────────────────
@@ -1263,7 +1388,7 @@ class TestOvernightCarryOnStartup(unittest.TestCase):
                          f"Expected ran=False when claim already held; got {result}")
         self.assertEqual(result.get("reason"), "already_ran_today")
         stubs["phase20_exits"].eod_force_close_open_positions.assert_not_called()
-        stubs["phase20_executor"].get_open_trades.assert_not_called()
+        stubs["phase20_executor"].get_all_open_trades.assert_not_called()
 
     # ── OC-4 ───────────────────────────────────────────────────────────────────
     def test_yesterday_eod_ran_normally_skips_force_close(self):

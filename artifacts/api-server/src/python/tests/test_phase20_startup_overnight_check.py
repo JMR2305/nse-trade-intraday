@@ -95,6 +95,7 @@ def _install_stubs() -> None:
     # phase20_executor
     executor_mod = _make_stub("phase20_executor")
     executor_mod.get_open_trades = MagicMock(return_value=[])
+    executor_mod.get_all_open_trades = MagicMock(return_value=[])
 
     # pipeline_events
     pe_mod = _make_stub("pipeline_events")
@@ -162,6 +163,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
         _KV.reset()
         sys.modules["phase20_exits"].eod_force_close_open_positions.reset_mock()
         sys.modules["phase20_executor"].get_open_trades.reset_mock()
+        sys.modules["phase20_executor"].get_all_open_trades.reset_mock()
         sys.modules["pipeline_events"].emit.reset_mock()
         sys.modules["phase20_exits"].eod_force_close_open_positions.return_value = {
             "evaluated": 0, "force_closed": [], "blocked": []}
@@ -179,7 +181,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
 
         self.assertFalse(result.get("ran"))
         self.assertEqual(result.get("reason"), "already_ran_today")
-        sys.modules["phase20_executor"].get_open_trades.assert_not_called()
+        sys.modules["phase20_executor"].get_all_open_trades.assert_not_called()
 
     # ── eod_squareoff already taken ─────────────────────────────────────────
 
@@ -201,7 +203,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
 
     def test_no_open_positions_claims_eod_key_and_returns_cleanly(self):
         """No OPEN positions → claim yesterday's EOD key, return cleanly."""
-        sys.modules["phase20_executor"].get_open_trades.return_value = []
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = []
 
         result = sched.check_overnight_carry_on_startup()
 
@@ -222,7 +224,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
     def test_no_prior_session_trades_when_all_fills_are_today(self):
         """Trades opened today must not be treated as overnight carries."""
         today_fill = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             _trade(fill_ts=today_fill)]
 
         result = sched.check_overnight_carry_on_startup()
@@ -243,7 +245,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
                                "exit_price": 2500.0}],
             "blocked": [],
         }
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             _trade(symbol="RELIANCE", trade_id="T1", days_ago=1)]
 
         result = sched.check_overnight_carry_on_startup()
@@ -258,7 +260,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
 
     def test_pipeline_event_emitted_per_prior_session_trade(self):
         """MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED must be emitted for each trade."""
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             _trade(symbol="RELIANCE", trade_id="T1", days_ago=1),
             _trade(symbol="TCS", trade_id="T2", days_ago=2),
         ]
@@ -273,7 +275,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
 
     def test_notification_emitted_for_overnight_carry(self):
         """A WARN notification must be added when prior-session trades are found."""
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             _trade(symbol="INFY", trade_id="T3", days_ago=1)]
 
         sched.check_overnight_carry_on_startup()
@@ -286,7 +288,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
 
     def test_yesterday_eod_key_claimed_after_force_close(self):
         """After running force-close, yesterday's eod_squareoff must be claimed."""
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             _trade(days_ago=1)]
 
         sched.check_overnight_carry_on_startup()
@@ -302,7 +304,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
 
     def test_trade_with_no_fill_ts_treated_as_prior_session(self):
         """A trade with no fill_ts must be conservatively treated as prior-session."""
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             {"trade_id": "T5", "symbol": "HDFCBANK", "quantity": 5,
              "fill_price": 1700.0, "fill_ts": None, "status": "OPEN"}]
 
@@ -313,7 +315,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
 
     def test_trade_with_malformed_fill_ts_treated_as_prior_session(self):
         """A trade with a malformed fill_ts must be treated as prior-session."""
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             {"trade_id": "T6", "symbol": "WIPRO", "quantity": 3,
              "fill_price": 450.0, "fill_ts": "not-a-timestamp", "status": "OPEN"}]
 
@@ -326,7 +328,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
 
     def test_startup_claim_prevents_double_execution_within_same_day(self):
         """Two consecutive calls on the same day must only run force-close once."""
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             _trade(days_ago=1)]
 
         result1 = sched.check_overnight_carry_on_startup()
@@ -343,7 +345,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
 
     def test_startup_claim_released_on_error_so_next_restart_retries(self):
         """If an unexpected error occurs, the startup claim must be released."""
-        sys.modules["phase20_executor"].get_open_trades.side_effect = \
+        sys.modules["phase20_executor"].get_all_open_trades.side_effect = \
             RuntimeError("DB unavailable")
 
         result = sched.check_overnight_carry_on_startup()
@@ -358,8 +360,8 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
                           "startup_overnight_check claim must be released on error")
 
         # Now a retry should be allowed
-        sys.modules["phase20_executor"].get_open_trades.side_effect = None
-        sys.modules["phase20_executor"].get_open_trades.return_value = []
+        sys.modules["phase20_executor"].get_all_open_trades.side_effect = None
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = []
         result2 = sched.check_overnight_carry_on_startup()
         self.assertTrue(result2.get("ran"))
 
@@ -368,7 +370,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
     def test_only_prior_session_trades_are_force_closed_not_todays(self):
         """Today's trades must NOT be treated as overnight carries."""
         today_fill = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             _trade(symbol="RELIANCE", trade_id="OLD", days_ago=1),
             _trade(symbol="TCS", trade_id="NEW", fill_ts=today_fill),
         ]
@@ -381,6 +383,31 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
         self.assertNotIn("TCS", result.get("symbols", []))
         # Force-close still runs (because there IS at least one prior-session trade)
         sys.modules["phase20_exits"].eod_force_close_open_positions.assert_called_once()
+        call = sys.modules["phase20_exits"].eod_force_close_open_positions.call_args
+        self.assertEqual(
+            [trade["trade_id"] for trade in call.kwargs["open_trades"]],
+            ["OLD"],
+            "Cold-start force-close must not sweep positions opened today",
+        )
+
+    def test_unresolved_startup_outcome_releases_claim_for_next_restart(self):
+        """A cold-start audit-write failure must remain retryable."""
+        sys.modules["phase20_exits"].eod_force_close_open_positions.return_value = {
+            "evaluated": 1, "force_closed": [], "blocked": [],
+            "unresolved": [{"trade_id": "T1", "symbol": "RELIANCE"}],
+        }
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
+            _trade(symbol="RELIANCE", trade_id="T1", days_ago=1)]
+
+        result = sched.check_overnight_carry_on_startup()
+
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+        yesterday = (datetime.now(ZoneInfo("Asia/Kolkata")).date()
+                     - timedelta(days=1)).isoformat()
+        self.assertTrue(result["retryable"])
+        self.assertIsNone(_KV.kv_get(f"startup_overnight_check:{today}"))
+        self.assertIsNone(_KV.kv_get(f"eod_squareoff:{yesterday}"))
 
     def test_eod_force_close_result_included_in_return(self):
         """The return value must include the eod_force_close sub-result."""
@@ -389,7 +416,7 @@ class TestCheckOvernightCarryOnStartup(unittest.TestCase):
             "force_closed": [{"trade_id": "T1", "symbol": "SBIN"}],
             "blocked": [],
         }
-        sys.modules["phase20_executor"].get_open_trades.return_value = [
+        sys.modules["phase20_executor"].get_all_open_trades.return_value = [
             _trade(days_ago=1)]
 
         result = sched.check_overnight_carry_on_startup()
