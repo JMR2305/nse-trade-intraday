@@ -544,3 +544,10 @@ uri = "file://APEXQUANT_PHASE1D_PRODUCTION_CUSTOM_UNIVERSE_POPULATION_REPORT.md"
 type = "text"
 title = "Phase 1D — Production Custom Universe Population Report"
 description = "25/25 upserted. 23 active (IT=1, Infra=13, Bank=9) + 2 inactive audit rows. price_filter fixed to 20–500. 40/40 tests pass. Active universe remains NIFTY_50. Phase 1E safe to proceed."
+
+[[outputs]]
+id = "Y03DdfSYUAcnVI9pho2qN"
+uri = "file://APEXQUANT_PHASE1E_ACTIVE_UNIVERSE_SWITCH_REPORT.md"
+type = "text"
+title = "Phase 1E — Active Universe Switch Report"
+description = "CUSTOM_LOW_PRICE_SECTOR is now the active production universe. 23 symbols, NIFTY_50 retired. All safety flags unchanged. 40/40 tests pass."
