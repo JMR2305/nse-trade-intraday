@@ -1205,6 +1205,15 @@ def main():
             # No yfinance calls — safe to poll frequently.
             from phase20_eod_status import build_eod_status_payload as _build_eod
             result = _build_eod()
+        elif command == "phase20_eod_outcomes":
+            # Read-only query of durable per-trade EOD outcome records.
+            # args: [session_date_or_empty, limit_str]
+            # Paper/research only — no mutation, no broker calls.
+            from phase20_eod_outcomes import get_eod_outcomes as _get_eod_out
+            _eod_date = args[1] if len(args) > 1 and args[1] else None
+            _eod_limit = min(500, max(1, int(args[2]))) if len(args) > 2 and args[2].isdigit() else 100
+            _rows = _get_eod_out(session_date=_eod_date, limit=_eod_limit)
+            result = {"success": True, "outcomes": _rows, "count": len(_rows)}
         elif command == "phase20_force_eod_close_now":
             # Emergency: run eod_force_close_open_positions immediately,
             # bypassing the kv_claim_once date guard (for use when the claim

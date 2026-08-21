@@ -495,3 +495,10 @@ uri = "file://APEXQUANT_PHASE0C_CORRECTED_SAFETY_ACCEPTANCE_REPORT.md"
 type = "text"
 title = "Phase 0C — Corrected Safety Acceptance Report"
 description = "All 5 issues resolved: safe state corrected & re-paused (both envs), 22/22 tests, DEV IMPLEMENTED ONLY status, bootstrap claim-order proof (Test 18), malformed timestamp fail-closed fix + proof (Tests 19–22)."
+
+[[outputs]]
+id = "IjMoImbKCU8fQHcXJsCmW"
+uri = "file://APEXQUANT_PHASE0D_PRODUCTION_DEPLOYMENT_AND_SAFETY_VERIFICATION_REPORT.md"
+type = "text"
+title = "Phase 0D — Production Deployment & Safety Verification Report"
+description = "Pre-deploy snapshot, EOD outcomes route wired (HTTP 200 on dev), APEXQUANT_BUILD_ID set, 22/22 tests pass, watch plan for next session. Awaiting publish to production."

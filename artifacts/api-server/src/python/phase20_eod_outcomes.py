@@ -211,3 +211,18 @@ def get_eod_outcomes(
             conn.close()
     except Exception:
         return []
+
+
+if __name__ == "__main__":
+    import json
+    import sys
+
+    _session_date: Optional[str] = None
+    _limit = 100
+    if len(sys.argv) > 1 and sys.argv[1]:
+        _session_date = sys.argv[1]
+    if len(sys.argv) > 2 and sys.argv[2].isdigit():
+        _limit = min(500, max(1, int(sys.argv[2])))
+
+    _rows = get_eod_outcomes(session_date=_session_date, limit=_limit)
+    print(json.dumps({"success": True, "outcomes": _rows, "count": len(_rows)}))

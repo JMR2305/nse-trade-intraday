@@ -3500,6 +3500,29 @@ router.get("/phase20/eod-status", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/eod-outcomes — read-only query of durable per-trade EOD outcome records.
+// Optional ?session_date=YYYY-MM-DD narrows to one trading day.
+// Optional ?limit=N (1–500, default 100). Returns newest first.
+// Read-only: no mutation, no broker calls, no trade creation or deletion.
+router.get("/phase20/eod-outcomes", async (req, res) => {
+  setLiveStatusNoStore(res);
+  try {
+    const sessionDate =
+      typeof req.query.session_date === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(req.query.session_date)
+        ? req.query.session_date
+        : "";
+    const limit = String(
+      Math.min(500, Math.max(1, parseInt(String(req.query.limit ?? "100"), 10) || 100))
+    );
+    res.json(await runPython(["phase20_eod_outcomes", sessionDate, limit]));
+  } catch (err: unknown) {
+    res
+      .status(500)
+      .json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // POST /api/phase20/force-eod-close — emergency bypass: run
 // eod_force_close_open_positions immediately WITHOUT the kv_claim_once guard.
 // Use when today's claim was already consumed by a failed earlier attempt.
