@@ -530,3 +530,10 @@ uri = "file://APEXQUANT_PHASE1C_CAPITAL_MIGRATION_EVIDENCE_REPORT.md"
 type = "text"
 title = "Phase 1C — Capital Migration Evidence Report"
 description = "All 20 checks passed. ₹5,00,000 → ₹1,00,000 applied at 12:20:38 UTC. 6 closed trades and −₹278.74 P&L preserved. Auto entries, bootstrap, and universe unchanged."
+
+[[outputs]]
+id = "3YQ8s9XTWdOvroQHfza33"
+uri = "file://APEXQUANT_PHASE1B_DEV_CUSTOM_UNIVERSE_VALIDATION_REPORT.md"
+type = "text"
+title = "Phase 1B — Dev Custom Universe Validation Report"
+description = "18/18 tests pass. 23 symbols (1 IT + 13 Infra + 9 Bank) populated in dev DB. IOB and UCOBANK excluded with documented reasons. Empty-universe safety proven. Phase 0C gate passes. Safe for Phase 1D production population."
