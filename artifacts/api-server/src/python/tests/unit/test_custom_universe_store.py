@@ -62,6 +62,23 @@ def _sample_row(symbol: str, is_active: bool = True, ohlcv: bool = True,
     )
 
 
+def _valid_active_payload(symbol: str = "WIPRO", sector: str = "IT", **overrides):
+    """Return a complete active-symbol payload accepted by the upsert guard."""
+    row = {
+        "symbol": symbol,
+        "is_active": True,
+        "company_name": f"{symbol} Ltd",
+        "sector": sector,
+        "yahoo_symbol": f"{symbol}.NS",
+        "kite_symbol": symbol,
+        "price_min": 20,
+        "price_max": 500,
+        "ohlcv_available": True,
+    }
+    row.update(overrides)
+    return row
+
+
 # ── Test 1 — upsert idempotency ────────────────────────────────────────────
 
 class TestUpsertIdempotency(unittest.TestCase):
@@ -69,8 +86,7 @@ class TestUpsertIdempotency(unittest.TestCase):
     def test_second_upsert_succeeds_and_returns_upserted_count(self):
         """Calling upsert_symbols twice with the same symbol must both succeed."""
         import custom_universe_store
-        rows = [{"symbol": "WIPRO", "is_active": True, "sector": "IT",
-                 "ohlcv_available": True}]
+        rows = [_valid_active_payload()]
 
         _conn, _cur, fake_connect = _make_db_mock()
         with patch.object(custom_universe_store, "_db_available", return_value=True), \
@@ -102,6 +118,43 @@ class TestUpsertIdempotency(unittest.TestCase):
             result = custom_universe_store.upsert_symbols(rows)
         self.assertTrue(result["success"])
         self.assertEqual(result["upserted"], 0)
+
+    def test_active_wipro_partial_overwrite_is_rejected_before_db(self):
+        """A partial active update must not erase WIPRO metadata with defaults."""
+        import custom_universe_store
+        result = custom_universe_store.upsert_symbols([{
+            "symbol": "WIPRO",
+            "is_active": True,
+            "sector": None,
+            "price_max": 200,
+            "ohlcv_available": False,
+        }])
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["upserted"], 0)
+        self.assertIn("company_name", result["error"])
+        self.assertIn("yahoo_symbol", result["error"])
+        self.assertIn("kite_symbol", result["error"])
+        self.assertIn("price_min", result["error"])
+        self.assertIn("sector", result["error"])
+        self.assertNotIn("price_max", result["error"].split(":", 1)[-1])
+        self.assertNotIn("ohlcv_available", result["error"].split(":", 1)[-1])
+
+    def test_omitted_price_max_is_not_defaulted_to_200(self):
+        """An omitted price_max must remain NULL, never silently become 200."""
+        import custom_universe_store
+        rows = [{"symbol": "IOB", "is_active": False}]
+        _conn, _cur, fake_connect = _make_db_mock()
+        captured_values = []
+
+        with patch.object(custom_universe_store, "_db_available", return_value=True), \
+             patch.object(custom_universe_store, "_connect", fake_connect), \
+             patch("psycopg2.extras.execute_values",
+                   side_effect=lambda cur, sql, vals: captured_values.append(vals)):
+            result = custom_universe_store.upsert_symbols(rows)
+
+        self.assertTrue(result["success"])
+        self.assertEqual(captured_values[0][0][9], None)
 
 
 # ── Test 2 — active-only filtering ────────────────────────────────────────
@@ -166,8 +219,7 @@ class TestMembershipHistoryAppendOnly(unittest.TestCase):
     def test_upsert_writes_to_history_table(self):
         """upsert_symbols must INSERT into custom_universe_membership_history."""
         import custom_universe_store
-        rows = [{"symbol": "WIPRO", "is_active": True, "sector": "IT",
-                 "ohlcv_available": True}]
+        rows = [_valid_active_payload()]
         _conn, _cur, fake_connect = _make_db_mock()
         executed_sqls = []
 
@@ -185,7 +237,7 @@ class TestMembershipHistoryAppendOnly(unittest.TestCase):
     def test_history_insert_uses_on_conflict_do_nothing(self):
         """History writes must use ON CONFLICT DO NOTHING (append-only guarantee)."""
         import custom_universe_store
-        rows = [{"symbol": "WIPRO", "is_active": True, "sector": "IT"}]
+        rows = [_valid_active_payload()]
         _conn, _cur, fake_connect = _make_db_mock()
         captured_sqls = []
 
@@ -339,8 +391,9 @@ class TestInvalidMappingReported(unittest.TestCase):
         """Symbols without a Kite instrument_token (NULL) must be inserted
         successfully — the token is optional until Kite is configured."""
         import custom_universe_store
-        rows = [{"symbol": "IRFC", "is_active": True, "sector": "INFRA",
-                 "instrument_token": None, "ohlcv_available": True}]
+        rows = [_valid_active_payload(
+            symbol="IRFC", sector="INFRA", instrument_token=None,
+        )]
         _conn, _cur, fake_connect = _make_db_mock()
         with patch.object(custom_universe_store, "_db_available", return_value=True), \
              patch.object(custom_universe_store, "_connect", fake_connect), \

@@ -87,6 +87,17 @@ async function request(
 describe("Admin route security — POST /api/universe/custom/upsert", () => {
   let server: Server;
   const VALID_TOKEN = "test-admin-token-phase1f";
+  const VALID_ACTIVE_ROW = {
+    symbol: "WIPRO",
+    company_name: "Wipro Ltd",
+    sector: "IT",
+    yahoo_symbol: "WIPRO.NS",
+    kite_symbol: "WIPRO",
+    price_min: 20,
+    price_max: 500,
+    is_active: true,
+    ohlcv_available: true,
+  };
 
   beforeAll(async () => {
     process.env.UNIVERSE_ADMIN_TOKEN = VALID_TOKEN;
@@ -157,7 +168,7 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
       method: "POST",
       path: "/api/universe/custom/upsert",
       adminToken: VALID_TOKEN,
-      body: { rows: [{ symbol: "WIPRO", is_active: true, ohlcv_available: true }] },
+      body: { rows: [VALID_ACTIVE_ROW] },
     });
     expect(r.status).toBe(200);
     const body = r.body as Record<string, unknown>;
@@ -200,7 +211,7 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
       method: "POST",
       path: "/api/universe/custom/upsert",
       adminToken: VALID_TOKEN,
-      body: { rows: [{ symbol: "WIPRO", is_active: true }] },
+      body: { rows: [VALID_ACTIVE_ROW] },
     });
 
     // Filter to calls that contain universe_custom_upsert (ignore app-startup spawn calls)
@@ -219,6 +230,30 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
     for (const cmd of BROKER_COMMANDS) {
       expect(allDispatchedArgs).not.toContain(cmd);
     }
+  });
+
+  it("returns 400 and does not dispatch a partial active WIPRO overwrite", async () => {
+    const r = await request(server, {
+      method: "POST",
+      path: "/api/universe/custom/upsert",
+      adminToken: VALID_TOKEN,
+      body: {
+        rows: [{
+          symbol: "WIPRO",
+          is_active: true,
+          sector: null,
+          price_max: 200,
+          ohlcv_available: false,
+        }],
+      },
+    });
+    expect(r.status).toBe(400);
+    const body = r.body as Record<string, unknown>;
+    expect(body["success"]).toBe(false);
+    expect(body["error"]).toEqual(
+      "active row 0 for WIPRO must include non-null: sector, company_name, yahoo_symbol, kite_symbol, price_min",
+    );
+    expect(upsertCalls()).toHaveLength(0);
   });
 });
 
@@ -245,7 +280,17 @@ describe("Admin route fail-closed — upsert blocked when UNIVERSE_ADMIN_TOKEN n
       method: "POST",
       path: "/api/universe/custom/upsert",
       adminToken: "any-value-even-correct-looking",
-      body: { rows: [{ symbol: "WIPRO", is_active: true }] },
+      body: { rows: [{
+        symbol: "WIPRO",
+        is_active: true,
+        sector: "IT",
+        company_name: "Wipro Ltd",
+        yahoo_symbol: "WIPRO.NS",
+        kite_symbol: "WIPRO",
+        price_min: 20,
+        price_max: 500,
+        ohlcv_available: true,
+      }] },
     });
     // No env var → always 403 regardless of what the caller sends
     expect(r.status).toBe(403);

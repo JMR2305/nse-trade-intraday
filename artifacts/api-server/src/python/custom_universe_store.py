@@ -110,6 +110,11 @@ _COLUMNS = [
     "ohlcv_available", "last_verified_at", "created_at", "updated_at",
 ]
 
+_ACTIVE_REQUIRED_FIELDS = (
+    "sector", "company_name", "yahoo_symbol", "kite_symbol",
+    "price_min", "price_max", "ohlcv_available",
+)
+
 
 def _serialise(row: Any) -> Dict[str, Any]:
     out = dict(zip(_COLUMNS, row))
@@ -125,6 +130,35 @@ def upsert_symbols(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Upsert included and excluded candidates atomically."""
     if not rows:
         return {"success": True, "upserted": 0}
+    for index, raw in enumerate(rows):
+        if not isinstance(raw, dict):
+            return {
+                "success": False,
+                "upserted": 0,
+                "error": f"row {index} must be an object",
+            }
+        if not str(raw.get("symbol") or "").upper().strip():
+            # Preserve the historic behavior: malformed blank symbols are
+            # ignored rather than turning a whole operator batch into a failure.
+            continue
+        if raw.get("is_active") is True:
+            missing = [
+                field for field in _ACTIVE_REQUIRED_FIELDS
+                if field not in raw
+                or raw.get(field) is None
+                or (isinstance(raw.get(field), str) and not raw[field].strip())
+            ]
+            if missing:
+                symbol = str(raw.get("symbol") or "").strip().upper()
+                label = f" for {symbol}" if symbol else ""
+                return {
+                    "success": False,
+                    "upserted": 0,
+                    "error": (
+                        f"active row {index}{label} must include non-null: "
+                        f"{', '.join(missing)}"
+                    ),
+                }
     if not ensure_table():
         return {"success": False, "upserted": 0, "error": "db_unavailable"}
     values = []
@@ -133,11 +167,11 @@ def upsert_symbols(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         if not symbol:
             continue
         values.append((
-            symbol, raw.get("yahoo_symbol") or f"{symbol}.NS",
-            raw.get("kite_symbol") or symbol, raw.get("instrument_token"),
+            symbol, raw.get("yahoo_symbol"),
+            raw.get("kite_symbol"), raw.get("instrument_token"),
             raw.get("company_name"), raw.get("sector"), raw.get("industry"),
             raw.get("allowed_universe") or ALLOWED_UNIVERSE,
-            raw.get("price_min", 20.0), raw.get("price_max", 200.0),
+            raw.get("price_min"), raw.get("price_max"),
             bool(raw.get("is_active")), raw.get("reason_included"),
             raw.get("reason_excluded"), raw.get("last_ltp"),
             raw.get("last_ltp_source"), raw.get("avg_volume_20d"),

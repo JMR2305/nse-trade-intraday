@@ -5,6 +5,41 @@ import { PYTHON_BIN, PYTHON_DIR } from "../lib/python-env";
 
 const router: IRouter = Router();
 
+const ACTIVE_REQUIRED_FIELDS = [
+  "sector",
+  "company_name",
+  "yahoo_symbol",
+  "kite_symbol",
+  "price_min",
+  "price_max",
+  "ohlcv_available",
+] as const;
+
+function validateActiveRows(rows: unknown[]): string | null {
+  for (const [index, candidate] of rows.entries()) {
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+      return `row ${index} must be an object`;
+    }
+
+    const row = candidate as Record<string, unknown>;
+    if (row["is_active"] !== true) continue;
+
+    const missing = ACTIVE_REQUIRED_FIELDS.filter((field) => {
+      if (!(field in row) || row[field] === null || row[field] === undefined) {
+        return true;
+      }
+      return typeof row[field] === "string" && row[field].trim() === "";
+    });
+    if (missing.length > 0) {
+      const symbol = typeof row["symbol"] === "string" && row["symbol"].trim()
+        ? ` for ${row["symbol"]}`
+        : "";
+      return `active row ${index}${symbol} must include non-null: ${missing.join(", ")}`;
+    }
+  }
+  return null;
+}
+
 function runPython(args: string[], timeoutMs = 30_000): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const proc = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), ...args], {
@@ -84,6 +119,11 @@ router.post("/universe/custom/upsert", wrap(async (req, res) => {
   const rows = req.body?.rows;
   if (!Array.isArray(rows) || rows.length === 0) {
     res.status(400).json({ success: false, error: "rows must be a non-empty array" });
+    return;
+  }
+  const validationError = validateActiveRows(rows);
+  if (validationError) {
+    res.status(400).json({ success: false, error: validationError });
     return;
   }
   res.json(await runPython([
