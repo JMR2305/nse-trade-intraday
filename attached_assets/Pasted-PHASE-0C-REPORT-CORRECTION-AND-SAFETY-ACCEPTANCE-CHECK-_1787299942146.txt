@@ -1,0 +1,108 @@
+PHASE 0C REPORT CORRECTION AND SAFETY ACCEPTANCE CHECK
+
+Review APEXQUANT_PHASE0C_CRITICAL_SAFETY_FIX_IMPLEMENTATION_REPORT.md.
+
+Do not change settings.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change capital.
+Do not change universe.
+Do not change LTIM.
+Do not change thresholds.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+PAPER ONLY.
+
+The Phase 0C report has inconsistencies that must be corrected before acceptance.
+
+ISSUE 1 — SAFE STATE CONTRADICTION
+
+The report header says:
+auto_paper_entries=true re-enabled by operator at 09:00 IST
+
+But later sections say:
+auto_paper_entries=false
+bootstrap_paper_enabled=false
+auto_paper_exits=true
+no OPEN positions
+
+Clarify the actual current state in production and dev.
+
+Required proof:
+- GET /api/phase20/settings
+- GET /api/phase20/bootstrap-status
+- GET /api/phase20/positions
+- database phase20_settings value
+- config_hash
+- timestamp of verification
+
+If auto_paper_entries is true anywhere, pause it immediately only if already operator-approved by Option C. Otherwise flag as BLOCKED and ask operator approval.
+
+ISSUE 2 — TEST COUNT CONTRADICTION
+
+The report says:
+- 17/17 tests passing
+- test file lists 16 tests
+- remaining blockers say tests must still pass
+
+Clarify:
+- exact number of tests
+- exact command run
+- full pytest summary
+- whether tests passed before or after the final code state
+- whether any tests were skipped/xfailed
+
+ISSUE 3 — PRODUCTION DEPLOYMENT PENDING
+
+The report says production deployment is pending.
+
+Clarify:
+- has Phase 0C been deployed to production or not?
+- if not deployed, mark status as DEV IMPLEMENTED ONLY
+- if deployed, provide build ID, deployment timestamp, and production route verification
+
+Do not claim production safety until deployment and post-deploy verification are complete.
+
+ISSUE 4 — BOOTSTRAP STALE SIGNAL CLAIM ORDER
+
+The report says run_bootstrap_auto_entry applies stale signal logic after kv_claim_once.
+
+This is not acceptable if it consumes the per-scan bootstrap claim for a stale scan.
+
+Required behavior:
+- stale signal check must happen before kv_claim_once
+- stale scan must return STALE_SIGNAL_BLOCKED
+- stale scan must not consume bootstrap_scan:{scan_id}
+- add/confirm test for this exact behavior
+
+ISSUE 5 — MALFORMED SIGNAL TIMESTAMP FAILS OPEN
+
+The report says timestamp parse failure skips the stale guard and continues.
+
+For automatic paper entry safety, malformed or missing signal timestamp should fail closed unless there is a documented safe exception.
+
+Required behavior:
+- malformed signal_ts or snapshot_ts should block AUTO/BOOTSTRAP_AUTO with INVALID_SIGNAL_TIMESTAMP or STALE_SIGNAL_BLOCKED
+- no entry should be created from unknown-age signal
+- add/confirm test
+
+DELIVERABLE
+
+Generate corrected report:
+
+APEXQUANT_PHASE0C_CORRECTED_SAFETY_ACCEPTANCE_REPORT.md
+
+Include:
+1. Correct current safe state.
+2. Correct test count and full pytest result.
+3. Deployment status: dev-only or production-deployed.
+4. Production verification evidence if deployed.
+5. Bootstrap stale-signal claim order proof.
+6. Malformed timestamp fail-closed proof.
+7. Updated remaining blockers.
+8. Clear status:
+   - DEV IMPLEMENTED ONLY
+   - PRODUCTION DEPLOYED BUT BLOCKED
+   - PRODUCTION VERIFIED SAFE WITH AUTO ENTRIES STILL PAUSED
+9. Confirmation no live orders.

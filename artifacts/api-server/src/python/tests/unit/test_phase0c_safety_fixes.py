@@ -897,5 +897,257 @@ class TestNoLiveOrderPathTouched(unittest.TestCase):
         self.assertEqual(ex.MAX_SIGNAL_AGE_MINUTES, 20)
 
 
+# ── Test 15 — Bootstrap stale scan does NOT consume kv_claim_once slot ────────
+# (Issue 4 acceptance test — proves the early stale guard fires BEFORE kv_claim_once)
+
+class TestBootstrapStaleDoesNotConsumeClaimSlot(unittest.TestCase):
+    """
+    Acceptance test for Phase 0C Issue 4.
+
+    run_bootstrap_auto_entry must:
+    1. Check snapshot age BEFORE calling kv_claim_once.
+    2. Return STALE_SIGNAL_BLOCKED for a snapshot > MAX_SIGNAL_AGE_MINUTES old.
+    3. Leave the bootstrap_scan:{scan_id} claim slot unconsumed so a later
+       valid snapshot with the same scan_id can be processed.
+    """
+
+    def setUp(self):
+        self._saved = {}
+        for name in ["market_hours", "phase20_store", "scan_state_store",
+                     "phase20_circuit_breaker", "phase20_executor",
+                     "paper_entry_admission"]:
+            self._saved[name] = sys.modules.pop(name, None)
+
+    def tearDown(self):
+        for name, mod in self._saved.items():
+            if mod is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = mod
+
+    def test_bootstrap_stale_does_not_consume_claim_slot(self):
+        """STALE_SIGNAL_BLOCKED returned BEFORE kv_claim_once is invoked."""
+        _stub_market_hours(sys.modules, 10, 0, state="OPEN")
+
+        # Snapshot 30 min old — exceeds MAX_SIGNAL_AGE_MINUTES=20
+        stale_ts = _iso(_utc() - timedelta(minutes=30))
+        snapshot = {
+            "scan_id": "SCAN-STALE-CLAIM",
+            "snapshot_ts": stale_ts,
+            "recommendations": [],
+            "safety": {"kite_ltp_session_verified": True},
+        }
+        settings = {
+            "auto_paper_entries": True,
+            "auto_paper_entries_confirmed_at": "now",
+            "bootstrap_paper_enabled": True,
+        }
+
+        kv_claim_calls: List[str] = []
+
+        store = types.ModuleType("phase20_store")
+        def _kv_claim(key, ttl=None):
+            kv_claim_calls.append(key)
+            return True
+        store.kv_claim_once = _kv_claim
+        store.kv_get = lambda k, d=None: None
+        store.add_notification = lambda *a, **k: None
+        sys.modules["phase20_store"] = store
+
+        # phase20_executor does `from scan_state_store import db_available, _connect`
+        # at module level — both names must exist on the stub for a fresh import.
+        sss = types.ModuleType("scan_state_store")
+        sss.db_available = lambda: False
+        sss._connect = lambda: None
+        sys.modules["scan_state_store"] = sss
+
+        # phase20_executor also imports PAPER_ENTRY_ADMISSION_LOCK_ID at module level.
+        pea = types.ModuleType("paper_entry_admission")
+        pea.PAPER_ENTRY_ADMISSION_LOCK_ID = 12345
+        sys.modules["paper_entry_admission"] = pea
+
+        import phase20_executor as ex
+        result = ex.run_bootstrap_auto_entry(snapshot, settings,
+                                             circuit_breaker_tripped=False)
+
+        # Must block on stale signal
+        self.assertEqual(result.get("reason"), "STALE_SIGNAL_BLOCKED",
+                         f"Expected STALE_SIGNAL_BLOCKED before claim, got: {result}")
+        self.assertFalse(result.get("ran", True))
+        # kv_claim_once must NOT have been called — claim slot preserved for retry
+        self.assertEqual(len(kv_claim_calls), 0,
+                         f"kv_claim_once was called {len(kv_claim_calls)} time(s) "
+                         f"for stale scan — claim slot must be preserved for retry")
+
+
+# ── Tests 16 & 17 — Malformed / missing timestamp fails closed ────────────────
+# (Issue 5 acceptance tests — fail-open replaced with INVALID_SIGNAL_TIMESTAMP)
+
+class TestMalformedTimestampFailsClosedAutoEntries(unittest.TestCase):
+    """
+    Acceptance tests for Phase 0C Issue 5 — run_auto_entries path.
+
+    Before this fix: a malformed or missing snapshot_ts triggered
+    `except Exception: pass` causing the age check to be silently skipped
+    and the entry to proceed from a signal of unknown age.
+
+    After this fix: INVALID_SIGNAL_TIMESTAMP is returned immediately.
+    No entry is created from a signal whose age cannot be verified.
+    """
+
+    def setUp(self):
+        self._saved = {}
+        for name in ["phase20_gates", "phase20_circuit_breaker", "phase20_store",
+                     "market_hours", "scan_state_store", "phase20_executor"]:
+            self._saved[name] = sys.modules.pop(name, None)
+
+    def tearDown(self):
+        for name, mod in self._saved.items():
+            if mod is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = mod
+
+    def _install_common_stubs(self, snap_ts):
+        _stub_market_hours(sys.modules, 10, 0, state="OPEN")
+
+        gates = types.ModuleType("phase20_gates")
+        gates.evaluate_entries = lambda: {
+            "scan_id": "SCAN-BAD-TS",
+            "snapshot_ts": snap_ts,
+            "candidates": [{"symbol": "DRREDDY", "eligible": True,
+                            "confidence": 0.9, "gates": []}],
+        }
+        sys.modules["phase20_gates"] = gates
+
+        cb = types.ModuleType("phase20_circuit_breaker")
+        cb.evaluate_and_maybe_trip = lambda s: {"tripped": False}
+        sys.modules["phase20_circuit_breaker"] = cb
+
+        store = types.ModuleType("phase20_store")
+        store.add_notification = lambda *a, **k: None
+        store.kv_get = lambda k, d=None: None
+        sys.modules["phase20_store"] = store
+
+    def test_malformed_timestamp_returns_invalid_signal_timestamp(self):
+        """run_auto_entries returns INVALID_SIGNAL_TIMESTAMP for unparseable timestamp."""
+        self._install_common_stubs("NOT-A-DATE")
+
+        import phase20_executor as ex
+        result = ex.run_auto_entries({
+            "auto_paper_entries": True,
+            "auto_paper_entries_confirmed_at": "now",
+        })
+        self.assertEqual(result.get("reason"), "INVALID_SIGNAL_TIMESTAMP",
+                         f"Expected INVALID_SIGNAL_TIMESTAMP for malformed ts, got: {result}")
+        self.assertFalse(result.get("ran", True),
+                         "ran must be False when timestamp is malformed")
+
+    def test_missing_timestamp_returns_invalid_signal_timestamp(self):
+        """run_auto_entries returns INVALID_SIGNAL_TIMESTAMP when snapshot_ts is None."""
+        self._install_common_stubs(None)
+
+        import phase20_executor as ex
+        result = ex.run_auto_entries({
+            "auto_paper_entries": True,
+            "auto_paper_entries_confirmed_at": "now",
+        })
+        self.assertEqual(result.get("reason"), "INVALID_SIGNAL_TIMESTAMP",
+                         f"Expected INVALID_SIGNAL_TIMESTAMP for None ts, got: {result}")
+        self.assertFalse(result.get("ran", True),
+                         "ran must be False when snapshot_ts is None")
+
+
+class TestMalformedTimestampFailsClosedBootstrap(unittest.TestCase):
+    """
+    Acceptance tests for Phase 0C Issue 5 — run_bootstrap_auto_entry path.
+
+    Malformed or missing snapshot_ts must:
+    1. Return INVALID_SIGNAL_TIMESTAMP (fail-closed).
+    2. NOT call kv_claim_once (claim slot preserved for retry with valid scan).
+    """
+
+    def setUp(self):
+        self._saved = {}
+        for name in ["market_hours", "phase20_store", "scan_state_store",
+                     "phase20_circuit_breaker", "phase20_executor",
+                     "paper_entry_admission"]:
+            self._saved[name] = sys.modules.pop(name, None)
+
+    def tearDown(self):
+        for name, mod in self._saved.items():
+            if mod is None:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = mod
+
+    def _install_common_stubs(self) -> List[str]:
+        _stub_market_hours(sys.modules, 10, 0, state="OPEN")
+        kv_claim_calls: List[str] = []
+        store = types.ModuleType("phase20_store")
+        def _kv_claim(key, ttl=None):
+            kv_claim_calls.append(key)
+            return True
+        store.kv_claim_once = _kv_claim
+        store.kv_get = lambda k, d=None: None
+        store.add_notification = lambda *a, **k: None
+        sys.modules["phase20_store"] = store
+        # phase20_executor does `from scan_state_store import db_available, _connect`
+        # and `from paper_entry_admission import PAPER_ENTRY_ADMISSION_LOCK_ID`
+        # at module level — all names must exist on the stubs for a fresh import.
+        sss = types.ModuleType("scan_state_store")
+        sss.db_available = lambda: False
+        sss._connect = lambda: None
+        sys.modules["scan_state_store"] = sss
+        pea = types.ModuleType("paper_entry_admission")
+        pea.PAPER_ENTRY_ADMISSION_LOCK_ID = 12345
+        sys.modules["paper_entry_admission"] = pea
+        return kv_claim_calls
+
+    def _make_settings(self):
+        return {
+            "auto_paper_entries": True,
+            "auto_paper_entries_confirmed_at": "now",
+            "bootstrap_paper_enabled": True,
+        }
+
+    def test_bootstrap_malformed_timestamp_fails_closed_no_claim(self):
+        """Bootstrap malformed timestamp → INVALID_SIGNAL_TIMESTAMP, kv_claim_once not called."""
+        kv_claim_calls = self._install_common_stubs()
+        snapshot = {
+            "scan_id": "SCAN-BAD-TS",
+            "snapshot_ts": "GARBAGE-TIMESTAMP",
+            "recommendations": [],
+            "safety": {"kite_ltp_session_verified": True},
+        }
+        import phase20_executor as ex
+        result = ex.run_bootstrap_auto_entry(snapshot, self._make_settings(),
+                                             circuit_breaker_tripped=False)
+        self.assertEqual(result.get("reason"), "INVALID_SIGNAL_TIMESTAMP",
+                         f"Expected INVALID_SIGNAL_TIMESTAMP for malformed ts, got: {result}")
+        self.assertFalse(result.get("ran", True))
+        self.assertEqual(len(kv_claim_calls), 0,
+                         f"kv_claim_once must not be called when timestamp is malformed "
+                         f"(called {len(kv_claim_calls)} times)")
+
+    def test_bootstrap_missing_timestamp_fails_closed_no_claim(self):
+        """Bootstrap None snapshot_ts → INVALID_SIGNAL_TIMESTAMP, kv_claim_once not called."""
+        kv_claim_calls = self._install_common_stubs()
+        snapshot = {
+            "scan_id": "SCAN-NONE-TS",
+            "snapshot_ts": None,
+            "recommendations": [],
+            "safety": {"kite_ltp_session_verified": True},
+        }
+        import phase20_executor as ex
+        result = ex.run_bootstrap_auto_entry(snapshot, self._make_settings(),
+                                             circuit_breaker_tripped=False)
+        self.assertEqual(result.get("reason"), "INVALID_SIGNAL_TIMESTAMP",
+                         f"Expected INVALID_SIGNAL_TIMESTAMP for None ts, got: {result}")
+        self.assertFalse(result.get("ran", True))
+        self.assertEqual(len(kv_claim_calls), 0,
+                         "kv_claim_once must not be called when snapshot_ts is None")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

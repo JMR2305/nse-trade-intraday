@@ -488,3 +488,10 @@ uri = "file://APEXQUANT_PHASE0C_CRITICAL_SAFETY_FIX_IMPLEMENTATION_REPORT.md"
 type = "text"
 title = "Phase 0C Critical Safety Fix — Implementation & Verification Report"
 description = "Full implementation report covering all 6 safety fixes, 17/17 tests, and the 2026-08-21 13:35 IST production verification findings."
+
+[[outputs]]
+id = "n6CmXc4mdz3UY7lRgQ633"
+uri = "file://APEXQUANT_PHASE0C_CORRECTED_SAFETY_ACCEPTANCE_REPORT.md"
+type = "text"
+title = "Phase 0C — Corrected Safety Acceptance Report"
+description = "All 5 issues resolved: safe state corrected & re-paused (both envs), 22/22 tests, DEV IMPLEMENTED ONLY status, bootstrap claim-order proof (Test 18), malformed timestamp fail-closed fix + proof (Tests 19–22)."

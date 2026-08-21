@@ -1419,23 +1419,38 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
     # Stale signal guard: reject when the scan snapshot is older than
     # MAX_SIGNAL_AGE_MINUTES. A pre-cutoff scan (e.g. 14:49 IST) cannot
     # authorise an entry at 15:25 IST even if the duplicate gate was just
-    # cleared by an exit on the same tick. Never blocks on parsing failure.
-    if _snap_ts:
-        try:
-            _snap_dt = datetime.fromisoformat(str(_snap_ts).replace("Z", "+00:00"))
-            _signal_age_s = (_now() - _snap_dt).total_seconds()
-            if _signal_age_s > MAX_SIGNAL_AGE_MINUTES * 60:
-                return {
-                    "ran": False,
-                    "reason": "STALE_SIGNAL_BLOCKED",
-                    "signal_ts": str(_snap_ts),
-                    "decision_ts": _iso(),
-                    "signal_age_minutes": round(_signal_age_s / 60.0, 1),
-                    "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
-                    "scan_id": _scan_id,
-                }
-        except Exception:
-            pass  # parsing failure → proceed (age check never blocks on its own failure)
+    # cleared by an exit on the same tick.
+    # FAIL-CLOSED: a missing, None, or malformed timestamp is treated as
+    # INVALID_SIGNAL_TIMESTAMP — no entry is created from a signal of unknown age.
+    if not _snap_ts:
+        return {
+            "ran": False,
+            "reason": "INVALID_SIGNAL_TIMESTAMP",
+            "detail": "snapshot_ts is missing or None — cannot verify signal age",
+            "decision_ts": _iso(),
+            "scan_id": _scan_id,
+        }
+    try:
+        _snap_dt = datetime.fromisoformat(str(_snap_ts).replace("Z", "+00:00"))
+        _signal_age_s = (_now() - _snap_dt).total_seconds()
+        if _signal_age_s > MAX_SIGNAL_AGE_MINUTES * 60:
+            return {
+                "ran": False,
+                "reason": "STALE_SIGNAL_BLOCKED",
+                "signal_ts": str(_snap_ts),
+                "decision_ts": _iso(),
+                "signal_age_minutes": round(_signal_age_s / 60.0, 1),
+                "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
+                "scan_id": _scan_id,
+            }
+    except Exception:
+        return {
+            "ran": False,
+            "reason": "INVALID_SIGNAL_TIMESTAMP",
+            "detail": f"snapshot_ts could not be parsed: {_snap_ts!r}",
+            "decision_ts": _iso(),
+            "scan_id": _scan_id,
+        }
 
     for cand in evaluation.get("candidates", []):
         if not cand.get("eligible"):
@@ -1660,25 +1675,40 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
     # ── Early stale signal guard (TASK 3 / PHASE 0C) ─────────────────────────
     # Checked BEFORE kv_claim_once so that a stale snapshot does NOT consume the
     # per-scan claim slot (which would make the first good scan with the same
-    # scan_id appear "already processed"). Never blocks on parsing failure.
+    # scan_id appear "already processed").
+    # FAIL-CLOSED: a missing, None, or malformed timestamp blocks entry and does
+    # NOT call kv_claim_once — so the claim slot is preserved for a valid retry.
     _snap_ts_early = snapshot.get("snapshot_ts")
-    if _snap_ts_early:
-        try:
-            _snap_dt_early = datetime.fromisoformat(
-                str(_snap_ts_early).replace("Z", "+00:00"))
-            _age_s_early = (_now() - _snap_dt_early).total_seconds()
-            if _age_s_early > MAX_SIGNAL_AGE_MINUTES * 60:
-                return {
-                    "ran": False,
-                    "reason": "STALE_SIGNAL_BLOCKED",
-                    "signal_ts": str(_snap_ts_early),
-                    "decision_ts": _iso(),
-                    "signal_age_minutes": round(_age_s_early / 60.0, 1),
-                    "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
-                    "scan_id": snapshot.get("scan_id"),
-                }
-        except Exception:
-            pass  # fail-open on malformed timestamp
+    if not _snap_ts_early:
+        return {
+            "ran": False,
+            "reason": "INVALID_SIGNAL_TIMESTAMP",
+            "detail": "snapshot_ts is missing or None — cannot verify signal age",
+            "decision_ts": _iso(),
+            "scan_id": snapshot.get("scan_id"),
+        }
+    try:
+        _snap_dt_early = datetime.fromisoformat(
+            str(_snap_ts_early).replace("Z", "+00:00"))
+        _age_s_early = (_now() - _snap_dt_early).total_seconds()
+        if _age_s_early > MAX_SIGNAL_AGE_MINUTES * 60:
+            return {
+                "ran": False,
+                "reason": "STALE_SIGNAL_BLOCKED",
+                "signal_ts": str(_snap_ts_early),
+                "decision_ts": _iso(),
+                "signal_age_minutes": round(_age_s_early / 60.0, 1),
+                "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
+                "scan_id": snapshot.get("scan_id"),
+            }
+    except Exception:
+        return {
+            "ran": False,
+            "reason": "INVALID_SIGNAL_TIMESTAMP",
+            "detail": f"snapshot_ts could not be parsed: {_snap_ts_early!r}",
+            "decision_ts": _iso(),
+            "scan_id": snapshot.get("scan_id"),
+        }
 
     # Count closed production trades (bootstrap auto-disables above threshold)
     def _closed_count(conn) -> int:
