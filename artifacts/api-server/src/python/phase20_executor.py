@@ -40,6 +40,12 @@ _LEDGER_FILE = os.path.join(_DIR, "phase20_ledger.json")
 
 RULE_VERSION = "phase20-v1"
 
+# Maximum age (in minutes) for a scan snapshot to authorise an automatic
+# paper entry. A pre-cutoff scan cannot authorise a post-cutoff entry even
+# if the no_open_duplicate gate was cleared on the same tick. Defense in depth
+# alongside the _manage_paper() pre-guard and the _insert_row() final check.
+MAX_SIGNAL_AGE_MINUTES: int = 20
+
 _SCHEMA_READY = False
 
 
@@ -1180,6 +1186,35 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
     if _rv_result:
         row.setdefault("evidence", {})["risk_validation"] = _rv_result
 
+    # ── Entry admission evidence (TASK 6) ─────────────────────────────────────
+    # Record build identity and market-window state at the exact admission
+    # decision point. These fields are immutable once the row is inserted and
+    # allow post-hoc verification that the entry ran inside the permitted window.
+    try:
+        from market_hours import automatic_paper_entry_status as _ape_ev
+        from market_hours import now_ist as _nist_ev
+        _ape_now = _nist_ev()
+        _ape_status = _ape_ev(_ape_now)
+        _signal_age_sec: Optional[float] = None
+        if snapshot_ts:
+            try:
+                _st_dt = datetime.fromisoformat(str(snapshot_ts).replace("Z", "+00:00"))
+                _signal_age_sec = round((_now() - _st_dt).total_seconds(), 1)
+            except Exception:
+                pass
+        row.setdefault("evidence", {}).update({
+            "build_id": str(os.environ.get("APEXQUANT_BUILD_ID") or "").strip() or "unknown",
+            "signal_age_seconds": _signal_age_sec,
+            "entry_market_state": _ape_status.get("market_state"),
+            "entry_allowed": _ape_status.get("allowed"),
+            "entry_cutoff_ist": _ape_status.get("cutoff_ist"),
+            "cutoff_reached": _ape_status.get("cutoff_reached"),
+            "checked_at_ist": _ape_now.isoformat(),
+            "checked_at_utc": _iso(),
+        })
+    except Exception:
+        pass  # never block an entry on evidence annotation failure
+
     try:
         from pipeline_events import emit as _pe
     except Exception:
@@ -1380,6 +1415,28 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
     blocked: List[Dict[str, Any]] = []
     _scan_id = evaluation.get("scan_id")
     _snap_ts = evaluation.get("snapshot_ts")
+
+    # Stale signal guard: reject when the scan snapshot is older than
+    # MAX_SIGNAL_AGE_MINUTES. A pre-cutoff scan (e.g. 14:49 IST) cannot
+    # authorise an entry at 15:25 IST even if the duplicate gate was just
+    # cleared by an exit on the same tick. Never blocks on parsing failure.
+    if _snap_ts:
+        try:
+            _snap_dt = datetime.fromisoformat(str(_snap_ts).replace("Z", "+00:00"))
+            _signal_age_s = (_now() - _snap_dt).total_seconds()
+            if _signal_age_s > MAX_SIGNAL_AGE_MINUTES * 60:
+                return {
+                    "ran": False,
+                    "reason": "STALE_SIGNAL_BLOCKED",
+                    "signal_ts": str(_snap_ts),
+                    "decision_ts": _iso(),
+                    "signal_age_minutes": round(_signal_age_s / 60.0, 1),
+                    "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
+                    "scan_id": _scan_id,
+                }
+        except Exception:
+            pass  # parsing failure → proceed (age check never blocks on its own failure)
+
     for cand in evaluation.get("candidates", []):
         if not cand.get("eligible"):
             # Build a human-readable reason map from the full gate objects so
@@ -1600,6 +1657,29 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
         return {"ran": False,
                 "reason": "Kite LTP not verified in snapshot — bootstrap requires live quotes"}
 
+    # ── Early stale signal guard (TASK 3 / PHASE 0C) ─────────────────────────
+    # Checked BEFORE kv_claim_once so that a stale snapshot does NOT consume the
+    # per-scan claim slot (which would make the first good scan with the same
+    # scan_id appear "already processed"). Never blocks on parsing failure.
+    _snap_ts_early = snapshot.get("snapshot_ts")
+    if _snap_ts_early:
+        try:
+            _snap_dt_early = datetime.fromisoformat(
+                str(_snap_ts_early).replace("Z", "+00:00"))
+            _age_s_early = (_now() - _snap_dt_early).total_seconds()
+            if _age_s_early > MAX_SIGNAL_AGE_MINUTES * 60:
+                return {
+                    "ran": False,
+                    "reason": "STALE_SIGNAL_BLOCKED",
+                    "signal_ts": str(_snap_ts_early),
+                    "decision_ts": _iso(),
+                    "signal_age_minutes": round(_age_s_early / 60.0, 1),
+                    "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
+                    "scan_id": snapshot.get("scan_id"),
+                }
+        except Exception:
+            pass  # fail-open on malformed timestamp
+
     # Count closed production trades (bootstrap auto-disables above threshold)
     def _closed_count(conn) -> int:
         with conn.cursor() as cur:
@@ -1661,6 +1741,32 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
         and r.get("quote_reliable")
         and r.get("kite_session_verified_flag")
     ]
+    scan_id = snapshot.get("scan_id")
+    snap_ts = snapshot.get("snapshot_ts")
+
+    # Stale signal guard — same MAX_SIGNAL_AGE_MINUTES rule as run_auto_entries.
+    # Checked BEFORE candidate selection so a stale snapshot releases the
+    # kv_claim_once claim (claim was already set above — that's correct; we
+    # don't want a stale scan retried either). Checked before candidates so an
+    # empty candidates list from a stale scan doesn't shadow the real reason.
+    # Never blocks on parsing failure.
+    if snap_ts:
+        try:
+            _snap_dt = datetime.fromisoformat(str(snap_ts).replace("Z", "+00:00"))
+            _signal_age_s = (_now() - _snap_dt).total_seconds()
+            if _signal_age_s > MAX_SIGNAL_AGE_MINUTES * 60:
+                return {
+                    "ran": False,
+                    "reason": "STALE_SIGNAL_BLOCKED",
+                    "signal_ts": str(snap_ts),
+                    "decision_ts": _iso(),
+                    "signal_age_minutes": round(_signal_age_s / 60.0, 1),
+                    "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
+                    "scan_id": scan_id,
+                }
+        except Exception:
+            pass
+
     if not candidates:
         return {"ran": False, "reason": "No bootstrap_eligible WATCH candidates in snapshot"}
 
@@ -1673,9 +1779,6 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
         ),
         reverse=True,
     )
-
-    scan_id = snapshot.get("scan_id")
-    snap_ts = snapshot.get("snapshot_ts")
 
     # Override fill_model to "bootstrap_paper" for clear ledger labelling.
     bootstrap_settings = dict(settings)

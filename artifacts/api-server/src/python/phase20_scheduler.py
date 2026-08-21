@@ -1537,6 +1537,27 @@ def run_tick() -> Dict[str, Any]:
     # quality), once per day after the post-open grace period. Never raises.
     p26c_session = _maybe_run_phase26c_validation(mstate)
 
+    # ── Dedicated 15:20 IST intraday squareoff (TASK 4) ─────────────────────
+    # Fires exactly once per IST trading day via kv_claim_once, independent of
+    # scan cadence. This is the primary EOD close path — runs even when the
+    # snapshot is fresh and the scanner skips the full run. Imports resolve
+    # BEFORE claiming so a setup error doesn't consume the daily retry slot.
+    # Never raises — a failure is recorded but never blocks the tick.
+    intraday_squareoff_1520: Optional[Dict[str, Any]] = None
+    try:
+        from market_hours import now_ist as _nist_sq
+        from phase20_exits import close_all_for_intraday_squareoff as _sq_fn
+        from phase20_store import get_settings as _sq_gs
+        _sq_now = _nist_sq()
+        _SQ_H, _SQ_M = 15, 20
+        if (_sq_now.hour > _SQ_H
+                or (_sq_now.hour == _SQ_H and _sq_now.minute >= _SQ_M)):
+            _sq_key = f"intraday_squareoff_1520:{_sq_now.date().isoformat()}"
+            if store.kv_claim_once(_sq_key):
+                intraday_squareoff_1520 = _sq_fn(_sq_gs())
+    except Exception as _sq_exc:
+        intraday_squareoff_1520 = {"error": str(_sq_exc)[:200]}
+
     from phase15_scan_context import scan_age_seconds
     age = scan_age_seconds()
     if age is not None and age < interval_min * 60:
@@ -1551,6 +1572,8 @@ def run_tick() -> Dict[str, Any]:
             "reason": f"Snapshot fresh ({round(age)}s old, interval {interval_min}m)",
         }
         result["paper"] = _manage_paper(settings, ran_scan=False)
+        if intraday_squareoff_1520 is not None:
+            result["intraday_squareoff_1520"] = intraday_squareoff_1520
         if session_alert is not None:
             result["session_alert"] = session_alert
         if coverage_alert is not None:
@@ -1671,6 +1694,8 @@ def run_tick() -> Dict[str, Any]:
                 "failed_modules": pipeline.get("failed_modules"),
             }
         result["paper"] = _manage_paper(settings, ran_scan=ran)
+        if intraday_squareoff_1520 is not None:
+            result["intraday_squareoff_1520"] = intraday_squareoff_1520
         if session_alert is not None:
             result["session_alert"] = session_alert
         if coverage_alert is not None:
@@ -1748,8 +1773,68 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
         out["performance_alerts"] = evaluate_and_notify(settings)
     except Exception as exc:
         out["performance_alerts"] = {"error": str(exc)[:200]}
+    # ── Entry window pre-guard (defense-in-depth layer 1) ────────────────────
+    # Check the paper-entry window AFTER exits and circuit-breaker, BEFORE
+    # calling either auto-entry path.  Exits may have just cleared the
+    # no_open_duplicate gate on this very tick; without this pre-guard a
+    # post-15:15 tick would immediately re-use that cleared gate and rely
+    # solely on the final lock-held _insert_row() check to block the insert.
+    # This layer eliminates the race at the scheduler level.
+    # Also blocks entries if today's startup overnight-carry check has not
+    # yet completed (Autoscale-safe via KV).
+    # Never raises — an unreadable market_hours module fails closed.
+    _entry_window: Dict[str, Any] = {}
     try:
-        if settings.get("auto_paper_entries") and settings.get("auto_paper_entries_confirmed_at"):
+        from market_hours import automatic_paper_entry_status as _ape_status
+        from market_hours import now_ist as _nist_ew
+        _ew_ts = _nist_ew()
+        _entry_window = _ape_status(_ew_ts)
+        _entry_window = dict(_entry_window)
+        _entry_window["checked_at_ist"] = _ew_ts.isoformat()
+    except Exception as _ewexc:
+        _entry_window = {
+            "allowed": False,
+            "reason": f"entry_window_check_error: {str(_ewexc)[:100]}",
+            "market_state": "UNKNOWN",
+            "cutoff_ist": "15:15",
+            "cutoff_reached": True,
+            "checked_at_ist": None,
+        }
+    _entry_window_open = bool(_entry_window.get("allowed"))
+
+    # Startup overnight-carry check: block entries if today's startup safety net
+    # has not yet completed.  check_overnight_carry_on_startup() sets the
+    # startup_overnight_check:{today} KV key when it runs.  A missing key means
+    # either the key never existed (startup not yet run) or the DB is briefly
+    # unavailable — in both cases fail-closed is the safer choice.
+    if _entry_window_open:
+        try:
+            from market_hours import now_ist as _nist_sc
+            _today_sc = _nist_sc().date().isoformat()
+            _startup_done = bool(store.kv_get(f"startup_overnight_check:{_today_sc}"))
+            if not _startup_done:
+                _entry_window_open = False
+                _entry_window = dict(_entry_window)
+                _entry_window["allowed"] = False
+                _entry_window["reason"] = (
+                    "OVERNIGHT_CARRY_CHECK_PENDING — startup safety net has not "
+                    "yet completed for today; entries blocked until remediation "
+                    "is recorded"
+                )
+        except Exception:
+            pass  # KV unavailable — don't block on infrastructure failure
+
+    try:
+        if not _entry_window_open:
+            out["entries"] = {
+                "skipped": True,
+                "reason": "ENTRY_WINDOW_CLOSED",
+                "entry_window": _entry_window,
+                "cutoff_ist": _entry_window.get("cutoff_ist"),
+                "checked_at_ist": _entry_window.get("checked_at_ist"),
+                "market_state": _entry_window.get("market_state"),
+            }
+        elif settings.get("auto_paper_entries") and settings.get("auto_paper_entries_confirmed_at"):
             from phase20_executor import run_auto_entries
             out["entries"] = run_auto_entries(settings)
         else:
@@ -1766,7 +1851,16 @@ def _manage_paper(settings: Dict[str, Any], ran_scan: bool) -> Dict[str, Any]:
         _bs_entries_on = (settings.get("auto_paper_entries")
                           and settings.get("auto_paper_entries_confirmed_at"))
         _bs_flag_on = settings.get("bootstrap_paper_enabled", False)
-        if not _bs_entries_on or not _bs_flag_on:
+        if not _entry_window_open:
+            out["bootstrap"] = {
+                "ran": False,
+                "reason": "ENTRY_WINDOW_CLOSED",
+                "entry_window": _entry_window,
+                "cutoff_ist": _entry_window.get("cutoff_ist"),
+                "checked_at_ist": _entry_window.get("checked_at_ist"),
+                "market_state": _entry_window.get("market_state"),
+            }
+        elif not _bs_entries_on or not _bs_flag_on:
             out["bootstrap"] = {
                 "ran": False,
                 "reason": (

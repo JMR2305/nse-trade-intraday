@@ -132,7 +132,7 @@ def _fetch_ledger_eod_rows(
                 "exit_rule": exit_rule or "UNKNOWN",
                 "exit_price": float(exit_price) if exit_price is not None else None,
                 "realized_pnl": float(realized_pnl) if realized_pnl is not None else None,
-                "exit_price_source": None,   # ledger rows don't store provenance
+                "exit_price_source": None,   # enriched by caller from phase20_eod_outcomes
                 "fallback_used": False,
                 "exit_ts": exit_ts,
             })
@@ -217,6 +217,29 @@ def build_eod_status_payload() -> Dict[str, Any]:
         # Force-close results come from the ledger (authoritative; covers both
         # MARKET_CLOSE_EXIT from the intraday path and POST_CLOSE_FORCE_EXIT).
         force_close_results = _fetch_ledger_eod_rows(ist_midnight_utc)
+
+        # Enrich exit_price_source from durable outcome records (TASK 7).
+        # phase20_eod_outcomes stores price-source provenance that the ledger
+        # table does not. Enrichment is advisory — never let it kill the payload.
+        try:
+            from phase20_eod_outcomes import get_eod_outcomes as _geo
+            _outcomes = _geo(session_date=today_str, limit=200)
+            _src_map: Dict[str, str] = {}
+            for _o in _outcomes:
+                _sym_o = str(_o.get("symbol") or "").upper()
+                _src = _o.get("exit_price_source")
+                if _sym_o and _src:
+                    _src_map[_sym_o] = str(_src)
+            for _row in force_close_results:
+                _s = str(_row.get("symbol") or "").upper()
+                if _s in _src_map and _row.get("exit_price_source") is None:
+                    _row["exit_price_source"] = _src_map[_s]
+                    _row["fallback_used"] = _src_map[_s] in (
+                        "fill_price_fallback",
+                        "ohlcv_cache_prev_session_close",
+                    )
+        except Exception:
+            pass
 
         # Blocked events come from pipeline events (the only place they're recorded).
         blocked_events = _fetch_blocked_events(ist_midnight_utc)

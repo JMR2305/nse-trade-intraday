@@ -1,0 +1,225 @@
+PHASE 0C — IMPLEMENT CRITICAL PAPER-SAFETY FIXES ONLY
+
+Use APEXQUANT_PHASE0B_POST_CUTOFF_AND_EOD_ROOT_CAUSE_REPORT.md as the controlling report.
+
+This is a safety remediation implementation task only.
+
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change capital.
+Do not change active universe.
+Do not change LTIM.
+Do not change strategy thresholds.
+Do not implement multi-agent architecture.
+Do not implement intraday candle strategy work.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current required safe state must remain:
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- no current OPEN positions
+
+GOAL:
+Fix the confirmed Phase 0B safety failures before any Phase 1 architecture work.
+
+Confirmed failures:
+1. `_manage_paper()` ran exits first and then entries in the same tick, allowing a new entry after square-off.
+2. The deployed admission path allowed AUTO / BOOTSTRAP_AUTO entries after the 15:15 IST cutoff.
+3. A stale 14:49 scan was used for 15:25–15:26 entries.
+4. EOD depended too much on opportunistic scheduler ticks; the server shut down before POST_CLOSE and same-day force close did not run.
+5. Cold-start force close worked, but only as backup and with fill-price fallback.
+
+TASK 1 — ENTRY WINDOW PRE-GUARD IN `_manage_paper()`
+
+Modify `phase20_scheduler.py` so `_manage_paper()` checks the current automatic paper-entry window AFTER exits and BEFORE entries/bootstrap.
+
+Required behavior:
+- `manage_open_positions()` may still run after 15:15.
+- But `run_auto_entries()` and `run_bootstrap_auto_entry()` must not run if `automatic_paper_entry_status().allowed` is false.
+- This must block both AUTO and BOOTSTRAP_AUTO.
+- Return explicit output:
+  - entries skipped reason: `ENTRY_WINDOW_CLOSED`
+  - bootstrap skipped reason: `ENTRY_WINDOW_CLOSED`
+  - cutoff time
+  - checked_at_ist
+  - market_state
+
+Important:
+This is defense-in-depth. Keep the existing `_insert_row()` final cutoff guard unchanged.
+
+TASK 2 — FINAL ADMISSION GUARD VERIFICATION
+
+Verify `phase20_executor._insert_row()` performs:
+1. pre-admission `_market_entry_status()` check
+2. final check inside advisory/DB lock before durable insert
+
+If missing, implement it.
+If present, add tests proving it cannot be bypassed by:
+- AUTO
+- BOOTSTRAP_AUTO
+- stale signal
+- duplicate gate cleared after exit
+- scheduler tick delayed past cutoff
+
+TASK 3 — STALE SIGNAL REJECTION
+
+Implement a max signal age guard for automatic entries.
+
+Rules:
+- Default `MAX_SIGNAL_AGE_MINUTES = 20`
+- Applies to `run_auto_entries()`
+- Applies to `run_bootstrap_auto_entry()`
+- Signal age must be calculated from current IST decision time minus scan/snapshot/signal timestamp.
+- A scan generated before cutoff cannot authorize an entry after cutoff.
+- Emit explicit reason:
+  - `STALE_SIGNAL_BLOCKED`
+  - signal_ts
+  - decision_ts
+  - signal_age_minutes
+  - max_signal_age_minutes
+  - scan_id
+
+Do not loosen thresholds.
+Do not create entries from stale scans.
+
+TASK 4 — DEDICATED EOD JOBS
+
+Add explicit EOD jobs independent of scan cadence:
+
+1. 15:20 IST — `close_all_for_intraday_squareoff()`
+   - closes all OPEN Phase 20 intraday paper positions
+   - uses existing Phase 20 exit path
+   - records `MARKET_CLOSE_EXIT`
+   - if no reliable price, uses existing `EXIT_PENDING` / blocked behavior
+
+2. 15:30 IST — `force_close_survivors_after_close()`
+   - closes any remaining OPEN Phase 20 paper positions
+   - records `POST_CLOSE_FORCE_EXIT`
+   - if unable to close, records durable blocked outcome
+
+3. Startup safety:
+   - `check_overnight_carry_on_startup()` must run before any `_manage_paper()` entry work.
+   - If prior-session OPEN positions exist, block all entries until overnight-carry remediation has either closed them or recorded durable blocked outcome.
+
+TASK 5 — DURABLE PER-TRADE EOD OUTCOME
+
+Create or extend a durable record for every EOD candidate.
+
+For every OPEN trade evaluated during EOD, persist:
+- session_date
+- trade_id
+- symbol
+- attempted_at
+- job_type: 15:20_squareoff / 15:30_force_close / startup_overnight_carry
+- selected_outcome:
+  - CLOSED
+  - EXIT_PENDING
+  - BLOCKED
+  - ERROR
+- exit_rule
+- exit_price
+- exit_price_source
+- reason
+- config_hash
+- build_id if available
+- process/instance ID if available
+- correlation ID
+- error details if any
+
+No silent skip is allowed.
+
+TASK 6 — ENTRY / EXIT EVIDENCE FIELDS
+
+Add evidence to future Phase 20 trade rows and/or linked audit events:
+
+For entries:
+- build_id
+- config_hash
+- trigger_source
+- signal_ts
+- decision_ts
+- fill_ts
+- signal_age_seconds
+- entry_market_state
+- entry_allowed
+- entry_cutoff_ist
+- cutoff_reached
+- checked_at_ist
+- checked_at_utc
+
+For exits:
+- exit_rule
+- exit_price_source
+- selected_exit_reason
+- competing_exit_reasons if any
+- eod_job_type
+- config_hash
+- build_id
+- correlation ID
+
+TASK 7 — COLD-START FORCE-CLOSE IMPROVEMENT
+
+Do not rely on cold-start as primary EOD.
+
+But improve it:
+- keep it as backup only
+- propagate `exit_price_source` into `/api/phase20/eod-status`
+- if live/current price is unavailable, prefer previous session close from the daily OHLCV cache over fill price
+- if previous close is unavailable, use fill-price fallback and label it clearly as `fill_price_fallback`
+- never pretend fallback P&L is market-realized P&L
+
+TASK 8 — TESTS
+
+Add or update tests:
+
+1. `test_auto_entry_blocked_after_1515`
+2. `test_bootstrap_blocked_after_1515`
+3. `test_manage_paper_exits_then_entry_cutoff`
+4. `test_stale_signal_rejected`
+5. `test_signal_before_cutoff_cannot_insert_after_cutoff`
+6. `test_insert_row_final_guard_blocks_after_cutoff`
+7. `test_dedicated_1520_squareoff_closes_open_positions`
+8. `test_dedicated_1530_force_close_closes_survivors`
+9. `test_startup_overnight_carry_runs_before_entry_work`
+10. `test_kv_claim_failure_does_not_suppress_retry`
+11. `test_missing_price_creates_exit_pending_or_blocked_outcome`
+12. `test_every_eod_candidate_gets_durable_outcome`
+13. `test_eod_status_exposes_exit_price_source`
+14. `test_no_live_order_path_touched`
+
+TASK 9 — PRODUCTION-SAFE VERIFICATION PLAN
+
+After implementation and tests:
+- keep `auto_paper_entries=false`
+- keep `bootstrap_paper_enabled=false`
+- deploy only after tests pass
+- verify production build ID
+- verify settings still paused
+- verify no OPEN positions
+- verify EOD routes expose outcome fields
+- do not create test trades in production unless separately approved
+
+TASK 10 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE0C_CRITICAL_SAFETY_FIX_IMPLEMENTATION_REPORT.md
+
+Include:
+1. Files changed.
+2. Exact code changes.
+3. Entry cutoff fix summary.
+4. Stale signal fix summary.
+5. Dedicated EOD job summary.
+6. Durable EOD outcome summary.
+7. Cold-start improvement summary.
+8. Tests added/updated and results.
+9. Production-safe verification steps.
+10. Confirmation auto entries remain disabled.
+11. Confirmation bootstrap remains disabled.
+12. Confirmation no positions changed.
+13. Confirmation no live orders.
+14. Remaining blockers before Phase 1.

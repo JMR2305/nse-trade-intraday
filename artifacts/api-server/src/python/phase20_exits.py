@@ -429,6 +429,208 @@ def _retry_unresolved_market_close_outcomes(
     }
 
 
+def close_all_for_intraday_squareoff(settings: Dict[str, Any]) -> Dict[str, Any]:
+    """15:20 IST dedicated intraday squareoff — closes every OPEN paper position.
+
+    Called from the scheduler's KV-guarded 15:20 IST dedicated job, independent
+    of scan cadence. Uses MARKET_CLOSE_EXIT exit rule (same as the normal
+    intraday squareoff path in manage_open_positions()).
+
+    Records a durable per-trade outcome via phase20_eod_outcomes regardless of
+    success or failure — no silent skips allowed.
+
+    Returns dict with keys: evaluated, closed, pending, blocked, unresolved.
+    Never raises.
+    """
+    from phase20_executor import get_all_open_trades, record_exit
+    settings = settings or {}
+    session_date = _eod_session_date()
+    job_type = "15:20_squareoff"
+    config_hash = settings.get("config_hash")
+
+    if not settings.get("auto_paper_exits", True):
+        return {
+            "evaluated": 0, "closed": [], "pending": [], "blocked": [],
+            "unresolved": [], "skipped_reason": "auto_paper_exits_disabled",
+        }
+
+    open_trades = get_all_open_trades()
+    if not open_trades:
+        return {
+            "evaluated": 0, "closed": [], "pending": [],
+            "blocked": [], "unresolved": [],
+        }
+
+    try:
+        from paper_trader import execute_sell
+    except Exception as exc:
+        _err = str(exc)[:200]
+        from phase20_eod_outcomes import record_eod_outcome as _reo
+        unresolved = []
+        for trade in open_trades:
+            tid = str(trade.get("trade_id") or "")
+            sym = str(trade.get("symbol") or "").upper()
+            _reo(session_date=session_date, trade_id=tid, symbol=sym,
+                 job_type=job_type, selected_outcome="ERROR",
+                 reason=f"paper_sell_service_unavailable: {_err}",
+                 config_hash=config_hash, error_detail=_err)
+            unresolved.append({"trade_id": tid, "symbol": sym})
+        return {"evaluated": len(open_trades), "closed": [], "pending": [],
+                "blocked": [], "unresolved": unresolved,
+                "error": _err}
+
+    # Best-effort scan context for price resolution.
+    ctx: Dict[str, Any] = {}
+    try:
+        from phase15_scan_context import build_scan_context
+        ctx = build_scan_context() or {}
+    except Exception:
+        pass
+    scan_ok = bool(ctx.get("available"))
+    ctx_stale = bool(ctx.get("stale", True))
+    ctx_today = bool(ctx.get("is_today_session", False))
+    symbols_ctx: Dict[str, Any] = ctx.get("symbols") or {}
+    exit_scan_id: Optional[str] = ctx.get("scan_id")
+    yf_data_usable = scan_ok and not ctx_stale and ctx_today
+
+    closed: List[Dict[str, Any]] = []
+    pending: List[Dict[str, Any]] = []
+    blocked: List[Dict[str, Any]] = []
+    unresolved: List[Dict[str, Any]] = []
+
+    from phase20_eod_outcomes import record_eod_outcome as _reo
+
+    for trade in open_trades:
+        sym = str(trade.get("symbol") or "").upper()
+        trade_id = str(trade.get("trade_id") or "")
+        try:
+            qty = int(trade.get("quantity") or 0)
+            fill_price = float(trade.get("fill_price") or 0)
+        except (TypeError, ValueError) as exc:
+            _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+                 job_type=job_type, selected_outcome="ERROR",
+                 reason=f"invalid_trade_fields: {str(exc)[:100]}",
+                 config_hash=config_hash)
+            unresolved.append({"trade_id": trade_id, "symbol": sym})
+            continue
+
+        rec = symbols_ctx.get(sym) or {}
+        quote: float = 0.0
+        exit_price_source: str = "unavailable"
+        quote_reliable = False
+        fallback_used = False
+
+        # 1. yfinance daily close (fresh + today + LIVE/NEAR_LIVE)
+        yf_price = float(rec.get("entry_price") or 0)
+        dq = str(rec.get("data_quality") or "").upper()
+        if yf_data_usable and yf_price > 0 and dq in ("LIVE", "NEAR_LIVE") and not rec.get("error"):
+            quote = yf_price
+            exit_price_source = "yfinance_daily_close"
+            quote_reliable = True
+
+        # 1b. OHLCV cache previous-session close — prefer over fill price
+        if not quote_reliable:
+            try:
+                from ohlcv_cache_store import read_symbol_from_cache
+                _cache_row = read_symbol_from_cache(sym.replace(".NS", ""))
+                if _cache_row and isinstance(_cache_row, dict):
+                    _prev_close = float(
+                        _cache_row.get("close") or _cache_row.get("Close") or 0
+                    )
+                    if _prev_close > 0:
+                        quote = _prev_close
+                        exit_price_source = "ohlcv_cache_prev_session_close"
+                        quote_reliable = False
+                        fallback_used = True
+            except Exception:
+                pass
+
+        # 2. Fill-price fallback
+        if not quote_reliable and quote <= 0 and fill_price > 0:
+            quote = fill_price
+            exit_price_source = "fill_price_fallback"
+            quote_reliable = False
+            fallback_used = True
+
+        # No price at all — record blocked outcome and continue
+        if quote <= 0:
+            _reason = "15:20_squareoff: no price available"
+            _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+                 job_type=job_type, selected_outcome="BLOCKED",
+                 exit_rule="MARKET_CLOSE_EXIT", exit_price=None,
+                 exit_price_source="unavailable", reason=_reason,
+                 config_hash=config_hash)
+            try:
+                from pipeline_events import emit as _pe
+                _pe("MARKET_CLOSE_EXIT_BLOCKED", "PORTFOLIO",
+                    symbol=sym,
+                    payload={
+                        "trade_id": trade_id, "reason": _reason,
+                        "session_date_ist": session_date,
+                        "job_type": job_type,
+                    },
+                    dedupe_key=f"market-close-15-20-blocked:{session_date}:{trade_id}",
+                )
+            except Exception:
+                pass
+            blocked.append({"trade_id": trade_id, "symbol": sym, "reason": _reason})
+            continue
+
+        ok, msg = False, ""
+        try:
+            ok, msg = execute_sell(
+                sym, qty, quote,
+                ledger_trade_id=trade_id,
+                reason=f"MARKET_CLOSE_EXIT 15:20 squareoff (source={exit_price_source})",
+                exit_type="SIGNAL_EXIT",
+            )
+        except Exception as exc:
+            ok, msg = False, str(exc)[:200]
+
+        if not ok:
+            # Sell rejected — leave OPEN, record durable outcome
+            _reason = f"15:20_squareoff execute_sell rejected: {msg}"
+            _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+                 job_type=job_type, selected_outcome="BLOCKED",
+                 exit_rule="MARKET_CLOSE_EXIT", exit_price=quote,
+                 exit_price_source=exit_price_source, reason=_reason,
+                 config_hash=config_hash)
+            blocked.append({"trade_id": trade_id, "symbol": sym,
+                            "reason": _reason, "exit_price_source": exit_price_source})
+            continue
+
+        try:
+            record_exit(trade_id, quote, "MARKET_CLOSE_EXIT", exit_scan_id,
+                        status="CLOSED")
+        except Exception as exc:
+            _reason = f"15:20_squareoff ledger close failed: {str(exc)[:200]}"
+            _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+                 job_type=job_type, selected_outcome="ERROR",
+                 exit_rule="MARKET_CLOSE_EXIT", exit_price=quote,
+                 exit_price_source=exit_price_source, reason=_reason,
+                 config_hash=config_hash)
+            unresolved.append({"trade_id": trade_id, "symbol": sym, "reason": _reason})
+            continue
+
+        pnl = round((quote - fill_price) * qty, 2)
+        _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+             job_type=job_type, selected_outcome="CLOSED",
+             exit_rule="MARKET_CLOSE_EXIT", exit_price=quote,
+             exit_price_source=exit_price_source, realized_pnl=pnl,
+             config_hash=config_hash)
+        closed.append({"trade_id": trade_id, "symbol": sym, "exit_price": quote,
+                       "exit_price_source": exit_price_source,
+                       "realized_pnl": pnl, "fallback_used": fallback_used})
+
+    return {
+        "evaluated": len(open_trades),
+        "closed": closed,
+        "pending": pending,
+        "blocked": blocked,
+        "unresolved": unresolved,
+    }
+
+
 def eod_force_close_open_positions(
     settings: Dict[str, Any],
     open_trades: Optional[List[Dict[str, Any]]] = None,
@@ -552,6 +754,33 @@ def eod_force_close_open_positions(
     blocked: List[Dict[str, Any]] = []
     unresolved: List[Dict[str, Any]] = []
 
+    # Durable outcome helper — TASK 5: every evaluated trade gets a record.
+    _cfg_hash = settings.get("config_hash")
+    _reo_fn = None
+    try:
+        from phase20_eod_outcomes import record_eod_outcome as _reo_fn_import
+        _reo_fn = _reo_fn_import
+    except Exception:
+        pass
+
+    def _durable_outcome_fc(tid_: str, sym_: str, outcome_: str,
+                             rule_: Optional[str] = None,
+                             price_: Optional[float] = None,
+                             src_: Optional[str] = None,
+                             pnl_: Optional[float] = None,
+                             reason_: Optional[str] = None,
+                             err_: Optional[str] = None) -> None:
+        if _reo_fn is None:
+            return
+        try:
+            _reo_fn(session_date=session_date, trade_id=tid_, symbol=sym_,
+                    job_type="15:30_force_close", selected_outcome=outcome_,
+                    exit_rule=rule_, exit_price=price_, exit_price_source=src_,
+                    realized_pnl=pnl_, reason=reason_, config_hash=_cfg_hash,
+                    error_detail=err_)
+        except Exception:
+            pass
+
     for trade in open_trades:
         sym = str(trade.get("symbol") or "").upper()
         trade_id = str(trade.get("trade_id"))
@@ -607,8 +836,27 @@ def eod_force_close_open_positions(
             exit_price_source = "yfinance_daily_close"
             quote_reliable = True
 
-        # 2. Fill price fallback — honest but marked
-        if not quote_reliable and fill_price > 0:
+        # 1b. OHLCV cache previous-session close (cold-start / stale scan)
+        # Prefer over fill price for an honest mark-to-market reference.
+        # Uses the local nightly OHLCV cache so no live network call is made.
+        if not quote_reliable:
+            try:
+                from ohlcv_cache_store import read_symbol_from_cache as _rsc
+                _cache_row = _rsc(sym.replace(".NS", ""))
+                if _cache_row and isinstance(_cache_row, dict):
+                    _prev_close = float(
+                        _cache_row.get("close") or _cache_row.get("Close") or 0
+                    )
+                    if _prev_close > 0:
+                        quote = _prev_close
+                        exit_price_source = "ohlcv_cache_prev_session_close"
+                        quote_reliable = False  # prior-session price, not intraday
+                        fallback_used = True
+            except Exception:
+                pass
+
+        # 2. Fill price fallback — always available; labelled clearly
+        if not quote_reliable and quote <= 0 and fill_price > 0:
             quote = fill_price
             exit_price_source = "fill_price_fallback"
             quote_reliable = False
@@ -672,8 +920,17 @@ def eod_force_close_open_positions(
                 quote_reliable=quote_reliable, sell_msg=str(msg)[:200],
             ):
                 blocked.append(item)
+                _durable_outcome_fc(trade_id, sym, "BLOCKED",
+                                    rule_="POST_CLOSE_FORCE_EXIT",
+                                    price_=quote, src_=exit_price_source,
+                                    reason_=f"execute_sell rejected: {msg}")
             else:
                 unresolved.append(item)
+                _durable_outcome_fc(trade_id, sym, "ERROR",
+                                    rule_="POST_CLOSE_FORCE_EXIT",
+                                    price_=quote, src_=exit_price_source,
+                                    reason_="execute_sell rejected + audit write failed",
+                                    err_=msg)
             continue
 
         rule = "POST_CLOSE_FORCE_EXIT"
@@ -699,8 +956,17 @@ def eod_force_close_open_positions(
                 quote_reliable=quote_reliable,
             ):
                 blocked.append(item)
+                _durable_outcome_fc(trade_id, sym, "BLOCKED",
+                                    rule_="POST_CLOSE_FORCE_EXIT",
+                                    price_=quote, src_=exit_price_source,
+                                    reason_=f"ledger close failed: {str(exc)[:100]}")
             else:
                 unresolved.append(item)
+                _durable_outcome_fc(trade_id, sym, "ERROR",
+                                    rule_="POST_CLOSE_FORCE_EXIT",
+                                    price_=quote, src_=exit_price_source,
+                                    reason_="ledger close failed + audit write failed",
+                                    err_=str(exc)[:100])
             continue
 
         # Emit a rich pipeline event with provenance metadata
@@ -741,6 +1007,11 @@ def eod_force_close_open_positions(
         except Exception:
             pass
 
+        pnl_fc = round((quote - fill_price) * qty, 2)
+        _durable_outcome_fc(trade_id, sym, "CLOSED",
+                            rule_="POST_CLOSE_FORCE_EXIT",
+                            price_=quote, src_=exit_price_source,
+                            pnl_=pnl_fc)
         force_closed.append({
             "trade_id": trade_id, "symbol": sym,
             "exit_price": quote, "exit_price_source": exit_price_source,
