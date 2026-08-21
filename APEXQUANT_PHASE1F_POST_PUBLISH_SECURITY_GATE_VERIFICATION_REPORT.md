@@ -1,4 +1,4 @@
-# APEXQUANT PHASE 1F — POST-PUBLISH SECURITY GATE VERIFICATION REPORT
+2# APEXQUANT PHASE 1F — POST-PUBLISH SECURITY GATE VERIFICATION REPORT
 
 **Verification timestamp:** 2026-08-21T18:43:38Z (UTC) / 2026-08-22 00:13 IST  
 **Environment:** Production — https://nse-trade-intraday.replit.app  
@@ -258,18 +258,18 @@ All 40 pass. The `DeprecationWarning` on `datetime.utcnow()` is pre-existing and
 | 1 | `UNIVERSE_ADMIN_TOKEN` secret set | ✅ 2026-08-21 |
 | 2 | Admin upsert route token gate deployed to production | ✅ **Verified 2026-08-21T18:43Z** |
 | 3 | Production returns 403 without token | ✅ **Confirmed** |
-| 4 | First market session watched (custom universe scan confirmed) | ⏳ Monday 2026-08-25 09:15 IST |
-| 5 | Scanner `universe_mode=CUSTOM_LOW_PRICE_SECTOR`, `symbols_analysed=23` | ⏳ Monday 2026-08-25 |
-| 6 | No AUTO/BOOTSTRAP_AUTO trades during watch session | ⏳ Monday 2026-08-25 |
+| 4 | First market session watched (custom universe scan confirmed) | ⏳ Monday 2026-08-24 09:15 IST |
+| 5 | Scanner `universe_mode=CUSTOM_LOW_PRICE_SECTOR`, `symbols_analysed=23` | ⏳ Monday 2026-08-24 |
+| 6 | No AUTO/BOOTSTRAP_AUTO trades during watch session | ⏳ Monday 2026-08-24 |
 | 7 | `positions=[]` at the moment of auto-entry enable | Required — verify at enable time |
 | 8 | `initial_capital=100000` at the moment of auto-entry enable | Required — verify at enable time |
 
 **Current verdict: NO-GO — 1 remaining condition**  
-The only remaining blocker before auto entries can be considered is **the Monday 2026-08-25 market session watch** (task #892).
+The only remaining blocker before auto entries can be considered is **the Monday 2026-08-24 market session watch** (task #892).
 
 ---
 
-## MONDAY 2026-08-25 SESSION WATCH CHECKLIST
+## MONDAY 2026-08-24 SESSION WATCH CHECKLIST
 
 Check after 09:30 IST (allow the 09:15 scan to complete):
 

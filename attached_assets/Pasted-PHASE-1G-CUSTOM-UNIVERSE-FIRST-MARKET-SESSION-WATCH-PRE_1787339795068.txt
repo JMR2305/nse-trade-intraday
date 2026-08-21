@@ -1,0 +1,121 @@
+PHASE 1G — CUSTOM UNIVERSE FIRST MARKET SESSION WATCH PREP
+
+Use APEXQUANT_PHASE1F_POST_PUBLISH_SECURITY_GATE_VERIFICATION_REPORT.md as the controlling report.
+
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change capital.
+Do not change active universe.
+Do not change thresholds.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current production state:
+- initial_capital=100000
+- active_intraday_universe=CUSTOM_LOW_PRICE_SECTOR
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- positions=[]
+
+TASK 1 — CORRECT SESSION WATCH DATE
+
+The report says Monday 2026-08-25, but 2026-08-25 is Tuesday.
+Reconfirm the next actual NSE trading session after Friday 2026-08-21.
+
+Expected:
+- Monday 2026-08-24, unless NSE has a trading holiday.
+
+Update the watch plan date accordingly.
+
+TASK 2 — FIX / EXPLAIN SECTOR_COUNTS BUG
+
+Production /api/universe/custom/status currently shows:
+sector_counts = {BANK:9, INFRA:13, OTHER:1}
+
+But the expected custom universe is:
+BANK=9, INFRA=13, IT=1
+
+Investigate why WIPRO is counted as OTHER instead of IT.
+
+Check:
+- custom_universe_master sector value for WIPRO
+- get_status() sector aggregation
+- any sector normalization function
+- whether this affects only display or also risk/sector diversification logic
+
+If it is a display/status bug, fix it safely.
+If it affects risk logic, mark auto-entry re-enable BLOCKED until fixed.
+
+TASK 3 — FIRST MARKET SESSION WATCH
+
+During the next actual NSE trading session, while entries remain disabled, verify:
+
+After first scan completes:
+1. GET /api/live-data/summary
+   - universe_mode=CUSTOM_LOW_PRICE_SECTOR
+   - symbols_analysed=23
+   - symbols_with_errors=0
+   - no NIFTY_50 fallback
+
+2. GET /api/universe/custom/symbols
+   - 23 active symbols
+   - IOB and UCOBANK inactive
+   - forbidden symbols absent
+
+3. GET /api/universe/custom/status
+   - active_count=23
+   - price_filter min=20 max=500
+   - sector_counts BANK=9, INFRA=13, IT=1 or explain/fix if not
+
+4. GET /api/phase20/settings
+   - initial_capital=100000
+   - active_intraday_universe=CUSTOM_LOW_PRICE_SECTOR
+   - auto_paper_entries=false
+   - bootstrap_paper_enabled=false
+
+5. GET /api/phase20/positions
+   - positions=[]
+
+6. GET /api/live-data/health
+   - provider connected
+   - no major stale-symbol issue
+
+At/after 15:20:
+7. GET /api/phase20/eod-status
+   - route works
+   - no open positions
+   - no false healthy state if EOD fails
+
+8. GET /api/phase20/eod-outcomes
+   - route works
+   - no ERROR rows
+
+TASK 4 — CONFIRM NO TRADING ACTIVITY
+
+Confirm:
+- no AUTO trades
+- no BOOTSTRAP_AUTO trades
+- no positions created
+- no positions closed
+- no live broker order API calls
+
+TASK 5 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE1G_FIRST_CUSTOM_UNIVERSE_SESSION_WATCH_REPORT.md
+
+Include:
+1. Correct watch date and exchange-session confirmation.
+2. Sector_counts investigation/fix result.
+3. First scan proof.
+4. Live-data provider health.
+5. Custom universe scan proof: exactly 23 symbols.
+6. Positions proof.
+7. EOD proof.
+8. Confirmation auto entries/bootstrap remained disabled.
+9. Confirmation no trades/live orders.
+10. Clear GO/NO-GO recommendation for future auto-entry re-enable.

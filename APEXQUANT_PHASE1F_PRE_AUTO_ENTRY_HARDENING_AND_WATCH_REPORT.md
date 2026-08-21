@@ -168,7 +168,7 @@ Hydration is **not possible from the local cache**. All 23 active symbols retain
 
 ### Why the first session hasn't run yet
 
-The Phase 1E switch happened at **~17:58 IST on 2026-08-21 (Friday, after market close)**. The last full scan (scan_id `76e307f291e7`) ran at 10:02 IST under `NIFTY_50`. The scanner reads `active_intraday_universe` from settings at each scan start, so the **first custom-universe scan runs at market open Monday 2026-08-25 09:15 IST**.
+The Phase 1E switch happened at **~17:58 IST on 2026-08-21 (Friday, after market close)**. The last full scan (scan_id `76e307f291e7`) ran at 10:02 IST under `NIFTY_50`. The scanner reads `active_intraday_universe` from settings at each scan start, so the **first custom-universe scan runs at market open Monday 2026-08-24 09:15 IST**.
 
 ### Provider readiness (confirmed today)
 
@@ -187,7 +187,7 @@ provider_health:
   notes: ['PAPER TRADING ONLY — no real orders are placed by this system.']
 ```
 
-### Session watch checklist — Monday 2026-08-25
+### Session watch checklist — Monday 2026-08-24
 
 Check after 09:30 IST (allow scanner first run to complete):
 
@@ -215,7 +215,7 @@ Check after 09:30 IST (allow scanner first run to complete):
 | 2. Admin route security proof | ✅ Token gate live on dev; fail-closed; GET routes unaffected |
 | 3. Security test results | ✅ 7/7 new tests pass; 40/40 Python pass; 124/125 TS pass (1 pre-existing unrelated failure) |
 | 4. Kite token hydration table | ⚠️ 0/23 — cache stale; requires live Kite session (task #893) |
-| 5. Session watch plan | ✅ Monday 2026-08-25; provider CONNECTED; 23-symbol checklist documented |
+| 5. Session watch plan | ✅ Monday 2026-08-24; provider CONNECTED; 23-symbol checklist documented |
 | 6. Active universe CUSTOM_LOW_PRICE_SECTOR | ✅ Confirmed |
 | 7. Capital ₹1,00,000 | ✅ `initial_capital = 100000` |
 | 8. Auto entries/bootstrap disabled | ✅ Both `false` — unchanged |
@@ -232,16 +232,16 @@ Check after 09:30 IST (allow scanner first run to complete):
 | 1 | `UNIVERSE_ADMIN_TOKEN` secret set | ✅ Set 2026-08-21 |
 | 2 | Admin upsert route with token gate deployed to production | ⏳ **Deploy required** |
 | 3 | Production returns 403 without token (post-deploy verify) | ⏳ After deploy |
-| 4 | First clean market session watched | ⏳ Monday 2026-08-25 |
-| 5 | Scanner `universe_mode = CUSTOM_LOW_PRICE_SECTOR`, `symbols_analysed = 23` | ⏳ Monday 2026-08-25 |
-| 6 | No AUTO/BOOTSTRAP_AUTO trades observed during watch session | ⏳ Monday 2026-08-25 |
+| 4 | First clean market session watched | ⏳ Monday 2026-08-24 |
+| 5 | Scanner `universe_mode = CUSTOM_LOW_PRICE_SECTOR`, `symbols_analysed = 23` | ⏳ Monday 2026-08-24 |
+| 6 | No AUTO/BOOTSTRAP_AUTO trades observed during watch session | ⏳ Monday 2026-08-24 |
 | 7 | `positions = []` at moment of auto-entry enable | Required — verify at enable time |
 | 8 | `initial_capital = 100000` at moment of auto-entry enable | Required — verify at enable time |
 
 **CURRENT VERDICT: NO-GO — 1 hard blocker remaining:**  
 → Deploy the security gate code to production (publish the project).
 
-**Expected GO date:** Monday 2026-08-25 after market close, if session watch passes.
+**Expected GO date:** Monday 2026-08-24 after market close, if session watch passes.
 
 ---
 
