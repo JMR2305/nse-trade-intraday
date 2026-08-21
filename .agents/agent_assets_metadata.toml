@@ -537,3 +537,10 @@ uri = "file://APEXQUANT_PHASE1B_DEV_CUSTOM_UNIVERSE_VALIDATION_REPORT.md"
 type = "text"
 title = "Phase 1B — Dev Custom Universe Validation Report"
 description = "18/18 tests pass. 23 symbols (1 IT + 13 Infra + 9 Bank) populated in dev DB. IOB and UCOBANK excluded with documented reasons. Empty-universe safety proven. Phase 0C gate passes. Safe for Phase 1D production population."
+
+[[outputs]]
+id = "QPNclAJ29pbJ8TAf82SQx"
+uri = "file://APEXQUANT_PHASE1D_PRODUCTION_CUSTOM_UNIVERSE_POPULATION_REPORT.md"
+type = "text"
+title = "Phase 1D — Production Custom Universe Population Report"
+description = "25/25 upserted. 23 active (IT=1, Infra=13, Bank=9) + 2 inactive audit rows. price_filter fixed to 20–500. 40/40 tests pass. Active universe remains NIFTY_50. Phase 1E safe to proceed."
