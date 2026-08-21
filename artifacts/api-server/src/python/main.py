@@ -1082,6 +1082,13 @@ def main():
         elif command == "universe_custom_refresh":
             from low_price_universe_refresh import refresh_low_price_sector_universe
             result = refresh_low_price_sector_universe()
+        elif command == "universe_custom_upsert":
+            # Operator-approved direct upsert of a symbol row list.
+            # Accepts {"rows": [...]} as sys.argv[2] (JSON string).
+            from custom_universe_store import upsert_symbols
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            rows = payload.get("rows", [])
+            result = upsert_symbols(rows)
         elif command == "universe_custom_report":
             from low_price_universe_report import get_report
             result = get_report()

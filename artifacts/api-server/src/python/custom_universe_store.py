@@ -338,6 +338,13 @@ def get_status() -> Dict[str, Any]:
         (str(row.get("last_verified_at")) for row in rows if row.get("last_verified_at")),
         default=None,
     )
+    # Derive actual price band from stored rows rather than a hardcoded constant.
+    price_mins = [row["price_min"] for row in rows if row.get("price_min") is not None]
+    price_maxs = [row["price_max"] for row in rows if row.get("price_max") is not None]
+    price_filter = {
+        "min": min(price_mins) if price_mins else 20.0,
+        "max": max(price_maxs) if price_maxs else 500.0,
+    }
     try:
         from config import get_active_intraday_universe
         mode = get_active_intraday_universe().value
@@ -347,7 +354,7 @@ def get_status() -> Dict[str, Any]:
         "success": True,
         "active_universe": mode,
         "custom_universe_name": ALLOWED_UNIVERSE,
-        "price_filter": {"min": 20.0, "max": 200.0},
+        "price_filter": price_filter,
         "sectors": ["IT", "INFRA", "BANK"],
         "active_count": len(active),
         "excluded_count": max(0, len(rows) - len(active)),

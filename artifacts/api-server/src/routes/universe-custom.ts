@@ -70,6 +70,21 @@ router.post("/universe/custom/refresh", wrap(async (_req, res) => {
   res.json(await runPython(["universe_custom_refresh"], 180_000));
 }));
 
+// Operator-approved direct upsert of the symbol row list.
+// Accepts { rows: [...] } — idempotent ON CONFLICT DO UPDATE.
+// Does NOT switch the active universe; that is a separate Phase 1E step.
+router.post("/universe/custom/upsert", wrap(async (req, res) => {
+  const rows = req.body?.rows;
+  if (!Array.isArray(rows) || rows.length === 0) {
+    res.status(400).json({ success: false, error: "rows must be a non-empty array" });
+    return;
+  }
+  res.json(await runPython([
+    "universe_custom_upsert",
+    JSON.stringify({ rows }),
+  ]));
+}));
+
 router.get("/universe/custom/report", wrap(async (_req, res) => {
   res.json(await runPython(["universe_custom_report"]));
 }));
