@@ -509,3 +509,10 @@ uri = "file://APEXQUANT_PHASE0D_POST_PUBLISH_PRODUCTION_VERIFICATION_REPORT.md"
 type = "text"
 title = "Phase 0D — Post-Publish Production Verification Report"
 description = "All checks passed. Phase 0C/0D safety build confirmed live on production. eod-outcomes HTTP 200, entries=false, 0 positions, build_id set, no trades changed, no live orders."
+
+[[outputs]]
+id = "O5YK0Vl1agJCT3mKH_3vQ"
+uri = "file://APEXQUANT_PHASE1_CAPITAL_UNIVERSE_LTIM_BRANCH_PLAN.md"
+type = "text"
+title = "Phase 1 — Capital / Universe / LTIM Branch Plan"
+description = "Capital migration ready (CONFIRMATION_REQUIRED, ₹5L→₹1L, no code changes). Custom universe infrastructure built but table empty — needs population. LTIM already inactive in NIFTY_50. Execution order: symbol list → populate → capital migrate → universe switch → verify."

@@ -1,0 +1,76 @@
+PHASE 1 — RESUME ON SEPARATE BRANCH AFTER PHASE 0D SAFETY ACCEPTANCE
+
+Phase 0D production safety build is accepted.
+The phase11_capital_topups deletion concern is resolved:
+- table was empty
+- Mode B was never activated in production
+- no historical data was lost
+- routes/UI self-healed through CREATE TABLE IF NOT EXISTS
+- no capital, portfolio, paper-trading, or analytics calculation was affected
+- no restoration action required
+
+Start Phase 1 on a separate branch only.
+
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change production settings.
+Do not touch Phase 20 executor, scheduler, exits, EOD safety, or Phase 0C/0D safety code.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current production safety state must remain:
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- positions=[]
+- active universe still NIFTY_50
+- production capital still ₹500,000
+
+PHASE 1 GOAL:
+Prepare the next architecture step without disturbing the verified production safety layer.
+
+Focus only on:
+1. Capital decision plan:
+   - production currently ₹500,000
+   - earlier intended value was ₹100,000
+   - produce options and impact analysis
+
+2. Universe decision plan:
+   - production currently NIFTY_50
+   - target is low-price IT/Infra/Bank universe
+   - verify custom universe tables/data
+   - if missing, propose population plan
+
+3. LTIM decision:
+   - confirm current active status
+   - propose remove-from-active while preserving history if required
+
+4. UI/source consistency:
+   - identify where capital/universe/LTIM are displayed
+   - ensure all pages use canonical settings/source labels
+
+5. Branch-safe implementation plan:
+   - files likely to change
+   - DB changes if any
+   - tests required
+   - rollback plan
+   - no production deployment until operator approval
+
+DELIVERABLE:
+Generate:
+
+APEXQUANT_PHASE1_CAPITAL_UNIVERSE_LTIM_BRANCH_PLAN.md
+
+Include:
+1. Current production baseline.
+2. Capital options and recommendation.
+3. Universe options and recommendation.
+4. LTIM handling recommendation.
+5. UI impact.
+6. DB/table impact.
+7. File-by-file plan.
+8. Tests.
+9. Rollback plan.
+10. Confirmation Phase 20 safety code untouched.
+11. Confirmation auto entries/bootstrap remain disabled.
+12. Confirmation no live orders.
