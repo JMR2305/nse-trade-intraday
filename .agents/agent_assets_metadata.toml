@@ -558,3 +558,10 @@ uri = "file://APEXQUANT_PHASE1F_PRE_AUTO_ENTRY_HARDENING_AND_WATCH_REPORT.md"
 type = "text"
 title = "Phase 1F — Pre-Auto-Entry Hardening and Watch Report (Final)"
 description = "Token gate live on dev. 7/7 security tests pass. 40/40 Python pass. 124/125 TS pass. UNIVERSE_ADMIN_TOKEN secret set. One action: publish to activate the gate in production."
+
+[[outputs]]
+id = "KbVlMoZx4tVVAChfEORVn"
+uri = "file://APEXQUANT_PHASE1F_POST_PUBLISH_SECURITY_GATE_VERIFICATION_REPORT.md"
+type = "text"
+title = "Phase 1F — Post-Publish Security Gate Verification Report"
+description = "All 8 production checks passed. Security blocker resolved. One condition remaining: Monday 2026-08-25 session watch before auto entries can be enabled."
