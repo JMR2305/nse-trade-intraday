@@ -502,3 +502,10 @@ uri = "file://APEXQUANT_PHASE0D_PRODUCTION_DEPLOYMENT_AND_SAFETY_VERIFICATION_RE
 type = "text"
 title = "Phase 0D — Production Deployment & Safety Verification Report"
 description = "Pre-deploy snapshot, EOD outcomes route wired (HTTP 200 on dev), APEXQUANT_BUILD_ID set, 22/22 tests pass, watch plan for next session. Awaiting publish to production."
+
+[[outputs]]
+id = "dmAKs5X-tLEo8nA7DDbyM"
+uri = "file://APEXQUANT_PHASE0D_POST_PUBLISH_PRODUCTION_VERIFICATION_REPORT.md"
+type = "text"
+title = "Phase 0D — Post-Publish Production Verification Report"
+description = "All checks passed. Phase 0C/0D safety build confirmed live on production. eod-outcomes HTTP 200, entries=false, 0 positions, build_id set, no trades changed, no live orders."
