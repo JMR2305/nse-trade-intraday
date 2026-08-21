@@ -481,3 +481,10 @@ uri = "file://TODAYS_TRADE_EXIT_QUALITY_AUDIT.md"
 type = "text"
 title = "Today's Trade Exit Quality Audit"
 description = "Read-only production-ledger audit of 20 August paper trades, exit quality, late-entry controls, P&L, and quantity evidence."
+
+[[outputs]]
+id = "Kg0NKA4E0q0yADSUR8bUe"
+uri = "file://APEXQUANT_PHASE0C_CRITICAL_SAFETY_FIX_IMPLEMENTATION_REPORT.md"
+type = "text"
+title = "Phase 0C Critical Safety Fix — Implementation & Verification Report"
+description = "Full implementation report covering all 6 safety fixes, 17/17 tests, and the 2026-08-21 13:35 IST production verification findings."
