@@ -523,3 +523,10 @@ uri = "file://APEXQUANT_PHASE1_REVISED_CAPITAL_UNIVERSE_EXECUTION_PLAN.md"
 type = "text"
 title = "Phase 1 Revised — Capital / Universe Execution Plan"
 description = "All 5 issues addressed. Live prices verified. Candidate table by band. Capital checklist. Phase 1A–1E separation. UI proof with file:line. Test plan. 3 operator decisions required before execution."
+
+[[outputs]]
+id = "z-_0OLSCA4lWJqMimS9rV"
+uri = "file://APEXQUANT_PHASE1C_CAPITAL_MIGRATION_EVIDENCE_REPORT.md"
+type = "text"
+title = "Phase 1C — Capital Migration Evidence Report"
+description = "All 20 checks passed. ₹5,00,000 → ₹1,00,000 applied at 12:20:38 UTC. 6 closed trades and −₹278.74 P&L preserved. Auto entries, bootstrap, and universe unchanged."
