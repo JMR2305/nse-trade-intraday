@@ -556,5 +556,5 @@ description = "CUSTOM_LOW_PRICE_SECTOR is now the active production universe. 23
 id = "cv54sqRRwicNhF1J2R0Aq"
 uri = "file://APEXQUANT_PHASE1F_PRE_AUTO_ENTRY_HARDENING_AND_WATCH_REPORT.md"
 type = "text"
-title = "Phase 1F — Pre-Auto-Entry Hardening and Watch Report"
-description = "Route secured (7/7 tests pass). Kite hydration pending live session. First session watch: Monday 2026-08-25. 2 hard blockers before auto entries: set UNIVERSE_ADMIN_TOKEN secret + deploy."
+title = "Phase 1F — Pre-Auto-Entry Hardening and Watch Report (Final)"
+description = "Token gate live on dev. 7/7 security tests pass. 40/40 Python pass. 124/125 TS pass. UNIVERSE_ADMIN_TOKEN secret set. One action: publish to activate the gate in production."
