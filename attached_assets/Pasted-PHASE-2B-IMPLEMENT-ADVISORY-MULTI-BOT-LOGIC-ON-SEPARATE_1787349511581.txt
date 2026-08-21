@@ -1,0 +1,205 @@
+PHASE 2B — IMPLEMENT ADVISORY MULTI-BOT LOGIC ON SEPARATE BRANCH
+
+Use APEXQUANT_PHASE2A_ADVISORY_MULTI_BOT_BRANCH_PLAN.md as the controlling plan.
+
+Operator approval:
+I approve Phase 2B implementation on branch:
+
+phase2a-advisory-multi-bot-logic
+
+Do not merge to main.
+Do not deploy to production.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+Do not touch Phase 20 executor, scheduler, exits, EOD, position, portfolio, paper-entry, broker, or settings-write files.
+PAPER ONLY.
+ADVISORY ONLY.
+
+Current production state must remain untouched:
+- initial_capital=100000
+- active_intraday_universe=CUSTOM_LOW_PRICE_SECTOR
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- positions=[]
+
+The Phase 2A plan says this branch is advisory-only, not merged, not deployed, and currently contains no implementation, migration, endpoint, scheduler hook, or trade-state change. Preserve that safety boundary.
+
+IMPLEMENTATION ORDER
+
+STEP 1 — CONTRACTS FIRST
+
+Create:
+
+- artifacts/api-server/src/python/advisory_bots/__init__.py
+- artifacts/api-server/src/python/advisory_bots/contracts.py
+
+Define strict advisory vocabulary only:
+
+- WATCH
+- CANDIDATE
+- REJECTED
+- BLOCKED_DATA_QUALITY
+- INSUFFICIENT_CONTEXT
+- SUPERVISOR_BLOCKED
+
+Every output must include:
+- advisory_only=true
+- paper_only=true
+
+Explicitly forbid:
+- BUY
+- SELL
+- EXECUTE
+- order quantity
+- broker instruction
+- auto-enable command
+- phase20 entry command
+- executable order payload
+
+STEP 2 — PURE BOTS FIRST, NO REAL DB WRITES YET
+
+Implement these modules:
+
+1. advisory_bots/universe_bot.py
+2. advisory_bots/data_quality_bot.py
+3. advisory_bots/regime_bot.py
+4. advisory_bots/strategies.py
+   - VWAP Pullback
+   - Opening Range Breakout
+   - EMA Pullback
+5. advisory_bots/risk_gate_bot.py
+6. advisory_bots/decision_bot.py
+7. advisory_bots/supervisor_bot.py
+
+Rules:
+- All bots return advisory outputs only.
+- No bot may import or call:
+  - phase20_executor.py
+  - phase20_scheduler.py
+  - phase20_exits.py
+  - paper_trader.py
+  - broker_client.py
+  - Kite order APIs
+  - settings write functions
+  - paper-entry routes
+  - trade ledger mutation functions
+- If required intraday evidence is missing, return INSUFFICIENT_CONTEXT or BLOCKED_DATA_QUALITY with score 0.
+- Do not infer VWAP, ORB, or EMA setup from unsupported data.
+- Risk Gate must use:
+  - capital basis ₹100,000
+  - per-stock cap ₹25,000
+  - risk per idea ₹1,000
+  - daily loss limit ₹3,000
+- If settings disagree with this basis, return CONFIG_MISMATCH / REJECTED advisory output.
+- Supervisor must block any output containing executable action, order field, broker reference, or prohibited import/call.
+
+STEP 3 — TESTS BEFORE STORAGE
+
+Create:
+
+artifacts/api-server/src/python/tests/unit/test_advisory_bots.py
+
+Tests must prove:
+
+1. Bots cannot create trades.
+2. Bots cannot call broker APIs.
+3. Bots cannot enable auto_paper_entries.
+4. Bots read only CUSTOM_LOW_PRICE_SECTOR symbols.
+5. IOB and UCOBANK are excluded.
+6. No NIFTY_50 fallback occurs.
+7. Bad data blocks scoring.
+8. Risk Gate uses ₹1L limits.
+9. Strategy bots produce scores only.
+10. Supervisor blocks executable words and order fields.
+11. Phase 0C safety tests still pass.
+12. Custom universe tests still pass.
+13. Audit writes, if mocked, target only advisory tables.
+14. Repeated idempotency key never overwrites prior advisory evidence.
+
+Run:
+
+cd artifacts/api-server/src/python
+python3 -m pytest tests/unit/test_advisory_bots.py -v
+python3 -m pytest tests/unit/test_phase0c_safety_fixes.py -v
+python3 -m pytest tests/unit/test_custom_universe_store.py -v
+
+STEP 4 — STORAGE ONLY AFTER PURE BOT TESTS PASS
+
+After pure bot tests pass, implement additive advisory storage only.
+
+Approved proposed tables:
+
+- advisory_bot_outputs
+- advisory_strategy_scores
+- advisory_decision_audit
+- advisory_universe_health
+
+Rules:
+- append-only
+- ON CONFLICT DO NOTHING
+- no update/delete API
+- paper_only=true CHECK
+- decision constrained to advisory vocabulary
+- no foreign key to phase20_paper_trades
+- no trigger on Phase 20 tables
+- no shared mutation path with Phase 20
+- no trade/position/portfolio/settings writes
+- allow-listed SQL writer can target only these four advisory tables
+
+STEP 5 — AUDIT BOT AND ORCHESTRATOR
+
+Implement:
+
+- advisory_bots/audit_bot.py
+- advisory_bots/orchestrator.py
+
+Rules:
+- manual invocation only
+- no scheduler integration
+- no production endpoint unless separately approved later
+- no trade execution
+- no Phase 20 writes
+- supervisor must run before any advisory audit persistence
+
+STEP 6 — SOURCE DIFF GUARD
+
+Before reporting complete, prove these files were NOT touched:
+
+- phase20_executor.py
+- phase20_scheduler.py
+- phase20_exits.py
+- phase20_eod_outcomes.py
+- phase20_eod_status.py
+- paper_trader.py
+- broker_client.py
+- any Kite live order module
+- production deployment config
+
+STEP 7 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE2B_ADVISORY_MULTI_BOT_IMPLEMENTATION_REPORT.md
+
+Include:
+
+1. Branch name.
+2. Files created/modified.
+3. Bot implementation summary.
+4. Advisory-only contract proof.
+5. Strategy-bot behavior summary.
+6. Risk Gate proof.
+7. Supervisor safety proof.
+8. Storage schema proof, if implemented.
+9. AST/import deny-list proof.
+10. Test results.
+11. Source diff proof that Phase 20 safety code was untouched.
+12. Confirmation no production deployment.
+13. Confirmation no merge to main.
+14. Confirmation auto entries/bootstrap remain disabled.
+15. Confirmation no trades/positions/live orders.
+16. Recommendation whether Phase 2B is ready for review/merge later.

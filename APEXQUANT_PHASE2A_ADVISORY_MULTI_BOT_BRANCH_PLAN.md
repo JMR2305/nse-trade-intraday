@@ -1,8 +1,8 @@
 # APEXQUANT PHASE 2A — ADVISORY MULTI-BOT BRANCH PLAN
 
-**Branch:** `phase2a-advisory-multi-bot-logic`  
-**Branch state:** Created from the current `main` workspace state. Not merged.  
-**Deployment state:** No production deployment was triggered or requested.  
+**Branch:** `phase2a-advisory-multi-bot-logic`
+**Branch state:** Created from the current `main` workspace state. Not merged.
+**Deployment state:** No production deployment was triggered or requested.
 **Plan state:** Proposal only. No migration, bot implementation, endpoint, scheduler hook, or trade-state change is included in this phase.
 
 ---
@@ -41,7 +41,7 @@ They must never emit an executable order, order quantity, broker instruction, `B
 
 ### 2.1 Market Data / Universe Bot
 
-**Input:** `custom_universe_store` active master rows and the latest canonical scan snapshot.  
+**Input:** `custom_universe_store` active master rows and the latest canonical scan snapshot.
 **Rules:**
 
 - Require `allowed_universe=CUSTOM_LOW_PRICE_SECTOR`.
@@ -54,7 +54,7 @@ They must never emit an executable order, order quantity, broker instruction, `B
 
 ### 2.2 Data Quality Bot
 
-**Input:** The 23 validated active master rows plus matching rows from the canonical scan snapshot.  
+**Input:** The 23 validated active master rows plus matching rows from the canonical scan snapshot.
 **Checks:**
 
 - master `ohlcv_available=true`;
@@ -68,7 +68,7 @@ They must never emit an executable order, order quantity, broker instruction, `B
 
 ### 2.3 Market Regime Bot
 
-**Input:** Existing index, sector, VIX, breadth, and regime context when present in the canonical market-intelligence snapshot.  
+**Input:** Existing index, sector, VIX, breadth, and regime context when present in the canonical market-intelligence snapshot.
 **Output classes:** `TRENDING`, `RANGE_BOUND`, `WEAK`, `VOLATILE`, or `INSUFFICIENT_CONTEXT`.
 
 **Fail-closed rule:** Missing index/sector context produces `INSUFFICIENT_CONTEXT`, not a fabricated bullish or bearish classification. The result may reduce or block a strategy score, but cannot change a strategy, threshold, portfolio, or trade decision.
@@ -102,7 +102,7 @@ If the read-only Phase 20 settings disagree with the fixed Phase 2A capital/safe
 
 ### 2.6 AI Decision / Scoring Bot
 
-**Input:** Eligible strategy scores, data-quality verdict, regime classification, and advisory risk verdict.  
+**Input:** Eligible strategy scores, data-quality verdict, regime classification, and advisory risk verdict.
 **Output:** One ranked, explainable advisory idea per eligible custom-universe symbol:
 
 - final score and rank;
