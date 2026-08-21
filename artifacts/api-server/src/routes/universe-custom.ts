@@ -72,8 +72,15 @@ router.post("/universe/custom/refresh", wrap(async (_req, res) => {
 
 // Operator-approved direct upsert of the symbol row list.
 // Accepts { rows: [...] } — idempotent ON CONFLICT DO UPDATE.
-// Does NOT switch the active universe; that is a separate Phase 1E step.
+// Protected by UNIVERSE_ADMIN_TOKEN (x-admin-token header). Fail-closed: if
+// the env var is unset the route is effectively disabled.
 router.post("/universe/custom/upsert", wrap(async (req, res) => {
+  const expectedToken = process.env.UNIVERSE_ADMIN_TOKEN;
+  const providedToken = req.headers["x-admin-token"];
+  if (!expectedToken || providedToken !== expectedToken) {
+    res.status(403).json({ success: false, error: "Forbidden: valid x-admin-token header required" });
+    return;
+  }
   const rows = req.body?.rows;
   if (!Array.isArray(rows) || rows.length === 0) {
     res.status(400).json({ success: false, error: "rows must be a non-empty array" });
