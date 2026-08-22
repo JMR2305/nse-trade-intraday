@@ -1,0 +1,205 @@
+PHASE 4A — CONTROLLED PAPER-ENTRY RE-ENABLE FRAMEWORK, DISABLED BY DEFAULT
+
+Use these controlling reports:
+- APEXQUANT_PHASE3B_DISABLED_ADVISORY_INTEGRATION_SAFETY_REVIEW.md
+- APEXQUANT_PHASE2D_ADVISORY_BOT_MERGE_READINESS_PACKAGE.md
+- APEXQUANT_PHASE1G_POST_PUBLISH_UPSERT_HARDENING_VERIFICATION_REPORT.md
+
+Goal:
+Code the controlled paper-entry re-enable framework before Monday, but keep it fully disabled by default and impossible to activate unless all Monday production checks pass later.
+
+Do not merge to main.
+Do not deploy to production.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+Do not enable advisory flags in production.
+Do not add live-order capability.
+PAPER ONLY.
+
+Create a new branch from:
+
+phase3a-advisory-integration-disabled
+
+New branch name:
+
+phase4a-controlled-paper-entry-framework-disabled
+
+TASK 1 — DISABLED-BY-DEFAULT CONTROL FLAGS
+
+Add these flags, all default false:
+
+CONTROLLED_PAPER_ENTRY_FRAMEWORK_ENABLED=false
+CONTROLLED_PAPER_ENTRY_DRY_RUN_ONLY=true
+CONTROLLED_PAPER_ENTRY_REQUIRE_PHASE1H_PASS=true
+CONTROLLED_PAPER_ENTRY_REQUIRE_OPERATOR_APPROVAL=true
+CONTROLLED_PAPER_ENTRY_ALLOW_AUTO_ENABLE=false
+CONTROLLED_PAPER_ENTRY_ALLOW_BOOTSTRAP=false
+
+Rules:
+- Missing flags fail closed.
+- Production defaults must remain disabled.
+- Bootstrap must remain blocked.
+- Live broker orders must remain impossible.
+- The framework must not directly flip auto_paper_entries=true.
+- Any future enablement must require a separate operator action after Monday checks.
+
+TASK 2 — READ-ONLY READINESS CHECKER
+
+Implement a readiness checker that only reads state and produces a GO/NO-GO verdict.
+
+It must verify:
+
+1. Phase 1H market-session watch report exists and is PASS.
+2. universe_mode=CUSTOM_LOW_PRICE_SECTOR.
+3. symbols_analysed=23.
+4. symbols_with_errors=0.
+5. no NIFTY_50 fallback.
+6. custom universe status is correct:
+   - BANK=9
+   - INFRA=13
+   - IT=1
+   - active_count=23
+7. settings:
+   - initial_capital=100000
+   - active_intraday_universe=CUSTOM_LOW_PRICE_SECTOR
+   - auto_paper_entries=false before approval
+   - bootstrap_paper_enabled=false
+8. positions=[].
+9. no AUTO or BOOTSTRAP_AUTO trades during watch.
+10. EOD status and EOD outcomes passed.
+11. advisory core branch is reviewed.
+12. advisory integration branch is reviewed.
+13. operator approval is present.
+
+Output only:
+- GO_FOR_OPERATOR_REVIEW
+- NO_GO
+- BLOCKED
+
+Do not mutate settings.
+Do not create trades.
+Do not call entry APIs.
+
+TASK 3 — DRY-RUN PAPER ENTRY SIMULATION ONLY
+
+Create a dry-run simulation module that can take advisory outputs and estimate:
+
+- candidate symbol
+- strategy source
+- advisory score
+- risk flags
+- theoretical notional
+- theoretical risk
+- rejection reason if unsafe
+
+Rules:
+- no order quantity as executable payload
+- no paper trade creation
+- no ledger write
+- no position write
+- no broker call
+- no settings mutation
+- output must say:
+  DRY RUN ONLY — NOT A TRADE — NOT AN ORDER
+
+TASK 4 — ADVISORY-TO-PAPER BRIDGE, DISABLED
+
+Create a bridge interface that can later convert an approved advisory candidate into a paper-entry request, but for now it must always stop at dry-run.
+
+Rules:
+- bridge disabled unless CONTROLLED_PAPER_ENTRY_FRAMEWORK_ENABLED=true
+- even when enabled, CONTROLLED_PAPER_ENTRY_DRY_RUN_ONLY=true blocks execution
+- no direct call to Phase 20 entry executor
+- no direct call to paper_trader
+- no broker import
+- no settings write
+- no scheduler hook
+- no production endpoint
+
+TASK 5 — OPTIONAL STATUS API, DISABLED BY DEFAULT
+
+Add only a read-only status endpoint if safe:
+
+GET /api/controlled-paper-entry/status
+
+Rules:
+- disabled by default
+- returns 404 unless framework flag is enabled
+- when enabled, returns readiness status only
+- no mutation
+- no run/execute endpoint
+- no trade button support
+- no broker path
+- no settings path
+
+Do not add any endpoint like:
+- /execute
+- /place-order
+- /enable-auto-entry
+- /create-trade
+
+TASK 6 — TESTS
+
+Add tests proving:
+
+1. All new flags default false/fail-closed.
+2. Readiness checker returns NO_GO without Phase 1H PASS.
+3. Readiness checker returns NO_GO if positions are not [].
+4. Readiness checker returns NO_GO if universe is not CUSTOM_LOW_PRICE_SECTOR.
+5. Readiness checker returns NO_GO if symbols_analysed != 23.
+6. Readiness checker returns NO_GO if EOD proof missing.
+7. Dry-run simulation never creates trade/position/ledger rows.
+8. Bridge cannot call Phase 20 executor.
+9. Bridge cannot call paper_trader.
+10. Bridge cannot call broker/Kite.
+11. Bridge cannot mutate settings.
+12. Bootstrap remains blocked.
+13. No production endpoint is exposed by default.
+14. Existing advisory tests still pass.
+15. Phase 0C safety tests still pass.
+16. Custom universe tests still pass.
+
+TASK 7 — PROTECTED FILE DIFF GUARD
+
+Confirm these are untouched:
+
+- phase20_executor.py
+- phase20_scheduler.py
+- phase20_exits.py
+- phase20_eod_outcomes.py
+- phase20_eod_status.py
+- paper_trader.py
+- broker_client.py
+- Kite/live-order modules
+- settings write handlers
+- deployment config
+- workflows
+- production execution config
+
+If any protected file must be touched, stop and ask for operator approval first.
+
+TASK 8 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE4A_CONTROLLED_PAPER_ENTRY_FRAMEWORK_DISABLED_REPORT.md
+
+Include:
+1. Branch name.
+2. Files created/modified.
+3. Flags and defaults.
+4. Readiness checker behavior.
+5. Dry-run simulation proof.
+6. Advisory-to-paper bridge proof.
+7. API proof if added.
+8. Tests.
+9. Protected-file diff proof.
+10. Confirmation no merge.
+11. Confirmation no deployment.
+12. Confirmation no trades/positions/live orders.
+13. Confirmation no settings mutation.
+14. Confirmation auto entries/bootstrap remain disabled.
+15. Monday merge/testing recommendation.
