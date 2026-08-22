@@ -124,6 +124,8 @@ import AILearningCenter            from "@/pages/AILearningCenter";
 import MissionControl              from "@/pages/MissionControl";
 import TradingQuality              from "@/pages/TradingQuality";
 import InstitutionalAnalytics      from "@/pages/InstitutionalAnalytics";
+import AdvisoryDashboard            from "@/pages/AdvisoryDashboard";
+import { isAdvisoryUiEnabled }      from "@/lib/advisoryFlags";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -264,6 +266,9 @@ function Router() {
         <Route path="/mission-control"            component={MissionControl} />
         <Route path="/trading-quality"            component={TradingQuality} />
         <Route path="/institutional-analytics"    component={InstitutionalAnalytics} />
+        {isAdvisoryUiEnabled() && (
+          <Route path="/advisory" component={AdvisoryDashboard} />
+        )}
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
