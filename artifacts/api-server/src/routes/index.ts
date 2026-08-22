@@ -68,6 +68,7 @@ import phase24Router from "./phase24";
 import ohlcvCacheRouter from "./ohlcvCache";
 import customUniverseRouter from "./universe-custom";
 import advisoryRouter from "./advisory";
+import controlledPaperEntryRouter from "./controlledPaperEntry";
 
 const router: IRouter = Router();
 
@@ -139,6 +140,7 @@ router.use(validationV2Router);
 router.use(ohlcvCacheRouter);
 router.use(customUniverseRouter);
 router.use(advisoryRouter);
+router.use(controlledPaperEntryRouter);
 router.use(tradingRouter);
 router.use(downloadRouter);
 
