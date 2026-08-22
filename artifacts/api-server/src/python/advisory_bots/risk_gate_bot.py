@@ -17,17 +17,20 @@ class AdvisoryRiskLimits:
     daily_loss_limit: float = 3_000.0
 
 
+_FIXED_LIMITS = AdvisoryRiskLimits()
+
+
 def evaluate_risk(
     symbol: str,
     idea: Mapping[str, Any],
     settings: Mapping[str, Any] | None,
     *,
-    limits: AdvisoryRiskLimits = AdvisoryRiskLimits(),
     scan_id: str | None = None,
     build_id: str = "phase2b-dev",
     config_hash: str = "phase2b-default",
 ) -> dict[str, Any]:
     """Return advisory feasibility without quantity, order, or portfolio writes."""
+    limits = _FIXED_LIMITS
     settings = dict(settings or {})
     mismatches = []
     if _number(settings.get("initial_capital")) != limits.capital:

@@ -10,6 +10,8 @@ from .contracts import advisory_output
 
 
 ACCEPTED_QUALITIES = frozenset({"LIVE", "NEAR_LIVE"})
+SUPPORTED_INTRADAY_TIMEFRAMES = frozenset({"1m", "3m", "5m", "10m", "15m", "30m"})
+MIN_INTRADAY_CANDLES = 30
 
 
 def check_symbol_quality(
@@ -32,6 +34,9 @@ def check_symbol_quality(
         reasons.append("master_ohlcv_unavailable")
     if quality not in ACCEPTED_QUALITIES:
         reasons.append(f"data_quality={quality or 'MISSING'}")
+    candle_ok, candle_reason = validate_intraday_evidence(data)
+    if not candle_ok:
+        reasons.append(candle_reason)
 
     price = data.get("current_price", data.get("price", data.get("ltp")))
     volume = data.get("volume")
@@ -98,10 +103,36 @@ def check_universe_quality(
         "outputs": outputs,
         "eligible_symbols": eligible,
         "blocked_symbols": blocked,
-        "all_healthy": not blocked and len(eligible) == len(list(active_rows)),
+        "all_healthy": not blocked and len(eligible) == len(active_rows),
         "advisory_only": True,
         "paper_only": True,
     }
+
+
+def validate_intraday_evidence(data: Mapping[str, Any]) -> tuple[bool, str]:
+    """Require actual supported intraday OHLCV candles before strategy scoring."""
+    timeframe = str(
+        data.get("candle_timeframe") or data.get("timeframe") or data.get("interval") or ""
+    ).strip().lower()
+    if timeframe not in SUPPORTED_INTRADAY_TIMEFRAMES:
+        return False, f"unsupported_candle_timeframe={timeframe or 'MISSING'}"
+    candles = data.get("candles")
+    if not isinstance(candles, list) or not candles:
+        return False, "missing_intraday_candles"
+    if len(candles) < MIN_INTRADAY_CANDLES:
+        return False, f"insufficient_intraday_candle_count={len(candles)}"
+    for candle in candles:
+        if not isinstance(candle, Mapping):
+            return False, "invalid_intraday_candle"
+        if not all(_positive_finite(candle.get(key)) for key in ("open", "high", "low", "close", "volume")):
+            return False, "invalid_intraday_ohlcv"
+        open_price = float(candle["open"])
+        high = float(candle["high"])
+        low = float(candle["low"])
+        close = float(candle["close"])
+        if high < low or high < max(open_price, close) or low > min(open_price, close):
+            return False, "invalid_intraday_candle_range"
+    return True, "supported_intraday_ohlcv"
 
 
 def _parse_timestamp(value: Any) -> datetime | None:

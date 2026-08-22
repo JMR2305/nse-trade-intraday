@@ -1,7 +1,7 @@
 # ApexQuant AI — Phase 2B Advisory Multi-Bot Implementation Report
 
-**Date:** 22 August 2026 (IST)  
-**Branch:** `phase2a-advisory-multi-bot-logic`  
+**Date:** 22 August 2026 (IST)
+**Branch:** `phase2a-advisory-multi-bot-logic`
 **Status:** Implemented and validated on the isolated branch. **Not merged. Not deployed.**
 
 ## Scope completed

@@ -10,6 +10,12 @@ from .contracts import advisory_output
 CUSTOM_UNIVERSE = "CUSTOM_LOW_PRICE_SECTOR"
 EXPECTED_ACTIVE_COUNT = 23
 REQUIRED_INACTIVE = frozenset({"IOB", "UCOBANK"})
+APPROVED_ACTIVE_SYMBOLS = frozenset({
+    "BANKBARODA", "BANKINDIA", "CANBK", "FEDERALBNK", "IDFCFIRSTB",
+    "KTKBANK", "MAHABANK", "PNB", "UNIONBANK", "COALINDIA", "GAIL",
+    "HUDCO", "IRCON", "IRFC", "MRPL", "NBCC", "NMDC", "NTPC", "PFC",
+    "RECLTD", "RVNL", "SAIL", "WIPRO",
+})
 
 
 def validate_universe(
@@ -18,7 +24,6 @@ def validate_universe(
     scan_id: str | None = None,
     build_id: str = "phase2b-dev",
     config_hash: str = "phase2b-default",
-    expected_count: int = EXPECTED_ACTIVE_COUNT,
 ) -> Dict[str, Any]:
     """Validate the exact active universe without any legacy fallback."""
     all_rows = [dict(row) for row in rows if isinstance(row, Mapping)]
@@ -46,8 +51,8 @@ def validate_universe(
     )
 
     reasons: List[str] = []
-    if len(active_symbols) != expected_count:
-        reasons.append(f"active_count={len(active_symbols)} expected={expected_count}")
+    if len(active_symbols) != EXPECTED_ACTIVE_COUNT:
+        reasons.append(f"active_count={len(active_symbols)} expected={EXPECTED_ACTIVE_COUNT}")
     if len(active_symbols) != len(active_rows):
         reasons.append("duplicate_active_symbols")
     active_rows_without_custom_label = sorted(
@@ -59,6 +64,10 @@ def validate_universe(
         reasons.append("active_rows_not_custom_universe")
     if active_nifty_rows:
         reasons.append("nifty_50_fallback_detected")
+    unknown_active_symbols = sorted(set(active_symbols) - APPROVED_ACTIVE_SYMBOLS)
+    missing_approved_symbols = sorted(APPROVED_ACTIVE_SYMBOLS - set(active_symbols))
+    if unknown_active_symbols or missing_approved_symbols:
+        reasons.append("active_symbols_do_not_match_approved_universe")
     if not REQUIRED_INACTIVE.issubset(set(inactive_symbols)):
         reasons.append("required_inactive_symbols_not_excluded")
     healthy = not reasons
@@ -85,6 +94,8 @@ def validate_universe(
         inactive_symbols=inactive_symbols,
         required_inactive=sorted(REQUIRED_INACTIVE),
         unexpected_symbols=unexpected_universe_rows,
+        unknown_active_symbols=unknown_active_symbols,
+        missing_approved_symbols=missing_approved_symbols,
         nifty_fallback_detected=bool(active_nifty_rows),
         healthy=healthy,
     )

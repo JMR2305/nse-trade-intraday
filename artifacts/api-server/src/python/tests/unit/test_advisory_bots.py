@@ -11,7 +11,7 @@ from unittest.mock import patch
 import phase24_store
 from advisory_bots.audit_bot import persist_advisory_run
 from advisory_bots.contracts import ADVISORY_DECISIONS, PROHIBITED_OUTPUT_KEYS
-from advisory_bots.data_quality_bot import check_symbol_quality
+from advisory_bots.data_quality_bot import check_symbol_quality, check_universe_quality
 from advisory_bots.decision_bot import combine_scores
 from advisory_bots.orchestrator import run_advisory_analysis
 from advisory_bots.regime_bot import classify_regime
@@ -69,6 +69,14 @@ def _market_data(**overrides):
         "opening_range_complete": True,
         "data_quality": "LIVE",
         "snapshot_ts": datetime.now(timezone.utc).isoformat(),
+        "candle_timeframe": "5m",
+        "candles": [{
+            "open": 99.0,
+            "high": 101.0,
+            "low": 98.0,
+            "close": 100.0,
+            "volume": 1_000_000,
+        }] * 30,
     }
     base.update(overrides)
     return base
@@ -164,6 +172,12 @@ class TestUniverseAndQuality(TestCase):
         self.assertEqual(missing_label["decision"], "SUPERVISOR_BLOCKED")
         self.assertIn("active_rows_not_custom_universe", missing_label["reason"])
 
+        unknown_rows = _active_rows()
+        unknown_rows[0]["symbol"] = "UNKNOWNCO"
+        unknown = validate_universe(unknown_rows)
+        self.assertEqual(unknown["decision"], "SUPERVISOR_BLOCKED")
+        self.assertIn("active_symbols_do_not_match_approved_universe", unknown["reason"])
+
     def test_bad_data_blocks_scoring(self):
         quality = check_symbol_quality(
             "WIPRO",
@@ -190,6 +204,55 @@ class TestUniverseAndQuality(TestCase):
         )
         self.assertEqual(malformed["decision"], "BLOCKED_DATA_QUALITY")
         self.assertEqual(malformed["score"], 0)
+
+        unsupported_timeframe = check_symbol_quality(
+            "WIPRO",
+            _market_data(candle_timeframe="1d"),
+            master_row={"ohlcv_available": True},
+        )
+        self.assertEqual(unsupported_timeframe["decision"], "BLOCKED_DATA_QUALITY")
+        self.assertEqual(unsupported_timeframe["score"], 0)
+
+        fabricated_daily = evaluate_strategies(
+            "WIPRO",
+            _market_data(candle_timeframe="1d"),
+            {"regime": "TRENDING"},
+        )
+        self.assertTrue(all(output["score"] == 0 for output in fabricated_daily))
+        self.assertTrue(
+            all(output["decision"] == "INSUFFICIENT_CONTEXT" for output in fabricated_daily)
+        )
+
+        malformed_candle = {
+            "open": 102.0,
+            "high": 101.0,
+            "low": 98.0,
+            "close": 100.0,
+            "volume": 1_000_000,
+        }
+        malformed_ohlcv = _market_data(candles=[malformed_candle] * 30)
+        invalid_candles = check_symbol_quality(
+            "WIPRO",
+            malformed_ohlcv,
+            master_row={"ohlcv_available": True},
+        )
+        self.assertEqual(invalid_candles["decision"], "BLOCKED_DATA_QUALITY")
+        self.assertTrue(
+            all(output["score"] == 0 for output in evaluate_strategies(
+                "WIPRO", malformed_ohlcv, {"regime": "TRENDING"}
+            ))
+        )
+
+    def test_universe_quality_returns_each_symbol_verdict(self):
+        rows = _active_rows()
+        result = check_universe_quality(
+            [row for row in rows if row["is_active"]],
+            [{"symbol": row["symbol"], **_market_data()} for row in rows if row["is_active"]],
+        )
+        self.assertTrue(result["all_healthy"])
+        self.assertEqual(len(result["outputs"]), 23)
+        self.assertEqual(len(result["eligible_symbols"]), 23)
+        self.assertEqual(result["blocked_symbols"], [])
 
 
 class TestStrategiesAndRisk(TestCase):
@@ -250,6 +313,15 @@ class TestStrategiesAndRisk(TestCase):
         self.assertEqual(rejected["decision"], "REJECTED")
         self.assertIn("RISK_EVIDENCE_MISSING", rejected["risk_flags"])
 
+    def test_risk_limits_cannot_be_overridden_by_caller(self):
+        with self.assertRaises(TypeError):
+            evaluate_risk(
+                "WIPRO",
+                {"score": 80, "notional_value": 99_000, "risk_amount": 1_000, "daily_loss_to_date": 0},
+                _settings(),
+                limits=AdvisoryRiskLimits(capital=100_000, per_stock_cap=100_000),
+            )
+
 
 class TestAuditIsolation(TestCase):
     def _scan_items(self):
@@ -282,11 +354,15 @@ class TestAuditIsolation(TestCase):
         )
         calls = []
 
-        def writer(table, record):
-            calls.append((table, record["symbol"]))
-            return True
+        def batch_writer(records_by_table):
+            calls.extend(
+                (table, record["symbol"])
+                for table, records in records_by_table.items()
+                for record in records
+            )
+            return {table: len(records) for table, records in records_by_table.items()}
 
-        audit = persist_advisory_run(run, settings=_settings(), writer=writer)
+        audit = persist_advisory_run(run, settings=_settings(), batch_writer=batch_writer)
         self.assertTrue(audit["persisted"])
         self.assertTrue(calls)
         self.assertTrue(all(table in phase24_store.ADVISORY_TABLES for table, _ in calls))
@@ -303,11 +379,11 @@ class TestAuditIsolation(TestCase):
         run["decisions"][0]["action"] = "EXECUTE"
         calls = []
 
-        def writer(table, record):
-            calls.append((table, record))
-            return True
+        def batch_writer(records_by_table):
+            calls.append(records_by_table)
+            return {}
 
-        result = persist_advisory_run(run, settings=_settings(), writer=writer)
+        result = persist_advisory_run(run, settings=_settings(), batch_writer=batch_writer)
         self.assertFalse(result["persisted"])
         self.assertEqual(calls, [])
 
@@ -338,7 +414,7 @@ class TestAuditIsolation(TestCase):
         result = persist_advisory_run(
             run,
             settings=_settings(),
-            writer=lambda table, record: calls.append((table, record)) or True,
+            batch_writer=lambda records_by_table: calls.append(records_by_table) or {},
         )
         self.assertFalse(result["persisted"])
         self.assertEqual(calls, [])
@@ -368,3 +444,120 @@ class TestAuditIsolation(TestCase):
 
         self.assertEqual(len(rows), 1)
         self.assertNotEqual(rows[0]["reason"], "attempted overwrite")
+
+    def test_advisory_batch_rejects_unsafe_record_without_writing_any_table(self):
+        health = validate_universe(_active_rows(), scan_id="scan-batch")
+        unsafe = dict(health)
+        unsafe["action"] = "EXECUTE"
+        from tempfile import TemporaryDirectory
+
+        with TemporaryDirectory() as tmp:
+            files = {
+                table: str(Path(tmp) / f"{table}.json")
+                for table in phase24_store.ADVISORY_TABLES
+            }
+            with patch.object(phase24_store, "db_available", return_value=False), patch.object(
+                phase24_store, "_ADVISORY_FILES", files
+            ):
+                with self.assertRaises(ValueError):
+                    phase24_store.insert_advisory_batch({
+                        "advisory_bot_outputs": [health],
+                        "advisory_universe_health": [unsafe],
+                    })
+
+            self.assertFalse(any(Path(path).exists() for path in files.values()))
+
+    def test_database_batch_rolls_back_when_later_insert_fails(self):
+        health = validate_universe(_active_rows(), scan_id="scan-db-rollback")
+
+        class Cursor:
+            rowcount = 1
+
+            def __init__(self):
+                self.insert_count = 0
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def execute(self, query, _params=None):
+                if "INSERT INTO" in query:
+                    self.insert_count += 1
+                    if self.insert_count == 2:
+                        raise RuntimeError("simulated later insert failure")
+
+        class Connection:
+            def __init__(self):
+                self.cursor_instance = Cursor()
+                self.commits = 0
+                self.rollbacks = 0
+                self.closed = False
+
+            def cursor(self):
+                return self.cursor_instance
+
+            def commit(self):
+                self.commits += 1
+
+            def rollback(self):
+                self.rollbacks += 1
+
+            def close(self):
+                self.closed = True
+
+        connection = Connection()
+        with patch.object(phase24_store, "db_available", return_value=True), patch.object(
+            phase24_store, "_connect", return_value=connection
+        ), patch.object(phase24_store, "_ensure_advisory_schema"):
+            with self.assertRaisesRegex(RuntimeError, "simulated later insert failure"):
+                phase24_store.insert_advisory_batch({
+                    "advisory_bot_outputs": [health],
+                    "advisory_universe_health": [health],
+                })
+
+        self.assertEqual(connection.commits, 0)
+        self.assertEqual(connection.rollbacks, 1)
+        self.assertTrue(connection.closed)
+
+    def test_schema_migration_enforces_both_advisory_and_paper_flags(self):
+        class Cursor:
+            def __init__(self):
+                self.queries = []
+                self._last_query = ""
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def execute(self, query, _params=None):
+                self._last_query = " ".join(query.split())
+                self.queries.append(self._last_query)
+
+            def fetchone(self):
+                if "FROM pg_constraint" in self._last_query:
+                    return None
+                if "COUNT(*)" in self._last_query:
+                    return (0,)
+                return None
+
+        class Connection:
+            def __init__(self):
+                self.cursor_instance = Cursor()
+                self.commits = 0
+
+            def cursor(self):
+                return self.cursor_instance
+
+            def commit(self):
+                self.commits += 1
+
+        connection = Connection()
+        phase24_store._ensure_advisory_schema(connection)
+        ddl = "\n".join(connection.cursor_instance.queries)
+        self.assertIn("ADD COLUMN IF NOT EXISTS paper_only", ddl)
+        self.assertIn("CHECK (paper_only IS TRUE)", ddl)
+        self.assertIn("CHECK (advisory_only IS TRUE)", ddl)

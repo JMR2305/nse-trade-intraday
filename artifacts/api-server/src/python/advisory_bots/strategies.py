@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Mapping
 
 from .contracts import advisory_output
+from .data_quality_bot import validate_intraday_evidence
 
 
 class AdvisoryStrategy(ABC):
@@ -44,11 +45,27 @@ class AdvisoryStrategy(ABC):
             **extra,
         )
 
+    def _require_intraday_evidence(self, symbol: str, data: Mapping[str, Any]) -> Dict[str, Any] | None:
+        valid, reason = validate_intraday_evidence(data)
+        if valid:
+            return None
+        return self._result(
+            symbol,
+            0,
+            "INSUFFICIENT_CONTEXT",
+            reason,
+            data_quality="MISSING",
+            risk_flags=["INTRADAY_EVIDENCE_UNAVAILABLE"],
+        )
+
 
 class VWAPPullbackStrategy(AdvisoryStrategy):
     name = "VWAP_PULLBACK"
 
     def evaluate(self, symbol: str, data: Mapping[str, Any], regime: Mapping[str, Any] | None = None, **context: Any) -> Dict[str, Any]:
+        missing_evidence = self._require_intraday_evidence(symbol, data)
+        if missing_evidence:
+            return missing_evidence
         close, vwap, volume_ratio = _number(data.get("close", data.get("current_price"))), _number(data.get("vwap")), _number(data.get("volume_ratio"))
         if close <= 0 or vwap <= 0:
             return self._result(symbol, 0, "INSUFFICIENT_CONTEXT", "VWAP and price evidence unavailable", data_quality="MISSING")
@@ -76,6 +93,9 @@ class OpeningRangeBreakoutStrategy(AdvisoryStrategy):
     name = "OPENING_RANGE_BREAKOUT"
 
     def evaluate(self, symbol: str, data: Mapping[str, Any], regime: Mapping[str, Any] | None = None, **context: Any) -> Dict[str, Any]:
+        missing_evidence = self._require_intraday_evidence(symbol, data)
+        if missing_evidence:
+            return missing_evidence
         opening_complete = bool(data.get("opening_range_complete"))
         high, low = _number(data.get("orb_high")), _number(data.get("orb_low"))
         close, volume_ratio = _number(data.get("close", data.get("current_price"))), _number(data.get("volume_ratio"))
@@ -105,6 +125,9 @@ class EMAPullbackStrategy(AdvisoryStrategy):
     name = "EMA_PULLBACK"
 
     def evaluate(self, symbol: str, data: Mapping[str, Any], regime: Mapping[str, Any] | None = None, **context: Any) -> Dict[str, Any]:
+        missing_evidence = self._require_intraday_evidence(symbol, data)
+        if missing_evidence:
+            return missing_evidence
         close = _number(data.get("close", data.get("current_price")))
         ema_fast, ema_slow = _number(data.get("ema_fast")), _number(data.get("ema_slow"))
         if close <= 0 or ema_fast <= 0 or ema_slow <= 0:

@@ -339,30 +339,31 @@ def _ensure_advisory_schema(conn) -> None:
                     UNIQUE ({unique_key})
                 )
             """)
-            cur.execute(f"""
-                ALTER TABLE {table}
-                ADD COLUMN IF NOT EXISTS advisory_only BOOLEAN NOT NULL DEFAULT TRUE
-            """)
-            constraint = f"ck_{table}_advisory_only_true"
-            cur.execute(
-                "SELECT 1 FROM pg_constraint WHERE conname = %s",
-                (constraint,),
-            )
-            if cur.fetchone() is None:
+            for column in ("advisory_only", "paper_only"):
+                cur.execute(f"""
+                    ALTER TABLE {table}
+                    ADD COLUMN IF NOT EXISTS {column} BOOLEAN NOT NULL DEFAULT TRUE
+                """)
+                constraint = f"ck_{table}_{column}_true"
                 cur.execute(
-                    f"SELECT COUNT(*) FROM {table} "
-                    "WHERE advisory_only IS DISTINCT FROM TRUE"
+                    "SELECT 1 FROM pg_constraint WHERE conname = %s",
+                    (constraint,),
                 )
-                invalid_count = int(cur.fetchone()[0])
-                if invalid_count:
-                    raise ValueError(
-                        f"{table} contains {invalid_count} non-advisory rows; "
-                        "refusing to add the advisory-only constraint"
+                if cur.fetchone() is None:
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {table} "
+                        f"WHERE {column} IS DISTINCT FROM TRUE"
                     )
-                cur.execute(
-                    f"ALTER TABLE {table} ADD CONSTRAINT {constraint} "
-                    "CHECK (advisory_only IS TRUE)"
-                )
+                    invalid_count = int(cur.fetchone()[0])
+                    if invalid_count:
+                        raise ValueError(
+                            f"{table} contains {invalid_count} rows without {column}=true; "
+                            f"refusing to add the {column} constraint"
+                        )
+                    cur.execute(
+                        f"ALTER TABLE {table} ADD CONSTRAINT {constraint} "
+                        f"CHECK ({column} IS TRUE)"
+                    )
     conn.commit()
 
 
@@ -414,43 +415,123 @@ def _validate_advisory_record(table: str, record: Dict[str, Any]) -> Dict[str, A
     return clean
 
 
+def _insert_advisory_row(cur, table: str, clean: Dict[str, Any]) -> bool:
+    cur.execute(
+        f"""INSERT INTO {table} (
+            id, observed_at, scan_id, symbol, bot_name, strategy_name,
+            score, decision, reason, data_quality, risk_flags,
+            build_id, config_hash, advisory_only, paper_only, record
+        ) VALUES (
+            %(id)s, %(timestamp)s, %(scan_id)s, %(symbol)s, %(bot_name)s,
+            %(strategy_name)s, %(score)s, %(decision)s, %(reason)s,
+            %(data_quality)s, %(risk_flags)s, %(build_id)s, %(config_hash)s,
+            %(advisory_only)s, %(paper_only)s, %(record)s
+        ) ON CONFLICT DO NOTHING""",
+        {
+            **clean,
+            "data_quality": json.dumps(clean["data_quality"], default=str),
+            "risk_flags": json.dumps(clean["risk_flags"], default=str),
+            "record": json.dumps(clean, default=str),
+        },
+    )
+    return cur.rowcount == 1
+
+
+def _write_advisory_file_batch(staged: Dict[str, List[Dict[str, Any]]]) -> None:
+    """Best-effort all-or-restore transaction for JSON fallback files."""
+    transaction_id = uuid.uuid4().hex
+    temporary: Dict[str, str] = {}
+    backups: Dict[str, str] = {}
+    existed: Dict[str, bool] = {}
+    replaced: List[str] = []
+    try:
+        for table, rows in staged.items():
+            path = _ADVISORY_FILES[table]
+            temporary[table] = f"{path}.{transaction_id}.tmp"
+            existed[table] = os.path.exists(path)
+            if existed[table]:
+                backups[table] = f"{path}.{transaction_id}.bak"
+                with open(path, "rb") as source, open(backups[table], "wb") as target:
+                    target.write(source.read())
+            with open(temporary[table], "w") as output:
+                json.dump(rows, output, indent=1, default=str)
+        for table in staged:
+            os.replace(temporary[table], _ADVISORY_FILES[table])
+            replaced.append(table)
+    except Exception:
+        for table in reversed(replaced):
+            path = _ADVISORY_FILES[table]
+            if existed[table]:
+                os.replace(backups[table], path)
+            elif os.path.exists(path):
+                os.unlink(path)
+        raise
+    finally:
+        for path in [*temporary.values(), *backups.values()]:
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def insert_advisory_batch(records_by_table: Dict[str, List[Dict[str, Any]]]) -> Dict[str, int]:
+    """Append a complete advisory audit batch atomically or not at all.
+
+    Every record is validated before a database transaction or fallback file
+    replacement begins.  PostgreSQL uses one commit for all four advisory
+    tables; the JSON fallback stages every file and restores any replaced file
+    if a write fails.
+    """
+    normalized: Dict[str, List[Dict[str, Any]]] = {}
+    for table, records in records_by_table.items():
+        if table not in ADVISORY_TABLES:
+            raise ValueError(f"table is not approved for advisory storage: {table}")
+        if not isinstance(records, list):
+            raise ValueError("advisory batch records must be lists")
+        normalized[table] = [_validate_advisory_record(table, record) for record in records]
+    if not normalized:
+        return {table: 0 for table in ADVISORY_TABLES}
+
+    def in_db() -> Dict[str, int]:
+        conn = _connect()
+        try:
+            _ensure_advisory_schema(conn)
+            inserted = {table: 0 for table in ADVISORY_TABLES}
+            with conn.cursor() as cur:
+                for table, records in normalized.items():
+                    for record in records:
+                        if _insert_advisory_row(cur, table, record):
+                            inserted[table] += 1
+            conn.commit()
+            return inserted
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def in_file() -> Dict[str, int]:
+        staged: Dict[str, List[Dict[str, Any]]] = {}
+        inserted = {table: 0 for table in ADVISORY_TABLES}
+        for table, records in normalized.items():
+            rows = _read_json(_ADVISORY_FILES[table], [])
+            ids = {row.get("id") for row in rows}
+            staged_rows = list(rows)
+            for record in records:
+                if record["id"] not in ids:
+                    staged_rows.append(record)
+                    ids.add(record["id"])
+                    inserted[table] += 1
+            if inserted[table]:
+                staged[table] = staged_rows
+        if staged:
+            _write_advisory_file_batch(staged)
+        return inserted
+
+    return in_db() if db_available() else in_file()
+
+
 def insert_advisory_record(table: str, record: Dict[str, Any]) -> bool:
-    """Append one advisory record.  Returns false for an existing immutable key."""
-    clean = _validate_advisory_record(table, record)
-
-    def in_db(conn):
-        _ensure_advisory_schema(conn)
-        with conn.cursor() as cur:
-            cur.execute(
-                f"""INSERT INTO {table} (
-                    id, observed_at, scan_id, symbol, bot_name, strategy_name,
-                    score, decision, reason, data_quality, risk_flags,
-                    build_id, config_hash, advisory_only, paper_only, record
-                ) VALUES (
-                    %(id)s, %(timestamp)s, %(scan_id)s, %(symbol)s, %(bot_name)s,
-                    %(strategy_name)s, %(score)s, %(decision)s, %(reason)s,
-                    %(data_quality)s, %(risk_flags)s, %(build_id)s, %(config_hash)s,
-                    %(advisory_only)s, %(paper_only)s, %(record)s
-                ) ON CONFLICT DO NOTHING""",
-                {
-                    **clean,
-                    "data_quality": json.dumps(clean["data_quality"], default=str),
-                    "risk_flags": json.dumps(clean["risk_flags"], default=str),
-                    "record": json.dumps(clean, default=str),
-                },
-            )
-            return cur.rowcount == 1
-
-    def in_file():
-        path = _ADVISORY_FILES[table]
-        rows = _read_json(path, [])
-        if any(row.get("id") == clean["id"] for row in rows):
-            return False
-        rows.append(clean)
-        _write_json(path, rows)
-        return True
-
-    return _with_db(in_db, in_file)
+    """Append one advisory record through the same atomic batch boundary."""
+    return bool(insert_advisory_batch({table: [record]}).get(table))
 
 
 def list_advisory_records(table: str, limit: int = 500) -> List[Dict[str, Any]]:

@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Iterable, Mapping
+from typing import Any, Callable, Dict, Mapping
 
-from phase24_store import ADVISORY_TABLES, insert_advisory_record
+from phase24_store import ADVISORY_TABLES, insert_advisory_batch
 
 from .contracts import assert_advisory_output
 from .supervisor_bot import supervise
 
-Writer = Callable[[str, Dict[str, Any]], bool]
+BatchWriter = Callable[[Dict[str, list[Dict[str, Any]]]], Dict[str, int]]
 
 
 def persist_advisory_run(
     run: Mapping[str, Any],
     *,
     settings: Mapping[str, Any],
-    writer: Writer = insert_advisory_record,
+    batch_writer: BatchWriter = insert_advisory_batch,
 ) -> Dict[str, Any]:
     """Persist only an already supervisor-approved advisory run.
 
@@ -70,20 +70,16 @@ def persist_advisory_run(
     for output in outputs:
         _require_persistable(output)
 
-    inserted = {table: 0 for table in ADVISORY_TABLES}
-    for output in outputs:
-        if writer("advisory_bot_outputs", output):
-            inserted["advisory_bot_outputs"] += 1
-
-    for output in run.get("strategy_outputs") or []:
-        if writer("advisory_strategy_scores", dict(output)):
-            inserted["advisory_strategy_scores"] += 1
-    for output in run.get("decisions") or []:
-        if writer("advisory_decision_audit", dict(output)):
-            inserted["advisory_decision_audit"] += 1
+    records_by_table = {
+        "advisory_bot_outputs": outputs,
+        "advisory_strategy_scores": [dict(output) for output in run.get("strategy_outputs") or []],
+        "advisory_decision_audit": [dict(output) for output in run.get("decisions") or []],
+        "advisory_universe_health": [],
+    }
     universe = run.get("universe_health")
-    if universe and writer("advisory_universe_health", dict(universe)):
-        inserted["advisory_universe_health"] += 1
+    if universe:
+        records_by_table["advisory_universe_health"].append(dict(universe))
+    inserted = batch_writer(records_by_table)
 
     return {
         "persisted": True,
@@ -91,21 +87,6 @@ def persist_advisory_run(
         "advisory_only": True,
         "paper_only": True,
     }
-
-
-def _all_outputs(run: Mapping[str, Any]) -> list[Dict[str, Any]]:
-    result: list[Dict[str, Any]] = []
-    singletons: Iterable[Any] = (
-        run.get("universe_health"),
-        run.get("regime"),
-        run.get("supervisor"),
-    )
-    for output in singletons:
-        if isinstance(output, Mapping):
-            result.append(dict(output))
-    for key in ("quality_outputs", "strategy_outputs", "risk_outputs", "decisions"):
-        result.extend(dict(output) for output in (run.get(key) or []) if isinstance(output, Mapping))
-    return result
 
 
 def _subject_outputs(run: Mapping[str, Any]) -> list[Dict[str, Any]]:
