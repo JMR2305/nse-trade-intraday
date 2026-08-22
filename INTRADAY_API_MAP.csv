@@ -1,0 +1,778 @@
+# INTRADAY_API_MAP.csv
+# Extraction method: grep -rn "router.(get|post|put|patch|delete|options|head)("
+#   artifacts/api-server/src/routes --include=*.ts --exclude=*.test.ts --exclude=*.spec.ts
+# Total router declarations found: 770
+# Source files: non-test .ts files in artifacts/api-server/src/routes
+# Lineage columns: populated by static analysis; UNKNOWN = cannot determine statically
+# Dynamic/template-literal paths are listed with endpoint=UNKNOWN and exact handler_line
+endpoint,method,route_file,handler_line,caller_service_or_dependency,frontend_state_key,input_parameters,output_schema,database_dependencies,zerodha_dependencies,cache_dependencies,scheduler_dependencies,paper_trading_dependencies,mutates_state
+/advisory/status,GET,advisory.ts,135,Python advisory_status,AdvisoryDashboard,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/advisory/run-preview,POST,advisory.ts,154,Python advisory_run_preview,AdvisoryDashboard,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/agent-framework/supervisor/snapshot,GET,agentFramework.ts,43,Python agent_supervisor_snapshot,SupervisorExtendedPage AgentOperations,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/agent-framework/supervisor/alerts,GET,agentFramework.ts,44,Python agent_supervisor_alerts,CollaborationAlertsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/agent-framework/scalability,GET,agentFramework.ts,45,Python agent_scalability,ScalabilityDashboardPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/agent-framework/diagnostics,GET,agentFramework.ts,50,Python agent_framework_diagnostics,AgentCommMonitorPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/agent-framework/agents,GET,agentFramework.ts,168,Python agent_framework_agents,AgentOperations AIOperationsCentrePage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/agent-framework/agents/:agentId,GET,agentFramework.ts,221,Python agent_framework_agent_detail,AiDecisionAgentPage ExecutionAgentPage,path:agentId,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/agent-framework/market-data/snapshot,GET,agentFramework.ts,238,Python agent_market_data_snapshot,AgentOperations,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/agent-framework/market-data/metrics,GET,agentFramework.ts,239,Python agent_market_data_metrics,AgentOperations,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/agent-framework/market-data/status,GET,agentFramework.ts,240,Python agent_market_data_status,AgentOperations,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/agent-framework/research/snapshot,GET,agentFramework.ts,243,Python agent_research_snapshot,AgentOperations,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/agent-framework/research/metrics,GET,agentFramework.ts,244,Python agent_research_metrics,AgentOperations,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/agent-framework/research/status,GET,agentFramework.ts,245,Python agent_research_status,AgentOperations,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/agent-framework/monitoring/snapshot,GET,agentFramework.ts,248,Python agent_monitoring_snapshot,AgentOperations,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/agent-framework/monitoring/status,GET,agentFramework.ts,249,Python agent_monitoring_status,AgentOperations,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/ai-optimisation/summary,GET,ai-optimisation.ts,44,Python ai_optimisation_summary,AIOptimisation,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/ai-optimisation/calibration,GET,ai-optimisation.ts,49,Python ai_optimisation_calibration,AIOptimisation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ai-optimisation/drift,GET,ai-optimisation.ts,54,Python ai_optimisation_drift,AIOptimisation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ai-optimisation/recommendations,GET,ai-optimisation.ts,59,Python ai_optimisation_recommendations,AIOptimisation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ai-optimisation/history,GET,ai-optimisation.ts,64,Python ai_optimisation_history,AIOptimisation,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/ai-optimisation/export/csv,GET,ai-optimisation.ts,69,Python ai_optimisation_export_csv,AIOptimisation,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/ai-optimisation/export/json,GET,ai-optimisation.ts,79,Python ai_optimisation_export_json,AIOptimisation,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/ai/summary,GET,ai-performance.ts,44,Python ai_summary,AIPerformanceIntelligence,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/ai/confidence,GET,ai-performance.ts,45,Python ai_confidence,AIPerformanceIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ai/calibration,GET,ai-performance.ts,46,Python ai_calibration,AIPerformanceIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ai/predictions,GET,ai-performance.ts,47,Python ai_predictions,AIPerformanceIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ai/recommendations,GET,ai-performance.ts,48,Python ai_recommendations,AIPerformanceIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ai/learning,GET,ai-performance.ts,49,Python ai_learning,AIPerformanceIntelligence,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/analysis-agents/market-intelligence/snapshot,GET,analysisAgents.ts,37,Python agent_market_intelligence_snapshot,MarketIntelligenceHub,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/analysis-agents/market-intelligence/status,GET,analysisAgents.ts,38,Python agent_market_intelligence_status,MarketIntelligenceHub,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/analysis-agents/stock-monitoring/snapshot,GET,analysisAgents.ts,41,Python agent_stock_monitoring_snapshot,LiveDataHealth,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/analysis-agents/stock-monitoring/events,GET,analysisAgents.ts,42,Python agent_stock_monitoring_events,LiveDataHealth,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/analysis-agents/stock-monitoring/priority,GET,analysisAgents.ts,43,Python agent_stock_monitoring_priority,LiveDataHealth,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/analysis-agents/strategy/snapshot,GET,analysisAgents.ts,46,Python agent_strategy_snapshot,StrategyIntelligence,NONE,{data:object},SQLite/DB,NONE,in-memory cache,NONE,NONE,false
+/analysis-agents/strategy/symbol/:symbol,GET,analysisAgents.ts,48,Python agent_strategy_symbol,StrategyIntelligence,path:symbol,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/analysis-agents/risk/snapshot,GET,analysisAgents.ts,56,Python agent_risk_snapshot,RiskManagement,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/analysis-agents/risk/detail,GET,analysisAgents.ts,57,Python analysis_agents_risk_detail,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/analysis-agents/summary,GET,analysisAgents.ts,66,Python analysis_agents_summary,UNKNOWN,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/analysis-agents/timeline,GET,analysisAgents.ts,83,Python analysis_agents_timeline,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/analysis-agents/performance,GET,analysisAgents.ts,84,Python analysis_agents_performance,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/auth/login,POST,auth.ts,50,lib/auth session,AuthGate,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/auth/logout,POST,auth.ts,79,lib/auth session,AuthGate,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/auth/me,GET,auth.ts,87,lib/auth session,AuthGate,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/backtest/run,POST,backtest.ts,66,Python backtest_run,Backtest,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/backtest/runs,GET,backtest.ts,90,Python backtest_runs,Backtest,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id,GET,backtest.ts,98,Python backtest_run_detail,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/portfolio,GET,backtest.ts,106,Python backtest_portfolio,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/trades,GET,backtest.ts,114,Python backtest_trades,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/missed,GET,backtest.ts,122,Python backtest_missed,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/validate,GET,backtest.ts,132,Python backtest_validate,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/decision/:symbol,GET,backtest.ts,145,Python backtest_decision,Backtest,path:id;path:symbol,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/replay,GET,backtest.ts,158,Python backtest_replay,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/story/:tradeId,GET,backtest.ts,166,Python backtest_story,Backtest,path:id;path:tradeId,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/explain/:symbol,GET,backtest.ts,176,Python backtest_explain,Backtest,path:id;path:symbol,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/search,GET,backtest.ts,193,Python backtest_search,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/replay-verify,GET,backtest.ts,203,Python backtest_replay_verify,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/run/:id/cancel,POST,backtest.ts,212,Python backtest_cancel,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/backtest/run/:id/mark-stale,POST,backtest.ts,221,Python backtest_mark_stale,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/backtest/run/:id/retry,POST,backtest.ts,230,Python backtest_retry,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/backtest/run/:id/ingest-missed,POST,backtest.ts,239,Python backtest_ingest_missed,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/backtest/run/:id/stats,GET,backtest.ts,253,Python backtest_stats,Backtest,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/candles,GET,backtest.ts,261,Python backtest_candles,Backtest,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/backtest/cache,GET,backtest.ts,279,Python backtest_cache,Backtest,NONE,{data:object},SQLite/DB,NONE,in-memory cache,NONE,NONE,false
+/backtest/scheduler/status,GET,backtest.ts,299,Python backtest_scheduler_status,Backtest,NONE,{status:string},SQLite/DB,NONE,NONE,scheduler,NONE,false
+/certification/validate/:domain,GET,certification.ts,94,Python certification_validate,SystemValidation,path:domain,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/certification/run,POST,certification.ts,121,Python certification_run,SystemValidation,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/certification/history,GET,certification.ts,140,Python certification_history,SystemValidation,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/certification/long-duration,GET,certification.ts,154,Python certification_long_duration,SystemValidation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/certification/:certId,GET,certification.ts,169,Python certification_detail,SystemValidation,path:certId,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/command-center/summary,GET,command-center.ts,81,Python cmd_center_summary,CommandCenter LiveCommandCenter MissionControl,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/command-center/briefing,GET,command-center.ts,94,Python cmd_center_briefing,CommandCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/command-center/alerts,GET,command-center.ts,110,Python cmd_center_alerts,CommandCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/command-center/timeline,GET,command-center.ts,111,Python cmd_center_timeline,CommandCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/command-center/export,GET,command-center.ts,113,Python cmd_center_export,CommandCenter,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/controlled-paper-entry/status,GET,controlledPaperEntry.ts,33,lib/controlledPaperEntryFlags,OperatorStatus Phase4ASession,NONE,{status:string},NONE,NONE,NONE,NONE,paper-trading engine,false
+/data-quality/summary,GET,data-quality.ts,33,Python data_quality_summary,DataQuality,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/data-quality/market,GET,data-quality.ts,38,Python data_quality_market,DataQuality,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/data-quality/preopen,GET,data-quality.ts,43,Python data_quality_preopen,DataQuality,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/data-quality/paper,GET,data-quality.ts,48,Python data_quality_paper,DataQuality,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/data-quality/portfolio,GET,data-quality.ts,53,Python data_quality_portfolio,DataQuality,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/data-quality/ai,GET,data-quality.ts,58,Python data_quality_ai,DataQuality,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/data-quality/signals,GET,data-quality.ts,63,Python data_quality_signals,DataQuality,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/data-quality/config,GET,data-quality.ts,68,Python data_quality_config,DataQuality,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/data-quality/alerts,GET,data-quality.ts,73,Python data_quality_alerts,DataQuality,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/data-quality/snapshot,GET,data-quality.ts,78,Python data_quality_snapshot,DataQuality,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/data-quality/history,GET,data-quality.ts,83,Python data_quality_history,DataQuality,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/data-quality/export,GET,data-quality.ts,88,Python data_quality_export,DataQuality,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/decision-layer/ai-decision/snapshot,GET,decisionLayer.ts,37,Python agent_ai_decision_snapshot,AiDecisionAgentPage AiDecision,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/decision-layer/ai-decision/recommendations,GET,decisionLayer.ts,38,Python agent_ai_decision_recommendations,AiDecision TradeDecisions,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/decision-layer/ai-decision/status,GET,decisionLayer.ts,39,Python agent_ai_decision_status,AiDecision,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/decision-layer/ai-decision/symbol/:symbol,GET,decisionLayer.ts,41,Python agent_ai_decision_symbol,AiDecision,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/decision-layer/execution/snapshot,GET,decisionLayer.ts,49,Python agent_execution_snapshot,ExecutionAgentPage,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/decision-layer/execution/queue,GET,decisionLayer.ts,50,Python agent_execution_queue,ExecutionAgentPage BrokerExecution,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/decision-layer/execution/status,GET,decisionLayer.ts,51,Python agent_execution_status,BrokerExecution,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/decision-layer/execution/plan/:symbol,GET,decisionLayer.ts,53,Python agent_execution_plan,BrokerExecution,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/decision-layer/summary,GET,decisionLayer.ts,61,Python agent_decision_summary,DecisionLineagePage,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/decision-layer/timeline,GET,decisionLayer.ts,62,Python agent_decision_timeline,DecisionLineagePage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/decision-layer/performance,GET,decisionLayer.ts,63,Python agent_decision_performance,DecisionLineagePage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/summary,GET,deployment.ts,42,Python deploy_summary,DeploymentCenter,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/readiness,GET,deployment.ts,43,Python deploy_readiness,DeploymentCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/config,GET,deployment.ts,44,Python deploy_config,DeploymentCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/backups,GET,deployment.ts,45,Python deploy_backups,DeploymentCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/restore,GET,deployment.ts,46,Python deploy_restore,DeploymentCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/rollback,GET,deployment.ts,47,Python deploy_rollback,DeploymentCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/infrastructure,GET,deployment.ts,48,Python deploy_infrastructure,DeploymentCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/continuity,GET,deployment.ts,49,Python deploy_continuity,DeploymentCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/recommendations,GET,deployment.ts,50,Python deploy_recommendations,DeploymentCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/deployment/snapshot,GET,deployment.ts,51,Python deploy_snapshot,DeploymentCenter,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/deployment/export,GET,deployment.ts,53,Python deploy_export,DeploymentCenter,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/downloads,GET,download.ts,128,static file list,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/download/nse-intraday-backend-source.zip,GET,download.ts,133,filesystem zip serve,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/download/batch6-compatibility-report.csv,GET,download.ts,144,filesystem csv serve,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/download/market-data-package.zip,GET,download.ts,155,filesystem zip serve,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/download/batch7d-reference-package.zip,GET,download.ts,166,filesystem zip serve,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/download/batch7d-kimi-context.md,GET,download.ts,177,filesystem md serve,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/download/batch7d-public-api.md,GET,download.ts,188,filesystem md serve,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/e2e-validation/run,POST,e2e-validation.ts,53,Python e2e_validation_run,SystemValidation,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/e2e-validation/history,GET,e2e-validation.ts,64,Python e2e_validation_history,SystemValidation,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/e2e-validation/summary,GET,e2e-validation.ts,74,Python e2e_validation_summary,SystemValidation,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/e2e-validation/runs/:runId,GET,e2e-validation.ts,83,Python e2e_validation_run_detail,SystemValidation,path:runId,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/event-intelligence/summary,GET,event-intelligence.ts,36,Python event_intelligence_summary,EventIntelligence,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/event-intelligence/corporate,GET,event-intelligence.ts,42,Python event_intelligence_corporate,EventIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/event-intelligence/regulatory,GET,event-intelligence.ts,48,Python event_intelligence_regulatory,EventIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/event-intelligence/news,GET,event-intelligence.ts,54,Python event_intelligence_news,EventIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/event-intelligence/timeline,GET,event-intelligence.ts,60,Python event_intelligence_timeline,EventIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/event-intelligence/brief,GET,event-intelligence.ts,66,Python event_intelligence_brief,EventIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/event-intelligence/export/csv,GET,event-intelligence.ts,72,Python event_intelligence_export_csv,EventIntelligence,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/event-intelligence/export/json,GET,event-intelligence.ts,84,Python event_intelligence_export_json,EventIntelligence,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/execution-quality/summary,GET,executionQuality.ts,43,Python execution_quality_summary,ExecutionQualityPage,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/execution-quality/trades,GET,executionQuality.ts,54,Python execution_quality_trades,ExecutionQualityPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/execution-quality/slippage,GET,executionQuality.ts,68,Python execution_quality_slippage,ExecutionQualityPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/execution-quality/fills,GET,executionQuality.ts,79,Python execution_quality_fills,ExecutionQualityPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/executive/summary,GET,executive.ts,41,Python executive_summary,ExecutiveDashboard,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/executive/health,GET,executive.ts,46,Python executive_health,ExecutiveDashboard,NONE,{healthy:boolean},NONE,NONE,in-memory cache,NONE,NONE,false
+/executive/widgets,GET,executive.ts,51,Python executive_widgets,ExecutiveDashboard,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/explainable-ai/summary,GET,explainable-ai.ts,54,Python explainable_ai_summary,ExplainableAI,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/explainable-ai/decision,GET,explainable-ai.ts,61,Python explainable_ai_decision,ExplainableAI,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/explainable-ai/contributions,GET,explainable-ai.ts,70,Python explainable_ai_contributions,ExplainableAI,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/explainable-ai/confidence,GET,explainable-ai.ts,79,Python explainable_ai_confidence,ExplainableAI,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/explainable-ai/scenarios,GET,explainable-ai.ts,88,Python explainable_ai_scenarios,ExplainableAI,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/explainable-ai/history,GET,explainable-ai.ts,97,Python explainable_ai_history,ExplainableAI,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/explainable-ai/snapshot,GET,explainable-ai.ts,106,Python explainable_ai_snapshot,ExplainableAI,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/explainable-ai/export,GET,explainable-ai.ts,113,Python explainable_ai_export,ExplainableAI,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/healthz,GET,health.ts,37,inline liveness check,ConnectivityPanel,NONE,{healthy:boolean},NONE,NONE,in-memory cache,NONE,NONE,false
+/health/live,GET,health.ts,43,inline liveness check,ConnectivityPanel,NONE,{healthy:boolean},NONE,NONE,in-memory cache,NONE,NONE,false
+/health/ready,GET,health.ts,48,Python health_ready,ConnectivityPanel,NONE,{healthy:boolean},NONE,NONE,in-memory cache,NONE,NONE,false
+/health/details,GET,health.ts,104,Python health_details,LiveDataHealth AutomationHealth SystemHealthPage,NONE,{healthy:boolean},NONE,NONE,in-memory cache,NONE,NONE,false
+/kite/status,GET,kite.ts,66,Python kite_status,KiteConnect BrokerExecution mobile-health,NONE,{status:string},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/login,GET,kite.ts,105,Kite OAuth redirect,KiteConnect,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/callback,GET,kite.ts,115,Kite OAuth callback,KiteConnect,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/disconnect,POST,kite.ts,146,Python kite_disconnect,KiteConnect,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/kite/invalidate,POST,kite.ts,151,Python kite_invalidate,KiteConnect,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/kite/quote,GET,kite.ts,158,Zerodha Kite API quote,BrokerExecution,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/ltp,GET,kite.ts,171,Zerodha Kite API ltp,BrokerExecution,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/holdings,GET,kite.ts,183,Zerodha Kite API holdings,BrokerExecution,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/positions,GET,kite.ts,188,Zerodha Kite API positions,BrokerExecution,NONE,{data:object},SQLite/DB,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/margins,GET,kite.ts,193,Zerodha Kite API margins,BrokerExecution,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/orders,GET,kite.ts,198,Zerodha Kite API orders,BrokerExecution,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/instruments/search,GET,kite.ts,206,Zerodha Kite API instruments,KiteConnect,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/instruments/refresh,POST,kite.ts,213,Python kite_instruments_refresh,KiteConnect,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/kite/instruments/status,GET,kite.ts,218,Python kite_instruments_status,KiteConnect,NONE,{status:string},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/kite/diagnostics,GET,kite.ts,225,Python kite_diagnostics,KiteConnect,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/lab/compare-runs,POST,lab.ts,104,Python lab_compare_runs,ExperimentManager,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/lab/what-if,POST,lab.ts,113,Python lab_what_if,ExperimentManager,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/lab/compare-configs,POST,lab.ts,122,Python lab_compare_configs,ExperimentManager,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/lab/walk-forward/:id,GET,lab.ts,137,Python lab_walk_forward,WalkForwardValidation,path:id,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/lab/monte-carlo,GET,lab.ts,146,Python lab_monte_carlo,SimulationLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+UNKNOWN,GET,lab.ts,164,Python UNKNOWN,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/lab/diff,GET,lab.ts,173,Python lab_diff,ExperimentManager,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/lab/export,GET,lab.ts,181,Python lab_export,ExperimentManager,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/lab/verify,GET,lab.ts,200,Python lab_verify,ExperimentManager,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/learning-layer/learning/snapshot,GET,learningLayer.ts,45,Python agent_learning_snapshot,LearningAgentPage,NONE,{data:object},SQLite/DB,NONE,in-memory cache,NONE,NONE,false
+/learning-layer/learning/metrics,GET,learningLayer.ts,46,Python agent_learning_metrics,LearningAgentPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/learning/insights,GET,learningLayer.ts,47,Python agent_learning_insights,LearningInsights,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/learning/status,GET,learningLayer.ts,48,Python agent_learning_status,AutomationHealth,NONE,{status:string},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/knowledge/snapshot,GET,learningLayer.ts,51,Python agent_knowledge_snapshot,KnowledgeAgentPage,NONE,{data:object},SQLite/DB,NONE,in-memory cache,NONE,NONE,false
+/learning-layer/knowledge/patterns,GET,learningLayer.ts,52,Python agent_knowledge_patterns,PatternExplorerPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/knowledge/lessons,GET,learningLayer.ts,53,Python agent_knowledge_lessons,LessonsLibraryPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/knowledge/memory,GET,learningLayer.ts,54,Python agent_knowledge_memory,TradeMemoryPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/knowledge/status,GET,learningLayer.ts,55,Python agent_knowledge_status,KnowledgeAgentPage,NONE,{status:string},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/knowledge/search,GET,learningLayer.ts,58,Python agent_knowledge_search,KnowledgeSearchPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/summary,GET,learningLayer.ts,66,Python agent_learning_summary,LearningGovernance AILearningCenter,NONE,{summary:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/timeline,GET,learningLayer.ts,67,Python agent_learning_timeline,LearningGovernance,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-layer/performance,GET,learningLayer.ts,68,Python agent_learning_performance,LearningGovernance,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/live-validation/run,POST,live-validation.ts,56,Python live_validation_run,SystemValidation,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/live-validation/summary,GET,live-validation.ts,65,Python live_validation_summary,SystemValidation,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/live-validation/history,GET,live-validation.ts,75,Python live_validation_history,SystemValidation,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/live-validation/consistency,POST,live-validation.ts,85,Python live_validation_consistency,SystemValidation,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/live-validation/issues,GET,live-validation.ts,94,Python live_validation_issues,SystemValidation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/live-validation/issues/resolve,POST,live-validation.ts,108,Python live_validation_resolve,SystemValidation,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/macro-intelligence/summary,GET,macro-intelligence.ts,45,Python macro_intelligence_summary,MacroIntelligence,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/macro-intelligence/calendar,GET,macro-intelligence.ts,51,Python macro_intelligence_calendar,MacroIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/macro-intelligence/global,GET,macro-intelligence.ts,57,Python macro_intelligence_global,MacroIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/macro-intelligence/flows,GET,macro-intelligence.ts,63,Python macro_intelligence_flows,MacroIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/macro-intelligence/commodities,GET,macro-intelligence.ts,69,Python macro_intelligence_commodities,MacroIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/macro-intelligence/brief,GET,macro-intelligence.ts,75,Python macro_intelligence_brief,MacroIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/macro-intelligence/export/csv,GET,macro-intelligence.ts,81,Python macro_intelligence_export_csv,MacroIntelligence,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/macro-intelligence/export/json,GET,macro-intelligence.ts,93,Python macro_intelligence_export_json,MacroIntelligence,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/market-intelligence/summary,GET,market-intelligence.ts,43,Python market_intelligence_summary,MarketIntelligenceHub,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/market-intelligence/sectors,GET,market-intelligence.ts,48,Python market_intelligence_sectors,MarketIntelligenceHub,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/market-intelligence/watchlist,GET,market-intelligence.ts,53,Python market_intelligence_watchlist,MarketIntelligenceHub,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/market-intelligence/breadth,GET,market-intelligence.ts,58,Python market_intelligence_breadth,MarketIntelligenceHub,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/market-intelligence/overview,GET,market-intelligence.ts,63,Python market_intelligence_overview,MarketIntelligenceHub,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/market-intelligence/export/csv,GET,market-intelligence.ts,68,Python market_intelligence_export_csv,MarketIntelligenceHub,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/market-intelligence/export/json,GET,market-intelligence.ts,78,Python market_intelligence_export_json,MarketIntelligenceHub,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/notifications/push/register,POST,notifications.ts,29,lib/pushNotifier,mobile-alerts,query:limit;query:offset,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/notifications/push/preferences,POST,notifications.ts,83,lib/pushNotifier,mobile-alerts Settings,query:limit;query:offset,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/notifications/push/status,GET,notifications.ts,133,lib/pushNotifier,mobile-alerts Notifications,query:limit;query:offset,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/notifications/deliveries,GET,notifications.ts,182,Python alert_deliveries,Notifications,query:limit;query:offset,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/notifications/deliveries/stats,GET,notifications.ts,248,Python alert_delivery_stats,Notifications,query:limit;query:offset,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/observability/summary,GET,observability.ts,28,Python observability_summary,ObservabilityCenter,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/observability/system,GET,observability.ts,33,Python observability_system,ObservabilityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/observability/performance,GET,observability.ts,38,Python observability_performance,ObservabilityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/observability/errors,GET,observability.ts,43,Python observability_errors,ObservabilityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/observability/alerts,GET,observability.ts,48,Python observability_alerts,ObservabilityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/observability/audit,GET,observability.ts,53,Python observability_audit,ObservabilityCenter,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/observability/snapshot,GET,observability.ts,58,Python observability_snapshot,ObservabilityCenter,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/observability/export,GET,observability.ts,63,Python observability_export,ObservabilityCenter,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/ohlcv-cache/status,GET,ohlcvCache.ts,82,Python ohlcv_cache_status,UNKNOWN internal,NONE,{status:string},NONE,NONE,in-memory cache,NONE,NONE,false
+/ohlcv-cache/backfill,POST,ohlcvCache.ts,89,Python ohlcv_cache_backfill,UNKNOWN internal,body:UNKNOWN,{data:object},NONE,NONE,in-memory cache,NONE,NONE,true
+/ohlcv-cache/postmarket-refresh,POST,ohlcvCache.ts,97,Python ohlcv_cache_postmarket_refresh,UNKNOWN internal,body:UNKNOWN,{data:object},NONE,NONE,in-memory cache,NONE,NONE,true
+/ohlcv-cache/readiness,GET,ohlcvCache.ts,103,Python ohlcv_cache_readiness,UNKNOWN internal,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/ohlcv-cache/company-master,GET,ohlcvCache.ts,110,Python ohlcv_company_master,UNKNOWN internal,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/ohlcv-cache/company-master/bootstrap,POST,ohlcvCache.ts,116,Python ohlcv_company_master_bootstrap,UNKNOWN internal,body:UNKNOWN,{data:object},NONE,NONE,in-memory cache,NONE,NONE,true
+/operations/summary,GET,operations.ts,50,Python ops_summary,OperationsCenter,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/market,GET,operations.ts,51,Python ops_market,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/paper,GET,operations.ts,52,Python ops_paper,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/operations/risk,GET,operations.ts,53,Python ops_risk,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/data-quality,GET,operations.ts,54,Python ops_data_quality,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/observability,GET,operations.ts,55,Python ops_observability,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/flags,GET,operations.ts,56,Python ops_flags,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/jobs,GET,operations.ts,57,Python ops_jobs,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/alerts,GET,operations.ts,58,Python ops_alerts,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/checklist,GET,operations.ts,59,Python ops_checklist,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/timeline,GET,operations.ts,60,Python ops_timeline,OperationsCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/operations/snapshot,GET,operations.ts,61,Python ops_snapshot,OperationsCenter,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/operations/export,GET,operations.ts,64,Python ops_export,OperationsCenter,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/optimisation/summary,GET,optimisation.ts,43,Python optimisation_summary,OptimizationLab Optimizer,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/optimisation/strategies,GET,optimisation.ts,48,Python optimisation_strategies,OptimizationLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/optimisation/recommendations,GET,optimisation.ts,53,Python optimisation_recommendations,OptimizationLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/optimisation/patterns,GET,optimisation.ts,58,Python optimisation_patterns,OptimizationLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/optimisation/export/csv,GET,optimisation.ts,63,Python optimisation_export_csv,OptimizationLab,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/optimisation/export/json,GET,optimisation.ts,73,Python optimisation_export_json,OptimizationLab,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/paper-analytics/summary,GET,paper-analytics.ts,33,Python paper_analytics_summary,PaperAnalytics,NONE,{summary:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/paper-analytics/trades,GET,paper-analytics.ts,38,Python paper_analytics_trades,PaperAnalytics,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,paper-trading engine,false
+/paper-analytics/strategies,GET,paper-analytics.ts,43,Python paper_analytics_strategies,PaperAnalytics,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/paper-analytics/risk,GET,paper-analytics.ts,48,Python paper_analytics_risk,PaperAnalytics TradingQuality,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/paper-analytics/preopen,GET,paper-analytics.ts,53,Python paper_analytics_preopen,PaperAnalytics,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/paper-analytics/portfolio,GET,paper-analytics.ts,58,Python paper_analytics_portfolio,PaperAnalytics,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,paper-trading engine,false
+/paper-analytics/learning,GET,paper-analytics.ts,63,Python paper_analytics_learning,PaperAnalytics,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,paper-trading engine,false
+/paper-analytics/snapshot,GET,paper-analytics.ts,68,Python paper_analytics_snapshot,PaperAnalytics,NONE,{data:object},NONE,NONE,in-memory cache,NONE,paper-trading engine,false
+/paper-analytics/export,GET,paper-analytics.ts,73,Python paper_analytics_export,PaperAnalytics,query:format,file/stream,NONE,NONE,NONE,NONE,paper-trading engine,false
+/portfolio-performance/summary,GET,performance.ts,45,Python performance_summary,PortfolioPerformance,NONE,{summary:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/portfolio-performance/drawdown,GET,performance.ts,46,Python performance_drawdown,PortfolioPerformance,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/portfolio-performance/statistics,GET,performance.ts,47,Python performance_statistics,PortfolioPerformance,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/portfolio-performance/portfolio,GET,performance.ts,48,Python performance_portfolio,PortfolioPerformance,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/portfolio-performance/equity,GET,performance.ts,49,Python performance_equity,PortfolioPerformance,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/performance/summary,GET,performance.ts,59,Python perf_summary,PerformanceAnalytics PerformanceCenter,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/performance/api,GET,performance.ts,60,Python perf_api,PerformanceCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/performance/database,GET,performance.ts,61,Python perf_database,PerformanceCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/performance/cache,GET,performance.ts,62,Python perf_cache,PerformanceCenter,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/performance/scheduler,GET,performance.ts,63,Python perf_scheduler,PerformanceCenter,NONE,{data:object},NONE,NONE,NONE,scheduler,NONE,false
+/performance/resources,GET,performance.ts,64,Python perf_resources,PerformanceCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/performance/frontend,GET,performance.ts,65,Python perf_frontend,PerformanceCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/performance/scalability,GET,performance.ts,66,Python perf_scalability,PerformanceCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/performance/benchmark,GET,performance.ts,67,Python perf_benchmark,PerformanceCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/performance/recommendations,GET,performance.ts,68,Python perf_recommendations,PerformanceCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/performance/snapshot,GET,performance.ts,69,Python perf_snapshot,PerformanceCenter,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/performance/export,GET,performance.ts,71,Python perf_export,PerformanceCenter,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/capital/config,GET,phase11.ts,64,Python phase11_capital_config,Phase11SummaryPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/capital/config,PUT,phase11.ts,66,Python phase11_capital_config_update,Phase11SummaryPage,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/capital/topups,GET,phase11.ts,75,Python phase11_capital_topups,Phase11SummaryPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/capital/topup-check,POST,phase11.ts,84,Python phase11_topup_check,Phase11SummaryPage,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/portfolio,GET,phase11.ts,87,Python portfolio,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/portfolio/open-positions,GET,phase11.ts,88,Python phase11_open_positions,Phase11PortfolioPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/portfolio/closed-positions,GET,phase11.ts,90,Python phase11_closed_positions,Phase11PortfolioPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/recommendations,GET,phase11.ts,100,Python phase11_recommendation_queue,Phase11RecommendationQueuePage mobile-signals,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/timeline,GET,phase11.ts,103,Python phase11_timeline,Phase11TimelinePage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/calendar,GET,phase11.ts,113,Python phase11_calendar,Phase11TimelinePage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/daily-summary,GET,phase11.ts,123,Python phase11_daily_summary,Phase11SummaryPage,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/replay,GET,phase11.ts,133,Python replay,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/reports/daily,GET,phase11.ts,145,Python phase11_reports_daily,Phase11ReportsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/reports/weekly,GET,phase11.ts,154,Python phase11_reports_weekly,Phase11ReportsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/reports/monthly,GET,phase11.ts,163,Python phase11_reports_monthly,Phase11ReportsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ai-performance,GET,phase11.ts,173,Python ai_performance,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/learning,GET,phase11.ts,176,Python learning,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/snapshot,GET,phase11.ts,179,Python snapshot,UNKNOWN,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/session/status,GET,phase11.ts,183,Python daily_session_status,Phase4ASession,NONE,{status:string},SQLite/DB,NONE,NONE,NONE,NONE,false
+/session/init,POST,phase11.ts,186,Python daily_session_init,Phase4ASession,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,scheduler,NONE,true
+/session/enable-autonomous,POST,phase11.ts,202,Python daily_session_enable_autonomous,Phase4ASession,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/session/disable-autonomous,POST,phase11.ts,205,Python daily_session_disable_autonomous,Phase4ASession,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/session/agents,GET,phase11.ts,208,Python daily_session_verify_agents,Phase4ASession,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/price-snapshots/record,POST,phase11.ts,213,Python phase11_price_snapshot_record,UNKNOWN internal,body:UNKNOWN,{data:object},SQLite/DB,NONE,in-memory cache,NONE,NONE,true
+/price-history,GET,phase11.ts,228,Python phase11_price_history,UNKNOWN internal,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase12/analysis,GET,phase12.ts,55,Python phase12_analysis,Phase12Intelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase12/regime,GET,phase12.ts,68,Python phase12_regime,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase12/sector-rotation,GET,phase12.ts,78,Python phase12_sector_rotation,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase12/bundle,POST,phase12.ts,88,Python phase12_bundle,Phase12Intelligence,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase12/bundle/download,GET,phase12.ts,98,Python phase12_bundle_download,Phase12Intelligence,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/phase13/analysis,GET,phase13.ts,65,Python phase13_analysis,Phase13Intelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase13/regime,GET,phase13.ts,72,Python phase13_regime,Phase13Intelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase13/sector-rotation,GET,phase13.ts,77,Python phase13_sector_rotation,Phase13Intelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase13/bundle,POST,phase13.ts,82,Python phase13_bundle,Phase13Intelligence,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase13/bundle/download,GET,phase13.ts,87,Python phase13_bundle_download,Phase13Intelligence,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/phase13/evolution,GET,phase13.ts,106,Python phase13_evolution,StrategyEvolution,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase13/evolution/generate,POST,phase13.ts,112,Python phase13_evolution_generate,StrategyEvolution,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase13/evolution/review/:id,POST,phase13.ts,117,Python phase13_evolution_review,StrategyEvolution,path:id,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase13/audit,GET,phase13.ts,128,Python phase13_audit,Phase13Intelligence,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase14/dataset,GET,phase14.ts,73,Python phase14_dataset,FeatureImportance,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase14/evaluation,GET,phase14.ts,77,Python phase14_evaluation,FeatureImportance,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase14/adjustments,GET,phase14.ts,81,Python phase14_adjustments,FeatureImportance,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase14/calibration/train,POST,phase14.ts,85,Python phase14_calibration_train,FeatureImportance,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase14/calibration,GET,phase14.ts,89,Python phase14_calibration,FeatureImportance,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase14/registry,GET,phase14.ts,93,Python phase14_registry,LearningGovernance,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase14/registry/challenger,POST,phase14.ts,97,Python phase14_registry_challenger,LearningGovernance,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase14/registry/checklist/:id,GET,phase14.ts,102,Python phase14_registry_checklist,LearningGovernance,path:id,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase14/registry/review/:id,POST,phase14.ts,106,Python phase14_registry_review,LearningGovernance,path:id,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase14/registry/rollback,POST,phase14.ts,115,Python phase14_registry_rollback,LearningGovernance,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase14/drift,GET,phase14.ts,119,Python phase14_drift,LearningGovernance,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase14/alerts,GET,phase14.ts,123,Python phase14_alerts,LearningGovernance,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase14/audit-log,GET,phase14.ts,127,Python phase14_audit_log,LearningGovernance,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase14/verification,GET,phase14.ts,131,Python phase14_verification,LearningGovernance,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase14/bundle,POST,phase14.ts,135,Python phase14_bundle,LearningGovernance,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase14/bundle/download,GET,phase14.ts,139,Python phase14_bundle_download,LearningGovernance,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/phase14/export/:name,GET,phase14.ts,158,Python phase14_export,LearningGovernance,path:name;query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/phase14/decision-context,POST,phase14.ts,176,Python phase14_decision_context,AiDecision,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase14/decision-batch,POST,phase14.ts,180,Python phase14_decision_batch,AiDecision,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase14/qa,GET,phase14.ts,185,Python phase14_qa,LearningGovernance,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/scan-context,GET,phase15.ts,66,Python phase15_scan_context,SignalValidationPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase15/scan-context/:symbol,GET,phase15.ts,70,Python phase15_scan_context_symbol,SignalValidationPage,path:symbol,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase15/quality,GET,phase15.ts,74,Python phase15_quality,SignalValidationPage DataQuality,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/staleness,GET,phase15.ts,78,Python phase15_staleness,SignalValidationPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/consistency,GET,phase15.ts,82,Python phase15_consistency,SignalValidationPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/explain,GET,phase15.ts,86,Python phase15_explain,ExplainableAI,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/explain/:symbol,GET,phase15.ts,90,Python phase15_explain_symbol,ExplainableAI,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/risk-gate/:symbol,GET,phase15.ts,94,Python phase15_risk_gate,RiskManagement,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/audit/record,POST,phase15.ts,98,Python phase15_audit_record,UNKNOWN internal,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/phase15/audit,GET,phase15.ts,102,Python phase15_audit,SignalValidationPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase15/diagnostics,GET,phase15.ts,107,Python phase15_diagnostics,SignalValidationPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/readiness,GET,phase15.ts,111,Python phase15_readiness,LiveReadiness,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/risk-decision-report,GET,phase15.ts,115,Python phase15_risk_decision_report,RiskDecisionReportPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/v3-analytics,GET,phase15.ts,119,Python phase15_v3_analytics,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase15/v3-analytics/refresh,POST,phase15.ts,123,Python phase15_v3_analytics_refresh,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+UNKNOWN,GET,phase16.ts,74,Python UNKNOWN,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase16/export,POST,phase16.ts,94,Python phase16_export,UNKNOWN,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,true
+/phase16/export/:file,GET,phase16.ts,98,Python phase16_export_file,UNKNOWN,path:file;query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/phase17/build-info,GET,phase17.ts,56,Python phase17_build_info,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase17/dashboard,GET,phase17.ts,59,Python phase17_dashboard,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase17/history,GET,phase17.ts,62,Python phase17_history,UNKNOWN,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase17/last,GET,phase17.ts,65,Python phase17_last,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase17/run,POST,phase17.ts,79,Python phase17_run,UNKNOWN,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/phase17/run/status,GET,phase17.ts,106,Python phase17_run_status,UNKNOWN,NONE,{status:string},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase17/reports,POST,phase17.ts,118,Python phase17_reports,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase17/reports/:file,GET,phase17.ts,122,Python phase17_reports_file,UNKNOWN,path:file,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase18/ensure,POST,phase18.ts,55,Python phase18_ensure,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase18/entry,GET,phase18.ts,58,Python phase18_entry,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase18/entries,GET,phase18.ts,63,Python phase18_entries,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase18/finalize,POST,phase18.ts,66,Python phase18_finalize,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase18/reopen,POST,phase18.ts,71,Python phase18_reopen,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase18/notes,POST,phase18.ts,76,Python phase18_notes,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase18/decision,POST,phase18.ts,79,Python phase18_decision,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase18/search,POST,phase18.ts,82,Python phase18_search,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase18/issues,GET,phase18.ts,87,Python phase18_issues,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase18/issues,POST,phase18.ts,93,Python phase18_issues_create,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase18/issues,PATCH,phase18.ts,96,Python phase18_issues_patch,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase18/targets,GET,phase18.ts,101,Python phase18_targets,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase18/targets,POST,phase18.ts,104,Python phase18_targets_create,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase18/review/daily,GET,phase18.ts,109,Python phase18_review_daily,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase18/review/weekly,GET,phase18.ts,114,Python phase18_review_weekly,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase18/review/monthly,GET,phase18.ts,119,Python phase18_review_monthly,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase18/evidence,GET,phase18.ts,124,Python phase18_evidence,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase18/exports,POST,phase18.ts,129,Python phase18_exports,UNKNOWN,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,true
+/phase18/exports/:file,GET,phase18.ts,140,Python phase18_exports_file,UNKNOWN,path:file;query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+UNKNOWN,GET,phase21.ts,74,Python UNKNOWN,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase21/baseline/freeze,POST,phase21.ts,89,Python phase21_baseline_freeze,LearningGovernance,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase21/explain/:symbol,GET,phase21.ts,93,Python phase21_explain,ExplainableAI,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase21/challengers/build,POST,phase21.ts,98,Python phase21_challengers_build,LearningGovernance,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase21/promotion/:id,GET,phase21.ts,102,Python phase21_promotion,LearningGovernance,path:id,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase21/review/:id,POST,phase21.ts,107,Python phase21_review,LearningGovernance,path:id,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase21/export,POST,phase21.ts,118,Python phase21_export,LearningGovernance,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,true
+/phase21/export/:file,GET,phase21.ts,122,Python phase21_export_file,LearningGovernance,path:file;query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/phase22/readiness,GET,phase22.ts,66,Python phase22_readiness,LiveReadiness AutonomousOpsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase22/activation,GET,phase22.ts,70,Python phase22_activation,AutonomousOpsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase22/enable,POST,phase22.ts,74,Python phase22_enable,AutonomousOpsPage,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase22/disable,POST,phase22.ts,91,Python phase22_disable,AutonomousOpsPage,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase22/evidence,GET,phase22.ts,98,Python phase22_evidence,AutonomousOpsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase22/evidence/update,POST,phase22.ts,103,Python phase22_evidence_update,AutonomousOpsPage,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase22/bundle,GET,phase22.ts,107,Python phase22_bundle,AutonomousOpsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase22/progress,GET,phase22.ts,111,Python phase22_progress,AutonomousOpsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase22/daily-report,GET,phase22.ts,115,Python phase22_daily_report,AutonomousOpsPage,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase22/export,POST,phase22.ts,123,Python phase22_export,AutonomousOpsPage,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,true
+/phase22/export/:file,GET,phase22.ts,131,Python phase22_export_file,AutonomousOpsPage,path:file;query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/phase239/export/:report/:format,GET,phase239.ts,96,Python phase239_export,ExecutiveReports,path:report;path:format;query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/phase239/acceptance,GET,phase239.ts,134,Python phase239_acceptance,ExecutiveReports,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase24/overview,GET,phase24.ts,75,Python phase24_overview,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+UNKNOWN,GET,phase24.ts,91,Python UNKNOWN,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase24/trades,GET,phase24.ts,103,Python phase24_trades,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase24/capture,POST,phase24.ts,108,Python phase24_capture,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase24/missed/run,POST,phase24.ts,112,Python phase24_missed_run,UNKNOWN,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/phase24/recommendations,GET,phase24.ts,116,Python phase24_recommendations,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase24/recommendations/generate,POST,phase24.ts,122,Python phase24_recommendations_generate,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase24/recommendations/:id/decide,POST,phase24.ts,126,Python phase24_recommendations_decide,UNKNOWN,path:id,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase24/reports,GET,phase24.ts,136,Python phase24_reports,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase24/reports/generate,POST,phase24.ts,142,Python phase24_reports_generate,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase26c/:area/run,POST,phase26c-validation.ts,61,Python phase26c_area_run,UNKNOWN,path:area,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/phase26c/:area/latest,GET,phase26c-validation.ts,75,Python phase26c_area_latest,UNKNOWN,path:area,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase26c/:area/history,GET,phase26c-validation.ts,89,Python phase26c_area_history,UNKNOWN,path:area;query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase26d/daily-report/run,POST,phase26d-reports.ts,79,Python phase26d_daily_report_run,ExecutiveReports,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/phase26d/daily-report/latest,GET,phase26d-reports.ts,99,Python phase26d_daily_report_latest,ExecutiveReports,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase26d/daily-report/status,GET,phase26d-reports.ts,113,Python phase26d_daily_report_status,ExecutiveReports,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/phase26d/daily-report/history,GET,phase26d-reports.ts,128,Python phase26d_daily_report_history,ExecutiveReports,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase26d/five-day,GET,phase26d-reports.ts,142,Python phase26d_five_day,ExecutiveReports,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase26d/readiness,GET,phase26d-reports.ts,155,Python phase26d_readiness,ExecutiveReports,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/explain/symbol/:symbol,GET,phase27.ts,44,Python phase27_explain_symbol,ExplainableAI,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/strategy-optimization/report,GET,phase27.ts,52,Python phase27_strategy_optimization_report,StrategyOptimisation,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/operator-analytics/report,GET,phase27.ts,73,Python phase27_operator_analytics_report,OperatorAnalytics,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/system-readiness/report,GET,phase27.ts,95,Python phase27_system_readiness_report,SystemReadiness,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/system-readiness/history,GET,phase27.ts,113,Python phase27_system_readiness_history,SystemReadiness,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/operational-intelligence/report,GET,phase27.ts,125,Python phase27_operational_intelligence_report,OperationalIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase4a/dashboard,GET,phase4a.ts,132,Python phase4a_dashboard,Phase4ASession OperatorStatus,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase4a/premarket,GET,phase4a.ts,167,Python phase4a_premarket,Phase4ASession,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase4a/monitor/tick,GET,phase4a.ts,183,Python phase4a_monitor_tick,Phase4ASession,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase4a/monitor/summary,GET,phase4a.ts,193,Python phase4a_monitor_summary,Phase4ASession,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/phase4a/trade-journal,GET,phase4a.ts,206,Python phase4a_trade_journal,Phase4ASession,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/phase4a/risk-metrics,GET,phase4a.ts,219,Python phase4a_risk_metrics,Phase4ASession,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase4a/ai-metrics,GET,phase4a.ts,232,Python phase4a_ai_metrics,Phase4ASession,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase4a/reports/generate,POST,phase4a.ts,245,Python phase4a_reports_generate,Phase4ASession,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase4a/reports/manifest,GET,phase4a.ts,262,Python phase4a_reports_manifest,Phase4ASession,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase4a/validate,GET,phase4a.ts,280,Python phase4a_validate,Phase4ASession,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase4a/final-report,POST,phase4a.ts,291,Python phase4a_final_report_create,Phase4ASession,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/phase4a/final-report,GET,phase4a.ts,301,Python phase4a_final_report_get,Phase4ASession,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/pipeline/events,GET,pipeline.ts,47,Python pipeline_events,TradingTimeline,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/pipeline/summary,GET,pipeline.ts,72,Python pipeline_summary,TradingTimeline,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/portfolio/snapshot,GET,portfolio.ts,190,Python portfolio_snapshot,PortfolioManager PortfolioLive,NONE,{data:object},SQLite/DB,NONE,in-memory cache,NONE,NONE,false
+/portfolio/health,GET,portfolio.ts,201,Python portfolio_health,PortfolioManager,NONE,{healthy:boolean},SQLite/DB,NONE,in-memory cache,NONE,NONE,false
+/portfolio/config,GET,portfolio.ts,219,Python portfolio_config,Settings PortfolioManager,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/portfolio/config,PATCH,portfolio.ts,246,Python portfolio_config_update,Settings,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/portfolio/config/overrides,DELETE,portfolio.ts,353,Python portfolio_overrides_clear,Settings,NONE,{deleted:boolean},SQLite/DB,NONE,NONE,NONE,NONE,true
+/preopen-validation/status,GET,preopen-validation.ts,89,Python preopen_validation_status,PreOpenAccuracy,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/preopen-validation/daily,GET,preopen-validation.ts,97,Python preopen_validation_daily,PreOpenAccuracy,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen-validation/candidates,GET,preopen-validation.ts,110,Python preopen_validation_candidates,PreOpenAccuracy,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen-validation/symbol/:symbol,GET,preopen-validation.ts,125,Python preopen_validation_symbol,PreOpenAccuracy,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen-validation/score-bands,GET,preopen-validation.ts,139,Python preopen_validation_score_bands,PreOpenAccuracy,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen-validation/factors,GET,preopen-validation.ts,152,Python preopen_validation_factors,PreOpenAccuracy,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen-validation/sectors,GET,preopen-validation.ts,165,Python preopen_validation_sectors,PreOpenAccuracy,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen-validation/report,GET,preopen-validation.ts,178,Python preopen_validation_report,PreOpenAccuracy,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen-validation/run,POST,preopen-validation.ts,191,Python preopen_validation_run,PreOpenAccuracy,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/preopen/status,GET,preopen.ts,129,Python preopen_status,PreOpenIntelligence,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/preopen/health,GET,preopen.ts,135,Python preopen_health,PreOpenIntelligence,NONE,{healthy:boolean},NONE,NONE,in-memory cache,NONE,NONE,false
+/preopen/snapshot,GET,preopen.ts,141,Python preopen_snapshot,PreOpenIntelligence,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/preopen/symbol/:symbol,GET,preopen.ts,147,Python preopen_symbol,PreOpenIntelligence,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen/rankings,GET,preopen.ts,158,Python preopen_rankings,PreOpenIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen/watchlist,GET,preopen.ts,164,Python preopen_watchlist,PreOpenIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen/sectors,GET,preopen.ts,170,Python preopen_sectors,PreOpenIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen/report,GET,preopen.ts,176,Python preopen_report,PreOpenIntelligence,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen/accuracy,GET,preopen.ts,187,Python preopen_accuracy,PreOpenAccuracy,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/preopen/accuracy/history,GET,preopen.ts,201,Python preopen_accuracy_history,PreOpenAccuracy,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/preopen/signal-hints,GET,preopen.ts,215,Python preopen_signal_hints,PreOpenIntelligence,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/preopen/refresh,POST,preopen.ts,228,Python preopen_refresh,PreOpenIntelligence,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/readiness/summary,GET,readiness.ts,45,Python readiness_summary,LiveReadiness SystemReadiness,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/readiness/system,GET,readiness.ts,50,Python readiness_system,SystemReadiness,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/readiness/data,GET,readiness.ts,55,Python readiness_data,SystemReadiness,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/readiness/recovery,GET,readiness.ts,60,Python readiness_recovery,SystemReadiness,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/readiness/security,GET,readiness.ts,65,Python readiness_security,SecurityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/readiness/report,GET,readiness.ts,70,Python readiness_report,SystemReadiness,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/readiness/export/csv,GET,readiness.ts,75,Python readiness_export_csv,SystemReadiness,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/readiness/export/json,GET,readiness.ts,85,Python readiness_export_json,SystemReadiness,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/broker/reconciliation,GET,reconciliation.ts,65,Python eod_reconciliation,BrokerExecution,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/broker/reconciliation/trigger,POST,reconciliation.ts,70,Python reconciliation_trigger,BrokerExecution,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/broker/reconciliation/publish,POST,reconciliation.ts,81,Python reconciliation_publish,BrokerExecution,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/broker/reconciliation/resolve,POST,reconciliation.ts,104,Python reconciliation_resolve,BrokerExecution,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/broker/reconciliation/reopen,POST,reconciliation.ts,118,Python reconciliation_reopen,BrokerExecution,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/replay/sessions,GET,replay.ts,50,Python replay_sessions,TradeReplay ReplayModePage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/replay/sessions/latest,GET,replay.ts,63,Python replay_sessions_latest,TradeReplay,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/replay/sessions/:scanId,GET,replay.ts,72,Python replay_session_detail,TradeReplay,path:scanId,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/replay/sessions/:scanId/symbol/:symbol,GET,replay.ts,82,Python replay_session_symbol,TradeReplay,path:scanId;path:symbol,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/replay/sessions/:scanId/comparison,GET,replay.ts,93,Python replay_session_comparison,TradeReplay,path:scanId,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/replay/sessions/:scanId/summary,GET,replay.ts,103,Python replay_session_summary,TradeReplay,path:scanId,{summary:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/replay/sessions/:scanId/integrity,GET,replay.ts,113,Python replay_session_integrity,TradeReplay,path:scanId,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/research-lab/summary,GET,research-lab.ts,28,Python research_lab_summary,ResearchLab ResearchIntelligence,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/research-lab/strategies,GET,research-lab.ts,33,Python research_lab_strategies,ResearchLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/research-lab/simulations,GET,research-lab.ts,38,Python research_lab_simulations,ResearchLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/research-lab/replay,GET,research-lab.ts,43,Python research_lab_replay,ResearchLab,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/research-lab/benchmark,GET,research-lab.ts,48,Python research_lab_benchmark,ResearchLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/research-lab/reports,GET,research-lab.ts,53,Python research_lab_reports,ResearchLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/research-lab/snapshot,GET,research-lab.ts,58,Python research_lab_snapshot,ResearchLab,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/research-lab/export,GET,research-lab.ts,63,Python research_lab_export,ResearchLab,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/risk-optimisation/summary,GET,risk-optimisation.ts,44,Python risk_optimisation_summary,RiskOptimisation,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-optimisation/capital,GET,risk-optimisation.ts,49,Python risk_optimisation_capital,RiskOptimisation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-optimisation/drawdown,GET,risk-optimisation.ts,54,Python risk_optimisation_drawdown,RiskOptimisation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-optimisation/stress,GET,risk-optimisation.ts,59,Python risk_optimisation_stress,RiskOptimisation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-optimisation/recommendations,GET,risk-optimisation.ts,64,Python risk_optimisation_recommendations,RiskOptimisation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-optimisation/export/csv,GET,risk-optimisation.ts,69,Python risk_optimisation_export_csv,RiskOptimisation,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/risk-optimisation/export/json,GET,risk-optimisation.ts,79,Python risk_optimisation_export_json,RiskOptimisation,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/summary,GET,risk-validation.ts,45,Python rv_summary,RiskManagement RiskValidation,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/portfolio,GET,risk-validation.ts,46,Python rv_portfolio,PortfolioRiskAnalytics,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/risk-validation/sector,GET,risk-validation.ts,47,Python rv_sector,RiskManagement,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/correlation,GET,risk-validation.ts,48,Python rv_correlation,PortfolioRiskAnalytics,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/stress,GET,risk-validation.ts,49,Python rv_stress,PortfolioRiskAnalytics,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/tail,GET,risk-validation.ts,50,Python rv_tail,PortfolioRiskAnalytics,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/execution,GET,risk-validation.ts,51,Python rv_execution,RiskValidation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/market,GET,risk-validation.ts,52,Python rv_market,RiskValidation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/drift,GET,risk-validation.ts,53,Python rv_drift,RiskValidation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/alerts,GET,risk-validation.ts,54,Python rv_alerts,RiskValidation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk-validation/snapshot,GET,risk-validation.ts,55,Python rv_snapshot,RiskValidation,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/risk-validation/pre-trade-log,GET,risk-validation.ts,57,Python rv_pre_trade_log,RiskDecisionReportPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/risk-validation/export,GET,risk-validation.ts,59,Python rv_export,RiskValidation,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/security/summary,GET,security.ts,50,Python sec_summary,SecurityCenter,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/security/auth,GET,security.ts,51,Python sec_auth,SecurityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/security/sessions,GET,security.ts,52,Python sec_sessions,SecurityCenter,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/security/secrets,GET,security.ts,53,Python sec_secrets,SecurityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/security/config,GET,security.ts,54,Python sec_config,SecurityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/security/api,GET,security.ts,55,Python sec_api,SecurityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/security/dependencies,GET,security.ts,56,Python sec_dependencies,SecurityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/security/audit,GET,security.ts,57,Python sec_audit,SecurityCenter,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/security/compliance,GET,security.ts,58,Python sec_compliance,SecurityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/security/alerts,GET,security.ts,59,Python sec_alerts,SecurityCenter,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/security/snapshot,GET,security.ts,60,Python sec_snapshot,SecurityCenter,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/security/export,GET,security.ts,63,Python sec_export,SecurityCenter,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/signal-validation/status,GET,signalValidation.ts,45,Python signal_validation_status,UNKNOWN,NONE,{status:string},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/summary,GET,signalValidation.ts,54,Python signal_validation_summary,SignalValidationPage,NONE,{summary:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/signals,GET,signalValidation.ts,65,Python signal_validation_signals,UNKNOWN,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/signals/:signalId,GET,signalValidation.ts,80,Python signal_validation_signals__signalId,UNKNOWN,path:signalId;query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/funnel,GET,signalValidation.ts,92,Python signal_validation_funnel,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/strategies,GET,signalValidation.ts,102,Python signal_validation_strategies,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/ai,GET,signalValidation.ts,112,Python signal_validation_ai,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/preopen,GET,signalValidation.ts,122,Python signal_validation_preopen,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/risk,GET,signalValidation.ts,132,Python signal_validation_risk,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/regimes,GET,signalValidation.ts,142,Python signal_validation_regimes,SignalValidationPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/missed,GET,signalValidation.ts,152,Python signal_validation_missed,SignalValidationPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/report,GET,signalValidation.ts,164,Python signal_validation_report,SignalValidationPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-validation/run-now,POST,signalValidation.ts,174,Python signal_validation_run_now,SignalValidationPage,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/signal-validation/reconcile,POST,signalValidation.ts,184,Python signal_validation_reconcile,SignalValidationPage,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/simulation/scenario,POST,simulation.ts,84,Python simulation_scenario,SimulationLab,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/simulation/scenarios,GET,simulation.ts,95,Python simulation_scenarios,SimulationLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/simulation/run,POST,simulation.ts,101,Python simulation_run,SimulationLab,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/simulation/runs,GET,simulation.ts,117,Python simulation_runs,SimulationLab,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/simulation/run/:id,GET,simulation.ts,125,Python simulation_run_detail,SimulationLab,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/simulation/compare,POST,simulation.ts,132,Python simulation_compare,SimulationLab,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/simulation/risk-compare,POST,simulation.ts,142,Python simulation_risk_compare,SimulationLab,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/simulation/stress/portfolio,GET,simulation.ts,155,Python simulation_stress_portfolio,SimulationLab,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/simulation/stress/execution,GET,simulation.ts,162,Python simulation_stress_execution,SimulationLab,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/strategy/summary,GET,strategy.ts,45,Python strategy_summary,StrategyLab StrategyIntelligence,NONE,{summary:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/strategy/rankings,GET,strategy.ts,54,Python strategy_rankings,StrategyLab,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/strategy/regimes,GET,strategy.ts,63,Python strategy_regimes,StrategyLab,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/strategy/sectors,GET,strategy.ts,72,Python strategy_sectors,StrategyLab,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/strategy/timing,GET,strategy.ts,81,Python strategy_timing,StrategyLab,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/strategy/recommendations,GET,strategy.ts,90,Python strategy_recommendations,StrategyLab,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/stream,GET,stream.ts,161,SSE event stream,ConnectivityPanel frontend live-updates,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/stream/reconnect,POST,stream.ts,210,SSE reconnect,ConnectivityPanel,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/market/status,GET,stream.ts,232,Python market_status,mobile-health Dashboard,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/market/quotes,GET,stream.ts,238,Python market_quotes,MarketOverview,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/portfolio,GET,trading.ts,99,Python portfolio,mobile-dashboard PortfolioManager,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signals,GET,trading.ts,109,Python signals,Signals mobile-signals,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/signal-history,GET,trading.ts,121,Python signal_history,SignalHistory,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/trades,GET,trading.ts,140,Python trades,Trades mobile-positions,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/run-scan,POST,trading.ts,154,Python run_scan,MarketScanner mobile-signals,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/watchlist,GET,trading.ts,172,Python watchlist,Watchlist mobile-watchlist,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/symbols,GET,trading.ts,182,Python symbols,Watchlist MarketScanner,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/symbols/search,GET,trading.ts,194,Python symbols_search,Watchlist,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/watchlist,POST,trading.ts,209,Python watchlist_add,Watchlist mobile-watchlist,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/watchlist/:symbol,DELETE,trading.ts,228,Python watchlist_remove,Watchlist mobile-watchlist,path:symbol,{deleted:boolean},NONE,NONE,NONE,NONE,NONE,true
+/portfolio/reset,POST,trading.ts,245,Python portfolio_reset,Settings PortfolioManager,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/portfolio/position/:symbol/stop,PATCH,trading.ts,269,Python portfolio_position_stop,PortfolioManager,path:symbol,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/session-archives,GET,trading.ts,292,Python session_archives,TradeReplay,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/session-archives/:id,GET,trading.ts,302,Python session_archive_detail,TradeReplay,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/session-archives/:id/restore,POST,trading.ts,314,Python session_archive_restore,TradeReplay,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/opportunity-scan,GET,trading.ts,341,Python opportunity_scan,MarketScanner Dashboard,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/market-scan,GET,trading.ts,361,Python market_scan,MarketScanner MarketOverview,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/market-replay,GET,trading.ts,389,Python market_replay,MarketReplay,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/market-context,GET,trading.ts,423,Python market_context,Dashboard MarketOverview,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ai-decisions,GET,trading.ts,433,Python ai_decisions,AiDecision TradeDecisions,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/trade-replay,GET,trading.ts,443,Python trade_replay,TradeReplay,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-summary,GET,trading.ts,453,Python learning_summary,LearningInsights,NONE,{summary:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/trade-intelligence,GET,trading.ts,465,Python trade_intelligence,TradeIntelligence,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/trade-intelligence/import,POST,trading.ts,477,Python trade_intelligence_import,TradeIntelligence,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/predictive-intelligence/:symbol,GET,trading.ts,490,Python predictive_intelligence,TradeIntelligence,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/predictive-intelligence/evaluate,POST,trading.ts,506,Python predictive_intelligence_evaluate,TradeIntelligence,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/historical-knowledge/build,POST,trading.ts,550,Python historical_knowledge_build,HistoricalKnowledge,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/historical-knowledge/summary,GET,trading.ts,597,Python historical_knowledge_summary,HistoricalKnowledge,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/historical-knowledge/trades,GET,trading.ts,607,Python historical_knowledge_trades,HistoricalKnowledge,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/walk-forward/run,POST,trading.ts,660,Python walk_forward_run,WalkForwardValidation,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/walk-forward/status,GET,trading.ts,703,Python walk_forward_status,WalkForwardValidation,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/walk-forward/result,GET,trading.ts,722,Python walk_forward_result,WalkForwardValidation,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/walk-forward/export/:kind,GET,trading.ts,737,Python walk_forward_export,WalkForwardValidation,path:kind;query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/batches,GET,trading.ts,793,Python batches,ExperimentManager,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/batches/:batchId,GET,trading.ts,803,Python batch_detail,ExperimentManager,path:batchId,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/experiments/check-duplicate,POST,trading.ts,814,Python experiments_check_duplicate,ExperimentManager,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/experiments/export/csv,GET,trading.ts,825,Python experiments_export_csv,ExperimentManager,query:format,file/stream,SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/export/json,GET,trading.ts,839,Python experiments_export_json,ExperimentManager,query:format,file/stream,SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments,GET,trading.ts,853,Python experiments,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/leaderboard,GET,trading.ts,864,Python experiments_leaderboard,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments,POST,trading.ts,874,Python experiments,UNKNOWN,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/experiments/:id/run,POST,trading.ts,885,Python experiments__id_run,UNKNOWN,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/research/intelligence,GET,trading.ts,980,Python research_intelligence,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/live-data/health,GET,trading.ts,1180,Python live_data_health,LiveDataHealth,NONE,{healthy:boolean},NONE,NONE,in-memory cache,NONE,NONE,false
+/live-data/scan,GET,trading.ts,1200,Python live_data_scan,MarketScanner,NONE,{data:object},SQLite/DB,NONE,in-memory cache,NONE,NONE,false
+/live-data/coverage,GET,trading.ts,1242,Python live_data_coverage,LiveDataHealth,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/live-data/scan/status,GET,trading.ts,1326,Python live_data_scan_status,LiveDataHealth,NONE,{status:string},SQLite/DB,NONE,in-memory cache,NONE,NONE,false
+/live-data/scan/history,GET,trading.ts,1397,Python live_data_scan_history,LiveDataHealth,query:limit;query:offset,{data:object},SQLite/DB,NONE,in-memory cache,NONE,NONE,false
+/live-data/scan/run,POST,trading.ts,1464,Python live_data_scan_run,MarketScanner mobile-signals,body:UNKNOWN,{data:object},SQLite/DB,NONE,in-memory cache,scheduler,NONE,true
+/live-data/scan/abort,POST,trading.ts,1551,Python live_data_scan_abort,MarketScanner,body:UNKNOWN,{data:object},SQLite/DB,NONE,in-memory cache,scheduler,NONE,true
+/live-data/health-v2,GET,trading.ts,1583,Python live_data_health_v2,LiveDataHealth,NONE,{healthy:boolean},NONE,NONE,in-memory cache,NONE,NONE,false
+/live-data/diagnostic-bundle,POST,trading.ts,1589,Python live_data_diagnostic_bundle,LiveDataHealth,body:UNKNOWN,{data:object},NONE,NONE,in-memory cache,NONE,NONE,true
+/live-data/diagnostic-bundle/download,GET,trading.ts,1595,Python live_data_diagnostic_bundle_download,LiveDataHealth,NONE,file/stream,NONE,NONE,in-memory cache,NONE,NONE,false
+/live-data/recommendations,GET,trading.ts,1620,Python live_data_recommendations,MarketScanner,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/live-data/report,GET,trading.ts,1645,Python live_data_report,LiveDataHealth,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+UNKNOWN,GET,trading.ts,1678,Python UNKNOWN,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/meta-learning/compare,GET,trading.ts,1685,Python meta_learning_compare,LearningInsights,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/meta-learning/create-mutation,POST,trading.ts,1697,Python meta_learning_create_mutation,LearningInsights,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/meta-learning/export,GET,trading.ts,1711,Python meta_learning_export,LearningInsights,query:format,file/stream,SQLite/DB,NONE,NONE,NONE,NONE,false
+/evolution/registry,GET,trading.ts,1735,Python evolution_registry,StrategyEvolution,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/evolution/tree,GET,trading.ts,1740,Python evolution_tree,StrategyEvolution,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/evolution/leaderboard,GET,trading.ts,1745,Python evolution_leaderboard,StrategyEvolution,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/evolution/knowledge,GET,trading.ts,1750,Python evolution_knowledge,StrategyEvolution,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/evolution/ab-tests,GET,trading.ts,1755,Python evolution_ab_tests,StrategyEvolution,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/evolution/robustness/:expId,GET,trading.ts,1760,Python evolution_robustness,StrategyEvolution,path:expId,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/evolution/mutate,POST,trading.ts,1769,Python evolution_mutate,StrategyEvolution,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/evolution/status,POST,trading.ts,1784,Python evolution_status,StrategyEvolution,body:UNKNOWN,{status:string},NONE,NONE,NONE,NONE,NONE,true
+/evolution/ab-test,POST,trading.ts,1795,Python evolution_ab_test,StrategyEvolution,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/evolution/evaluate,POST,trading.ts,1809,Python evolution_evaluate,StrategyEvolution,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/evolution/export,GET,trading.ts,1823,Python evolution_export,StrategyEvolution,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/research/phase5-review-export,GET,trading.ts,1849,Python research_phase5_review_export,ResearchNotebook,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/experiments/compare,GET,trading.ts,1874,Python experiments_compare,ExperimentManager,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/:id/trade-diagnostics,GET,trading.ts,1891,Python experiments_trade_diagnostics,ExperimentManager,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/:id/analysis,GET,trading.ts,1910,Python experiments_analysis,ExperimentManager,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/:id/analyze,POST,trading.ts,1926,Python experiments_analyze,ExperimentManager,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/experiments/:id/report,GET,trading.ts,1953,Python experiments_report,ExperimentManager,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/:id/report/status,GET,trading.ts,1970,Python experiments_report_status,ExperimentManager,path:id,{status:string},SQLite/DB,NONE,NONE,NONE,NONE,false
+UNKNOWN,POST,trading.ts,1987,Python UNKNOWN,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/experiments/:id/report/export/json,GET,trading.ts,2005,Python experiments_report_export_json,ExperimentManager,path:id;query:format,file/stream,SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/:id/report/export/html,GET,trading.ts,2022,Python experiments_report_export_html,ExperimentManager,path:id;query:format,file/stream,SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/:id/report/export/csv,GET,trading.ts,2043,Python experiments__id_report_export_csv,UNKNOWN,path:id;query:format,file/stream,SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/:id/suggested-experiments/:suggestionId/queue,POST,trading.ts,2067,Python experiments__id_suggested_experiments__suggestionId_queue,UNKNOWN,path:id;path:suggestionId,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/experiments/:id,GET,trading.ts,2095,Python experiments__id,UNKNOWN,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/experiments/:id,DELETE,trading.ts,2106,Python experiments__id,UNKNOWN,path:id,{deleted:boolean},SQLite/DB,NONE,NONE,NONE,NONE,true
+/research-package/generate,POST,trading.ts,2126,Python research_package_generate,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/research-package/download,GET,trading.ts,2136,Python research_package_download,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/chatgpt-report/generate,POST,trading.ts,2158,Python chatgpt_report_generate,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/chatgpt-report/download,GET,trading.ts,2168,Python chatgpt_report_download,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/learning-insights,GET,trading.ts,2185,Python learning_insights,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/pattern-quality,GET,trading.ts,2197,Python pattern_quality,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/trade-decisions,GET,trading.ts,2214,Python trade_decisions,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/portfolio-manager,GET,trading.ts,2248,Python portfolio_manager,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/evidence-research,GET,trading.ts,2283,Python evidence_research,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/feature-importance,GET,trading.ts,2317,Python feature_importance,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/paper-basket,POST,trading.ts,2351,Python paper_basket,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,true
+/strategy-performance,GET,trading.ts,2408,Python strategy_performance,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/market-overview,GET,trading.ts,2418,Python market_overview,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/market-data/:symbol,GET,trading.ts,2428,Python market_data__symbol,UNKNOWN,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/indicators/:symbol,GET,trading.ts,2440,Python indicators__symbol,UNKNOWN,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/backtest,POST,trading.ts,2452,Python backtest,UNKNOWN,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/optimizer,POST,trading.ts,2486,Python optimizer,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/strategy-lab,POST,trading.ts,2508,Python strategy_lab,UNKNOWN,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/learning-review,GET,trading.ts,2539,Python learning_review,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/learning-cycle,POST,trading.ts,2549,Python learning_cycle,UNKNOWN,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/learning-adjustments/:id/approve,POST,trading.ts,2559,Python learning_adjustments__id_approve,UNKNOWN,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/learning-adjustments/:id/reject,POST,trading.ts,2574,Python learning_adjustments__id_reject,UNKNOWN,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/learning-rollback/:version,POST,trading.ts,2589,Python learning_rollback__version,UNKNOWN,path:version,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/hypotheses/:id/approve,POST,trading.ts,2609,Python hypotheses__id_approve,UNKNOWN,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/hypotheses/:id/reject,POST,trading.ts,2624,Python hypotheses__id_reject,UNKNOWN,path:id,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/trade-evaluations,GET,trading.ts,2639,Python trade_evaluations,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/strategies,GET,trading.ts,2650,Python strategies,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/broker/status,GET,trading.ts,2662,Python broker_status,UNKNOWN,NONE,{status:string},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/broker/health,GET,trading.ts,2672,Python broker_health,UNKNOWN,NONE,{healthy:boolean},NONE,Kite/Zerodha API,in-memory cache,NONE,NONE,false
+/broker/paper-summary,GET,trading.ts,2682,Python broker_paper_summary,UNKNOWN,NONE,{summary:object},NONE,Kite/Zerodha API,NONE,NONE,paper-trading engine,false
+/broker/account,GET,trading.ts,2692,Python broker_account,UNKNOWN,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/broker/mode,GET,trading.ts,2702,Python broker_mode,UNKNOWN,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/broker/mode,POST,trading.ts,2712,Python broker_mode,UNKNOWN,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/broker/readiness,GET,trading.ts,2724,Python broker_readiness,UNKNOWN,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/broker/order/preview,POST,trading.ts,2734,Python broker_order_preview,UNKNOWN,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/broker/order/confirm1,POST,trading.ts,2754,Python broker_order_confirm1,UNKNOWN,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/broker/order/confirm2,POST,trading.ts,2766,Python broker_order_confirm2,UNKNOWN,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/broker/kill-switch,POST,trading.ts,2778,Python broker_kill_switch,UNKNOWN,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/broker/audit,GET,trading.ts,2790,Python broker_audit,UNKNOWN,NONE,{data:object},SQLite/DB,Kite/Zerodha API,NONE,NONE,NONE,false
+/broker/export,GET,trading.ts,2801,Python broker_export,UNKNOWN,query:format,file/stream,NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/copilot/summary,GET,trading.ts,2821,Python copilot_summary,UNKNOWN,NONE,{summary:object},NONE,NONE,NONE,NONE,NONE,false
+/copilot/alerts/generate,POST,trading.ts,2831,Python copilot_alerts_generate,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/copilot/alerts,GET,trading.ts,2841,Python copilot_alerts,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/copilot/alerts/read,POST,trading.ts,2852,Python copilot_alerts_read,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/copilot/briefing,GET,trading.ts,2863,Python copilot_briefing,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/copilot/explanations,GET,trading.ts,2873,Python copilot_explanations,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/copilot/explain/:symbol,GET,trading.ts,2884,Python copilot_explain__symbol,UNKNOWN,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/copilot/why-not/:symbol,GET,trading.ts,2894,Python copilot_why_not__symbol,UNKNOWN,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/copilot/watchlist-insights,GET,trading.ts,2904,Python copilot_watchlist_insights,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/copilot/confidence-history,GET,trading.ts,2914,Python copilot_confidence_history,UNKNOWN,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/copilot/export,GET,trading.ts,2926,Python copilot_export,UNKNOWN,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/analytics/performance,GET,trading.ts,2946,Python analytics_performance,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/analytics/export,GET,trading.ts,2956,Python analytics_export,UNKNOWN,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/review-package/generate,POST,trading.ts,3037,Python review_package_generate,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/review-package/status,GET,trading.ts,3057,Python review_package_status,UNKNOWN,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/review-package/download,GET,trading.ts,3069,Python review_package_download,UNKNOWN,NONE,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/risk/dashboard,GET,trading.ts,3090,Python risk_dashboard,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk/assess,POST,trading.ts,3099,Python risk_assess,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/risk/position-size,POST,trading.ts,3118,Python risk_position_size,UNKNOWN,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/risk/analytics,GET,trading.ts,3137,Python risk_analytics,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk/approval-cards,GET,trading.ts,3146,Python risk_approval_cards,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk/alerts,GET,trading.ts,3155,Python risk_alerts,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk/kill-switch,GET,trading.ts,3164,Python risk_kill_switch,UNKNOWN,NONE,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,false
+/risk/kill-switch/trigger,POST,trading.ts,3173,Python risk_kill_switch_trigger,UNKNOWN,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/risk/kill-switch/resume,POST,trading.ts,3183,Python risk_kill_switch_resume,UNKNOWN,body:UNKNOWN,{data:object},NONE,Kite/Zerodha API,NONE,NONE,NONE,true
+/risk/report/:kind (multi-path),GET,trading.ts,3196,Python risk_report__kind__multi_path_,UNKNOWN,path:kind,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk/config,GET,trading.ts,3217,Python risk_config,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/risk/config,POST,trading.ts,3226,Python risk_config,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/ops-centre/platform,GET,trading.ts,3263,Python ops_centre_platform,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ops-centre/agents,GET,trading.ts,3302,Python ops_centre_agents,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ops-centre/diagnostics,GET,trading.ts,3322,Python ops_centre_diagnostics,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ops-centre/journey/:symbol,GET,trading.ts,3332,Python ops_centre_journey__symbol,UNKNOWN,path:symbol,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ops-centre/snapshot,GET,trading.ts,3348,Python ops_centre_snapshot,UNKNOWN,NONE,{data:object},NONE,NONE,in-memory cache,NONE,NONE,false
+/ops-centre/integrity-check,GET,trading.ts,3377,Python ops_centre_integrity_check,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/ops-centre/cycle-log,GET,trading.ts,3386,Python ops_centre_cycle_log,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/phase20/orphan-seal,GET,trading.ts,3397,Python phase20_orphan_seal,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/pipeline,GET,trading.ts,3406,Python phase20_pipeline,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/settings,GET,trading.ts,3415,Python phase20_settings,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/capital-migration/status,GET,trading.ts,3425,Python phase20_capital_migration_status,UNKNOWN,NONE,{status:string},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/capital-migration,POST,trading.ts,3443,Python phase20_capital_migration,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,true
+/phase20/bootstrap-status,GET,trading.ts,3480,Python phase20_bootstrap_status,UNKNOWN,NONE,{status:string},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/eod-status,GET,trading.ts,3494,Python phase20_eod_status,UNKNOWN,NONE,{status:string},NONE,NONE,NONE,scheduler,paper-trading engine,false
+/phase20/eod-outcomes,GET,trading.ts,3507,Python phase20_eod_outcomes,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,scheduler,paper-trading engine,false
+/phase20/force-eod-close,POST,trading.ts,3530,Python phase20_force_eod_close,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,scheduler,paper-trading engine,true
+/phase20/settings,PUT,trading.ts,3540,Python phase20_settings,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,true
+/phase20/email/status,GET,trading.ts,3566,Python phase20_email_status,UNKNOWN,NONE,{status:string},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/email/test,POST,trading.ts,3575,Python phase20_email_test,UNKNOWN,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,true
+/phase20/email/preview-daily-summary,GET,trading.ts,3593,Python phase20_email_preview_daily_summary,UNKNOWN,NONE,{summary:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/email/preview-alert,GET,trading.ts,3610,Python phase20_email_preview_alert,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/email/send-daily-summary,POST,trading.ts,3626,Python phase20_email_send_daily_summary,UNKNOWN,body:UNKNOWN,{summary:object},NONE,NONE,NONE,NONE,paper-trading engine,true
+/phase20/exit-pending-alert,GET,trading.ts,3644,Python phase20_exit_pending_alert,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/cadence-stats,GET,trading.ts,3660,Python phase20_cadence_stats,UNKNOWN,NONE,{data:object},NONE,NONE,NONE,scheduler,paper-trading engine,false
+/phase20/scheduler/health,GET,trading.ts,3669,Python phase20_scheduler_health,UNKNOWN,NONE,{healthy:boolean},NONE,NONE,in-memory cache,scheduler,paper-trading engine,false
+/phase20/scan-history,GET,trading.ts,3678,Python phase20_scan_history,UNKNOWN,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,scheduler,paper-trading engine,false
+/phase20/notifications,GET,trading.ts,3688,Python phase20_notifications,UNKNOWN,query:limit;query:offset,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/notifications/read,POST,trading.ts,3698,Python phase20_notifications_read,UNKNOWN,query:limit;query:offset,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,true
+/phase20/evaluation,GET,trading.ts,3712,Python phase20_evaluation,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,paper-trading engine,false
+/phase20/ledger,GET,trading.ts,3721,Python phase20_ledger,UNKNOWN,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,paper-trading engine,false
+/phase20/positions,GET,trading.ts,3731,Python phase20_positions,mobile-positions PortfolioManager,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,paper-trading engine,false
+/phase20/exits/tick,POST,trading.ts,3740,Python phase20_exits_tick,UNKNOWN internal scheduler,body:UNKNOWN,{data:object},NONE,NONE,NONE,scheduler,paper-trading engine,true
+/phase20/replay/:tradeId,GET,trading.ts,3760,Python phase20_replay,TradeReplay ReplayModePage,path:tradeId,{data:object},SQLite/DB,NONE,NONE,NONE,paper-trading engine,false
+/phase20/circuit-breaker,GET,trading.ts,3769,Python phase20_circuit_breaker,RiskManagement mobile-health,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/circuit-breaker/resume,POST,trading.ts,3779,Python phase20_circuit_breaker_resume,RiskManagement,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,true
+/phase20/validation,GET,trading.ts,3792,Python phase20_validation,PaperTradingValidation,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/phase20/reconciliation/probe,GET,trading.ts,3805,Python phase20_reconciliation_probe,BrokerExecution,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/risk/audit,GET,trading.ts,3818,Python risk_audit,RiskManagement RiskDecisionReportPage,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/paper/exploration/status,GET,trading.ts,3832,Python paper_exploration_status,PaperBasketTest,NONE,{status:string},NONE,NONE,NONE,NONE,paper-trading engine,false
+/paper/exploration/trades,GET,trading.ts,3842,Python paper_exploration_trades,PaperBasketTest,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,paper-trading engine,false
+/paper/exploration/report,GET,trading.ts,3852,Python paper_exploration_report,PaperBasketTest,NONE,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,false
+/paper/exploration/settings,PUT,trading.ts,3862,Python paper_exploration_settings_update,PaperBasketTest Settings,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,paper-trading engine,true
+/auto-paper/buy-audit,GET,trading.ts,3890,Python auto_paper_buy_audit,OperatorStatus Phase4ASession,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,paper-trading engine,false
+/universe/custom/status,GET,universe-custom.ts,84,Python universe_custom_status,Settings,NONE,{status:string},NONE,NONE,NONE,NONE,NONE,false
+/universe/active,POST,universe-custom.ts,88,Python universe_active_set,Settings,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/universe/custom/symbols,GET,universe-custom.ts,100,Python universe_custom_symbols,Settings,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/universe/custom/refresh,POST,universe-custom.ts,104,Python universe_custom_refresh,Settings,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/universe/custom/upsert,POST,universe-custom.ts,112,Python universe_custom_upsert,Settings,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/universe/custom/report,GET,universe-custom.ts,135,Python universe_custom_report,Settings,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/validation-v2/backtest/run,POST,validation-v2.ts,208,Python validation_v2_backtest_run,AIValidationV2Page,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/validation-v2/backtest,GET,validation-v2.ts,243,Python validation_v2_backtest_list,AIValidationV2Page,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/validation-v2/backtest/:runId,GET,validation-v2.ts,254,Python validation_v2_backtest_detail,AIValidationV2Page,path:runId,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/validation-v2/missed-opportunities,GET,validation-v2.ts,266,Python validation_v2_missed_opportunities,AIValidationV2Page,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/validation-v2/optimizer/run,POST,validation-v2.ts,278,Python validation_v2_optimizer_run,AIValidationV2Page,body:UNKNOWN,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,true
+/validation-v2/optimizer/recommendation,GET,validation-v2.ts,299,Python validation_v2_optimizer_recommendation,AIValidationV2Page,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/validation-v2/model-comparison,POST,validation-v2.ts,311,Python validation_v2_model_comparison,AIValidationV2Page,body:UNKNOWN,{data:object},NONE,NONE,NONE,NONE,NONE,true
+/validation-v2/performance,GET,validation-v2.ts,331,Python validation_v2_performance,AIValidationV2Page,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/validation-v2/session-timeline/:runId,GET,validation-v2.ts,343,Python validation_v2_session_timeline,AIValidationV2Page,path:runId,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/validation/dashboard,GET,validation.ts,53,Python validation_dashboard,ValidationDashboard,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/validation/session,GET,validation.ts,70,Python validation_session,ValidationDashboard,NONE,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/validation/history,GET,validation.ts,76,Python validation_history,ValidationDashboard,query:limit;query:offset,{data:object},SQLite/DB,NONE,NONE,NONE,NONE,false
+/validation/quality,GET,validation.ts,82,Python validation_quality,ValidationDashboard,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/validation/statistics,GET,validation.ts,88,Python validation_statistics,ValidationDashboard,NONE,{data:object},NONE,NONE,NONE,NONE,NONE,false
+/validation/export/csv,GET,validation.ts,94,Python validation_export_csv,ValidationDashboard,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false
+/validation/export/json,GET,validation.ts,109,Python validation_export_json,ValidationDashboard,query:format,file/stream,NONE,NONE,NONE,NONE,NONE,false

@@ -125,3 +125,4 @@
 - [Phase 0B post-cutoff entry root cause](phase0b-post-cutoff-root-cause.md) — exits clear gates before entries on the same _manage_paper() tick; deployed code lacked PAPER_ENTRY_CUTOFF guard; stale 14:49 snapshot used at 15:25 IST; server down during POST_CLOSE → EOD missed.
 - [Two-environment DB architecture](two-env-db.md) — production DB (nse-trade-intraday.replit.app) and local dev DB (localhost:8080) are separate; prod initial_capital=500000; dev initial_capital=100000; never assume they share state.
 - [Advisory audit governance](advisory-audit-governance.md) — immutable advisory storage must independently recompute supervisor approval from actual inputs before any write.
+- [Static architecture audit boundary](static-architecture-audit.md) — architecture inventories are source-derived; never treat table/state presence or route reachability as runtime-verified without live evidence.
