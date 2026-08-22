@@ -1,0 +1,170 @@
+PHASE 3B — INDEPENDENT SAFETY REVIEW OF DISABLED ADVISORY INTEGRATION
+
+Use APEXQUANT_PHASE3A_WEEKEND_ADVISORY_INTEGRATION_DISABLED_REPORT.md as the controlling report.
+
+Do not merge to main.
+Do not deploy to production.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not enable advisory flags in production.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+Do not add scheduler hooks.
+Do not add execution buttons.
+PAPER ONLY.
+ADVISORY ONLY.
+
+Goal:
+Independently review the Phase 3A disabled advisory integration branch and confirm whether it is safe for Monday manual test preparation only.
+
+Branch:
+phase3a-advisory-integration-disabled
+
+TASK 1 — BRANCH / DEPLOYMENT STATE
+
+Confirm:
+- branch = phase3a-advisory-integration-disabled
+- base = phase2a-advisory-multi-bot-logic
+- main not modified
+- no merge to main
+- no production deployment
+- no production migration
+- no production flags enabled
+
+Clarify whether the “live API/browser checks” in the Phase 3A report were against the branch dev server/preview only, not production. If they touched production, stop and report.
+
+TASK 2 — FEATURE FLAG REVIEW
+
+Verify all flags fail closed:
+
+- ADVISORY_BOTS_ENABLED=false
+- ADVISORY_BOTS_API_ENABLED=false
+- ADVISORY_BOTS_UI_ENABLED=false
+- ADVISORY_BOTS_PERSIST_ENABLED=false
+- ADVISORY_BOTS_SCHEDULER_ENABLED=false
+- VITE_ADVISORY_BOTS_UI_ENABLED=false
+
+Confirm:
+- missing flag = false
+- any value other than literal true = false
+- production defaults remain false
+- scheduler flag invokes nothing
+- persist flag cannot persist in production
+
+TASK 3 — API SAFETY REVIEW
+
+Review:
+- artifacts/api-server/src/routes/advisory.ts
+- artifacts/api-server/src/lib/advisoryFlags.ts
+- route registration in index.ts
+
+Confirm:
+- GET /api/advisory/status returns 404 when disabled
+- POST /api/advisory/run-preview returns 404 when disabled
+- no Python child process starts when disabled
+- when enabled in non-production, route requires valid operator session
+- missing/invalid session returns 401 before Python starts
+- run-preview accepts only caller-supplied fixture payload
+- no production data loader exists
+- no broker import/call exists
+- no Phase 20 trade/position/settings write import/call exists
+- no scheduler call exists
+- rate/concurrency gate works
+- persistence is rejected unless explicit non-production conditions are met
+
+TASK 4 — UI SAFETY REVIEW
+
+Review:
+- AdvisoryDashboard.tsx
+- App.tsx route registration
+- advisoryFlags.ts
+
+Confirm:
+- /advisory route is not registered when UI flag is false
+- no nav link appears when disabled
+- page is read-only when enabled later
+- no trade button
+- no execute button
+- no position button
+- no broker button
+- no settings mutation button
+- no auto-entry enable button
+- no scheduler control
+- visible warning says ADVISORY ONLY — NOT ORDER INSTRUCTIONS
+
+TASK 5 — MANUAL RUNNER REVIEW
+
+Review:
+- advisory_bots/manual_runner.py
+- advisory_bots/flags.py
+
+Confirm:
+- requires ADVISORY_BOTS_ENABLED=true
+- accepts only fixture file/stdin
+- no production data loader
+- no broker import
+- no Phase 20 execution/position/settings import
+- persist=false by default
+- --persist rejected unless non-production persistence is explicitly allowed
+- output clearly says advisory only / not trade instructions
+
+TASK 6 — PROTECTED FILE DIFF GUARD
+
+Confirm these are untouched:
+
+- phase20_executor.py
+- phase20_scheduler.py
+- phase20_exits.py
+- phase20_eod_outcomes.py
+- phase20_eod_status.py
+- paper_trader.py
+- broker_client.py
+- Kite/live-order modules
+- settings write handlers
+- deployment config
+- workflows
+- production execution config
+
+TASK 7 — TEST RE-RUN
+
+Run all relevant tests again:
+
+cd artifacts/api-server/src/python
+python3 -m pytest tests/unit/test_phase3a_integration.py -v
+python3 -m pytest tests/unit/test_advisory_bots.py -v
+python3 -m pytest tests/unit/test_phase0c_safety_fixes.py -v
+python3 -m pytest tests/unit/test_custom_universe_store.py -v
+python3 -m py_compile advisory_bots/*.py phase24_store.py
+
+Also run:
+- advisory API route tests
+- dashboard flag/page tests
+- API TypeScript typecheck
+- dashboard TypeScript typecheck
+- git diff --check against base/main
+
+TASK 8 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE3B_DISABLED_ADVISORY_INTEGRATION_SAFETY_REVIEW.md
+
+Include:
+1. Branch state.
+2. Deployment/production confirmation.
+3. Clarification of live API/browser checks environment.
+4. Feature flag review.
+5. API safety review.
+6. UI safety review.
+7. Manual runner review.
+8. Protected-file diff proof.
+9. Test results.
+10. Confirmation no merge.
+11. Confirmation no deployment.
+12. Confirmation no scheduler hook.
+13. Confirmation no production endpoint exposure.
+14. Confirmation no trades/positions/settings/broker path.
+15. Clear verdict:
+   - SAFE FOR MONDAY MANUAL TEST PREP
+   - or BLOCKED with exact fixes.
