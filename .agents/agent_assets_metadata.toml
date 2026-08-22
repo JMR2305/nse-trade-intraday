@@ -586,3 +586,10 @@ uri = "file://APEXQUANT_PHASE4B_CONTROLLED_PAPER_ENTRY_SAFETY_REVIEW.md"
 type = "text"
 title = "Phase 4B Controlled Paper-Entry Safety Review"
 description = "Independent Phase 4B verification report covering fail-closed controls, readiness, dry-run and bridge isolation, API behavior, protected files, tests, and the SAFE FOR MONDAY REVIEW verdict."
+
+[[outputs]]
+id = "VqdR2t6Wie0xiapb7Kbzd"
+uri = "file://APEXQUANT_PHASE4C_WEEKEND_FREEZE_AND_MONDAY_MERGE_PLAN.md"
+type = "text"
+title = "Phase 4C Weekend Freeze and Monday Merge Plan"
+description = "Final Monday execution plan covering the branch map, weekend freeze, exact IST sequence, conditional merge order, test commands, rollback plan, GO/NO-GO gates, and explicit no-merge/no-deploy confirmations."
