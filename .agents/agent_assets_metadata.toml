@@ -593,3 +593,38 @@ uri = "file://APEXQUANT_PHASE4C_WEEKEND_FREEZE_AND_MONDAY_MERGE_PLAN.md"
 type = "text"
 title = "Phase 4C Weekend Freeze and Monday Merge Plan"
 description = "Final Monday execution plan covering the branch map, weekend freeze, exact IST sequence, conditional merge order, test commands, rollback plan, GO/NO-GO gates, and explicit no-merge/no-deploy confirmations."
+
+[[outputs]]
+id = "DOjgYqQtu1yVaY_TFVIaN"
+uri = "file://RTV0_RUNTIME_BASELINE_REPORT.md"
+type = "text"
+title = "RTV-0 Runtime Baseline Report"
+description = "Read-only runtime truth baseline with findings and Monday live-session gates."
+
+[[outputs]]
+id = "xjptedEIpNeBlL_MCSu_7"
+uri = "file://RTV0_MARKET_DATA_PROVENANCE.csv"
+type = "table"
+title = "RTV-0 Market Data Provenance"
+description = "50-symbol active-universe provenance, freshness, fallback, and Kite-token coverage."
+
+[[outputs]]
+id = "QJMWEhFJbZ2BLh6y7iN_J"
+uri = "file://RTV0_RUNTIME_DATABASE_INVENTORY.csv"
+type = "table"
+title = "RTV-0 Runtime Database Inventory"
+description = "Observed 74-table development-runtime inventory with counts and timestamps."
+
+[[outputs]]
+id = "HwiAB4eOsEkmokvZbHvvf"
+uri = "file://RTV0_PORTFOLIO_RECONCILIATION.csv"
+type = "table"
+title = "RTV-0 Portfolio Reconciliation"
+description = "Canonical, legacy, broker, and snapshot portfolio comparison."
+
+[[outputs]]
+id = "W_YhBoAAdvI3M9qgF_noG"
+uri = "file://RTV0_RUNTIME_AUTHORITY_MAP.md"
+type = "text"
+title = "RTV-0 Runtime Authority Map"
+description = "Observed source-of-truth map, concurrency classification, and topology."
