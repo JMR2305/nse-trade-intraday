@@ -572,3 +572,10 @@ uri = "file://APEXQUANT_PHASE1G_FIRST_CUSTOM_UNIVERSE_SESSION_WATCH_REPORT.md"
 type = "text"
 title = "Phase 1G — First Custom-Universe Session Watch Report"
 description = "Pre-session preparation complete: NSE watch date corrected to Monday 2026-08-24, WIPRO metadata restored, sector counts now 9 BANK / 13 INFRA / 1 IT. Auto entries remain disabled pending scan and EOD evidence."
+
+[[outputs]]
+id = "ZUjx0O9AvUlcuU-Lo0kz0"
+uri = "file://docs/phase4a-summary.md"
+type = "text"
+title = "Phase 4A Summary"
+description = "Controlled paper-entry framework summary: disabled-by-default safety controls, readiness requirements, dry-run behavior, tests, known gaps, and downstream dependencies."
