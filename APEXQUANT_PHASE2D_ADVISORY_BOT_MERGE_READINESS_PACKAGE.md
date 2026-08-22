@@ -1,8 +1,8 @@
 # ApexQuant AI — Phase 2D Advisory Bot Merge-Readiness Package
 
-**Controlling report:** `APEXQUANT_PHASE2C_ADVISORY_BOT_SAFETY_REVIEW_REPORT.md`  
-**Branch:** `phase2a-advisory-multi-bot-logic`  
-**Mode:** PAPER ONLY / ADVISORY ONLY  
+**Controlling report:** `APEXQUANT_PHASE2C_ADVISORY_BOT_SAFETY_REVIEW_REPORT.md`
+**Branch:** `phase2a-advisory-multi-bot-logic`
+**Mode:** PAPER ONLY / ADVISORY ONLY
 **Package scope:** Review and merge-readiness documentation only
 
 ## 1. Merge-readiness verdict
