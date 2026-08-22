@@ -1,8 +1,8 @@
 # ApexQuant AI — Phase 2C Advisory Bot Safety Review
 
-**Review date:** 22 August 2026 (IST)  
-**Controlling report:** `APEXQUANT_PHASE2B_ADVISORY_MULTI_BOT_IMPLEMENTATION_REPORT.md`  
-**Reviewed branch:** `phase2a-advisory-multi-bot-logic`  
+**Review date:** 22 August 2026 (IST)
+**Controlling report:** `APEXQUANT_PHASE2B_ADVISORY_MULTI_BOT_IMPLEMENTATION_REPORT.md`
+**Reviewed branch:** `phase2a-advisory-multi-bot-logic`
 **Verdict:** **SAFE FOR LATER MERGE REVIEW**
 
 ## 1. Branch state
