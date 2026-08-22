@@ -1,9 +1,9 @@
 # ApexQuant AI — Phase 3A Weekend Advisory Integration (Disabled)
 
-**Branch:** `phase3a-advisory-integration-disabled`  
-**Base branch:** `phase2a-advisory-multi-bot-logic`  
-**Controlling reports:** Phase 2D merge-readiness package, Phase 2C safety review, and Phase 1G post-publish upsert-hardening verification  
-**Operating posture:** PAPER ONLY / ADVISORY ONLY  
+**Branch:** `phase3a-advisory-integration-disabled`
+**Base branch:** `phase2a-advisory-multi-bot-logic`
+**Controlling reports:** Phase 2D merge-readiness package, Phase 2C safety review, and Phase 1G post-publish upsert-hardening verification
+**Operating posture:** PAPER ONLY / ADVISORY ONLY
 **Verdict:** Prepared for Monday manual testing while disabled by default
 
 ## 1. Branch state

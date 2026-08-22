@@ -1,7 +1,7 @@
 # ApexQuant AI — Monday Market Test and Merge Checklist
 
-**Scope:** Phase 1H market-session watch plus Phase 2D/Phase 3A advisory merge gates  
-**Operating posture:** PAPER ONLY / ADVISORY ONLY  
+**Scope:** Phase 1H market-session watch plus Phase 2D/Phase 3A advisory merge gates
+**Operating posture:** PAPER ONLY / ADVISORY ONLY
 **Use:** Complete during and after the first Monday market session. Do not treat this weekend template as a completed production verification.
 
 ## Preconditions
