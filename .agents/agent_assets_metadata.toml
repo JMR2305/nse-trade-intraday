@@ -579,3 +579,10 @@ uri = "file://docs/phase4a-summary.md"
 type = "text"
 title = "Phase 4A Summary"
 description = "Controlled paper-entry framework summary: disabled-by-default safety controls, readiness requirements, dry-run behavior, tests, known gaps, and downstream dependencies."
+
+[[outputs]]
+id = "n6nfpNBhp5pI2mFZfvMcE"
+uri = "file://APEXQUANT_PHASE4B_CONTROLLED_PAPER_ENTRY_SAFETY_REVIEW.md"
+type = "text"
+title = "Phase 4B Controlled Paper-Entry Safety Review"
+description = "Independent Phase 4B verification report covering fail-closed controls, readiness, dry-run and bridge isolation, API behavior, protected files, tests, and the SAFE FOR MONDAY REVIEW verdict."

@@ -1,0 +1,193 @@
+PHASE 4B — INDEPENDENT SAFETY REVIEW OF CONTROLLED PAPER-ENTRY FRAMEWORK
+
+Use phase4a-summary.md and APEXQUANT_PHASE4A_CONTROLLED_PAPER_ENTRY_FRAMEWORK_DISABLED_REPORT.md as controlling reports.
+
+Do not merge to main.
+Do not deploy to production.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not enable controlled paper-entry flags in production.
+Do not enable advisory flags in production.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+Do not add scheduler hooks.
+Do not add execution endpoints.
+PAPER ONLY.
+
+Goal:
+Independently review Phase 4A and confirm whether the controlled paper-entry framework is safe for Monday review only.
+
+Review branch:
+phase4a-controlled-paper-entry-framework-disabled
+
+TASK 1 — BRANCH / DEPLOYMENT STATE
+
+Confirm:
+- branch name
+- base branch
+- main not modified
+- no merge
+- no deployment
+- no production migration
+- no production flags enabled
+
+TASK 2 — FLAGS REVIEW
+
+Verify these fail closed:
+
+- CONTROLLED_PAPER_ENTRY_FRAMEWORK_ENABLED=false
+- CONTROLLED_PAPER_ENTRY_DRY_RUN_ONLY=true
+- CONTROLLED_PAPER_ENTRY_REQUIRE_PHASE1H_PASS=true
+- CONTROLLED_PAPER_ENTRY_REQUIRE_OPERATOR_APPROVAL=true
+- CONTROLLED_PAPER_ENTRY_ALLOW_AUTO_ENABLE=false
+- CONTROLLED_PAPER_ENTRY_ALLOW_BOOTSTRAP=false
+
+Confirm:
+- missing flags use safe defaults
+- production defaults are disabled
+- bootstrap remains blocked
+- framework cannot flip auto_paper_entries=true
+- framework cannot enable bootstrap
+- dry-run-only cannot be bypassed
+
+TASK 3 — READINESS CHECKER REVIEW
+
+Review:
+- controlled_paper_entry_readiness.py
+
+Confirm the checker only reads supplied evidence and returns only:
+- GO_FOR_OPERATOR_REVIEW
+- NO_GO
+- BLOCKED
+
+Confirm it requires:
+- Phase 1H PASS
+- universe_mode=CUSTOM_LOW_PRICE_SECTOR
+- symbols_analysed=23
+- symbols_with_errors=0
+- no NIFTY_50 fallback
+- sector_counts BANK=9, INFRA=13, IT=1
+- capital=100000
+- auto_paper_entries=false before approval
+- bootstrap_paper_enabled=false
+- positions=[]
+- no AUTO / BOOTSTRAP_AUTO trades during watch
+- EOD proof
+- advisory review proof
+- explicit operator approval
+
+Confirm it cannot:
+- mutate settings
+- create trades
+- call entry APIs
+- call broker APIs
+- load production data by itself
+
+TASK 4 — DRY-RUN REVIEW
+
+Review:
+- controlled_paper_entry_dry_run.py
+
+Confirm:
+- output says DRY RUN ONLY — NOT A TRADE — NOT AN ORDER
+- no executable quantity/order payload
+- no trade creation
+- no ledger write
+- no position write
+- no broker call
+- no settings mutation
+
+TASK 5 — BRIDGE REVIEW
+
+Review:
+- controlled_paper_entry_bridge.py
+
+Confirm:
+- disabled unless framework flag is enabled
+- dry-run-only blocks execution
+- no direct call to Phase 20 executor
+- no paper_trader call
+- no broker/Kite import
+- no settings write
+- no scheduler hook
+- no production endpoint
+- no trade/position/ledger mutation
+
+TASK 6 — API REVIEW
+
+Review:
+- controlledPaperEntry.ts
+- controlledPaperEntryFlags.ts
+- route registration
+
+Confirm:
+- GET /api/controlled-paper-entry/status returns 404 by default
+- requires operator session if enabled
+- status only
+- no run endpoint
+- no execute endpoint
+- no create-trade endpoint
+- no enable-auto-entry endpoint
+- no place-order endpoint
+- no mutation path
+
+TASK 7 — PROTECTED FILE DIFF GUARD
+
+Confirm these remain untouched:
+
+- phase20_executor.py
+- phase20_scheduler.py
+- phase20_exits.py
+- phase20_eod_outcomes.py
+- phase20_eod_status.py
+- paper_trader.py
+- broker_client.py
+- Kite/live-order modules
+- settings write handlers
+- deployment config
+- workflows
+- production execution config
+
+TASK 8 — TESTS
+
+Run:
+
+cd artifacts/api-server/src/python
+python3 -m pytest tests/unit/test_phase4a_controlled_paper_entry.py -v
+python3 -m pytest tests/unit/test_phase3a_integration.py -v
+python3 -m pytest tests/unit/test_advisory_bots.py -v
+python3 -m pytest tests/unit/test_phase0c_safety_fixes.py -v
+python3 -m pytest tests/unit/test_custom_universe_store.py -v
+python3 -m py_compile advisory_bots/*.py phase24_store.py controlled_paper_entry_*.py
+
+Also run:
+- controlled paper-entry API tests
+- advisory API tests
+- TypeScript typechecks
+- git diff --check
+
+TASK 9 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE4B_CONTROLLED_PAPER_ENTRY_SAFETY_REVIEW.md
+
+Include:
+1. Branch state.
+2. Deployment confirmation.
+3. Flag review.
+4. Readiness checker review.
+5. Dry-run review.
+6. Bridge review.
+7. API review.
+8. Protected-file diff proof.
+9. Test results.
+10. Confirmation no merge.
+11. Confirmation no deployment.
+12. Confirmation no scheduler hook.
+13. Confirmation no execution endpoint.
+14. Confirmation no trades/positions/settings/broker path.
+15. Clear verdict:
+   - SAFE FOR MONDAY REVIEW
+   - or BLOCKED with exact fixes.
