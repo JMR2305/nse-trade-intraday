@@ -1,0 +1,682 @@
+RTV-1D — CONTROLLED PRODUCTION DEPLOYMENT + RECONCILIATION
+
+Use these controlling reports:
+- RTV1C_PRODUCTION_AUTHORITY_RECONCILIATION.md
+- RTV1C_ROOT_CAUSE_MATRIX.csv
+- RTV1C_PRODUCTION_PORTFOLIO_RECONCILIATION.csv
+- RTV1C_PRODUCTION_MARKET_DATA_COVERAGE.csv
+- RTV1B_KITE_SESSION_PERSISTENCE_REPORT.md
+- RTV1_SUMMARY.md
+
+TARGET ENVIRONMENT:
+PRODUCTION ONLY
+
+API BASE:
+https://nse-trade-intraday.replit.app
+
+Current confirmed production truth:
+- Kite authentication = VALID
+- Kite connected = true
+- token_stored = true
+- read-only Kite quotes work
+- live broker order placement = disabled
+- automatic paper entries = disabled
+- bootstrap = disabled
+- automatic exits = enabled
+- paper mode = enabled
+- current active universe = CUSTOM_LOW_PRICE_SECTOR
+- current active universe count = 23
+- current production portfolio authority = Phase20 ledger
+- correct current cash/equity = ₹99,721.26
+- realized P&L = ₹-278.74
+- open positions = 0
+- /api/portfolio is correct
+- /api/portfolio/snapshot is stale/wrong
+- production is behind RTV-1 development
+- production health-v2 does not yet expose market_data_readiness
+- global Kite instrument master refresh succeeds
+- global instrument cache fetched 10,222 rows
+- all 23 active production symbols return kite_live quotes
+- custom_universe_master.instrument_token coverage = 0/23
+- no production orders were placed
+- no historical P&L was modified
+- no universe change was made
+
+Goal:
+Deploy only the already-verified RTV-1 fixes required to bring production in line with the verified current source, then reconcile production again.
+
+Do not add new trading features.
+Do not change trading strategy.
+Do not change signal thresholds.
+Do not switch the active universe.
+Do not reset portfolio.
+Do not delete or rewrite historical trades.
+Do not enable automatic paper entries.
+Do not enable bootstrap.
+Do not enable live broker order placement.
+Do not place, modify, or cancel any broker order.
+
+This is a CONTROLLED DEPLOYMENT AND VERIFICATION task.
+
+TASK 1 — PRE-DEPLOYMENT SOURCE VERIFICATION
+
+Before any deployment, record:
+
+- current development branch
+- current development commit
+- working tree status
+- production target URL
+- currently known production behavior
+- RTV-1 source commit(s) containing:
+  - canonical portfolio snapshot unification
+  - dynamic capital authority
+  - market_data_readiness contract
+  - market-data provenance hardening
+  - synthetic-data fail-closed logic
+  - pre-open lifecycle fixes
+  - concurrency protections
+
+Verify there are no unrelated feature changes bundled into the deployment.
+
+If unrelated risky changes are present:
+STOP
+and report them before deploying.
+
+TASK 2 — BUILD RUNTIME IDENTITY CONTRACT
+
+Add a non-secret runtime identity object to an existing diagnostic/health endpoint.
+
+Required fields:
+
+{
+  "environment": "production",
+  "git_commit": "...",
+  "build_id": "...",
+  "deployment_id": "...",
+  "instance_id": "...",
+  "runtime_timestamp": "..."
+}
+
+Requirements:
+- no secrets
+- no tokens
+- no API keys
+- no credentials
+- git_commit injected at build/deploy time
+- build_id stable for one deployment
+- instance_id may vary per Autoscale instance
+- runtime_timestamp generated at request time
+
+Use this to make future RTV production-vs-development comparisons evidence-based.
+
+TASK 3 — FIX CUSTOM-UNIVERSE INSTRUMENT TOKEN PROPAGATION
+
+Current state:
+- global Kite instrument master = fresh
+- 10,222 rows fetched
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active symbols = 23
+- all 23 Kite symbol quote calls succeed
+- custom_universe_master.instrument_token = missing for all 23
+
+Do NOT recompute or replace the custom universe.
+
+Do NOT change the selected 23 symbols.
+
+Implement a dedicated safe metadata hydration path:
+
+global Kite instrument cache
+→ match current active custom-universe symbol
+→ validate NSE tradingsymbol
+→ write instrument_token metadata only
+→ preserve:
+   - symbol
+   - sector
+   - active state
+   - rank
+   - selection reason
+   - universe membership
+   - strategy configuration
+
+Only instrument-reference metadata may be updated.
+
+For each active symbol populate/verify:
+- exchange
+- tradingsymbol
+- instrument_token
+- instrument cache date
+- mapping timestamp
+
+Guardrails:
+- no universe membership mutation
+- no ranking recomputation
+- no symbol activation/deactivation
+- no price-based universe reselection
+
+Target:
+23/23 valid active mappings
+0 missing
+0 duplicates
+
+If a symbol cannot be mapped:
+do not silently continue.
+Report exact symbol and reason.
+
+TASK 4 — PORTFOLIO SNAPSHOT CANONICALIZATION
+
+Current production truth:
+
+/api/portfolio
+→ Phase20 ledger
+→ ₹99,721.26 cash/equity
+→ ₹-278.74 realized P&L
+→ 0 open positions
+
+/api/portfolio/snapshot
+→ stale portfolio_service snapshot
+→ ₹100,000
+→ ₹0 realized P&L
+→ wrong
+
+Deploy the existing RTV-1 canonical snapshot fix.
+
+Required result:
+
+Both endpoints must derive shared financial truth from the Phase20 ledger.
+
+For shared fields require equality:
+
+- initial_capital
+- cash
+- invested_amount
+- current_market_value
+- realized_pnl
+- unrealized_pnl
+- total_pnl
+- total_equity
+- open_position_count
+
+Expected current production result after deployment:
+
+initial_capital = ₹100,000.00
+realized_pnl = ₹-278.74
+cash = ₹99,721.26
+invested_amount = ₹0
+unrealized_pnl = ₹0
+total_equity = ₹99,721.26
+open_positions = 0
+
+Do NOT reset the portfolio.
+
+Do NOT zero historical realized P&L.
+
+Do NOT modify the six CLOSED trade rows.
+
+TASK 5 — PRESERVE HISTORICAL LEDGER
+
+Before deployment record a read-only checksum/snapshot of the six CLOSED Phase20 rows.
+
+Capture:
+- trade IDs
+- symbols
+- entry
+- exit
+- quantity
+- status
+- realized_pnl
+- created/closed timestamps
+
+After deployment compare the same rows.
+
+Require:
+- same row count
+- same IDs
+- same financial values
+- same total realized P&L = ₹-278.74
+
+Any historical mutation = P0 FAILURE.
+
+TASK 6 — DEPLOY MARKET_DATA_READINESS CONTRACT
+
+Deploy the verified RTV-1 readiness implementation.
+
+Production health/readiness response must expose:
+
+- service_ready
+- data_ready
+- session_fresh
+- trading_data_ready
+- kite_connected
+- kite_authenticated
+- active_universe_count
+- valid_instrument_tokens
+- missing_instrument_tokens
+- token_coverage_pct
+- symbols_on_kite
+- symbols_on_fallback
+- symbols_stale
+- symbols_unavailable
+- symbols_synthetic
+- latest_quote_timestamp
+- quote_age_seconds
+
+Keep semantics separate:
+
+service_ready
+!=
+trading_data_ready
+
+Because market may currently be closed:
+
+service_ready may be true
+data_ready may be true
+session_fresh may be false
+trading_data_ready must remain false
+
+Do not weaken readiness merely to achieve green status.
+
+TASK 7 — SYNTHETIC / FALLBACK REGRESSION CHECK
+
+After deployment verify:
+
+- mock/synthetic data cannot be execution-grade
+- yfinance fallback is explicitly labeled
+- Kite source is explicitly labeled
+- stale historical prices cannot be called current live LTP
+- trading_data_ready fails closed if quote freshness is insufficient
+- synthetic symbol count = 0 for active production universe
+
+Any synthetic data incorrectly classified as live = P0 FAILURE.
+
+TASK 8 — PRE-OPEN LIFECYCLE FIX DEPLOYMENT CHECK
+
+Verify that the deployed source includes RTV-1 fixes for:
+
+- partial 5A/5B updates preserve omitted fields
+- provider collected count vs persisted count mismatch reporting
+- terminal state regression prevention
+- NO_CANDIDATES
+- EOD_RETRY_REQUIRED
+- explicit lifecycle status handling
+
+Do not manually trigger 5A/5B/5C outside their scheduled windows.
+
+Only verify code/deployment presence now.
+
+Live lifecycle validation remains for next NSE session.
+
+TASK 9 — KITE SESSION DURABILITY HARDENING
+
+RTV-1C confirmed a real hardening gap:
+
+kite_token_store._db_save()
+can suppress durable-store failure.
+
+Implement the queued persistence hardening ONLY if it is isolated and already reviewed/approved in current source.
+
+Required behavior:
+
+Login:
+generate_session()
+→ durable phase20_kv save REQUIRED
+→ local warm file optional
+→ callback success only if authoritative durable save succeeds
+
+Disconnect:
+→ durable deletion REQUIRED
+→ local warm cache deletion
+→ report complete logout only if authoritative durable delete succeeds
+
+If durable DB save/delete fails:
+- no false success
+- no secret in logs
+- return safe diagnostic error
+
+Add tests for:
+- durable save failure
+- durable delete failure
+- fresh-process DB reload
+- expired token
+- local warm-cache-only state
+- no token disclosure
+
+Do not invalidate the current healthy production session unnecessarily during this deployment.
+
+TASK 10 — BUILD AND TEST BEFORE DEPLOY
+
+Run:
+
+- market-data readiness tests
+- Kite token-store tests
+- Kite quote provenance tests
+- custom-universe token hydration tests
+- portfolio snapshot tests
+- Phase20 ledger tests
+- paper analytics tests
+- portfolio reconciliation tests
+- pre-open lifecycle tests
+- concurrency/admission tests
+- TypeScript checks
+- API build
+
+Also run the relevant broader regression suite.
+
+Do not modify tests solely to make them pass.
+
+Report:
+- passed
+- failed
+- warnings
+- pre-existing failures
+
+Deployment is blocked if any new P0/P1 regression fails.
+
+TASK 11 — CONTROLLED PRODUCTION DEPLOYMENT
+
+If all pre-deployment gates pass:
+
+Deploy the verified RTV-1 code to PRODUCTION.
+
+Do not change:
+- active universe
+- strategy thresholds
+- safety flags
+- capital
+- historical ledger
+- broker mode
+
+After deploy wait only for normal service readiness.
+
+Do not trigger trades.
+
+TASK 12 — POST-DEPLOYMENT RUNTIME IDENTITY
+
+Query production runtime identity.
+
+Report:
+
+- API base URL
+- environment
+- git_commit
+- build_id
+- deployment_id
+- instance_id
+- runtime timestamp
+
+Verify the deployed commit matches the approved source commit.
+
+If commit mismatch:
+STOP
+and classify deployment verification FAILED.
+
+TASK 13 — POST-DEPLOYMENT KITE AUTHENTICATION
+
+Confirm production still has:
+
+- credentials_present=true
+- token_status=VALID
+- token_stored=true
+- connected=true
+- authenticated=true
+- login_required=false
+
+Use one read-only profile/status probe.
+
+Do not call any order endpoint.
+
+If the deployment causes login/session loss:
+do not auto-create credentials.
+Report whether manual Kite relogin is required.
+
+TASK 14 — POST-DEPLOYMENT INSTRUMENT COVERAGE
+
+Verify current active production universe:
+
+CUSTOM_LOW_PRICE_SECTOR
+
+Count:
+23 symbols
+
+Then verify:
+
+- valid tokens = 23
+- missing = 0
+- duplicates = 0
+- coverage = 100%
+
+Create symbol-level output:
+
+symbol
+sector
+tradingsymbol
+instrument_token_present
+mapping_valid
+Kite quote available
+source
+fallback
+
+Do not alter the 23-symbol membership.
+
+TASK 15 — POST-DEPLOYMENT QUOTE PLUMBING
+
+Use read-only Kite quote calls for all 23 active symbols.
+
+Verify:
+- quote success
+- source = KITE
+- no fallback if Kite succeeds
+- provenance fields populated
+- quote timestamp behavior correct
+
+Because NSE may be closed:
+do not require session_fresh=true.
+
+This task proves provider plumbing, not live market-session freshness.
+
+TASK 16 — POST-DEPLOYMENT PORTFOLIO PARITY
+
+Query:
+
+/api/portfolio
+/api/portfolio/snapshot
+
+Compare shared financial fields.
+
+Expected:
+
+Initial capital:
+₹100,000.00
+
+Realized P&L:
+₹-278.74
+
+Cash:
+₹99,721.26
+
+Invested:
+₹0
+
+Unrealized P&L:
+₹0
+
+Equity:
+₹99,721.26
+
+Open positions:
+0
+
+Required:
+
+/api/portfolio == /api/portfolio/snapshot
+for all shared canonical fields
+
+Small formatting differences are acceptable.
+Financial differences are not.
+
+TASK 17 — INDEPENDENT RAW-LEDGER RECOMPUTATION
+
+Again calculate from the six CLOSED ledger rows:
+
+Σ realized_pnl = ₹-278.74
+
+Then:
+
+cash =
+₹100,000 + ₹-278.74
+= ₹99,721.26
+
+Compare:
+
+RAW LEDGER
+vs
+/api/portfolio
+vs
+/api/portfolio/snapshot
+
+All three must reconcile.
+
+TASK 18 — SAFETY FLAGS POST-DEPLOY
+
+Confirm:
+
+- paper mode = enabled
+- automatic paper entries = disabled
+- bootstrap = disabled
+- automatic exits = enabled
+- live broker order placement = disabled
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- capital basis = ₹100,000
+- historical P&L preserved
+
+Any unexpected change = CRITICAL.
+
+TASK 19 — PRODUCTION HEALTH CONTRACT
+
+Verify the new production health/readiness contract exists.
+
+Report:
+
+- service_ready
+- data_ready
+- session_fresh
+- trading_data_ready
+- Kite connection
+- active universe count
+- token coverage
+- source counts
+- fallback counts
+- synthetic count
+- latest quote timestamp
+- quote age
+
+Expected while market closed:
+
+service_ready = true
+session_fresh = false
+trading_data_ready = false
+
+This is not a failure.
+
+TASK 20 — MONDAY / NEXT OPEN-SESSION GATE
+
+Prepare the next-session verification but do not simulate it.
+
+Before pre-open:
+- verify production build identity
+- verify Kite authenticated
+- verify 23/23 tokens
+- verify active universe = CUSTOM_LOW_PRICE_SECTOR
+- verify canonical portfolio parity
+- verify synthetic count = 0
+
+During pre-open:
+- verify 5A provider count
+- verify persisted count
+- require provider_count == persisted_count
+- verify 5B lifecycle
+- verify 5C lifecycle
+
+At/after open:
+- first canonical scan must use 23 current active symbols
+- prove scheduler picked up CUSTOM_LOW_PRICE_SECTOR
+- verify fresh Kite quote provenance for every symbol
+- verify no duplicate legacy scheduled scan
+- verify session_fresh=true when appropriate
+- verify trading_data_ready=true only when all readiness gates pass
+
+Do not enable auto entry.
+
+TASK 21 — OUTPUT FILES
+
+Create:
+
+1. RTV1D_CONTROLLED_DEPLOYMENT_REPORT.md
+2. RTV1D_PRODUCTION_POST_DEPLOY_RECONCILIATION.csv
+3. RTV1D_PRODUCTION_MARKET_DATA_VERIFICATION.csv
+4. RTV1D_RUNTIME_IDENTITY_AND_SAFETY.md
+5. RTV1D_NEXT_SESSION_GATE.md
+
+RTV1D_CONTROLLED_DEPLOYMENT_REPORT.md must include:
+
+- pre-deploy branch/commit
+- production target
+- exact deployed commit
+- build/deployment ID
+- files changed
+- changes deployed
+- tests
+- deployment result
+- Kite status before/after
+- token coverage before/after
+- portfolio values before/after
+- historical ledger integrity
+- readiness contract result
+- active universe confirmation
+- safety flags before/after
+- remaining open-session validations
+- remaining P0/P1 issues
+
+PASS CONDITIONS
+
+RTV-1D may be marked CODE + PRODUCTION PASS only if:
+
+1. Production deployed commit is identifiable
+2. Production contains RTV-1 readiness contract
+3. /api/portfolio and /api/portfolio/snapshot reconcile
+4. ₹-278.74 historical realized P&L is preserved
+5. cash/equity = ₹99,721.26 with no open positions
+6. custom active universe remains unchanged at 23 symbols
+7. 23/23 custom symbols have valid instrument mappings
+8. read-only Kite quote plumbing works for all 23
+9. synthetic data remains blocked
+10. automatic entries remain disabled
+11. bootstrap remains disabled
+12. live broker orders remain disabled
+13. no historical ledger row was modified
+14. relevant tests pass
+
+If market is closed, RTV-1D can be:
+
+PRODUCTION PASS — OPEN-SESSION VERIFICATION PENDING
+
+Do not claim live-session PASS until the next NSE session proves:
+- fresh scan
+- fresh quote timestamps
+- current 23-symbol scheduler universe
+- pre-open lifecycle
+- session_fresh
+- trading_data_ready
+
+FINAL RULE
+
+Deploy only the already-verified truth/safety corrections.
+
+Do not reset anything.
+Do not change the active universe.
+Do not erase historical P&L.
+Do not enable automatic entry.
+Do not enable bootstrap.
+Do not enable live broker orders.
+Do not place or modify broker orders.
+
+Complete the five RTV-1D artifacts and stop.
