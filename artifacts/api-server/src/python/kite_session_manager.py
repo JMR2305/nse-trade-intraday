@@ -56,22 +56,20 @@ def _mask(s: Optional[str]) -> str:
 
 def _get_creds() -> tuple[Optional[str], Optional[str]]:
     api_key = os.environ.get("ZERODHA_API_KEY") or None
-    token   = os.environ.get("ZERODHA_ACCESS_TOKEN") or None
-    if token:
+    token: Optional[str] = None
+    try:
+        import kite_token_store
+        token, from_store = kite_token_store.resolve_preferred_token()
+    except Exception:
+        from_store = False
+        token = os.environ.get("ZERODHA_ACCESS_TOKEN") or None
+    if token and not from_store:
         # An env token whose recorded timestamp shows it past the daily
         # 06:00 IST expiry must not count as an active session.
         try:
             from kite_quote_provider import _env_token_expired
             if _env_token_expired():
                 token = None
-        except Exception:
-            pass
-    if not token:
-        try:
-            import kite_token_store
-            data = kite_token_store.load()
-            if data:
-                token = data.get("access_token") or None
         except Exception:
             pass
     return api_key, token
@@ -270,7 +268,20 @@ def exchange_request_token(request_token: Optional[str]) -> Dict[str, Any]:
                     "error": "Token exchange returned no access token"}
         user_id = str(session.get("user_id") or "")
         import kite_token_store
-        kite_token_store.save_token(access_token, user_id=user_id)
+        try:
+            kite_token_store.save_token(access_token, user_id=user_id)
+        except Exception:
+            # Never claim a completed login after an instance-local write. The
+            # caller may retry, while the old durable token (if any) remains
+            # intact because save_token writes the DB before its warm cache.
+            kite_token_store.record_auth_failure()
+            invalidate_cache()
+            logger.warning("Kite token exchange could not persist the shared session")
+            return {
+                "success": False,
+                "state": "AUTH_FAILED",
+                "error": "Could not save the Kite session safely. Please try again.",
+            }
         kite_token_store.clear_auth_failure()
         invalidate_cache()
         logger.info("Kite token exchange succeeded for user %s", _mask(user_id))
@@ -290,7 +301,18 @@ def exchange_request_token(request_token: Optional[str]) -> Dict[str, Any]:
 def disconnect_session() -> Dict[str, Any]:
     """Clear stored and store-hydrated process credentials; static secrets stay intact."""
     import kite_token_store
-    removed = kite_token_store.clear()
+    try:
+        removed = kite_token_store.clear()
+    except Exception:
+        # Keep process credentials and caches untouched: durable deletion was
+        # not confirmed, so reporting a logout would be unsafe.
+        logger.warning("Kite disconnect could not remove the shared session")
+        return {
+            "success": False,
+            "removed": False,
+            "state": "DISCONNECT_FAILED",
+            "error": "Could not disconnect the Kite session safely. Please try again.",
+        }
     # A token loaded into this process before disconnect must not remain usable
     # through env-first credential resolution after its durable record is gone.
     kite_token_store.clear_process_hydrated_env()

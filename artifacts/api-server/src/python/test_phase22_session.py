@@ -51,7 +51,8 @@ class TokenExpiryTests(unittest.TestCase):
     def test_load_filters_expired_token(self):
         stale = {"access_token": "x",
                  "created_at": _iso(datetime.now(timezone.utc) - timedelta(days=3))}
-        with mock.patch.object(kite_token_store, "_db_load", return_value=None), \
+        with mock.patch.object(kite_token_store, "_db_load",
+                               return_value=(False, None)), \
              mock.patch("builtins.open", mock.mock_open(
                  read_data=__import__("json").dumps(stale))):
             self.assertIsNone(kite_token_store.load())
@@ -108,6 +109,25 @@ class EnvTokenExpiryTests(unittest.TestCase):
             _, token = ksm._get_creds()
             self.assertIsNone(token)
 
+    def test_consumers_do_not_reuse_hydrated_token_after_durable_logout(self):
+        import importlib
+        import broker_client
+        import kite_quote_provider as kqp
+        import kite_session_manager as ksm
+        kts = importlib.import_module("kite_token_store")
+
+        old = {"access_token": "old-token", "created_at": _iso(datetime.now(timezone.utc))}
+        try:
+            with mock.patch.object(kts, "_db_load", return_value=(True, old)):
+                kts.apply_to_env()
+
+            with mock.patch.object(kts, "_db_load", return_value=(True, None)):
+                self.assertIsNone(ksm._get_creds()[1])
+                self.assertEqual(kqp._resolve_creds()[1], "")
+                self.assertIsNone(broker_client._get_creds()[1])
+        finally:
+            kts.clear_process_hydrated_env()
+
     def test_env_token_without_timestamp_trusted(self):
         import kite_quote_provider as kqp
         env = {"ZERODHA_API_KEY": "k", "ZERODHA_ACCESS_TOKEN": "t"}
@@ -145,12 +165,14 @@ class BulkFetchTests(unittest.TestCase):
 
     def test_bulk_fetch_all_from_single_call(self):
         import pandas as pd
+        import ohlcv_cache_store
         from live_data_provider import LiveDataProvider
         syms = ["AAA", "BBB"]
         frames = {f"{s}.NS": self._frame() for s in syms}
         bulk = pd.concat(frames, axis=1)  # MultiIndex (ticker, field)
         p = LiveDataProvider()
-        with mock.patch("live_data_provider.yf.download",
+        with mock.patch.object(ohlcv_cache_store, "OHLCV_CACHE_ENABLED", False), \
+             mock.patch("live_data_provider.yf.download",
                         return_value=bulk) as dl:
             res = p.fetch_batch(syms)
             self.assertEqual(dl.call_count, 1)
@@ -162,10 +184,12 @@ class BulkFetchTests(unittest.TestCase):
 
     def test_missing_symbol_falls_back_to_per_symbol_path(self):
         import pandas as pd
+        import ohlcv_cache_store
         from live_data_provider import LiveDataProvider
         bulk = pd.concat({"AAA.NS": self._frame()}, axis=1)
         p = LiveDataProvider()
-        with mock.patch("live_data_provider.yf.download",
+        with mock.patch.object(ohlcv_cache_store, "OHLCV_CACHE_ENABLED", False), \
+             mock.patch("live_data_provider.yf.download",
                         return_value=bulk), \
              mock.patch.object(p, "fetch_symbol") as fs:
             from live_data_provider import SymbolFetchResult, DataQuality
@@ -181,9 +205,11 @@ class BulkFetchTests(unittest.TestCase):
         self.assertEqual(res["BBB"].data_quality, "UNAVAILABLE")
 
     def test_bulk_failure_falls_back_for_all(self):
+        import ohlcv_cache_store
         from live_data_provider import LiveDataProvider, SymbolFetchResult, DataQuality
         p = LiveDataProvider()
-        with mock.patch("live_data_provider.yf.download",
+        with mock.patch.object(ohlcv_cache_store, "OHLCV_CACHE_ENABLED", False), \
+             mock.patch("live_data_provider.yf.download",
                         side_effect=RuntimeError("boom")), \
              mock.patch.object(p, "fetch_symbol") as fs:
             fs.return_value = SymbolFetchResult(

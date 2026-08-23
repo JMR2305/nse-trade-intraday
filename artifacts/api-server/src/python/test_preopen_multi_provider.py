@@ -379,6 +379,40 @@ class TestProviderManagerFailover(unittest.TestCase):
                 p, label = get_best_provider(["INFY"], force=True)
         self.assertEqual(label, "Zerodha Kite")
 
+    def test_kite_uses_a_durable_session_without_legacy_env_token(self):
+        """Fresh processes must select Kite from Phase-20 state alone."""
+        from preopen_data_model import ProviderState
+        import preopen_provider_manager as mgr
+
+        with patch.dict(os.environ, {"ZERODHA_API_KEY": "test-key"}, clear=True):
+            with patch("kite_preopen_provider.resolve_preopen_token",
+                       return_value="durable-token"):
+                with patch("kite_preopen_provider.KitePreOpenProvider") as MockKite:
+                    MockKite.PROVIDER_LABEL = "Zerodha Kite"
+                    MockKite.return_value.health_check.return_value = {
+                        "status": ProviderState.LIVE,
+                    }
+                    provider, label = mgr._try_kite(["INFY"])
+        self.assertIs(provider, MockKite.return_value)
+        self.assertEqual(label, "Zerodha Kite")
+        MockKite.assert_called_once_with(["INFY"])
+
+    def test_kite_refuses_legacy_token_when_durable_store_is_unreachable(self):
+        """A Phase-20 outage must fail closed rather than revive a stale token."""
+        import preopen_provider_manager as mgr
+
+        with patch.dict(os.environ, {
+            "ZERODHA_API_KEY": "test-key",
+            "KITE_ACCESS_TOKEN": "legacy-token",
+        }, clear=True):
+            with patch("kite_token_store._db_load",
+                       side_effect=RuntimeError("durable store unavailable")):
+                with patch("kite_preopen_provider.KitePreOpenProvider") as MockKite:
+                    provider, label = mgr._try_kite(["INFY"])
+        self.assertIsNone(provider)
+        self.assertEqual(label, "")
+        MockKite.assert_not_called()
+
     def test_yahoo_wins_when_nse_and_kite_unavailable(self):
         mock_yf = MagicMock()
         mock_yf.PROVIDER_LABEL = "Yahoo Finance (Fallback)"

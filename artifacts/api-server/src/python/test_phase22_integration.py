@@ -44,10 +44,13 @@ class SharedSessionTests(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.store_path = os.path.join(self.tmp, "kite_token.json")
         self.p1 = mock.patch.object(kts, "_STORE_PATH", self.store_path)
-        self.p2 = mock.patch.object(kts, "_db_save",
-                                    side_effect=lambda r: self.db.__setitem__("rec", r))
-        self.p3 = mock.patch.object(kts, "_db_load",
-                                    side_effect=lambda: self.db.get("rec"))
+        def save_to_db(record):
+            self.db["rec"] = record
+            return True
+
+        self.p2 = mock.patch.object(kts, "_db_save", side_effect=save_to_db)
+        self.p3 = mock.patch.object(
+            kts, "_db_load", side_effect=lambda: (True, self.db.get("rec")))
         for p in (self.p1, self.p2, self.p3):
             p.start()
             self.addCleanup(p.stop)
@@ -110,11 +113,13 @@ class BulkFetchIntegrationTests(unittest.TestCase):
 
     def test_bulk_then_fallback_provenance(self):
         import pandas as pd
+        import ohlcv_cache_store
         from live_data_provider import (LiveDataProvider, SymbolFetchResult,
                                         DataQuality)
         bulk = pd.concat({"AAA.NS": self._frame()}, axis=1)
         p = LiveDataProvider()
-        with mock.patch("live_data_provider.yf.download", return_value=bulk) as dl, \
+        with mock.patch.object(ohlcv_cache_store, "OHLCV_CACHE_ENABLED", False), \
+             mock.patch("live_data_provider.yf.download", return_value=bulk) as dl, \
              mock.patch.object(p, "fetch_symbol") as fs:
             fs.return_value = SymbolFetchResult(
                 symbol="BBB", success=True, df=self._frame(),

@@ -92,7 +92,11 @@ def _fetch_from_kite() -> List[Dict[str, Any]]:
     """Fetch NSE instrument list from Kite. Raises on failure."""
     from kiteconnect import KiteConnect
     api_key = os.environ.get("ZERODHA_API_KEY") or ""
-    token   = os.environ.get("ZERODHA_ACCESS_TOKEN") or ""
+    try:
+        import kite_token_store
+        token, _ = kite_token_store.resolve_preferred_token()
+    except Exception:
+        token = os.environ.get("ZERODHA_ACCESS_TOKEN") or ""
     if not api_key or not token:
         raise ValueError("Kite credentials not set")
     kite = KiteConnect(api_key=api_key)

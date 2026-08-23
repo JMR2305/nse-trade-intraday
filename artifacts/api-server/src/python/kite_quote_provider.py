@@ -69,23 +69,17 @@ def _env_token_expired() -> bool:
 
 
 def _resolve_creds() -> tuple:
-    """Resolve (api_key, access_token). Token: env var first (unless its
-    recorded timestamp shows it expired at 06:00 IST), then the durable
-    token store (Postgres-backed — survives redeploys; expired tokens are
-    filtered out by the store itself)."""
+    """Resolve (api_key, access_token) with shared durable state first."""
     api_key = os.environ.get("ZERODHA_API_KEY") or ""
-    token = os.environ.get("ZERODHA_ACCESS_TOKEN") or ""
-    if token and _env_token_expired():
+    try:
+        import kite_token_store
+        token, from_store = kite_token_store.resolve_preferred_token()
+    except Exception:
+        token = os.environ.get("ZERODHA_ACCESS_TOKEN") or ""
+        from_store = False
+    if token and not from_store and _env_token_expired():
         token = ""
-    if not token:
-        try:
-            import kite_token_store
-            data = kite_token_store.load()
-            if data:
-                token = data.get("access_token") or ""
-        except Exception:
-            pass
-    return api_key, token
+    return api_key, token or ""
 
 
 def _get_kite_client():

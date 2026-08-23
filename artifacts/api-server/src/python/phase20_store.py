@@ -1077,18 +1077,118 @@ def _kv_file_lock():
     return _lock()
 
 
+def _ensure_kv_table(cur) -> None:
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS phase20_kv (
+            key TEXT PRIMARY KEY,
+            value JSONB,
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )
+        """
+    )
+
+
+class DurableKVError(RuntimeError):
+    """A required shared-KV operation could not be confirmed."""
+
+
+def _durable_kv_connection():
+    """Open the shared KV database without the normal local-file fallback."""
+    if not db_available():
+        raise DurableKVError("Phase-20 durable KV is not configured")
+    try:
+        return _connect()
+    except Exception as exc:
+        raise DurableKVError("Phase-20 durable KV is unavailable") from exc
+
+
+def kv_set_durable(key: str, value: Any) -> None:
+    """Persist a KV value to PostgreSQL or raise.
+
+    Credential/session flows must not use the regular KV fallback: a local
+    file can disappear after an Autoscale restart and cannot confirm that the
+    shared state was updated.
+    """
+    conn = _durable_kv_connection()
+    try:
+        with conn.cursor() as cur:
+            _ensure_kv_table(cur)
+            cur.execute(
+                """
+                INSERT INTO phase20_kv (key, value, updated_at)
+                VALUES (%s, %s, NOW())
+                ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                """,
+                (key, json.dumps(value, default=str)),
+            )
+        conn.commit()
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise DurableKVError("Phase-20 durable KV write failed") from exc
+    finally:
+        conn.close()
+
+
+def kv_delete_durable(key: str) -> bool:
+    """Delete a shared KV value and confirm the durable deletion.
+
+    A False result means the durable record was already absent; it is still a
+    successful confirmation that a fresh instance will not restore the value.
+    """
+    conn = _durable_kv_connection()
+    try:
+        with conn.cursor() as cur:
+            _ensure_kv_table(cur)
+            cur.execute("DELETE FROM phase20_kv WHERE key = %s", (key,))
+            removed = cur.rowcount > 0
+        conn.commit()
+        return removed
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise DurableKVError("Phase-20 durable KV delete failed") from exc
+    finally:
+        conn.close()
+
+
+def kv_get_durable(key: str, default: Any = None) -> Any:
+    """Read shared KV state without accepting the local fallback as truth."""
+    conn = _durable_kv_connection()
+    try:
+        with conn.cursor() as cur:
+            _ensure_kv_table(cur)
+            cur.execute("SELECT value FROM phase20_kv WHERE key = %s", (key,))
+            row = cur.fetchone()
+        conn.commit()
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise DurableKVError("Phase-20 durable KV read failed") from exc
+    finally:
+        conn.close()
+    if row is None:
+        return default
+    value = row[0]
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except Exception:
+            pass
+    return value
+
+
 def kv_set(key: str, value: Any) -> None:
     def to_db(conn):
         with conn.cursor() as cur:
-            cur.execute(
-                """
-                CREATE TABLE IF NOT EXISTS phase20_kv (
-                    key TEXT PRIMARY KEY,
-                    value JSONB,
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
-                )
-                """
-            )
+            _ensure_kv_table(cur)
             cur.execute(
                 """
                 INSERT INTO phase20_kv (key, value, updated_at)

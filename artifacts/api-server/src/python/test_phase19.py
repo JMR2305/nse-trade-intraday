@@ -120,8 +120,17 @@ class TestKiteSessionManager(unittest.TestCase):
     def test_credentials_present_when_env_set(self):
         os.environ["ZERODHA_API_KEY"] = "test_key"
         os.environ["ZERODHA_ACCESS_TOKEN"] = "test_token"
-        ksm2 = _reload("kite_session_manager")
-        self.assertTrue(ksm2.creds_present())
+        with patch("kite_token_store._db_load", return_value=(False, None)):
+            ksm2 = _reload("kite_session_manager")
+            self.assertTrue(ksm2.creds_present())
+
+    def test_credentials_rejected_when_durable_authority_is_unavailable(self):
+        os.environ["ZERODHA_API_KEY"] = "test_key"
+        os.environ["ZERODHA_ACCESS_TOKEN"] = "legacy_token"
+        with patch("kite_token_store._db_load",
+                   side_effect=RuntimeError("durable store unavailable")):
+            ksm2 = _reload("kite_session_manager")
+            self.assertFalse(ksm2.creds_present())
 
     def test_status_token_valid_when_fresh_timestamp(self):
         os.environ["ZERODHA_API_KEY"] = "k"
@@ -298,9 +307,33 @@ class TestBrokerClientLtp(unittest.TestCase):
         fake_kite = _KC.KiteConnect(api_key="x")
         client = self.bc.ZerodhaClient.__new__(self.bc.ZerodhaClient)
         client._kite = fake_kite
-        result = client.get_ltp(["RELIANCE"])
+        client._session_token = "stub-token"
+        with patch.object(self.bc, "_get_creds", return_value=("x", "stub-token")):
+            result = client.get_ltp(["RELIANCE"])
         self.assertIsInstance(result, dict)
         self.assertIn("RELIANCE", result)
+
+    def test_live_client_rejects_a_session_logged_out_elsewhere(self):
+        """A constructed client must not call Kite after a durable logout."""
+        with patch.object(self.bc, "_get_creds",
+                          side_effect=[("x", "old-token"), ("x", None)]):
+            client = self.bc.ZerodhaClient()
+            old_kite = client._kite
+            old_kite.ltp = MagicMock(return_value={"NSE:RELIANCE": {"last_price": 1}})
+            self.assertEqual(client.get_ltp(["RELIANCE"]), {"RELIANCE": None})
+        old_kite.ltp.assert_not_called()
+
+    def test_live_client_refreshes_after_a_durable_token_rotation(self):
+        """A constructed client must replace, not reuse, its rotated session."""
+        with patch.object(self.bc, "_get_creds",
+                          side_effect=[("x", "old-token"), ("x", "new-token")]):
+            client = self.bc.ZerodhaClient()
+            old_kite = client._kite
+            old_kite.ltp = MagicMock(return_value={"NSE:RELIANCE": {"last_price": 1}})
+            client.get_ltp(["RELIANCE"])
+        self.assertEqual(client._session_token, "new-token")
+        self.assertIsNot(client._kite, old_kite)
+        old_kite.ltp.assert_not_called()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

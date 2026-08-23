@@ -46,10 +46,10 @@ def _try_nse(symbols: List[str]) -> Tuple[Optional[Any], str]:
 def _try_kite(symbols: List[str]) -> Tuple[Optional[Any], str]:
     try:
         api_key = os.environ.get("ZERODHA_API_KEY", "").strip()
-        token   = os.environ.get("KITE_ACCESS_TOKEN", "").strip()
+        from kite_preopen_provider import KitePreOpenProvider, resolve_preopen_token
+        token = resolve_preopen_token()
         if not api_key or not token:
             return None, ""
-        from kite_preopen_provider import KitePreOpenProvider
         p = KitePreOpenProvider(symbols)
         h = p.health_check()
         if h.get("status") in (ProviderState.LIVE, ProviderState.STALE):

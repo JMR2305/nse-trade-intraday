@@ -7,7 +7,7 @@ Design principles
 * Default is MOCK mode — no real connection until credentials are provided and
   the user explicitly enables LIVE_ASSISTED execution mode.
 * Credentials are ONLY read from environment variables (ZERODHA_API_KEY,
-  ZERODHA_ACCESS_TOKEN). They are NEVER written to disk, logged, or returned
+  ZERODHA_ACCESS_TOKEN). They are NEVER logged or returned
   in API responses. They are masked in all output with "****".
 * The client is READ-ONLY for account data (profile, margins, holdings,
   positions, orders). Order placement is guarded by ExecutionEngine.
@@ -43,9 +43,13 @@ def _mask(s: Optional[str]) -> str:
 
 
 def _get_creds() -> tuple[Optional[str], Optional[str]]:
-    """Read Zerodha credentials from environment. Never cache to disk."""
+    """Resolve the shared Kite session before any legacy environment token."""
     api_key = os.environ.get("ZERODHA_API_KEY") or None
-    token   = os.environ.get("ZERODHA_ACCESS_TOKEN") or None
+    try:
+        import kite_token_store
+        token, _ = kite_token_store.resolve_preferred_token()
+    except Exception:
+        token = os.environ.get("ZERODHA_ACCESS_TOKEN") or None
     return api_key, token
 
 
@@ -302,7 +306,8 @@ class MockBrokerClient(BrokerClient):
 class ZerodhaClient(BrokerClient):
     """
     Real Zerodha Kite Connect client.
-    Credentials read ONLY from environment variables — never stored anywhere else.
+    Credentials are resolved from the shared session before legacy environment
+    variables. The shared session is rechecked before each Kite operation.
     Raises on import failure so caller falls back to MockBrokerClient.
     """
 
@@ -316,9 +321,9 @@ class ZerodhaClient(BrokerClient):
         if not api_key or not token:
             raise ValueError("ZERODHA_API_KEY and ZERODHA_ACCESS_TOKEN env vars required")
 
-        from kiteconnect import KiteConnect as _KC
-        self._kite = _KC(api_key=api_key)
-        self._kite.set_access_token(token)
+        self._kite = None
+        self._session_token: Optional[str] = None
+        self._refresh_kite(api_key, token)
         self._token_set_at = datetime.now(timezone.utc)
 
     @property
@@ -328,10 +333,29 @@ class ZerodhaClient(BrokerClient):
     def _now(self) -> str:
         return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+    def _refresh_kite(self, api_key: str, token: str) -> None:
+        """Replace an in-memory client after a shared token rotation."""
+        from kiteconnect import KiteConnect
+        self._kite = KiteConnect(api_key=api_key)
+        self._kite.set_access_token(token)
+        self._session_token = token
+        self._token_set_at = datetime.now(timezone.utc)
+
+    def _current_kite(self):
+        """Return a client only when the authoritative session still permits it."""
+        api_key, token = _get_creds()
+        if not api_key or not token:
+            self._kite = None
+            self._session_token = None
+            raise RuntimeError("Kite session is unavailable or has been disconnected")
+        if token != getattr(self, "_session_token", None):
+            self._refresh_kite(api_key, token)
+        return self._kite
+
     def test_connection(self) -> BrokerConnectionStatus:
         t0 = time.monotonic()
         try:
-            profile = self._kite.profile()
+            profile = self._current_kite().profile()
             lat = int((time.monotonic() - t0) * 1000)
             age = (datetime.now(timezone.utc) - self._token_set_at).total_seconds() / 3600
             return BrokerConnectionStatus(
@@ -356,7 +380,7 @@ class ZerodhaClient(BrokerClient):
             )
 
     def get_profile(self) -> BrokerProfile:
-        p = self._kite.profile()
+        p = self._current_kite().profile()
         return BrokerProfile(
             broker="Zerodha Kite Connect", user_id=p.get("user_id", ""),
             user_name=p.get("user_name", ""), email="***@***.com",
@@ -365,7 +389,7 @@ class ZerodhaClient(BrokerClient):
         )
 
     def get_margins(self) -> BrokerMargin:
-        m = self._kite.margins("equity")
+        m = self._current_kite().margins("equity")
         net = m.get("net", 0.0)
         avail = m.get("available", {})
         util = m.get("utilised", {})
@@ -379,7 +403,7 @@ class ZerodhaClient(BrokerClient):
         )
 
     def get_holdings(self) -> List[BrokerHolding]:
-        raw = self._kite.holdings()
+        raw = self._current_kite().holdings()
         return [BrokerHolding(
             symbol=h.get("tradingsymbol", ""), exchange=h.get("exchange", "NSE"),
             quantity=int(h.get("quantity", 0)),
@@ -392,7 +416,7 @@ class ZerodhaClient(BrokerClient):
         ) for h in raw]
 
     def get_positions(self) -> List[BrokerPosition]:
-        raw = self._kite.positions()
+        raw = self._current_kite().positions()
         out = []
         for p in raw.get("net", []):
             out.append(BrokerPosition(
@@ -410,7 +434,7 @@ class ZerodhaClient(BrokerClient):
         """Fetch live LTP via kite.ltp(). Read-only. Never raises."""
         try:
             kite_syms = [f"NSE:{s.upper().strip()}" for s in symbols]
-            raw = self._kite.ltp(kite_syms)
+            raw = self._current_kite().ltp(kite_syms)
             result: Dict[str, Optional[float]] = {}
             for sym, ks in zip(symbols, kite_syms):
                 entry = raw.get(ks) or {}
@@ -421,7 +445,7 @@ class ZerodhaClient(BrokerClient):
             return {s.upper(): None for s in symbols}
 
     def get_orders(self, limit: int = 50) -> List[BrokerOrder]:
-        raw = self._kite.orders()[-limit:]
+        raw = self._current_kite().orders()[-limit:]
         return [BrokerOrder(
             order_id=o.get("order_id", ""), symbol=o.get("tradingsymbol", ""),
             exchange=o.get("exchange", "NSE"),
@@ -440,7 +464,7 @@ class ZerodhaClient(BrokerClient):
     def place_order_live(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Place a real order. Called ONLY by ExecutionEngine after all checks."""
         try:
-            order_id = self._kite.place_order(
+            order_id = self._current_kite().place_order(
                 variety=params.get("variety", "regular"),
                 exchange=params.get("exchange", "NSE"),
                 tradingsymbol=params.get("symbol", ""),

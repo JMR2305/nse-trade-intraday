@@ -6,7 +6,7 @@ request_token exchange. The file lives next to the Python modules, is
 chmod 0600, and is NEVER exposed through any API response, log line,
 export, or frontend state.
 
-Precedence: stored token file > ZERODHA_ACCESS_TOKEN env var.
+Precedence: authoritative Phase-20 KV > local warm file > ZERODHA_ACCESS_TOKEN.
 `apply_to_env()` is called at process start (main.py) so every existing
 module that reads ZERODHA_ACCESS_TOKEN from the environment transparently
 picks up the stored token.
@@ -75,57 +75,109 @@ def _write_file(record: Dict[str, Any]) -> None:
     os.replace(tmp, _STORE_PATH)
 
 
-def _db_load() -> Optional[Dict[str, Any]]:
+def _db_load() -> tuple[bool, Optional[Dict[str, Any]]]:
+    """Return (authoritative_store_available, record).
+
+    The local cache is only acceptable when Postgres is not configured for
+    local/offline development. Once the authoritative store is reachable, an
+    absent record is an explicit logout and must override any stale file.
+    """
+    import phase20_store
     try:
-        import phase20_store
-        data = phase20_store.kv_get(_KV_KEY)
-        if isinstance(data, dict) and data.get("access_token"):
-            return data
-    except Exception:
-        pass
-    return None
+        data = phase20_store.kv_get_durable(_KV_KEY)
+    except phase20_store.DurableKVError:
+        if phase20_store.db_available():
+            raise
+        return False, None
+    return True, data if isinstance(data, dict) and data.get("access_token") else None
 
 
-def _db_save(record: Optional[Dict[str, Any]]) -> None:
-    try:
-        import phase20_store
-        phase20_store.kv_set(_KV_KEY, record)
-    except Exception:
-        pass
+def _db_save(record: Optional[Dict[str, Any]]) -> Optional[bool]:
+    """Durably write/delete the token. Failure is intentionally propagated."""
+    import phase20_store
+    if record is None:
+        return phase20_store.kv_delete_durable(_KV_KEY)
+    phase20_store.kv_set_durable(_KV_KEY, record)
+    return True
 
 
 def load(include_expired: bool = False) -> Optional[Dict[str, Any]]:
     """Load the stored token record, or None. Never raises.
 
-    Order: local warm-cache file first (fast path), then the durable DB
-    record (survives redeploys / new Autoscale instances). A DB hit
-    re-warms the local file.
+    Order: durable DB first (survives redeploys / new Autoscale instances),
+    then local warm-cache file only for local/offline development. A durable
+    DB hit re-warms the local file; an authoritative missing record removes a
+    stale cache so logout and token rotation cannot be masked.
 
     By default an EXPIRED token (past its daily 06:00 IST expiry) is treated
     as absent — callers see "no active session" and must trigger the daily
     login flow. Pass include_expired=True only for metadata/status display.
     """
-    record: Optional[Dict[str, Any]] = None
     try:
-        with open(_STORE_PATH, "r") as f:
-            data = json.load(f)
-        if isinstance(data, dict) and data.get("access_token"):
-            record = data
+        durable_available, durable_record = _db_load()
     except Exception:
-        pass
-    if record is None:
-        data = _db_load()
-        if data:
+        # A configured-but-unreachable authority cannot safely be replaced by
+        # an instance-local credential cache.
+        return None
+
+    if durable_available:
+        if durable_record is None:
             try:
-                _write_file(data)
+                os.remove(_STORE_PATH)
+            except FileNotFoundError:
+                pass
             except Exception:
                 pass
-            record = data
+            return None
+        try:
+            _write_file(durable_record)
+        except Exception:
+            pass
+        record = durable_record
+    else:
+        record: Optional[Dict[str, Any]] = None
+        try:
+            with open(_STORE_PATH, "r") as f:
+                data = json.load(f)
+            if isinstance(data, dict) and data.get("access_token"):
+                record = data
+        except Exception:
+            pass
     if record is None:
         return None
     if not include_expired and is_expired(record):
         return None
     return record
+
+
+def resolve_preferred_token() -> tuple[Optional[str], bool]:
+    """Resolve a token for a live Kite consumer.
+
+    Returns ``(token, from_store)``. A process token injected by
+    :func:`apply_to_env` is never allowed to outlive an authoritative durable
+    logout or rotation: every resolution rechecks the shared record. Explicit
+    deployment-provided environment tokens remain supported when this process
+    has not hydrated one from the store.
+    """
+    try:
+        data = load()
+    except Exception:
+        data = None
+    if data:
+        return data.get("access_token") or None, True
+    try:
+        durable_available, _ = _db_load()
+    except Exception:
+        # A configured shared authority that cannot be read must fail closed;
+        # it is not safe to revive a legacy or instance-local token.
+        return None, True
+    if durable_available:
+        # A reachable shared store that has no valid record is an
+        # authoritative logout, not permission to reuse an environment token.
+        return None, True
+    if _process_env_before_apply is not None:
+        return None, True
+    return os.environ.get("ZERODHA_ACCESS_TOKEN") or None, False
 
 
 def save_token(access_token: str, user_id: str = "") -> None:
@@ -139,8 +191,15 @@ def save_token(access_token: str, user_id: str = "") -> None:
         "last_success_at": None,
         "last_latency_ms": None,
     }
-    _write_file(record)
+    # The shared copy must commit before a success can be reported. Writing the
+    # file first would leave an Autoscale-instance-only "success" that vanishes
+    # on the next restart.
     _db_save(record)
+    try:
+        _write_file(record)
+    except Exception:
+        # The DB record is sufficient and will re-warm a future instance.
+        pass
 
 
 def record_success(latency_ms: Optional[int] = None) -> None:
@@ -152,19 +211,26 @@ def record_success(latency_ms: Optional[int] = None) -> None:
         data["last_success_at"] = _now_iso()
         if latency_ms is not None:
             data["last_latency_ms"] = latency_ms
-        _write_file(data)
         _db_save(data)
+        try:
+            _write_file(data)
+        except Exception:
+            pass
     except Exception:
         pass
 
 
 def clear() -> bool:
     """Delete the stored token (file + durable DB copy)."""
-    _db_save(None)
+    # Confirm deletion from shared storage before dropping local credentials.
+    # If this raises, the caller must not claim the disconnect succeeded.
+    durable_removed = _db_save(None)
     try:
         os.remove(_STORE_PATH)
         return True
     except FileNotFoundError:
+        # The durable delete was still confirmed, but preserve the historical
+        # meaning of `removed`: no local or durable record existed to remove.
         return False
 
 

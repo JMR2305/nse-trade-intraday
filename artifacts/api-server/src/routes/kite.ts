@@ -144,7 +144,13 @@ router.get("/kite/callback", async (req, res) => {
 
 // POST /api/kite/disconnect — clear the backend-stored access token
 router.post("/kite/disconnect", wrap(async (_req, res) => {
-  res.json(await runPython(["kite_disconnect"], 10_000));
+  const result = await runPython(["kite_disconnect"], 10_000) as {
+    success?: boolean;
+  };
+  if (!result.success) {
+    return res.status(503).json(result);
+  }
+  res.json(result);
 }));
 
 // POST /api/kite/invalidate  — flush probe cache (forces fresh probe on next status call)

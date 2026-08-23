@@ -69,8 +69,8 @@ class Phase19ABase(unittest.TestCase):
         self.store._AUTH_STATE_PATH = self._auth_path
         # isolate from the Postgres-durable token store (phase19b) — tests must
         # never read from or write to the real database
-        self.store._db_load = lambda: None
-        self.store._db_save = lambda record: None
+        self.store._db_load = lambda: (False, None)
+        self.store._db_save = lambda record: True
         self.ksm = _reload("kite_session_manager")
         # session manager imports kite_token_store lazily; redirect its paths too
         sys.modules["kite_token_store"]._STORE_PATH = self._store_path
@@ -124,6 +124,70 @@ class TestTokenStore(Phase19ABase):
     def test_save_empty_token_raises(self):
         with self.assertRaises(ValueError):
             self.store.save_token("")
+
+    def test_durable_save_failure_does_not_leave_a_warm_only_token(self):
+        with patch.object(self.store, "_db_save",
+                          side_effect=RuntimeError("store unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.store.save_token("stub_access_token_abc123")
+        self.assertFalse(os.path.exists(self._store_path))
+
+    def test_authoritative_record_replaces_stale_warm_file(self):
+        stale = {
+            "access_token": "stale_access_token",
+            "created_at": "2026-08-23T00:00:00Z",
+        }
+        durable = {
+            "access_token": "stub_access_token_abc123",
+            "user_id": "ZT0001",
+            "created_at": self.store._now_iso(),
+        }
+        self.store._write_file(stale)
+        with patch.object(self.store, "_db_load", return_value=(True, durable)):
+            loaded = self.store.load()
+        self.assertEqual(loaded["access_token"], durable["access_token"])
+        with open(self._store_path) as f:
+            self.assertEqual(json.load(f)["access_token"], durable["access_token"])
+
+    def test_authoritative_logout_removes_stale_warm_file(self):
+        self.store._write_file({
+            "access_token": "stale_access_token",
+            "created_at": self.store._now_iso(),
+        })
+        with patch.object(self.store, "_db_load", return_value=(True, None)):
+            self.assertIsNone(self.store.load())
+        self.assertFalse(os.path.exists(self._store_path))
+
+    def test_hydrated_process_observes_durable_rotation_and_logout(self):
+        old = {
+            "access_token": "old_access_token",
+            "created_at": self.store._now_iso(),
+        }
+        rotated = {
+            "access_token": "stub_access_token_abc123",
+            "created_at": self.store._now_iso(),
+        }
+        with patch.object(self.store, "_db_load", return_value=(True, old)):
+            self.store.apply_to_env()
+        self.assertEqual(os.environ["ZERODHA_ACCESS_TOKEN"], old["access_token"])
+
+        with patch.object(self.store, "_db_load", return_value=(True, rotated)):
+            token, from_store = self.store.resolve_preferred_token()
+        self.assertEqual(token, rotated["access_token"])
+        self.assertTrue(from_store)
+
+        with patch.object(self.store, "_db_load", return_value=(True, None)):
+            token, from_store = self.store.resolve_preferred_token()
+        self.assertIsNone(token)
+        self.assertTrue(from_store)
+
+    def test_durable_clear_failure_keeps_the_warm_file(self):
+        self.store.save_token("stub_access_token_abc123")
+        with patch.object(self.store, "_db_save",
+                          side_effect=RuntimeError("store unavailable")):
+            with self.assertRaises(RuntimeError):
+                self.store.clear()
+        self.assertTrue(os.path.exists(self._store_path))
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -180,6 +244,18 @@ class TestExchange(Phase19ABase):
         _assert_no_secrets(r, self)
         _stub_kiteconnect()  # restore
 
+    def test_durable_save_failure_returns_safe_failed_login(self):
+        os.environ["ZERODHA_API_KEY"] = "key123"
+        os.environ["ZERODHA_API_SECRET"] = "test_secret_xyz"
+        with patch.object(self.store, "_db_save",
+                          side_effect=RuntimeError("store unavailable")):
+            r = self.ksm.exchange_request_token("req_token_12345678")
+        self.assertFalse(r["success"])
+        self.assertEqual(r["state"], "AUTH_FAILED")
+        self.assertIn("save the Kite session safely", r["error"])
+        self.assertFalse(os.path.exists(self._store_path))
+        _assert_no_secrets(r, self)
+
     def test_disconnect_clears_token(self):
         os.environ["ZERODHA_API_KEY"] = "key123"
         os.environ["ZERODHA_API_SECRET"] = "test_secret_xyz"
@@ -204,6 +280,19 @@ class TestExchange(Phase19ABase):
         self.assertNotIn("ZERODHA_TOKEN_TIMESTAMP", os.environ)
         # Disconnect must not mutate deployment-configured static secrets.
         self.assertEqual(os.environ.get("ZERODHA_API_SECRET"), "test_secret_xyz")
+
+    def test_disconnect_durable_clear_failure_does_not_claim_success(self):
+        os.environ["ZERODHA_API_KEY"] = "key123"
+        os.environ["ZERODHA_API_SECRET"] = "test_secret_xyz"
+        self.store.save_token("stub_access_token_abc123")
+        with patch.object(self.store, "_db_save",
+                          side_effect=RuntimeError("store unavailable")):
+            r = self.ksm.disconnect_session()
+        self.assertFalse(r["success"])
+        self.assertFalse(r["removed"])
+        self.assertEqual(r["state"], "DISCONNECT_FAILED")
+        self.assertTrue(os.path.exists(self._store_path))
+        _assert_no_secrets(r, self)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
