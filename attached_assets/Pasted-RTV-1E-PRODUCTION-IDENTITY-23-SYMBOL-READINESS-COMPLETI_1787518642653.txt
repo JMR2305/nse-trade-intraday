@@ -1,0 +1,453 @@
+RTV-1E — PRODUCTION IDENTITY + 23-SYMBOL READINESS COMPLETION
+
+Use these controlling reports:
+- RTV1D_CONTROLLED_DEPLOYMENT_REPORT.md
+- RTV1D_RUNTIME_IDENTITY_AND_SAFETY.md
+- RTV1D_PRODUCTION_POST_DEPLOY_RECONCILIATION.csv
+- RTV1D_PRODUCTION_MARKET_DATA_VERIFICATION.csv
+- RTV1D_NEXT_SESSION_GATE.md
+- RTV1C_PRODUCTION_AUTHORITY_RECONCILIATION.md
+
+TARGET:
+PRODUCTION ONLY
+
+API:
+https://nse-trade-intraday.replit.app
+
+Current confirmed production truth:
+
+PASS:
+- Kite authenticated and connected
+- token_status = VALID
+- token_stored = true
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- sectors = BANK 9 / INFRA 13 / IT 1
+- portfolio endpoints now reconcile
+- initial capital = ₹100,000
+- realized P&L = ₹-278.74
+- cash/equity = ₹99,721.26
+- open positions = 0
+- automatic paper entries = disabled
+- bootstrap = disabled
+- automatic exits = enabled
+- live broker orders = disabled
+- symbols_synthetic = 0
+
+FAIL / BLOCKERS:
+1. production git_commit = unknown
+2. production build_id = apexquant-v1.0.0 instead of approved candidate identity
+3. active custom-universe instrument mappings = 0/23
+4. market-data readiness still reports legacy 50-symbol context
+5. readiness token coverage still reports 1/50 / 2%
+6. post-deploy 23-symbol quote verification was stopped because runtime identity failed
+
+Approved RTV-1D candidate:
+3ca36c4847c6309149aaf78a94da87b529034881
+
+Goal:
+Make production runtime identity evidence-based, complete 23/23 custom-universe instrument metadata hydration, and make market-data readiness use the current active 23-symbol universe.
+
+Do not add features.
+Do not change strategy.
+Do not change thresholds.
+Do not change active universe.
+Do not reset portfolio.
+Do not modify historical P&L.
+Do not enable automatic entries.
+Do not enable bootstrap.
+Do not enable live broker orders.
+Do not place or modify broker orders.
+
+TASK 1 — DIAGNOSE RUNTIME IDENTITY BUILD INJECTION
+
+Current source contains runtime identity support, but production reports:
+
+git_commit=unknown
+build_id=apexquant-v1.0.0
+
+Trace:
+
+Replit publish/build
+→ build.mjs
+→ build environment
+→ generated artifact
+→ runtimeIdentity.ts
+→ /api/health/details
+
+Determine exactly why the build-time Git commit is not injected.
+
+Report:
+- source commit visible during build: YES/NO
+- available Replit build/deployment environment variables
+- value source intended for git_commit
+- value source intended for build_id
+- whether build output embeds them
+- whether production starts from that output
+- whether old static defaults override them
+- whether publish uses a different build command
+
+Do not print secrets.
+
+TASK 2 — FIX RUNTIME IDENTITY CONTRACT
+
+Implement the smallest safe fix so production reports:
+
+environment=production
+git_commit=<exact approved deployed commit>
+build_id=<deployment-specific build identifier>
+deployment_id=<available deployment identity>
+instance_id=<runtime instance identity>
+runtime_timestamp=<current UTC>
+
+Requirements:
+- git_commit must be exact full or unambiguous commit SHA
+- no "unknown" after a successful production build
+- build_id must not be a generic static version string
+- no secrets
+- identity must come from build/deployment metadata
+
+Add tests for:
+- build-time commit injection
+- fallback behavior
+- production response schema
+- no secret leakage
+
+TASK 3 — VERIFY SOURCE CANDIDATE BEFORE REPUBLISH
+
+Before publishing record:
+- branch
+- commit
+- git status
+- changed files
+- whether RTV-1D fixes remain present
+- whether portfolio canonicalization remains present
+- whether custom-universe hydration remains present
+- whether readiness contract remains present
+
+Do not include unrelated feature changes.
+
+If unrelated risky changes exist:
+STOP and report.
+
+TASK 4 — CUSTOM-UNIVERSE TOKEN HYDRATION ROOT CAUSE
+
+Current state:
+- global Kite instrument cache can contain >10,000 NSE rows
+- active custom universe = 23
+- custom_universe_master.instrument_token = null for 23/23
+
+Trace:
+
+Kite instrument refresh
+→ global instrument cache
+→ symbol matcher
+→ custom_universe_store hydration function
+→ DB update
+→ symbols endpoint
+→ readiness consumer
+
+Determine why production did not populate the 23 rows.
+
+Check:
+- hydration function deployed?
+- called after refresh?
+- correct database?
+- correct symbol format?
+- exchange filter?
+- transaction commit?
+- development vs production DB?
+- permission/read-only issue?
+- old production code?
+
+Do not recompute universe membership.
+
+TASK 5 — APPLY METADATA-ONLY HYDRATION
+
+After proving the path, hydrate only reference metadata for the existing 23 active rows.
+
+Allowed fields:
+- instrument_token
+- tradingsymbol
+- exchange
+- instrument mapping timestamp/date
+
+Must NOT change:
+- symbol membership
+- active flag
+- sector
+- rank
+- score
+- selection reason
+- universe mode
+
+Require:
+23 mapped
+0 missing
+0 duplicates
+
+List all 23 results.
+
+TASK 6 — FIX READINESS UNIVERSE AUTHORITY
+
+Current production readiness incorrectly reports:
+active_universe_count=50
+valid_token_count=1
+missing_token_count=49
+coverage=2%
+
+while production settings say:
+CUSTOM_LOW_PRICE_SECTOR
+active_count=23
+
+Trace readiness inputs.
+
+Determine whether readiness currently derives from:
+- last canonical scan payload
+- stale NIFTY_50 scan cache
+- global instrument cache
+- Phase20 settings
+- custom universe master
+- another store
+
+Fix readiness so CURRENT CONFIGURATION authority comes from:
+
+Phase20 active universe setting
+→ current active-universe symbol list
+→ current token mapping
+→ current quote provenance
+
+Do not use a stale prior 50-symbol scan as the denominator for current token coverage.
+
+Historical scan metadata may remain visible separately.
+
+TASK 7 — READINESS CONTRACT SEMANTICS
+
+Production readiness must expose two concepts separately:
+
+CURRENT CONFIGURATION:
+- active_universe
+- active_universe_count
+- valid_token_count
+- missing_token_count
+- token_coverage_pct
+- current symbol set
+
+LATEST SCAN:
+- scan_id
+- scan_timestamp
+- scan_universe
+- scan_symbol_count
+- scan_fresh_for_session
+
+Do not mix these.
+
+For current production configuration require:
+
+active_universe = CUSTOM_LOW_PRICE_SECTOR
+active_universe_count = 23
+
+After metadata hydration:
+valid_token_count = 23
+missing_token_count = 0
+token_coverage_pct = 100
+
+Because market may be closed:
+session_fresh may remain false
+trading_data_ready may remain false
+
+Do not force trading readiness green.
+
+TASK 8 — TESTS BEFORE REPUBLISH
+
+Run targeted tests for:
+
+- runtime identity
+- build commit injection
+- custom-universe token hydration
+- 23-symbol metadata preservation
+- duplicate token detection
+- readiness current-universe selection
+- readiness separation of current universe vs latest scan
+- portfolio parity
+- historical P&L preservation
+- Kite auth/session
+- synthetic fail-closed behavior
+
+Run relevant regression suites.
+
+Deployment blocked on new P0/P1 failures.
+
+TASK 9 — CONTROLLED REPUBLISH
+
+Only after tests pass:
+
+Publish the approved candidate.
+
+Do not alter:
+- active universe
+- capital
+- historical trades
+- safety flags
+- broker mode
+
+Do not trigger scans or trades.
+
+TASK 10 — RUNTIME IDENTITY GATE
+
+Immediately query production:
+
+/api/health/details
+
+Require:
+
+environment=production
+git_commit=<exact approved source commit>
+build_id=<non-generic approved deployment build>
+deployment_id=<present>
+runtime_timestamp=<present>
+
+If git_commit is unknown or mismatched:
+STOP.
+
+Do not continue verification.
+
+TASK 11 — POST-PUBLISH TOKEN MAPPING
+
+If identity matches:
+
+Query current custom universe.
+
+Require:
+23 active symbols
+23 valid instrument tokens
+0 missing
+0 duplicates
+
+Verify sectors remain:
+BANK 9
+INFRA 13
+IT 1
+
+Verify WIPRO remains IT.
+
+TASK 12 — READ-ONLY KITE QUOTE VERIFICATION
+
+For all 23 active symbols perform read-only quote verification.
+
+Report:
+- symbol
+- token present
+- Kite quote success
+- LTP
+- source
+- fallback
+- timestamp
+- reliability
+
+Do not call order endpoints.
+
+If market is closed:
+quote plumbing PASS is allowed
+session_fresh may remain false
+
+TASK 13 — POST-PUBLISH READINESS
+
+Require current configuration fields:
+
+active_universe=CUSTOM_LOW_PRICE_SECTOR
+active_universe_count=23
+valid_token_count=23
+missing_token_count=0
+token_coverage_pct=100
+symbols_synthetic=0
+
+Also report latest scan separately.
+
+If latest scan remains historical 50-symbol NIFTY_50:
+that is acceptable as historical metadata,
+but it must not alter current-universe readiness counts.
+
+TASK 14 — PORTFOLIO SAFETY RECHECK
+
+Verify:
+
+/api/portfolio
+==
+/api/portfolio/snapshot
+
+Expected shared values:
+
+initial_capital = 100000
+cash = 99721.26
+realized_pnl = -278.74
+unrealized_pnl = 0
+total_equity = 99721.26
+open_positions = 0
+
+Independently confirm six historical CLOSED rows still total -278.74.
+
+No mutation allowed.
+
+TASK 15 — SAFETY FLAGS
+
+Confirm unchanged:
+
+paper mode = enabled
+automatic entries = disabled
+bootstrap = disabled
+automatic exits = enabled
+live broker orders = disabled
+active universe = CUSTOM_LOW_PRICE_SECTOR
+capital basis = 100000
+historical P&L = -278.74
+
+Any unexpected change = CRITICAL FAILURE.
+
+TASK 16 — FINAL VERDICT
+
+Allowed outcomes:
+
+A. RTV-1E PRODUCTION PASS — OPEN-SESSION VERIFICATION PENDING
+B. DEPLOYMENT IDENTITY FAILED
+C. TOKEN HYDRATION FAILED
+D. READINESS AUTHORITY FAILED
+E. PORTFOLIO/SAFETY REGRESSION
+F. CODE PASS — REPUBLISH REQUIRED
+
+RTV-1E PASS requires:
+
+1. exact production commit identity
+2. 23/23 token mappings
+3. current readiness universe = 23 custom symbols
+4. token coverage = 100%
+5. quote plumbing verified for 23/23
+6. portfolio parity preserved
+7. ₹-278.74 historical P&L preserved
+8. no safety flag change
+9. no broker order calls
+10. synthetic symbols = 0
+
+TASK 17 — OUTPUT FILES
+
+Create:
+
+1. RTV1E_PRODUCTION_COMPLETION_REPORT.md
+2. RTV1E_RUNTIME_IDENTITY_VERIFICATION.md
+3. RTV1E_CUSTOM_UNIVERSE_TOKEN_MAP.csv
+4. RTV1E_READINESS_RECONCILIATION.csv
+5. RTV1E_NEXT_SESSION_GATE.md
+
+FINAL RULE
+
+Do not move to open-session validation until the production runtime identifies the exact deployed commit.
+
+Do not change the active universe.
+Do not reset portfolio.
+Do not erase historical P&L.
+Do not enable automatic entries.
+Do not enable bootstrap.
+Do not enable live broker orders.
+Do not place or modify broker orders.
+
+Complete the five RTV-1E artifacts and stop.
