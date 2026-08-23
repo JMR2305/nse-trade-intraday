@@ -1,0 +1,489 @@
+RTV-2 — LIVE NSE SESSION VALIDATION
+
+Use these controlling reports:
+- RTV1H_PRODUCTION_READINESS_COMPLETION.md
+- RTV1H_CUSTOM_UNIVERSE_TOKEN_MAP.csv
+- RTV1H_KITE_QUOTE_PROVENANCE.csv
+- RTV1H_READINESS_RECONCILIATION.csv
+- RTV1H_NEXT_OPEN_SESSION_GATE.md
+
+TARGET:
+PRODUCTION ONLY
+
+API:
+https://nse-trade-intraday.replit.app
+
+APPROVED PRODUCTION IDENTITY:
+
+environment = production
+git_commit = 4392f278ae25562f168f970e2b694f8c3d249d5c
+build_id = apexquant-4392f278ae25
+
+CURRENT VERIFIED BASELINE:
+
+- Kite authenticated and connected
+- token_status = VALID
+- token_stored = true
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- valid mappings = 23/23
+- missing mappings = 0
+- duplicate mappings = 0
+- read-only Kite quote plumbing = 23/23
+- fallback = 0
+- synthetic = 0
+- initial capital = ₹100,000
+- cash/equity = ₹99,721.26
+- realized P&L = -₹278.74
+- unrealized P&L = ₹0
+- open positions = 0
+- automatic paper entries = disabled
+- bootstrap = disabled
+- automatic exits = enabled
+- live broker order placement = disabled
+- trading_data_ready currently false pending live-session evidence
+
+GOAL:
+
+Observe today's real scheduled NSE session and prove that:
+
+1. pre-open lifecycle executes correctly
+2. the scheduler uses the current 23-symbol custom universe
+3. the first canonical live scan contains exactly those 23 symbols
+4. every execution-grade price has fresh Kite provenance
+5. no legacy 50-symbol scheduled path executes
+6. portfolio truth remains reconciled
+7. session_fresh and trading_data_ready become true only when justified
+
+THIS IS AN OBSERVATION / VERIFICATION TASK.
+
+Do not enable automatic entries.
+Do not enable bootstrap.
+Do not enable live broker orders.
+Do not place, modify, or cancel broker orders.
+Do not manually trigger scans.
+Do not manually trigger 5A/5B/5C.
+Do not reset portfolio.
+Do not modify historical ledger.
+Do not change universe membership.
+Do not change strategy or thresholds.
+
+TASK 1 — PRE-SESSION BASELINE
+
+Before scheduled pre-open activity begins, record:
+
+RUNTIME:
+- environment
+- git_commit
+- build_id
+- deployment_id
+- runtime timestamp
+
+KITE:
+- credentials_present
+- token_status
+- token_stored
+- connected
+- authenticated
+- login_required
+
+UNIVERSE:
+- mode
+- active count
+- active symbols
+- sector distribution
+- valid mappings
+- missing mappings
+- duplicates
+
+PORTFOLIO:
+- initial capital
+- cash
+- realized P&L
+- unrealized P&L
+- equity
+- open positions
+
+SAFETY:
+- auto entry
+- bootstrap
+- auto exits
+- live broker orders
+
+Require:
+
+environment = production
+git_commit = 4392f278ae25562f168f970e2b694f8c3d249d5c
+build_id = apexquant-4392f278ae25
+
+active universe = CUSTOM_LOW_PRICE_SECTOR
+active count = 23
+mapping coverage = 23/23
+
+If any baseline fails:
+STOP and report.
+
+TASK 2 — OBSERVE PHASE 5A
+
+Do not manually invoke it.
+
+Observe scheduled:
+
+preopen_intelligence_tick
+
+Record:
+- scheduled execution timestamp
+- actual execution timestamp
+- provider
+- provider symbol count
+- successfully collected count
+- persisted snapshot count
+- failed symbols
+- session ID
+- final status
+- data timestamp
+- provider freshness
+
+Require:
+
+provider_collected_count
+==
+persisted_snapshot_count
+
+If counts differ:
+mark PREOPEN DEGRADED and stop progression to PASS.
+
+TASK 3 — VERIFY 5A CONTENT
+
+For the persisted Phase 5A session report:
+
+- symbol count
+- price/reference fields
+- volume/pre-open volume fields
+- source
+- timestamp
+- ranking/watchlist output
+- persistence status
+
+Confirm no synthetic/mock source appears as valid live pre-open data.
+
+TASK 4 — OBSERVE PHASE 5B
+
+Do not manually invoke it.
+
+Observe:
+
+preopen_validation_tick
+
+Report:
+- session ID
+- execution time
+- total candidates
+- valid
+- rejected
+- skipped
+- reasons
+- lifecycle state
+
+Valid lifecycle states must be explicit.
+
+Do not manufacture COMPLETE if there are no candidates.
+
+Use NO_CANDIDATES where appropriate.
+
+TASK 5 — OBSERVE PHASE 5C
+
+Do not manually invoke it.
+
+Observe:
+
+signal_validation_tick
+
+Report:
+- execution time
+- generated
+- approved
+- rejected
+- skipped
+- paper trades
+- lifecycle status
+
+Automatic paper entries remain disabled.
+
+Therefore:
+approved advisory signals do NOT authorize execution.
+
+TASK 6 — FIRST OPEN-SESSION CANONICAL SCAN
+
+Observe the first naturally scheduled canonical scan after NSE opens.
+
+Do not manually run a scan.
+
+Capture:
+- scan ID
+- start timestamp
+- finish timestamp
+- scheduler source
+- Python command
+- universe mode
+- requested symbols
+- received symbols
+- symbol list
+- provider
+- errors
+- recommendations/signals
+
+Require:
+
+universe = CUSTOM_LOW_PRICE_SECTOR
+requested = 23
+received = 23
+
+Compare exact symbol list with RTV1H active universe.
+
+Any unexpected symbol difference = FAIL.
+
+TASK 7 — PROVE NO LEGACY 50-SYMBOL SCHEDULED SCAN
+
+Inspect:
+- scheduler events
+- scan-state rows
+- scan logs
+- route logs
+- scan IDs
+
+Determine whether any scheduled production scan today uses:
+
+NIFTY_50 / 50 symbols
+
+The historical 50-symbol scan from August 21 is allowed as history.
+
+A NEW scheduled 50-symbol scan today is NOT allowed.
+
+Classification:
+
+A. canonical 23-symbol only
+B. canonical 23 + manual legacy call
+C. scheduled legacy 50-symbol path still active
+D. unable to determine
+
+Required PASS:
+A
+
+Do not disable paths during this observation.
+
+TASK 8 — LIVE KITE PROVENANCE FOR ALL 23
+
+For the first fresh canonical scan, verify every symbol:
+
+- symbol
+- instrument token
+- LTP
+- quote source
+- quote timestamp
+- received timestamp
+- quote age
+- reliable
+- fallback
+- synthetic
+
+Require:
+
+23/23:
+source = KITE / kite_live
+fresh quote timestamp
+fallback = false
+synthetic = false
+
+If Kite fails for any symbol:
+record exact symbol/reason.
+
+Do not silently substitute prior close and call it live.
+
+TASK 9 — LIVE OHLCV / ANALYTICAL DATA PROVENANCE
+
+For every active symbol determine:
+
+- current quote provider
+- historical OHLCV provider
+- OHLCV last bar
+- OHLCV age
+- scan data quality
+- quote reliability
+
+It is acceptable for historical OHLCV to come from the approved historical provider.
+
+Execution-grade/current price must remain Kite when required.
+
+Clearly distinguish:
+
+LIVE QUOTE
+vs
+HISTORICAL OHLCV
+
+TASK 10 — READINESS TRANSITION
+
+Observe readiness before and after the first fresh scan.
+
+Record transitions for:
+
+- service_ready
+- data_ready
+- session_fresh
+- trading_data_ready
+
+Also:
+- active_universe_count
+- valid_token_count
+- missing_token_count
+- symbols_on_kite
+- symbols_fallback
+- symbols_stale
+- symbols_unavailable
+- symbols_synthetic
+- latest_quote_timestamp
+- latest_scan_timestamp
+
+trading_data_ready may become true ONLY if:
+
+- service_ready true
+- data_ready true
+- current universe = 23
+- fresh canonical scan covers 23/23
+- valid token coverage = 23/23
+- Kite execution-grade quotes = 23/23
+- zero stale execution data
+- zero unavailable symbols
+- zero synthetic symbols
+- required timestamps are fresh
+
+Otherwise keep false and state exact blocker.
+
+TASK 11 — PORTFOLIO RECONCILIATION DURING SESSION
+
+Because automatic entries are disabled, portfolio should remain unchanged unless legitimate existing lifecycle activity affects it.
+
+Compare:
+
+/api/portfolio
+vs
+/api/portfolio/snapshot
+
+Verify:
+- initial capital
+- cash
+- realized P&L
+- unrealized P&L
+- equity
+- open positions
+
+Before any approved future paper trade, expected baseline remains:
+
+capital = ₹100,000
+cash/equity = ₹99,721.26
+realized P&L = -₹278.74
+open positions = 0
+
+Any unexplained change:
+P0 FAILURE.
+
+TASK 12 — HISTORICAL LEDGER INTEGRITY
+
+Verify the six existing CLOSED rows remain unchanged.
+
+Require total historical realized P&L:
+-₹278.74
+
+Do not modify rows.
+
+TASK 13 — SAFETY FLAGS THROUGHOUT SESSION
+
+Verify at beginning, after pre-open, and after first canonical scan:
+
+paper mode = enabled
+automatic paper entries = disabled
+bootstrap = disabled
+automatic exits = enabled
+live broker orders = disabled
+
+Any unexpected transition:
+STOP.
+
+TASK 14 — ERROR / LOG MONITORING
+
+Inspect runtime logs covering this validation window.
+
+Report:
+- Kite errors
+- missing token errors
+- quote failures
+- yfinance fallback
+- scan errors
+- scheduler errors
+- pre-open failures
+- DB failures
+- readiness failures
+- synthetic-data warnings
+- duplicate scan execution
+
+Do not clear logs.
+
+TASK 15 — FINAL LIVE-SESSION VERDICT
+
+Allowed verdicts:
+
+A. RTV-2 LIVE SESSION PASS
+B. PRE-OPEN FAILURE
+C. SCHEDULER / UNIVERSE FAILURE
+D. KITE PROVENANCE FAILURE
+E. READINESS FAILURE
+F. PORTFOLIO / SAFETY REGRESSION
+G. LIVE SESSION INCOMPLETE — CONTINUE OBSERVATION
+
+RTV-2 LIVE SESSION PASS requires:
+
+1. production identity exact
+2. Kite authenticated
+3. 23/23 mappings
+4. 5A provider/persistence parity
+5. 5B valid lifecycle
+6. 5C valid lifecycle
+7. first canonical scan = exactly 23 active symbols
+8. scheduler uses CUSTOM_LOW_PRICE_SECTOR
+9. no new legacy 50-symbol scheduled scan
+10. 23/23 fresh Kite execution-grade quotes
+11. zero synthetic execution data
+12. readiness reflects current 23-symbol universe
+13. session_fresh true only with fresh evidence
+14. trading_data_ready true only if every gate passes
+15. portfolio parity preserved
+16. historical P&L preserved
+17. automatic entries remain disabled
+18. bootstrap remains disabled
+19. live broker orders remain disabled
+
+TASK 16 — OUTPUT FILES
+
+Create:
+
+1. RTV2_LIVE_SESSION_VALIDATION_REPORT.md
+2. RTV2_PREOPEN_LIFECYCLE.csv
+3. RTV2_FIRST_CANONICAL_SCAN.csv
+4. RTV2_LIVE_KITE_PROVENANCE.csv
+5. RTV2_READINESS_TRANSITION.csv
+6. RTV2_SESSION_SAFETY_RECONCILIATION.md
+
+FINAL RULE
+
+OBSERVE THE NATURAL SCHEDULED SESSION.
+
+Do not manually trigger market scans.
+Do not manually trigger pre-open jobs.
+Do not enable automatic paper entries.
+Do not enable bootstrap.
+Do not enable live broker orders.
+Do not place or modify broker orders.
+
+If any requirement fails, keep trading_data_ready=false and document the exact cause.
+
+Complete the six RTV-2 artifacts and stop.

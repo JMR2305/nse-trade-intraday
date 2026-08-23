@@ -1,0 +1,29 @@
+phase,field,observed,required,status,notes
+PRE_SESSION,service_ready,True,True,PASS,Service health
+PRE_SESSION,data_ready,False,False,OBSERVED,No current-day scan; no new scan was triggered
+PRE_SESSION,session_fresh,False,False,OBSERVED,Before pre-open; no live-session evidence
+PRE_SESSION,trading_data_ready,False,False,PASS,Fail-closed pending natural current-session evidence
+PRE_SESSION,active_universe_count,23,23,PASS,Current denominator
+PRE_SESSION,valid_token_count,23,23,PASS,Current mapping coverage
+PRE_SESSION,missing_token_count,0,0,PASS,Current mapping coverage
+PRE_SESSION,symbols_on_kite,3,scan-derived historical count,OBSERVED,"Historical scan counter, not direct quote result"
+PRE_SESSION,symbols_fallback,0,scan-derived historical count,OBSERVED,Historical scan counter
+PRE_SESSION,symbols_stale,0,scan-derived historical count,OBSERVED,Historical scan counter
+PRE_SESSION,symbols_unavailable,20,scan-derived historical count,OBSERVED,Historical scan counter
+PRE_SESSION,symbols_synthetic,0,0,PASS,No synthetic symbols reported
+PRE_SESSION,latest_quote_timestamp,not exposed by readiness endpoint,fresh after scan,OBSERVED,No current-session quote timestamp exposed
+PRE_SESSION,latest_scan_timestamp,2026-08-21T10:02:20Z,today after open,OBSERVED,Historical scan timestamp retained
+AFTER_FIRST_CANONICAL_SCAN,service_ready,NOT_OBSERVED,True,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,data_ready,NOT_OBSERVED,False,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,session_fresh,NOT_OBSERVED,False,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,trading_data_ready,NOT_OBSERVED,False,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,active_universe_count,NOT_OBSERVED,23,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,valid_token_count,NOT_OBSERVED,23,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,missing_token_count,NOT_OBSERVED,0,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,symbols_on_kite,NOT_OBSERVED,scan-derived historical count,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,symbols_fallback,NOT_OBSERVED,scan-derived historical count,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,symbols_stale,NOT_OBSERVED,scan-derived historical count,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,symbols_unavailable,NOT_OBSERVED,scan-derived historical count,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,symbols_synthetic,NOT_OBSERVED,0,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,latest_quote_timestamp,NOT_OBSERVED,fresh after scan,PENDING,Natural scheduled session has not reached this checkpoint.
+AFTER_FIRST_CANONICAL_SCAN,latest_scan_timestamp,NOT_OBSERVED,today after open,PENDING,Natural scheduled session has not reached this checkpoint.

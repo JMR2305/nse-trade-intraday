@@ -1,0 +1,15 @@
+field,observed,required,status,notes
+scan_id,NOT_OBSERVED,present,PENDING,No current-day canonical scan has run.
+start_timestamp,NOT_OBSERVED,present,PENDING,Open-session observation has not started.
+finish_timestamp,NOT_OBSERVED,present,PENDING,Open-session observation has not started.
+scheduler_source,NOT_OBSERVED,SCHEDULER,PENDING,Only closed-market SYSTEM_HEARTBEAT rows are present today.
+python_command,NOT_OBSERVED,record exact command,PENDING,No canonical scan execution observed.
+universe_mode,NOT_OBSERVED,CUSTOM_LOW_PRICE_SECTOR,PENDING,Cannot infer from the historical scan.
+requested_symbols,NOT_OBSERVED,23,PENDING,No current-day canonical request observed.
+received_symbols,NOT_OBSERVED,23,PENDING,No current-day canonical response observed.
+exact_symbol_list,NOT_OBSERVED,"BANKBARODA,BANKINDIA,CANBK,FEDERALBNK,IDFCFIRSTB,KTKBANK,MAHABANK,PNB,UNIONBANK,COALINDIA,GAIL,HUDCO,IRCON,IRFC,MRPL,NBCC,NMDC,NTPC,PFC,RECLTD,RVNL,SAIL,WIPRO",PENDING,Will compare only against the RTV1H active list after the natural scan.
+provider,NOT_OBSERVED,Kite/live execution provider as required,PENDING,No current-day canonical scan provider recorded.
+errors,NOT_OBSERVED,none,PENDING,No scan execution to inspect.
+recommendations_signals,NOT_OBSERVED,record payload,PENDING,No current-day recommendations or signals observed.
+today_scan_history,0 canonical scans; closed-market heartbeats only,no legacy scheduled 50-symbol scan,OBSERVED,Historical 50-symbol scan remains allowed history; today has no canonical scan yet.
+historical_latest_scan,76e307f291e7,not today,HISTORICAL_ONLY,Preserved historical context; not treated as today's scan.
