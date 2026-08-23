@@ -1,0 +1,707 @@
+RTV-1 — MARKET DATA + PORTFOLIO TRUTH FIX
+
+Use these controlling reports:
+- RTV0_RUNTIME_BASELINE_REPORT.md
+- RTV0_MARKET_DATA_PROVENANCE.csv
+- RTV0_RUNTIME_DATABASE_INVENTORY.csv
+- RTV0_PORTFOLIO_RECONCILIATION.csv
+- RTV0_RUNTIME_AUTHORITY_MAP.md
+
+Use these prior architecture references only where needed:
+- INTRADAY_MASTER_ARCHITECTURE.md
+- INTRADAY_PAGE_DATA_LINEAGE.csv
+- INTRADAY_API_MAP.csv
+- INTRADAY_DATABASE_MAP.md
+- INTRADAY_BUSINESS_LOGIC_MAP.md
+- INTRADAY_DATA_QUALITY_AUDIT.md
+
+RTV-0 confirmed:
+- active universe = NIFTY_50 with 50 symbols
+- Kite runtime session unavailable
+- only RELIANCE had cached instrument token
+- 49/50 active symbols missing cached Kite token
+- current market data path = yfinance/local cache fallback
+- canonical portfolio = ₹100,000
+- /api/portfolio/snapshot = ₹50,000 and 50% drawdown
+- auto paper entries = disabled
+- bootstrap = disabled
+- live order placement = disabled
+- auto exits = enabled
+- Friday canonical scan is stale for current-session decisions
+- pre-open provider health and persisted 5A data disagree
+- 83 backtest queue timeout warnings exist
+
+Goal:
+Fix only the confirmed P0/P1 runtime-truth issues needed before the next live NSE validation.
+
+Do not add new trading features.
+Do not change strategy logic.
+Do not change thresholds.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not enable live order placement.
+Do not place broker orders.
+Do not create manual test trades.
+Do not reset portfolio.
+Do not change active universe unless explicitly instructed in this task.
+Do not merge unrelated branches.
+Do not deploy until all RTV-1 checks pass.
+PAPER ONLY.
+
+TASK 1 — CREATE RTV-1 SAFETY BRANCH
+
+Create a dedicated branch from the current approved Intraday working state:
+
+rtv1-market-data-portfolio-truth
+
+Before editing record:
+- source branch
+- source commit
+- working tree status
+- current runtime flags
+- current active universe
+- current capital
+- auto-entry state
+- bootstrap state
+- live-order state
+
+Do not change safety flags.
+
+TASK 2 — KITE RUNTIME CONFIGURATION DIAGNOSIS
+
+RTV-0 reported:
+- credentials_present = false
+- token_status = MISSING
+- connected = false
+- LOGIN_REQUIRED
+
+Determine WHY runtime does not see the Kite configuration.
+
+Inspect only:
+- environment variable names
+- configuration loading path
+- Replit secret-name mapping
+- Node → Python environment propagation
+- Kite session storage
+- callback/session initialization
+- runtime process environment loading
+
+Never print secret values.
+
+For each required Kite item report:
+- expected variable name
+- present in Replit/runtime: YES/NO
+- loaded by Node: YES/NO
+- passed to Python: YES/NO
+- consumed by Kite module: YES/NO
+- status
+
+If the issue is a code/config-loading defect, fix it.
+
+If actual secret values are missing and require manual user action:
+STOP that part and clearly report:
+MANUAL SECRET / LOGIN ACTION REQUIRED
+
+Do not invent credentials.
+
+TASK 3 — KITE INSTRUMENT CACHE REPAIR
+
+RTV-0 found:
+- active symbols = 50
+- cached tokens = 1
+- RELIANCE only
+
+Trace the instrument hydration path.
+
+Fix the system so that after a valid Kite session exists:
+
+1. Kite instruments are fetched
+2. all active universe symbols are matched
+3. instrument tokens are persisted
+4. cache includes:
+   - symbol
+   - exchange
+   - instrument_token
+   - fetched_at
+   - session_date
+5. cache refresh happens automatically at appropriate startup/session time
+6. stale prior-day token cache is detected
+7. token-coverage health is exposed
+
+Do not call broker order APIs.
+
+Instrument master / quote APIs only.
+
+Add validation:
+
+valid_token_count == active_universe_count
+
+or produce an explicit missing-symbol list.
+
+Never silently fall back because a token is missing.
+
+TASK 4 — MARKET DATA SOURCE PROVENANCE HARDENING
+
+Every active symbol must expose actual runtime price provenance.
+
+Add/standardize fields:
+
+- price
+- source
+- source_timestamp
+- received_timestamp
+- age_seconds
+- freshness_status
+- fallback_used
+- fallback_reason
+- instrument_token_present
+
+Allowed source values:
+
+KITE
+YFINANCE
+DATABASE_CACHE
+MOCK_SYNTHETIC
+UNKNOWN
+
+Allowed freshness values:
+
+LIVE
+NEAR_LIVE
+STALE
+UNAVAILABLE
+SYNTHETIC
+
+Do not label yfinance or cached Friday data as LIVE during an active Monday session unless freshness rules prove it.
+
+TASK 5 — SYNTHETIC DATA SAFETY GATE
+
+RTV-0 could not prove whether mock data enters the active path.
+
+Audit:
+- _SEED_PRICES
+- _generate_mock_candles()
+- _LAST_SOURCES
+- market_data_engine.py
+- signal engine callers
+- opportunity scanner callers
+- AI decision callers
+- paper-entry callers
+
+Implement this rule:
+
+IF source == MOCK_SYNTHETIC
+THEN
+- signal may exist for TEST/REPLAY only
+- no paper-entry approval
+- no execution eligibility
+- UI must visibly show SYNTHETIC
+- data-quality status must be SYNTHETIC
+- runtime logs must identify affected symbol
+
+For normal runtime:
+
+SYNTHETIC DATA MUST NEVER BE TREATED AS LIVE MARKET DATA.
+
+Do not delete mock functionality if tests/replay need it.
+Isolate it from active trading paths.
+
+TASK 6 — LIVE-DATA FALLBACK POLICY
+
+Define one explicit fallback hierarchy.
+
+Preferred:
+
+KITE LIVE LTP
+↓
+recent valid database/cache data only where context permits
+↓
+yfinance fallback for analysis/research
+↓
+UNAVAILABLE
+
+MOCK/SYNTHETIC must not be part of the active trading fallback chain.
+
+During market OPEN:
+
+If Kite is unavailable:
+- mark provider degraded
+- identify fallback source
+- mark non-Kite price clearly
+- block any path requiring true live execution-grade price if freshness is insufficient
+
+Do not silently present prior close as current LTP.
+
+TASK 7 — MARKET DATA HEALTH CONTRACT
+
+Add/repair one read-only health endpoint or extend the existing health response to include:
+
+- active_universe_count
+- kite_connected
+- valid_instrument_tokens
+- missing_instrument_tokens
+- token_coverage_pct
+- symbols_on_kite
+- symbols_on_fallback
+- symbols_stale
+- symbols_unavailable
+- symbols_synthetic
+- latest_quote_timestamp
+- quote_age_seconds
+- trading_data_ready
+
+Define:
+
+trading_data_ready = true
+
+ONLY when the required runtime market-data conditions are satisfied.
+
+Do not conflate:
+server_ready
+with
+trading_data_ready.
+
+TASK 8 — FIX CANONICAL PORTFOLIO SNAPSHOT DIVERGENCE
+
+RTV-0 confirmed:
+
+/api/portfolio
+= ₹100,000
+
+/api/portfolio/snapshot
+= ₹50,000
+= 50% drawdown
+
+This is P0.
+
+Trace both paths fully.
+
+Identify the exact source of ₹50,000.
+
+Determine whether it comes from:
+- hardcoded default
+- stale RC-10C1 store
+- wrong initial-capital constant
+- missing DB row
+- empty secondary portfolio
+- fallback object
+- stale cache
+- old migration
+
+Fix PortfolioLive so its authoritative snapshot uses the same canonical portfolio truth as the main portfolio API unless there is a documented reason not to.
+
+Canonical capital target:
+
+₹100,000
+
+Do not simply hardcode ₹100,000 into the UI.
+
+The value must come from the authoritative backend configuration/store.
+
+TASK 9 — PORTFOLIO SINGLE-SOURCE CONTRACT
+
+Create one canonical portfolio contract used by UI consumers.
+
+Required fields:
+
+- initial_capital
+- cash
+- invested_amount
+- current_market_value
+- realized_pnl
+- unrealized_pnl
+- total_pnl
+- total_equity
+- utilization_pct
+- largest_position_pct
+- open_positions
+- sector_exposure
+- source
+- calculated_at
+- source_timestamp
+
+Dashboard and PortfolioLive must resolve to the same canonical financial truth.
+
+If legacy/RC-10C1 engines remain for comparison/research:
+- mark them secondary/shadow
+- do not let them independently drive operator-facing capital/P&L
+
+Do not remove legacy code yet unless removal is clearly safe and fully covered by tests.
+
+TASK 10 — INITIAL CAPITAL SINGLE SOURCE OF TRUTH
+
+Trace:
+- config.py
+- portfolio_store.py
+- paper_trader.py
+- phase10_analytics.py
+- copilot_engine.py
+- Phase20 durable settings
+- portfolio config endpoints
+
+Replace active runtime use of independent ₹5,000 / ₹500,000 defaults where they affect production-facing calculations.
+
+Create or use one authoritative accessor, for example:
+
+get_initial_capital()
+
+All active runtime analytics should derive from the authoritative configured capital.
+
+Do not break isolated historical tests unnecessarily.
+
+Update stale tests/docs separately where appropriate.
+
+TASK 11 — VERIFY THE 12 PORTFOLIO/RISK METRICS
+
+For the operator-facing Portfolio/Risk page verify:
+
+1. Total Capital
+2. Cash Available
+3. Invested Amount
+4. Utilization %
+5. Largest Position %
+6. Daily Risk
+7. Maximum Possible Loss
+8. Expected Reward
+9. Average R:R
+10. Sector Diversification
+11. Portfolio Allocation
+12. Trade Approval Cards
+
+For every metric document:
+
+- formula
+- authoritative source
+- API
+- backend function
+- DB/store
+- current value
+- live/derived/cached
+- timestamp
+- fallback
+- validation rule
+
+Check impossible-state guards:
+
+- cash < 0
+- utilization > 100%
+- largest position > 100%
+- max possible loss > sensible exposure
+- NaN
+- Infinity
+- division by zero
+- zero quantity
+
+Fix only confirmed logic/data-authority bugs.
+
+TASK 12 — PORTFOLIO CASH ATOMICITY HARDENING
+
+RTV-0 classified concurrency as:
+
+B — admission protected but live behavior unverified
+
+Review:
+- advisory lock
+- transaction scope
+- cash check
+- position insert
+- cash/ledger update
+- commit
+
+Ensure one BUY admission is atomic at the canonical persistence boundary.
+
+Target:
+
+BEGIN
+→ acquire advisory/row lock
+→ reread authoritative cash
+→ validate limits
+→ insert/update position
+→ update ledger/cash
+→ COMMIT
+
+On failure:
+ROLLBACK
+
+Do not generate a real or paper test BUY during implementation unless a dedicated unit/integration test uses an isolated test DB.
+
+TASK 13 — PRE-OPEN 5A DATA PERSISTENCE MISMATCH
+
+RTV-0 found:
+
+provider health:
+50 symbols
+
+latest persisted 5A session:
+0 symbols
+
+Trace:
+
+provider
+→ collection
+→ transformation
+→ preopen_snapshots
+→ rankings
+→ watchlist
+→ session counters
+→ UI
+
+Determine whether:
+- provider-health row is inaccurate
+- collection succeeded but persistence failed
+- timing prevented collection
+- session counter is wrong
+- wrong session/date is being read
+- Sunday/provider probe contaminated status
+
+Fix the inconsistency without triggering pre-open outside its scheduled window.
+
+Add invariant:
+
+provider_collected_count
+vs
+persisted_snapshot_count
+
+A mismatch must be visible as DEGRADED/ERROR.
+
+TASK 14 — 5B / 5C STATUS SEMANTICS
+
+RTV-0 found:
+
+5B:
+COMPLETE
+10/10 valid
+
+5C:
+ACTIVE
+0 generated
+0 approved
+0 paper trades
+0 rejected
+
+Verify whether ACTIVE is correct after the Friday session ended.
+
+If a completed trading day leaves 5C permanently ACTIVE, fix lifecycle/status finalization.
+
+Expected states should be explicit, for example:
+
+PENDING
+ACTIVE
+COMPLETE
+FAILED
+SKIPPED
+
+Do not modify historical rows destructively.
+
+TASK 15 — READINESS VS TRADING READINESS
+
+Current runtime can show:
+- health/readiness positive
+while
+- session freshness false
+
+Preserve general service readiness if appropriate.
+
+Add/clarify separate states:
+
+service_ready
+data_ready
+trading_ready
+session_fresh
+
+UI must not interpret:
+HTTP service healthy
+as
+market data trading-ready.
+
+When market is closed:
+- stale session data can be historically valid
+- trading_ready should still be false
+
+TASK 16 — BACKTEST QUEUE TIMEOUT ROOT CAUSE
+
+RTV-0 found:
+83 warnings:
+
+Backtest queue tick timed out after 30 s
+
+Investigate:
+- job duration
+- queue locking
+- polling cadence
+- timeout threshold
+- detached worker health
+- stale jobs
+- DB waits
+- resource exhaustion
+
+Do not redesign the research system.
+
+Fix only the confirmed timeout cause if safe.
+
+If these warnings are harmless by design, make the status explicit and avoid noisy false alarms.
+
+TASK 17 — TESTS
+
+Add focused tests for all fixes.
+
+Required coverage:
+
+Market data:
+- valid Kite token coverage
+- missing-token reporting
+- source provenance
+- stale fallback classification
+- synthetic isolation
+- trading_data_ready
+
+Portfolio:
+- canonical ₹100,000 propagation
+- /portfolio == /portfolio/snapshot financial truth
+- zero positions
+- realized/unrealized P&L
+- utilization
+- largest position
+- sector exposure
+- invalid/zero/negative edge cases
+
+Concurrency:
+- two simultaneous admission attempts cannot overspend cash
+- transaction rollback preserves state
+
+Pre-open:
+- provider count vs persistence count
+- 5A mismatch detection
+- 5B complete
+- 5C lifecycle finalization
+
+Health:
+- service_ready can differ from trading_ready
+- stale session blocks trading_ready
+
+Run:
+- targeted new tests
+- existing portfolio tests
+- existing market-data tests
+- existing scheduler tests
+- existing pre-open tests
+- full relevant regression suite
+
+Do not modify existing tests merely to make failures disappear.
+
+TASK 18 — POST-FIX READ-ONLY VERIFICATION
+
+After implementation, without creating trades:
+
+Verify:
+
+- canonical portfolio = ₹100,000 baseline
+- PortfolioLive snapshot agrees with canonical API
+- no 50% false drawdown
+- active universe still unchanged
+- auto entries still false
+- bootstrap still false
+- live orders still disabled
+- mock/synthetic active-trading path blocked
+- token coverage endpoint/report works
+- market-data provenance fields available
+- pre-open mismatch detection present
+- trading_ready semantics correct
+
+If Kite login is unavailable during testing:
+mark:
+
+REQUIRES LIVE SESSION VERIFICATION
+
+Do not fake a Kite-connected result.
+
+TASK 19 — MONDAY LIVE-SESSION GATE
+
+Prepare, but DO NOT execute outside the correct live session, this validation checklist:
+
+BEFORE 09:00 IST
+- confirm Kite authenticated
+- instrument token coverage = 100%
+- active universe confirmed
+- no synthetic active symbols
+- canonical portfolio reconciled
+- trading_ready state sensible
+
+09:00–09:15 IST
+- capture 5A provider count
+- confirm persisted snapshot count
+- verify pre-open provenance/age
+- confirm watchlist freeze
+
+AFTER 09:15 IST
+- obtain first fresh canonical scan
+- verify scheduler cadence = configured four minutes
+- verify source for all active symbols
+- confirm no duplicate legacy scheduled scan
+- validate Dashboard and Signals timestamps
+- validate PortfolioLive = canonical portfolio
+
+DO NOT enable auto entry as part of this checklist.
+
+TASK 20 — OUTPUT FILES
+
+Create:
+
+1. RTV1_IMPLEMENTATION_REPORT.md
+2. RTV1_MARKET_DATA_FIX_VERIFICATION.csv
+3. RTV1_PORTFOLIO_TRUTH_VERIFICATION.csv
+4. RTV1_PREOPEN_FIX_VERIFICATION.md
+5. RTV1_MONDAY_LIVE_SESSION_CHECKLIST.md
+
+RTV1_IMPLEMENTATION_REPORT.md must include:
+
+- starting branch/commit
+- ending branch/commit
+- files changed
+- confirmed RTV-0 issues addressed
+- root cause for each issue
+- exact fix
+- tests added
+- test results
+- remaining P0
+- remaining P1
+- items requiring live session verification
+- safety flags before/after
+- explicit confirmation that no broker order API was called
+
+ACCEPTANCE GATES
+
+RTV-1 may be marked PASS only if:
+
+1. Portfolio ₹50,000 divergence is fixed
+2. canonical capital source is unified for active paths
+3. synthetic data cannot silently enter active paper-trading decisions
+4. market-data provenance is explicit
+5. missing Kite tokens cannot remain invisible
+6. token hydration path is functional once authenticated
+7. pre-open 50-vs-0 mismatch root cause is fixed or explicitly blocked with error state
+8. service_ready and trading_ready are separated
+9. all relevant tests pass
+10. auto paper entries remain disabled
+11. bootstrap remains disabled
+12. live order placement remains disabled
+
+If Kite authentication requires user login, RTV-1 can be:
+
+CODE PASS — LIVE SESSION VERIFICATION PENDING
+
+but must NOT claim full runtime PASS.
+
+FINAL RULE
+
+Fix only confirmed RTV-0 issues in scope.
+
+Do not expand features.
+Do not change strategy behavior.
+Do not activate trading.
+Do not create trades.
+Do not call broker order APIs.
+Do not merge to main.
+Do not deploy until review.
+
+Complete the five RTV-1 artifacts and stop.
