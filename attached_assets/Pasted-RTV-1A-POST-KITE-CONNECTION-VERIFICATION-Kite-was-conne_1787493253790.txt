@@ -1,0 +1,297 @@
+RTV-1A — POST-KITE CONNECTION VERIFICATION
+
+Kite was connected successfully about 20 minutes ago.
+
+Do not place, modify, cancel, or simulate broker orders.
+Do not enable live trading.
+Do not enable automatic paper entries.
+Do not enable bootstrap.
+Do not reset portfolio.
+Do not change the active universe.
+Do not deploy.
+READ-ONLY VERIFICATION ONLY.
+
+Goal:
+Verify that the newly connected Kite session is actually loaded by the ApexQuant Intraday runtime and that instrument-token hydration and market-data provenance are working correctly.
+
+TASK 1 — KITE SESSION STATUS
+
+Check the current runtime Kite status.
+
+Report:
+
+- credentials_present
+- token_status
+- connected
+- authenticated
+- login_required
+- access-token/session age
+- session creation time if available
+- last successful Kite API call
+- last successful Kite quote call
+- runtime process that currently holds/uses the Kite session
+
+Never print:
+- API key
+- API secret
+- access token
+- request token
+- session secret
+- cookies
+
+Expected healthy result:
+
+credentials_present = true
+token_status = VALID
+connected = true
+authenticated = true
+login_required = false
+
+If not, trace exactly where the session is failing:
+Replit secret/config
+→ Node runtime
+→ Python subprocess
+→ Kite client
+→ status endpoint
+
+Do not change secrets automatically.
+
+TASK 2 — INSTRUMENT CACHE HYDRATION
+
+RTV-0 previously found:
+
+active universe = NIFTY_50 / 50 symbols
+cached valid instrument tokens = 1
+missing = 49
+
+Check the current state now.
+
+Report:
+
+- active universe
+- active symbol count
+- instrument cache timestamp
+- cache session date
+- valid instrument-token count
+- missing-token count
+- token coverage %
+- whether cache hydration occurred after Kite login
+- whether hydration was automatic or manual
+
+List every missing symbol.
+
+Target:
+
+valid tokens = 50
+missing tokens = 0
+coverage = 100%
+
+If coverage is below 100%, identify the root cause for every missing symbol.
+
+Do not silently accept partial coverage.
+
+TASK 3 — TOKEN-TO-SYMBOL MAPPING VALIDATION
+
+For all 50 active symbols verify:
+
+- symbol
+- exchange
+- instrument_token
+- tradingsymbol
+- token mapping valid: YES/NO
+- duplicate token: YES/NO
+- missing token: YES/NO
+
+Check for:
+- renamed NSE symbols
+- duplicate aliases
+- stale instrument records
+- symbol mismatches
+- inactive instruments
+
+Do not modify the universe.
+
+TASK 4 — LIVE QUOTE PROVENANCE
+
+Because NSE is currently closed, do not expect a live session tick.
+
+For every active symbol inspect the latest available runtime quote metadata.
+
+Report:
+
+- symbol
+- latest price
+- provider
+- source
+- source timestamp
+- quote age
+- instrument token present
+- fallback_used
+- fallback_reason
+- freshness classification
+
+Allowed source classification:
+
+KITE
+YFINANCE
+DATABASE_CACHE
+MOCK_SYNTHETIC
+UNKNOWN
+
+Important:
+
+A successful Kite login does NOT automatically mean every displayed price is from Kite.
+
+Prove the actual source.
+
+If the current market is closed, classify stale/off-hours values correctly.
+
+Do not label Friday/previous-close values as LIVE.
+
+TASK 5 — KITE QUOTE CALL TEST
+
+Use only a READ-ONLY Kite quote/LTP API call.
+
+Do not call any order endpoint.
+
+Test a small safe sample first:
+
+- RELIANCE
+- TCS
+- INFY
+- HDFCBANK
+- ICICIBANK
+
+For each report:
+
+- instrument token
+- Kite API response success
+- returned LTP
+- response timestamp if available
+- runtime provenance updated correctly
+
+Then, if safe and already supported by the existing read-only implementation, verify quote availability for all 50 active symbols.
+
+Do not create new broker behavior just for this test.
+
+TASK 6 — MARKET DATA HEALTH
+
+Check the RTV-1 market-data health/readiness output.
+
+Report:
+
+- active_universe_count
+- kite_connected
+- authenticated
+- valid_instrument_tokens
+- missing_instrument_tokens
+- token_coverage_pct
+- symbols_on_kite
+- symbols_on_fallback
+- symbols_stale
+- symbols_unavailable
+- symbols_synthetic
+- latest_quote_timestamp
+- quote_age_seconds
+- service_ready
+- data_ready
+- session_fresh
+- trading_data_ready
+
+Because NSE is closed, it is acceptable and expected for:
+
+session_fresh = false
+trading_data_ready = false
+
+Do NOT change the readiness rule to make it green off-hours.
+
+TASK 7 — SYNTHETIC/FALLBACK SAFETY
+
+Confirm that after Kite login:
+
+- mock/synthetic data is still blocked from execution-grade use
+- any yfinance fallback is explicitly marked as fallback
+- stale values are marked stale/off-hours
+- no symbol using fallback is mislabeled as Kite live
+- no synthetic symbol can pass paper-entry readiness
+
+Report any violation as P0.
+
+TASK 8 — CANONICAL PORTFOLIO SAFETY CHECK
+
+Verify that Kite login did not alter portfolio truth.
+
+Report:
+
+- initial capital
+- cash
+- invested amount
+- open positions
+- realized P&L
+- unrealized P&L
+- total equity
+- /api/portfolio value
+- /api/portfolio/snapshot value
+
+Expected baseline if no paper positions changed:
+
+₹100,000 canonical portfolio
+and
+/api/portfolio == /api/portfolio/snapshot
+
+Do not reset or modify anything.
+
+TASK 9 — SAFETY FLAGS
+
+Confirm current values:
+
+- paper trading mode
+- automatic paper entries
+- bootstrap
+- automatic exits
+- live broker order placement
+- active universe
+
+Expected:
+
+paper trading = enabled
+auto paper entries = disabled
+bootstrap = disabled
+auto exits = enabled
+live broker orders = disabled
+active universe = NIFTY_50 / 50 symbols
+
+If anything changed unexpectedly, mark CRITICAL and stop.
+
+TASK 10 — FINAL VERDICT
+
+Return one of:
+
+A. KITE CONNECTION VERIFIED — 100% TOKEN COVERAGE
+B. KITE CONNECTED — TOKEN HYDRATION INCOMPLETE
+C. KITE LOGIN EXISTS BUT RUNTIME NOT USING SESSION
+D. KITE CONNECTION FAILED
+E. UNABLE TO VERIFY
+
+Also return:
+
+- Kite authenticated: YES/NO
+- token coverage: X/50
+- coverage %
+- symbols using Kite: X
+- symbols using fallback: X
+- synthetic active symbols: X
+- portfolio parity: PASS/FAIL
+- safety flags unchanged: PASS/FAIL
+
+Create one report:
+
+RTV1A_POST_KITE_CONNECTION_VERIFICATION.md
+
+Do not make code changes unless there is a clearly identified RTV-1 implementation defect preventing the already-built Kite session/token-hydration path from working.
+
+If a code defect is found:
+- document root cause first
+- do not fix until explicitly approved
+
+Stop after the verification report.
