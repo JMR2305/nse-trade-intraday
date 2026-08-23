@@ -1,0 +1,473 @@
+RTV-1C — PRODUCTION AUTHORITY RECONCILIATION
+
+Use as controlling evidence:
+- RTV1B_KITE_SESSION_PERSISTENCE_REPORT.md
+- RTV1A_POST_KITE_CONNECTION_VERIFICATION.md
+- RTV1_SUMMARY.md
+- RTV0_RUNTIME_AUTHORITY_MAP.md
+- RTV0_PORTFOLIO_RECONCILIATION.csv
+
+IMPORTANT:
+All checks in this task must target the PRODUCTION deployment:
+
+https://nse-trade-intraday.replit.app
+
+Do not use localhost or the development API for runtime truth comparisons.
+
+Production Kite authentication is already confirmed working.
+
+Current confirmed production state:
+- Kite token_status = VALID
+- token_stored = true
+- connected = true
+- authenticated = true
+- read-only Kite LTP sample succeeded
+- live broker order placement disabled
+- automatic paper entries disabled
+- bootstrap disabled
+- paper mode enabled
+
+New production discrepancies:
+1. instrument token cache remains 1/50
+2. production active universe = CUSTOM_LOW_PRICE_SECTOR
+3. expected baseline had NIFTY_50 / 50
+4. /api/portfolio and /api/portfolio/snapshot disagree
+5. /api/portfolio reports ₹99,721.26 cash and -₹278.74 realized P&L
+6. /api/portfolio/snapshot reports ₹100,000 cash/equity and zero positions
+7. production health-v2 does not expose the RTV-1 market_data_readiness object expected by development code
+
+Goal:
+Reconcile PRODUCTION runtime authority before any further trading or feature work.
+
+Do not place orders.
+Do not modify broker state.
+Do not enable auto entries.
+Do not enable bootstrap.
+Do not enable live trading.
+Do not reset portfolio.
+Do not change universe until root cause is established.
+Do not deploy fixes until diagnosis is complete.
+
+TASK 1 — PRODUCTION VERSION / DEPLOYMENT DRIFT
+
+Compare:
+
+development branch/commit
+vs
+currently deployed production build/commit
+
+Report:
+- development branch
+- development commit
+- production deployed commit/build identifier
+- deployment timestamp
+- whether RTV-1 fixes exist in production
+- whether market_data_readiness code exists in production
+- whether portfolio snapshot unification fix exists in production
+- whether production is behind development
+
+Classify:
+
+A. production matches RTV-1 code
+B. production is behind development
+C. production contains divergent config only
+D. both code and config differ
+E. unable to determine
+
+Do not deploy yet.
+
+TASK 2 — PRODUCTION ACTIVE UNIVERSE AUTHORITY
+
+Production currently reports:
+
+CUSTOM_LOW_PRICE_SECTOR
+
+Determine the exact source of truth.
+
+Trace:
+UI/settings
+→ API
+→ Phase20 settings
+→ database row
+→ scheduler
+→ scan engine
+→ market-data engine
+
+Report:
+
+- active universe setting
+- source table/key
+- last updated timestamp
+- last updater if known
+- universe symbol count
+- actual symbol list
+- scheduler universe used
+- latest scan universe used
+- dashboard universe shown
+- whether NIFTY_50 is merely development config
+- whether CUSTOM_LOW_PRICE_SECTOR was intentionally selected previously
+
+Do not change it.
+
+Final classification:
+
+A. CUSTOM_LOW_PRICE_SECTOR is intentional production authority
+B. NIFTY_50 is intended and production drifted
+C. different modules use different universes
+D. unable to determine
+
+TASK 3 — ACTUAL PRODUCTION UNIVERSE COUNT
+
+Important:
+Do not assume the active production universe contains 50 symbols.
+
+Count the actual production CUSTOM_LOW_PRICE_SECTOR universe.
+
+For every active symbol report:
+- symbol
+- sector
+- instrument token present
+- Kite quote available
+- current provenance
+
+This actual active count becomes the denominator for production token coverage.
+
+TASK 4 — PRODUCTION KITE INSTRUMENT HYDRATION
+
+Kite authentication is valid.
+
+Perform the existing approved READ-ONLY instrument-master refresh/hydration procedure.
+
+This may call Kite instrument/reference-data endpoints only.
+
+Do not call any order endpoint.
+
+After hydration report:
+- cache refresh timestamp
+- cache session date
+- total instrument rows fetched
+- active universe symbols
+- valid active mappings
+- missing active mappings
+- duplicate mappings
+- coverage %
+
+Target:
+
+active-universe token coverage = 100%
+
+If missing mappings remain, report exact symbols and reason.
+
+TASK 5 — VERIFY KITE QUOTE PROVENANCE FOR ACTIVE PRODUCTION UNIVERSE
+
+For every currently active production symbol:
+
+- symbol
+- instrument token
+- Kite quote success
+- latest LTP
+- quote timestamp if supplied
+- source
+- fallback
+- source age
+- reliability
+
+Do not call orders.
+
+Because market may be closed:
+do not label old data as session-fresh.
+
+But prove the quote provider plumbing works for each active symbol.
+
+TASK 6 — PRODUCTION PORTFOLIO ROOT-CAUSE RECONCILIATION
+
+This is P0.
+
+Current observed production conflict:
+
+/api/portfolio:
+cash ≈ ₹99,721.26
+realized P&L ≈ -₹278.74
+
+/api/portfolio/snapshot:
+cash/equity = ₹100,000
+realized P&L = ₹0
+
+Trace both production endpoints independently.
+
+For each document:
+
+Endpoint
+→ Node route
+→ Python command
+→ service
+→ ledger/store
+→ DB table(s)
+→ query
+→ formula
+→ current rows used
+
+Do not infer from development source alone.
+Verify production runtime behavior.
+
+TASK 7 — RECONSTRUCT PORTFOLIO FROM RAW LEDGER
+
+Using READ-ONLY production data, independently recompute:
+
+- initial capital
+- historical closed trades
+- open trades
+- realized P&L
+- unrealized P&L
+- fees/costs if applicable
+- cash
+- invested amount
+- equity
+
+Identify exactly where the -₹278.74 comes from.
+
+For each contributing trade show:
+- trade/order identifier
+- symbol
+- entry
+- exit
+- quantity
+- gross P&L
+- costs
+- net P&L
+- status
+
+Do not modify historical rows.
+
+Then compare:
+
+RAW LEDGER RECOMPUTATION
+vs
+/api/portfolio
+vs
+/api/portfolio/snapshot
+
+Declare the correct value based on evidence.
+
+TASK 8 — IDENTIFY AUTHORITATIVE PORTFOLIO PATH
+
+Determine which path is legitimate:
+
+A. /api/portfolio is correct and snapshot stale/wrong
+B. /api/portfolio/snapshot is correct and main portfolio wrong
+C. both are wrong
+D. both read different valid scopes
+E. unable to determine
+
+Check whether:
+- closed historical trades should contribute realized P&L
+- snapshot filters them out
+- snapshot uses wrong table
+- snapshot uses development-era RC-10C1 path
+- one endpoint uses cached/default capital
+- one endpoint fails to include costs
+- one endpoint is reading a different database/schema
+
+TASK 9 — VERIFY RTV-1 FIX DEPLOYMENT STATUS
+
+RTV-1 claimed:
+- Phase20 ledger made canonical
+- /api/portfolio and /api/portfolio/snapshot unified
+- dynamic capital accessor used
+
+Verify whether those exact changes are deployed in production.
+
+If NOT deployed:
+
+Do not re-fix the code independently.
+
+Report:
+
+PRODUCTION BEHIND RTV-1 DEVELOPMENT
+
+and identify the exact undeployed commit(s).
+
+If deployed but behavior still differs:
+classify as genuine remaining bug.
+
+TASK 10 — MARKET DATA READINESS CONTRACT DRIFT
+
+RTV-1B found production health-v2 lacks:
+
+market_data_readiness
+
+Determine whether this is because:
+- production is behind RTV-1
+- different route/version is deployed
+- feature flag
+- wrong endpoint
+- build artifact stale
+- code path not loaded
+
+Do not implement a second readiness system.
+
+Identify the existing RTV-1 implementation and whether it simply needs deployment.
+
+TASK 11 — TOKEN PERSISTENCE HARDENING
+
+Review the confirmed gap:
+
+kite_token_store._db_save()
+can suppress durable persistence exceptions.
+
+Prepare the smallest safe patch so:
+
+- durable DB save failure is visible
+- callback cannot claim durable success if authoritative persistence fails
+- warm local cache alone is not considered Autoscale-safe success
+- disconnect cannot claim complete success if durable deletion fails
+- secret/token contents never enter logs
+
+Do not deploy this patch yet.
+
+Include tests.
+
+TASK 12 — PRODUCTION/DEVELOPMENT ENVIRONMENT LABELING
+
+Prevent future RTV confusion.
+
+Add or prepare a non-secret runtime identity field to diagnostic endpoints:
+
+- environment: development/production
+- deployment_id/build_id
+- git_commit
+- hostname/instance id where appropriate
+- runtime timestamp
+
+This must not expose secrets.
+
+Any future RTV report must begin with:
+
+TARGET ENVIRONMENT
+DEPLOYMENT COMMIT
+API BASE URL
+
+TASK 13 — DO NOT FIX UNTIL ROOT CAUSE TABLE IS COMPLETE
+
+Before modifying portfolio or universe behavior, create:
+
+RTV1C_ROOT_CAUSE_MATRIX
+
+Columns:
+- discrepancy
+- development value
+- production value
+- authoritative source
+- root cause
+- code drift?
+- config drift?
+- DB drift?
+- fix required?
+- deployment required?
+- user decision required?
+
+Include at minimum:
+- active universe
+- portfolio cash
+- realized P&L
+- total equity
+- portfolio snapshot
+- token coverage
+- market_data_readiness
+- Kite persistence hardening
+
+TASK 14 — APPLY ONLY SAFE CONFIRMED FIXES
+
+After the root-cause matrix:
+
+Allowed fixes:
+- genuine production code defect
+- missing instrument hydration trigger
+- portfolio endpoint divergence
+- readiness contract deployment/route defect
+- persistence error acknowledgement
+
+Not allowed without explicit user decision:
+- switching CUSTOM_LOW_PRICE_SECTOR to NIFTY_50
+- resetting portfolio
+- deleting historical trades
+- changing capital
+- enabling trading
+- changing strategy
+- clearing P&L
+
+Preserve existing legitimate trading history.
+
+TASK 15 — TESTS
+
+Run targeted tests for:
+
+- production portfolio equivalence contract
+- closed-trade realized P&L
+- no-position portfolio with historical realized P&L
+- cash/equity formulas
+- instrument hydration
+- active-universe mapping
+- Kite quote provenance
+- runtime environment identity
+- durable token-store failure
+- readiness contract
+
+Then run relevant regression suites.
+
+TASK 16 — POST-FIX STAGING/DEVELOPMENT VERIFICATION
+
+Before production deployment confirm:
+
+- /api/portfolio == /api/portfolio/snapshot for common financial fields
+- historical P&L preserved
+- capital preserved
+- no portfolio reset
+- active universe unchanged
+- Kite token hydration logic safe
+- auto entries disabled
+- bootstrap disabled
+- live broker orders disabled
+
+TASK 17 — OUTPUT FILES
+
+Create:
+
+1. RTV1C_PRODUCTION_AUTHORITY_RECONCILIATION.md
+2. RTV1C_ROOT_CAUSE_MATRIX.csv
+3. RTV1C_PRODUCTION_PORTFOLIO_RECONCILIATION.csv
+4. RTV1C_PRODUCTION_MARKET_DATA_COVERAGE.csv
+
+Main report must include:
+
+- production/development commit comparison
+- actual production active universe
+- actual active symbol count
+- instrument hydration result
+- Kite coverage result
+- quote provenance
+- portfolio raw-ledger reconstruction
+- reason for -₹278.74 P&L
+- authoritative portfolio verdict
+- RTV-1 deployment status
+- readiness-contract drift
+- token persistence hardening recommendation
+- fixes made, if any
+- fixes not made
+- tests
+- remaining user decisions
+- remaining live-session checks
+
+FINAL SAFETY RULE
+
+Do not reset anything.
+Do not change active universe.
+Do not erase historical P&L.
+Do not enable automatic entry.
+Do not enable bootstrap.
+Do not enable live broker orders.
+Do not place or modify broker orders.
+
+Production is now the source of truth for this task.
+
+Complete the four RTV-1C artifacts and stop.
