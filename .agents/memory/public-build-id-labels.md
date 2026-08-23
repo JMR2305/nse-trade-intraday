@@ -24,3 +24,6 @@ a static bundle with no build-time ID vs. Replit's runtime `REPLIT_DEPLOYMENT=1`
   identical Rollup content hashes do not prove the platform rebuilt.
 - Bumping the release ID on only one artifact intentionally shows a real
   `Build mismatch` until both are republished.
+- Production reconciliation needs an API diagnostic response that exposes the
+  non-secret environment, build ID, commit, instance label, and runtime time;
+  deployment metadata alone cannot prove which source revision serves a route.

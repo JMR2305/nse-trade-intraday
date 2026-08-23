@@ -1,0 +1,10 @@
+row_type,source,trade_id,symbol,quantity,entry_fill,exit_fill,gross_price_pnl,estimated_charges,slippage,stored_realized_pnl,status,exit_rule,as_of_or_timestamp,notes
+summary,raw_phase20_ledger,,,,,,,,-278.74,CLOSED,,"2026-08-21T00:06:36Z","6 closed rows; 0 open or EXIT_PENDING rows; raw-ledger cash = 100000 + (-278.74) - 0 = 99721.26"
+summary,/api/portfolio,,,,,,,,,-278.74,phase20_ledger,,"2026-08-23T14:37:49Z","cash=99721.26; total_value=99721.26; invested_value=0; total_pnl=-278.74; portfolio_version=6:2026-08-21T00:06:36Z"
+summary,/api/portfolio/snapshot,,,,,,,,,0,portfolio_service,,"2026-08-23T14:37:49Z","cash=100000; equity=100000; invested_value=0; open_position_count=0; latest durable snapshot payload has state_version=1 and no realized history"
+trade,phase20_paper_trades,P20-3468fb2a24,DRREDDY,1,1186.98,1186.98,0,1.42,1.7778,0,CLOSED,POST_CLOSE_FORCE_EXIT,2026-08-18T12:31:18Z,"flat close"
+trade,phase20_paper_trades,P20-70dee2f8c0,GRASIM,3,3274.20,3270.00,-12.60,11.79,4.9040,-12.60,CLOSED,MARKET_CLOSE_EXIT,2026-08-19T09:50:26Z,"price P&L equals stored realized P&L"
+trade,phase20_paper_trades,P20-1c52c79d84,DIVISLAB,1,8570.34,8578.00,7.66,10.28,12.8362,7.66,CLOSED,MARKET_CLOSE_EXIT,2026-08-20T09:52:36Z,"price P&L equals stored realized P&L"
+trade,phase20_paper_trades,P20-cfd2e587aa,DRREDDY,20,1193.79,1180.10,-273.80,28.65,1.7880,-273.80,CLOSED,MARKET_CLOSE_EXIT,2026-08-20T09:54:01Z,"largest loss; price P&L equals stored realized P&L"
+trade,phase20_paper_trades,P20-315e824378,TRENT,5,2971.45,2971.45,0,17.83,4.4505,0,CLOSED,POST_CLOSE_FORCE_EXIT,2026-08-21T00:05:38Z,"flat close"
+trade,phase20_paper_trades,P20-8fc829b8c3,DRREDDY,20,1181.87,1181.87,0,28.36,1.7701,0,CLOSED,POST_CLOSE_FORCE_EXIT,2026-08-21T00:06:36Z,"flat close"
