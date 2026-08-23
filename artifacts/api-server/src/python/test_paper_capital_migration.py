@@ -624,7 +624,11 @@ def test_open_entry_never_falls_back_to_json_without_postgres():
         "status": "OPEN",
         "evidence": {},
     })
-    with patch.object(executor, "db_available", return_value=False), \
+    # Keep the test focused on the durable-admission invariant rather than
+    # whichever real-world market session happens to be running the suite.
+    with patch.object(executor, "_market_entry_status",
+                      return_value={"allowed": True, "market_state": "OPEN"}), \
+         patch.object(executor, "db_available", return_value=False), \
          patch.object(executor, "_read_ledger_file") as read_file, \
          pytest.raises(executor.PaperEntryAdmissionError, match="fail-closed"):
         executor._insert_row(row)

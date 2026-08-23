@@ -8,6 +8,7 @@ import path from "path";
 import fs from "fs";
 import { HealthCheckResponse } from "@workspace/api-zod";
 import { getStreamStats } from "./stream";
+import { runtimeIdentity } from "../lib/runtimeIdentity";
 
 const router: IRouter = Router();
 
@@ -109,6 +110,7 @@ router.get("/health/details", async (_req, res) => {
   const mem = process.memoryUsage();
   res.json({
     status: liveError ? "degraded" : "ok",
+    runtime_identity: runtimeIdentity(),
     uptime_s: Math.round((Date.now() - STARTED_AT) / 1000),
     node_version: process.version,
     memory_rss_mb: Math.round(mem.rss / 1024 / 1024),

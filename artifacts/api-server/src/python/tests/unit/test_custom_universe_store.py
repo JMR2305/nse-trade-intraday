@@ -404,7 +404,52 @@ class TestInvalidMappingReported(unittest.TestCase):
         self.assertEqual(result["upserted"], 1)
 
 
-# ── Test 7 — Phase 0C safety suite still passes ────────────────────────────
+# ── Test 7 — reference-data-only instrument hydration ────────────────────
+
+class TestInstrumentMetadataHydration(unittest.TestCase):
+
+    def test_hydration_updates_only_active_rows_and_reports_symbol_mapping(self):
+        import custom_universe_store
+        rows = [_sample_row("WIPRO", is_active=True)]
+        _conn, _cur, fake_connect = _make_db_mock(fetchall_return=rows)
+        _cur.rowcount = 1
+        instruments = [{
+            "symbol": "WIPRO",
+            "exchange": "NSE",
+            "instrument_type": "EQ",
+            "token": 12345,
+        }]
+        with patch.object(custom_universe_store, "_db_available", return_value=True), \
+             patch.object(custom_universe_store, "_connect", fake_connect):
+            result = custom_universe_store.hydrate_active_instrument_metadata(
+                instruments, "2026-08-24"
+            )
+
+        self.assertTrue(result["success"], result)
+        self.assertEqual(result["active_count"], 1)
+        self.assertEqual(result["mapped_count"], 1)
+        self.assertEqual(result["symbols"][0]["instrument_token"], 12345)
+        update_sql = _cur.execute.call_args_list[-1].args[0]
+        self.assertIn("instrument_token", update_sql)
+        self.assertNotIn("is_active = %s", update_sql)
+        self.assertNotIn("sector = %s", update_sql)
+
+    def test_hydration_fails_closed_for_missing_mapping(self):
+        import custom_universe_store
+        rows = [_sample_row("WIPRO", is_active=True)]
+        _conn, _cur, fake_connect = _make_db_mock(fetchall_return=rows)
+        with patch.object(custom_universe_store, "_db_available", return_value=True), \
+             patch.object(custom_universe_store, "_connect", fake_connect):
+            result = custom_universe_store.hydrate_active_instrument_metadata(
+                [], "2026-08-24"
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["missing_symbols"], ["WIPRO"])
+        self.assertEqual(result["mapped_count"], 0)
+
+
+# ── Test 8 — Phase 0C safety suite still passes ────────────────────────────
 
 class TestPhase0CSafetySuiteUnaffected(unittest.TestCase):
     """Phase 0C safety tests must all pass after any Phase 1B changes.

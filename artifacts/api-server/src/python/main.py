@@ -1108,6 +1108,15 @@ def main():
         elif command == "universe_custom_report":
             from low_price_universe_report import get_report
             result = get_report()
+        elif command == "universe_custom_hydrate_instruments":
+            # Reference-data-only hydration. It cannot change membership or
+            # selection fields and fails closed on missing/duplicate mappings.
+            from custom_universe_store import hydrate_active_instrument_metadata
+            from kite_instrument_cache import cache_status, get_cached_instruments
+            cache = cache_status()
+            result = hydrate_active_instrument_metadata(
+                get_cached_instruments(), cache.get("date")
+            )
 
         elif command == "pre_market_data_readiness":
             # Run pre-market data readiness check and return verdict.
@@ -3431,6 +3440,13 @@ def main():
             from kite_instrument_cache import refresh
             force = "--force" in sys.argv
             result = refresh(force=force)
+            if result.get("success"):
+                from custom_universe_store import hydrate_active_instrument_metadata
+                from kite_instrument_cache import cache_status, get_cached_instruments
+                cache = cache_status()
+                result["custom_universe_hydration"] = hydrate_active_instrument_metadata(
+                    get_cached_instruments(), cache.get("date")
+                )
         elif command == "kite_instrument_cache_status":
             from kite_instrument_cache import cache_status
             result = {"success": True, **cache_status()}

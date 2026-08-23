@@ -77,6 +77,15 @@ def ensure_table() -> bool:
                     CREATE INDEX IF NOT EXISTS idx_{TABLE}_active
                     ON {TABLE} (is_active, sector)
                 """)
+                # These columns hold reference-data provenance only. Hydration
+                # never changes membership, rank, sector, or selection reason.
+                cur.execute(f"""
+                    ALTER TABLE {TABLE}
+                    ADD COLUMN IF NOT EXISTS instrument_exchange TEXT,
+                    ADD COLUMN IF NOT EXISTS instrument_tradingsymbol TEXT,
+                    ADD COLUMN IF NOT EXISTS instrument_cache_date DATE,
+                    ADD COLUMN IF NOT EXISTS instrument_mapping_at TIMESTAMPTZ
+                """)
                 # The master is current-state data. This append-only snapshot
                 # table preserves membership changes for historical replay.
                 cur.execute("""
@@ -278,6 +287,155 @@ def get_active_symbol_metadata() -> Dict[str, Dict[str, Any]]:
     return {
         str(row["symbol"]).upper(): row
         for row in get_all_symbols() if row.get("is_active")
+    }
+
+
+def hydrate_active_instrument_metadata(
+    instruments: Optional[List[Dict[str, Any]]] = None,
+    cache_date: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Hydrate only instrument-reference metadata for the current active set.
+
+    The active rows are read first and then updated by primary key. No
+    selection or membership fields are included in the UPDATE statement.
+    Every active symbol must resolve to exactly one NSE equity instrument with
+    a positive token; otherwise the transaction is rejected and the exact
+    reason is returned.
+    """
+    if not ensure_table():
+        return {
+            "success": False,
+            "error": "db_unavailable",
+            "active_count": 0,
+            "mapped_count": 0,
+            "missing_symbols": [],
+            "duplicate_symbols": [],
+            "invalid_symbols": [],
+        }
+
+    active_rows = [row for row in get_all_symbols() if row.get("is_active")]
+    active_symbols = sorted({
+        str(row.get("symbol") or "").strip().upper()
+        for row in active_rows
+        if str(row.get("symbol") or "").strip()
+    })
+    cached = instruments
+    if cached is None:
+        from kite_instrument_cache import get_cached_instruments, cache_status
+        cached = get_cached_instruments()
+        cache_date = cache_date or cache_status().get("date")
+
+    by_symbol: Dict[str, List[Dict[str, Any]]] = {}
+    for raw in cached or []:
+        if not isinstance(raw, dict):
+            continue
+        symbol = str(raw.get("symbol") or raw.get("tradingsymbol") or "").strip().upper()
+        exchange = str(raw.get("exchange") or "").strip().upper()
+        instrument_type = str(raw.get("instrument_type") or "").strip().upper()
+        token = raw.get("token", raw.get("instrument_token"))
+        try:
+            valid_token = int(token) > 0
+        except (TypeError, ValueError):
+            valid_token = False
+        if symbol and exchange == "NSE" and instrument_type == "EQ" and valid_token:
+            by_symbol.setdefault(symbol, []).append({
+                "symbol": symbol,
+                "exchange": exchange,
+                "tradingsymbol": symbol,
+                "instrument_token": int(token),
+            })
+
+    missing_symbols: List[str] = []
+    duplicate_symbols: List[str] = []
+    invalid_symbols: List[Dict[str, str]] = []
+    resolved: List[Dict[str, Any]] = []
+    for symbol in active_symbols:
+        candidates = by_symbol.get(symbol, [])
+        if not candidates:
+            missing_symbols.append(symbol)
+        elif len(candidates) > 1:
+            duplicate_symbols.append(symbol)
+        else:
+            resolved.append(candidates[0])
+
+    if missing_symbols or duplicate_symbols:
+        for symbol in missing_symbols:
+            invalid_symbols.append({"symbol": symbol, "reason": "no_unique_nse_equity_mapping"})
+        for symbol in duplicate_symbols:
+            invalid_symbols.append({"symbol": symbol, "reason": "duplicate_nse_equity_mapping"})
+        return {
+            "success": False,
+            "error": "active_universe_mapping_incomplete",
+            "active_count": len(active_symbols),
+            "mapped_count": 0,
+            "missing_symbols": missing_symbols,
+            "duplicate_symbols": duplicate_symbols,
+            "invalid_symbols": invalid_symbols,
+        }
+
+    mapping_at = datetime.now(timezone.utc)
+    mapping_date = str(cache_date or mapping_at.date().isoformat())[:10]
+    try:
+        with _connect() as conn:
+            with conn.cursor() as cur:
+                for mapping in resolved:
+                    cur.execute(f"""
+                        UPDATE {TABLE}
+                        SET instrument_exchange = %s,
+                            instrument_tradingsymbol = %s,
+                            instrument_token = %s,
+                            instrument_cache_date = %s,
+                            instrument_mapping_at = %s,
+                            updated_at = NOW()
+                        WHERE symbol = %s
+                          AND allowed_universe = %s
+                          AND is_active = TRUE
+                    """, (
+                        mapping["exchange"],
+                        mapping["tradingsymbol"],
+                        mapping["instrument_token"],
+                        mapping_date,
+                        mapping_at,
+                        mapping["symbol"],
+                        ALLOWED_UNIVERSE,
+                    ))
+                    if cur.rowcount != 1:
+                        raise RuntimeError(
+                            f"active symbol update affected {cur.rowcount} rows: "
+                            f"{mapping['symbol']}"
+                        )
+    except Exception as exc:
+        logger.warning("custom_universe_store.hydrate_active_instrument_metadata: %s", exc)
+        return {
+            "success": False,
+            "error": "instrument_metadata_update_failed",
+            "detail": str(exc)[:200],
+            "active_count": len(active_symbols),
+            "mapped_count": 0,
+            "missing_symbols": [],
+            "duplicate_symbols": [],
+            "invalid_symbols": [],
+        }
+
+    return {
+        "success": True,
+        "active_count": len(active_symbols),
+        "mapped_count": len(resolved),
+        "missing_symbols": [],
+        "duplicate_symbols": [],
+        "invalid_symbols": [],
+        "cache_date": mapping_date,
+        "mapping_timestamp": mapping_at.isoformat(),
+        "symbols": [
+            {
+                "symbol": mapping["symbol"],
+                "exchange": mapping["exchange"],
+                "tradingsymbol": mapping["tradingsymbol"],
+                "instrument_token": mapping["instrument_token"],
+                "mapping_valid": True,
+            }
+            for mapping in resolved
+        ],
     }
 
 
