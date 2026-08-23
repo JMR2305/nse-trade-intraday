@@ -1,9 +1,13 @@
 # RTV-1 Summary
 
-**Status:** **CODE PASS — LIVE SESSION VERIFICATION PENDING**  
-**Branch:** `rtv1-market-data-portfolio-truth`  
-**Final commit:** `c0cee091`  
-**Follow-up:** Task #903 — Confirm live market data is genuinely ready before paper trading resumes
+**Status:** **CODE PASS — AUTHENTICATED LIVE-SESSION VERIFICATION PENDING**
+**Branch:** `rtv1-market-data-portfolio-truth`
+**Base code reference:** `c0cee091`
+**Follow-up:** Task #904 — Complete the authenticated live-data check before paper entries can resume
+
+**Latest runtime recheck:** 2026-08-23 19:24 IST — **NO-GO remains**; Kite
+login, complete token hydration, fresh Kite provenance, and same-session Phase
+5A persistence parity are still unverified.
 
 ## Objective
 
@@ -55,7 +59,7 @@ RTV-1 corrected confirmed market-data, portfolio-truth, pre-open lifecycle, and 
 - API rebuild and restart: **passed**
 - PortfolioLive browser verification: **passed**
 - Independent code review: **passed**
-- Completion validation: **passed**
+- Completion validation: **pending authenticated NSE-session evidence**
 - One pre-existing `datetime.utcnow()` deprecation warning remains.
 
 ## Current runtime truth
@@ -77,4 +81,4 @@ This is the expected fail-closed result while Kite authentication, full instrume
 
 ## Required next step
 
-Complete `RTV1_MONDAY_LIVE_SESSION_CHECKLIST.md` during the next NSE session. Live-session verification must confirm authenticated Kite status, 100% token coverage, fresh quote provenance for all active symbols, Phase 5A persistence parity, and canonical portfolio parity without enabling automatic entries or live orders.
+Complete Task #904 and `RTV1_MONDAY_LIVE_SESSION_CHECKLIST.md` during the next NSE session. Live-session verification must confirm authenticated Kite status, 100% token coverage, fresh quote provenance for all active symbols, Phase 5A persistence parity, and canonical portfolio parity without enabling automatic entries or live orders.

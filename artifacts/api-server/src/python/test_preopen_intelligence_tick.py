@@ -303,9 +303,10 @@ class TestGetTickStatus(unittest.TestCase):
     def test_all_phases_listed(self):
         import preopen_intelligence_tick as t
         s = t.get_tick_status()
-        self.assertEqual(len(s["all_phases"]), 5)
-        self.assertIn("init", s["all_phases"])
-        self.assertIn("reconcile", s["all_phases"])
+        self.assertEqual(
+            s["all_phases"],
+            ["init", "readiness", "collect", "freeze", "reconcile", "reconcile_0930"],
+        )
 
 
 if __name__ == "__main__":

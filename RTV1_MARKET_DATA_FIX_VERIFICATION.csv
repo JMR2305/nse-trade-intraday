@@ -2,16 +2,26 @@ area,assertion,evidence,result,live_session_status
 provenance,Kite fallback cannot be labeled Kite-live,focused overlay regressions,PASS,verified in code and tests
 provenance,Mixed quote batches preserve source and reason per symbol,focused overlay regressions,PASS,verified in code and tests
 synthetic_safety,Synthetic source cannot become execution-grade,source gate and existing decision gates,PASS,verified in code and tests
-token_coverage,Active universe count,read-only health contract,50,PENDING live cache hydration
-token_coverage,Valid cached instrument tokens,read-only health contract,1,PENDING authenticated hydration
-token_coverage,Missing cached instrument tokens,read-only health contract,49,PENDING authenticated hydration
-token_coverage,Token coverage percent,read-only health contract,2%,PENDING authenticated hydration
-readiness,Service readiness,read-only health contract,true,PASS
-readiness,Data readiness,read-only health contract,true,PASS for cached analytical data
-readiness,Session freshness,read-only health contract,false,EXPECTED market closed
-readiness,Trading data readiness,read-only health contract,false,PASS fail-closed
-freshness,Fresh scan timestamp required for trading readiness,market_data_health tests,PASS,PENDING live scan
+token_coverage,Active universe count,2026-08-23 /api/live-data/health-v2,50,CONFIRMED
+token_coverage,Valid cached instrument tokens,2026-08-23 /api/live-data/health-v2,1,BLOCKED authenticated hydration required
+token_coverage,Missing cached instrument tokens,2026-08-23 /api/live-data/health-v2,49,BLOCKED authenticated hydration required
+token_coverage,Token coverage percent,2026-08-23 /api/live-data/health-v2,2%,BLOCKED authenticated hydration required
+readiness,Service readiness,2026-08-23 /api/live-data/health-v2,true,PASS separate from trading readiness
+readiness,Data readiness,2026-08-23 /api/live-data/health-v2,true,PASS cached analytical data only
+readiness,Session freshness,2026-08-23 /api/live-data/health-v2,false,PASS fail-closed; Kite login required
+readiness,Trading data readiness,2026-08-23 /api/live-data/health-v2,false,PASS fail-closed
+freshness,Fresh scan timestamp required for trading readiness,2026-08-23 scan timestamp was 2026-08-21T09:55:44Z,false,BLOCKED fresh NSE-session scan required
 freshness,Malformed or stale scan timestamp blocks readiness,market_data_health tests,PASS,verified in code and tests
 freshness,Malformed or stale Kite-live quote timestamp blocks readiness,market_data_health tests,PASS,verified in code and tests
-kite_session,Authenticated Kite session present,runtime status,false,MANUAL SECRET / LOGIN ACTION REQUIRED
-fallback,Yahoo/cache fallback visible and not execution-grade,overlay and readiness contract,PASS,PENDING live quote comparison
+kite_session,Authenticated Kite session present,2026-08-23 /api/kite/status,false,BLOCKED LOGIN_REQUIRED
+fallback,Yahoo/cache fallback visible and not execution-grade,2026-08-23 /api/live-data/health-v2: 50 fallback and 0 Kite-live,PASS no fallback misclassified
+preopen_persistence,Provider collected count equals persisted snapshot count,2026-08-23 pre-open provider probe saw 50 but no current session/snapshots,NOT_VERIFIED,requires same-session 09:00–09:15 IST collection
+portfolio_parity,Canonical portfolio equals PortfolioLive baseline,2026-08-23 /api/portfolio and /api/portfolio/snapshot both phase20_ledger ₹100000 cash/equity,PASS,zero positions and zero drawdown
+safety,No order or paper entry created,2026-08-23 mock broker orders=0; Phase20 ledger 4 CLOSED and 0 OPEN or EXIT_PENDING,PASS,auto paper entries/bootstrap off; live orders disabled
+runtime_recheck,Market gate,2026-08-23 19:24 IST /api/live-data/health-v2: WEEKEND; automatic paper entry blocked,WEEKEND NO-GO,safety gate unchanged
+runtime_recheck,Kite session,2026-08-23 19:24 IST /api/kite/status: LOGIN_REQUIRED; connected=false; token_stored=false,BLOCKED,operator login required
+runtime_recheck,Instrument hydration,2026-08-23 19:24 IST /api/kite/instruments/status: count=1; date=2026-08-09; is_fresh=false,BLOCKED,49 of 50 tokens still missing
+runtime_recheck,Fresh execution provenance,2026-08-23 19:24 IST health: scan 8ea114ecb962 at 2026-08-21T09:55:44Z; 0 Kite-live; 50 Yahoo fallback; trading_data_ready=false,BLOCKED,fresh authenticated NSE-session scan required
+runtime_recheck,Phase 5A persistence parity,2026-08-23 19:24 IST pre-open snapshot: count=0; latest session 2026-08-21; provider_status=UNAVAILABLE,NOT_VERIFIED,no current trading session
+runtime_recheck,Canonical portfolio parity,2026-08-23 19:24 IST /api/portfolio and /api/portfolio/snapshot: phase20_ledger; ₹100000 baseline; zero positions/drawdown,PASS,source and values agree
+runtime_recheck,Safety controls,2026-08-23 19:24 IST activation=false; mode=PAPER_TRADING; auto exits=true; live orders=DISABLED; mock orders=0,PASS,no mutating request made
