@@ -14,7 +14,7 @@ function firstNonEmpty(...values: Array<string | undefined>): string | undefined
 }
 
 function isGenericBuildId(value: string | undefined): boolean {
-  return value === "apexquant-v1.0.0";
+  return !/^apexquant-[0-9a-f]{12}$/i.test(value ?? "");
 }
 
 /**

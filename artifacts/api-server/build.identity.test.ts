@@ -17,6 +17,18 @@ describe("API build identity injection", () => {
     });
   });
 
+  it("replaces the retired Phase 0C label with a commit-derived build ID", () => {
+    const commit = "c".repeat(40);
+
+    expect(resolveBuildIdentity({
+      APEXQUANT_GIT_COMMIT: commit,
+      APEXQUANT_BUILD_ID: "apexquant-phase0c-20260821",
+    } as NodeJS.ProcessEnv)).toEqual({
+      gitCommit: commit,
+      buildId: "apexquant-cccccccccccc",
+    });
+  });
+
   it("fails closed when no exact source commit can be resolved", () => {
     expect(() => resolveBuildIdentity({
       APEXQUANT_GIT_COMMIT: "unknown",

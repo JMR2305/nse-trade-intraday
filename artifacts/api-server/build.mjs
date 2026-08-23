@@ -12,7 +12,10 @@ globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(artifactDir, "../..");
-const GENERIC_BUILD_IDS = new Set(["apexquant-v1.0.0"]);
+const RETIRED_BUILD_IDS = new Set([
+  "apexquant-v1.0.0",
+  "apexquant-phase0c-20260821",
+]);
 
 export function sourceGitCommit(env = process.env, root = projectRoot) {
   const configured = [
@@ -46,7 +49,7 @@ export function resolveBuildIdentity(env = process.env, root = projectRoot) {
     );
   }
   const configuredBuildId = env.APEXQUANT_BUILD_ID?.trim();
-  const buildId = configuredBuildId && !GENERIC_BUILD_IDS.has(configuredBuildId)
+  const buildId = configuredBuildId && !RETIRED_BUILD_IDS.has(configuredBuildId)
     ? configuredBuildId
     : `apexquant-${gitCommit.slice(0, 12)}`;
   return { gitCommit, buildId };

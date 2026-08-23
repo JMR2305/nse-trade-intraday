@@ -22,7 +22,7 @@ describe("runtime identity", () => {
   it("returns only non-secret production identity fields", () => {
     process.env.NODE_ENV = "production";
     process.env.APEXQUANT_GIT_COMMIT = "abc123";
-    process.env.APEXQUANT_BUILD_ID = "apexquant-test";
+    process.env.APEXQUANT_BUILD_ID = "apexquant-abc123def456";
     process.env.REPLIT_DEPLOYMENT_ID = "deploy-1";
     process.env.REPLIT_INSTANCE_ID = "instance-1";
 
@@ -31,7 +31,7 @@ describe("runtime identity", () => {
     expect(identity).toMatchObject({
       environment: "production",
       git_commit: "abc123",
-      build_id: "apexquant-test",
+      build_id: "apexquant-abc123def456",
       deployment_id: "deploy-1",
       instance_id: "instance-1",
     });
@@ -66,6 +66,17 @@ describe("runtime identity", () => {
     const identity = runtimeIdentity();
 
     expect(identity.git_commit).toBe("a".repeat(40));
+    expect(identity.build_id).toBe("production-unidentified");
+  });
+
+  it("rejects the retired Phase 0C production build label", () => {
+    process.env.NODE_ENV = "production";
+    process.env.APEXQUANT_GIT_COMMIT = "b".repeat(40);
+    process.env.APEXQUANT_BUILD_ID = "apexquant-phase0c-20260821";
+
+    const identity = runtimeIdentity();
+
+    expect(identity.git_commit).toBe("b".repeat(40));
     expect(identity.build_id).toBe("production-unidentified");
   });
 });
