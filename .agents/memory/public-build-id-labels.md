@@ -28,3 +28,9 @@ description: How Mission Control UI/API build identity works and how to verify a
   rebuilt. API runtime reconciliation must additionally expose a non-secret
   environment, build ID, commit, instance label, and runtime time; deployment
   metadata alone cannot prove which source revision serves a route.
+
+## Deployed commit reconciliation
+
+- If production reports a newer SHA, check ancestry and the complete diff before
+  advancing the approved reference. A direct report/evidence-only descendant
+  is safe to accept without republishing; any runtime or trading diff is not.

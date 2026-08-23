@@ -1,0 +1,216 @@
+RTV-1G — DEPLOYED COMMIT RECONCILIATION
+
+CURRENT PRODUCTION IDENTITY:
+
+environment = production
+git_commit = 4392f278ae25562f168f970e2b694f8c3d249d5c
+build_id = apexquant-4392f278ae25
+deployment_id = 0d018179-abe0-42c2-a554-dbb19d11341f
+
+Previous approved candidate:
+
+1142f07e5a616747bbfa60722b6d681f0b03c3c0
+
+IMPORTANT OBSERVATION:
+
+The runtime identity mechanism itself now appears correct because:
+
+git_commit prefix = 4392f278ae25
+build_id          = apexquant-4392f278ae25
+
+Therefore do NOT assume this is a stale artifact.
+
+Goal:
+Determine whether production commit
+4392f278ae25562f168f970e2b694f8c3d249d5c
+is a safe descendant of the previously approved candidate or contains unrelated/unapproved changes.
+
+READ-ONLY DIAGNOSIS FIRST.
+
+Do not republish.
+Do not hydrate tokens.
+Do not run scans.
+Do not modify production DB.
+Do not change universe.
+Do not change portfolio.
+Do not place orders.
+
+TASK 1 — COMMIT RELATIONSHIP
+
+Run Git ancestry checks between:
+
+1142f07e5a616747bbfa60722b6d681f0b03c3c0
+
+and
+
+4392f278ae25562f168f970e2b694f8c3d249d5c
+
+Report:
+
+- Is 1142f07e an ancestor of 4392f278? YES/NO
+- Is 4392f278 a descendant of 1142f07e? YES/NO
+- Number of commits between them
+- Branch containing 4392f278
+- Commit timestamp
+- Commit subject
+- Parent commit(s)
+
+TASK 2 — DIFF THE COMMITS
+
+Produce:
+
+git diff --stat 1142f07e...4392f278
+
+and a complete file list.
+
+For every changed file classify:
+
+- RTV-1E approved fix
+- schema safety
+- runtime identity
+- deployment/checkpoint metadata
+- report/evidence only
+- unrelated feature
+- strategy change
+- trading behavior change
+- universe change
+- portfolio change
+- DB/destructive change
+- unknown
+
+TASK 3 — REVIEW EVERY INTERMEDIATE COMMIT
+
+List every commit after 1142f07e up to and including 4392f278.
+
+For each provide:
+
+- SHA
+- timestamp
+- subject
+- files changed
+- purpose
+- safe/unsafe classification
+
+Determine whether any commit changes:
+
+- strategy thresholds
+- signal logic
+- active universe membership
+- capital
+- historical ledger
+- automatic entry state
+- bootstrap
+- broker order behavior
+- risk limits
+- DB destructive schema
+- production secrets
+
+Any such change must be flagged.
+
+TASK 4 — VERIFY REQUIRED RTV-1E CONTENT
+
+Confirm production commit 4392f278 contains:
+
+- runtime identity fix
+- commit-derived build ID
+- non-destructive custom-universe schema contract
+- protected instrument metadata columns
+- custom-universe token hydration support
+- current-universe readiness logic
+- canonical portfolio snapshot fix
+- synthetic/fallback fail-closed logic
+
+Report PASS/FAIL for each.
+
+TASK 5 — VERIFY SCHEMA SAFETY
+
+Regenerate/check the production schema diff against commit 4392f278.
+
+Require:
+
+statementsToExecute = []
+columnsToRemove = []
+tablesToRemove = []
+tablesToTruncate = []
+hasStructuralDataLoss = false
+
+Specifically preserve:
+
+- instrument_token
+- instrument_exchange
+- instrument_tradingsymbol
+- instrument_cache_date
+- instrument_mapping_at
+
+TASK 6 — SAFETY REGRESSION
+
+Confirm production still reports:
+
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- initial capital = 100000
+- automatic paper entries = false
+- bootstrap = false
+- automatic exits = true
+- live broker order placement = disabled
+- historical realized P&L = -278.74
+- open positions = 0
+
+READ ONLY.
+
+TASK 7 — DECIDE THE APPROVED COMMIT
+
+If:
+
+- 4392f278 is a descendant of 1142f07e
+- all intermediate changes are RTV-1E/deployment/safety scoped
+- no unrelated trading changes exist
+- schema diff is non-destructive
+- safety state is unchanged
+
+then update:
+
+APPROVED_DEPLOY_COMMIT =
+4392f278ae25562f168f970e2b694f8c3d249d5c
+
+and classify:
+
+IDENTITY GATE PASS — APPROVED REFERENCE ADVANCED
+
+Do NOT republish because production is already running that exact commit.
+
+If any unapproved change exists:
+
+IDENTITY GATE FAILED — UNAPPROVED SOURCE DIFFERENCE
+
+and stop.
+
+TASK 8 — ONLY IF APPROVED
+
+If 4392f278 is accepted as the new approved deploy commit:
+
+verify production identity again:
+
+environment = production
+git_commit = 4392f278ae25562f168f970e2b694f8c3d249d5c
+build_id = apexquant-4392f278ae25
+
+If exact:
+IDENTITY GATE = PASS
+
+Then STOP.
+
+Do not yet perform token hydration or live-session verification.
+
+OUTPUT:
+
+RTV1G_DEPLOYED_COMMIT_RECONCILIATION.md
+
+FINAL VERDICT:
+
+A. IDENTITY PASS — SAFE DESCENDANT, APPROVED REFERENCE ADVANCED
+B. UNAPPROVED SOURCE DIFFERENCE — STOP
+C. WRONG BRANCH
+D. SCHEMA SAFETY FAILURE
+E. SAFETY REGRESSION
+F. UNRESOLVED
