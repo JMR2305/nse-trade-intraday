@@ -206,6 +206,20 @@ def _with_db(fn, fallback=None):
 
 # ── Session CRUD ──────────────────────────────────────────────────────────────
 
+def _forward_session_status(existing: str, incoming: Optional[str]) -> str:
+    """Mirror the SQL upsert lifecycle guard for focused policy tests."""
+    incoming = incoming or "INITIALISING"
+    if existing in ("RECONCILED_0930", "COMPLETE", "NO_CANDIDATES"):
+        return existing
+    if existing == "RECONCILED" and incoming != "RECONCILED_0930":
+        return existing
+    if existing == "FROZEN" and incoming not in ("RECONCILED", "RECONCILED_0930"):
+        return existing
+    if incoming == "INITIALISING" and existing != "INITIALISING":
+        return existing
+    return incoming
+
+
 def upsert_session(session: dict) -> None:
     def to_db(conn):
         with conn.cursor() as cur:
@@ -213,28 +227,65 @@ def upsert_session(session: dict) -> None:
                 INSERT INTO preopen_sessions
                     (session_id, trading_date, status, symbol_count, valid_count,
                      stale_count, provider_status, frozen_at, reconciled_at, error, updated_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                VALUES (%s,%s,COALESCE(%s, 'INITIALISING'),%s,%s,%s,%s,%s,%s,%s,NOW())
                 ON CONFLICT (session_id) DO UPDATE SET
-                    status=EXCLUDED.status,
-                    symbol_count=EXCLUDED.symbol_count,
-                    valid_count=EXCLUDED.valid_count,
-                    stale_count=EXCLUDED.stale_count,
-                    provider_status=EXCLUDED.provider_status,
-                    frozen_at=EXCLUDED.frozen_at,
-                    reconciled_at=EXCLUDED.reconciled_at,
-                    error=EXCLUDED.error,
+                    -- Lifecycle is forward-only.  A late collection/init
+                    -- write may still refresh counts, but can never reopen a
+                    -- frozen or reconciled historical session.
+                    status=CASE
+                        WHEN preopen_sessions.status IN ('RECONCILED_0930', 'COMPLETE', 'NO_CANDIDATES')
+                            THEN preopen_sessions.status
+                        WHEN preopen_sessions.status = 'RECONCILED'
+                             AND EXCLUDED.status <> 'RECONCILED_0930'
+                            THEN preopen_sessions.status
+                        WHEN preopen_sessions.status = 'FROZEN'
+                             AND EXCLUDED.status NOT IN ('RECONCILED', 'RECONCILED_0930')
+                            THEN preopen_sessions.status
+                        WHEN EXCLUDED.status = 'INITIALISING'
+                             AND preopen_sessions.status <> 'INITIALISING'
+                            THEN preopen_sessions.status
+                        ELSE EXCLUDED.status
+                    END,
+                    symbol_count=COALESCE(EXCLUDED.symbol_count, preopen_sessions.symbol_count),
+                    valid_count=COALESCE(EXCLUDED.valid_count, preopen_sessions.valid_count),
+                    stale_count=COALESCE(EXCLUDED.stale_count, preopen_sessions.stale_count),
+                    provider_status=COALESCE(EXCLUDED.provider_status, preopen_sessions.provider_status),
+                    frozen_at=COALESCE(EXCLUDED.frozen_at, preopen_sessions.frozen_at),
+                    reconciled_at=COALESCE(EXCLUDED.reconciled_at, preopen_sessions.reconciled_at),
+                    error=COALESCE(EXCLUDED.error, preopen_sessions.error),
                     updated_at=NOW()
             """, [
                 session.get("session_id"), session.get("trading_date"),
-                session.get("status", "INITIALISING"),
-                session.get("symbol_count", 0), session.get("valid_count", 0),
-                session.get("stale_count", 0),
-                session.get("provider_status", "UNAVAILABLE"),
+                session.get("status"),
+                session.get("symbol_count"), session.get("valid_count"),
+                session.get("stale_count"),
+                session.get("provider_status"),
                 session.get("frozen_at"), session.get("reconciled_at"),
                 session.get("error"),
             ])
         conn.commit()
     _with_db(to_db)
+
+
+def get_session(session_id: str) -> Optional[dict]:
+    """Return one session by id, for collection persistence verification."""
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT session_id, trading_date, status, symbol_count, valid_count,
+                       stale_count, provider_status, frozen_at, reconciled_at, error,
+                       created_at, updated_at
+                FROM preopen_sessions WHERE session_id = %s
+            """, [session_id])
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = ["session_id","trading_date","status","symbol_count","valid_count",
+                    "stale_count","provider_status","frozen_at","reconciled_at","error",
+                    "created_at","updated_at"]
+            return {k: (v.isoformat() if isinstance(v, datetime) else v)
+                    for k, v in zip(cols, row)}
+    return _with_db(from_db)
 
 
 def get_latest_session() -> Optional[dict]:

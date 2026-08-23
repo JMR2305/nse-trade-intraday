@@ -21,6 +21,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 
 _STORE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".kite_token.json")
+_process_env_before_apply: Optional[tuple[Optional[str], Optional[str]]] = None
 
 # Durable storage key (Postgres phase20_kv). The local file is only a warm
 # cache — Autoscale instances have ephemeral disks and each deploy starts
@@ -176,12 +177,37 @@ def apply_to_env() -> None:
     An expired token is never exported — a stale env token would make
     presence checks look "configured" while every real call fails.
     """
+    global _process_env_before_apply
     data = load()
     if not data:
         return
+    if _process_env_before_apply is None:
+        # This process-only marker lets disconnect undo a store hydration
+        # without changing deployment-provided environment configuration.
+        _process_env_before_apply = (
+            os.environ.get("ZERODHA_ACCESS_TOKEN"),
+            os.environ.get("ZERODHA_TOKEN_TIMESTAMP"),
+        )
     os.environ["ZERODHA_ACCESS_TOKEN"] = data["access_token"]
     if data.get("created_at"):
         os.environ["ZERODHA_TOKEN_TIMESTAMP"] = data["created_at"]
+
+
+def clear_process_hydrated_env() -> None:
+    """Undo only credentials injected by apply_to_env(); never touch secrets."""
+    global _process_env_before_apply
+    if _process_env_before_apply is None:
+        return
+    token, timestamp = _process_env_before_apply
+    if token is None:
+        os.environ.pop("ZERODHA_ACCESS_TOKEN", None)
+    else:
+        os.environ["ZERODHA_ACCESS_TOKEN"] = token
+    if timestamp is None:
+        os.environ.pop("ZERODHA_TOKEN_TIMESTAMP", None)
+    else:
+        os.environ["ZERODHA_TOKEN_TIMESTAMP"] = timestamp
+    _process_env_before_apply = None
 
 
 _AUTH_STATE_PATH = os.path.join(

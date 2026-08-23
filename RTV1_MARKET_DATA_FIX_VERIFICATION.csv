@@ -1,0 +1,17 @@
+area,assertion,evidence,result,live_session_status
+provenance,Kite fallback cannot be labeled Kite-live,focused overlay regressions,PASS,verified in code and tests
+provenance,Mixed quote batches preserve source and reason per symbol,focused overlay regressions,PASS,verified in code and tests
+synthetic_safety,Synthetic source cannot become execution-grade,source gate and existing decision gates,PASS,verified in code and tests
+token_coverage,Active universe count,read-only health contract,50,PENDING live cache hydration
+token_coverage,Valid cached instrument tokens,read-only health contract,1,PENDING authenticated hydration
+token_coverage,Missing cached instrument tokens,read-only health contract,49,PENDING authenticated hydration
+token_coverage,Token coverage percent,read-only health contract,2%,PENDING authenticated hydration
+readiness,Service readiness,read-only health contract,true,PASS
+readiness,Data readiness,read-only health contract,true,PASS for cached analytical data
+readiness,Session freshness,read-only health contract,false,EXPECTED market closed
+readiness,Trading data readiness,read-only health contract,false,PASS fail-closed
+freshness,Fresh scan timestamp required for trading readiness,market_data_health tests,PASS,PENDING live scan
+freshness,Malformed or stale scan timestamp blocks readiness,market_data_health tests,PASS,verified in code and tests
+freshness,Malformed or stale Kite-live quote timestamp blocks readiness,market_data_health tests,PASS,verified in code and tests
+kite_session,Authenticated Kite session present,runtime status,false,MANUAL SECRET / LOGIN ACTION REQUIRED
+fallback,Yahoo/cache fallback visible and not execution-grade,overlay and readiness contract,PASS,PENDING live quote comparison

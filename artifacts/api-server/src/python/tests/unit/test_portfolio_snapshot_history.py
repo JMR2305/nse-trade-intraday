@@ -18,12 +18,22 @@ import portfolio_snapshot
 
 
 def _snapshot_with(state: dict, all_trades: list[dict]) -> dict:
-    """Run get_portfolio_snapshot with paper_trader state & trades stubbed."""
+    """Run the explicit legacy fallback with state & trades stubbed.
+
+    Legacy history is intentionally not allowed to establish a peak for a
+    service/canonical equity snapshot.  These history-normalisation tests
+    therefore exercise the only compatible path: legacy positions/accounting.
+    """
     import paper_trader
+    import canonical_portfolio
 
     with patch.object(paper_trader, "_load_state", return_value=state), \
          patch.object(paper_trader, "get_trades", return_value=[]), \
-         patch.object(paper_trader, "get_all_trades", return_value=all_trades):
+          patch.object(paper_trader, "get_all_trades", return_value=all_trades), \
+          patch.object(portfolio_snapshot, "_positions_from_portfolio_service",
+                       side_effect=RuntimeError("service unavailable")), \
+          patch.object(canonical_portfolio, "build_canonical_portfolio",
+                       side_effect=RuntimeError("canonical unavailable")):
         return portfolio_snapshot.get_portfolio_snapshot()
 
 

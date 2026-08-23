@@ -191,11 +191,36 @@ class TestExchange(Phase19ABase):
         self.assertIsNone(self.store.load())
         _assert_no_secrets(r, self)
 
+    def test_disconnect_removes_store_hydrated_process_token_only(self):
+        os.environ["ZERODHA_API_KEY"] = "key123"
+        os.environ["ZERODHA_API_SECRET"] = "test_secret_xyz"
+        self.store.save_token("stub_access_token_abc123")
+        self.store.apply_to_env()
+        self.assertEqual(os.environ.get("ZERODHA_ACCESS_TOKEN"), "stub_access_token_abc123")
+
+        self.ksm.disconnect_session()
+
+        self.assertNotIn("ZERODHA_ACCESS_TOKEN", os.environ)
+        self.assertNotIn("ZERODHA_TOKEN_TIMESTAMP", os.environ)
+        # Disconnect must not mutate deployment-configured static secrets.
+        self.assertEqual(os.environ.get("ZERODHA_API_SECRET"), "test_secret_xyz")
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Connection state + status payload hygiene
 # ═══════════════════════════════════════════════════════════════════════════
 class TestStatusHygiene(Phase19ABase):
+
+    def test_cached_session_metadata_never_probes_kite(self):
+        """Read-only health evidence must not turn a health request into IO."""
+        self.store.save_token("stub_access_token_abc123")
+        self.store.record_success()
+        with patch.object(self.ksm, "_probe_kite",
+                          side_effect=AssertionError("must not probe")):
+            status = self.ksm.cached_session_metadata()
+        self.assertTrue(status["kite_connected"])
+        self.assertTrue(status["session_fresh"])
+        self.assertNotIn("access_token", status)
 
     def test_state_not_configured(self):
         s = self.ksm.get_status(force_probe=True)

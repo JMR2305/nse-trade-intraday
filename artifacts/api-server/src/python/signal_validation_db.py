@@ -360,9 +360,16 @@ def upsert_session(data: dict) -> None:
                 cur.execute("""
                     INSERT INTO signal_validation_sessions
                         (session_id, trading_date, status)
-                    VALUES (%(session_id)s, %(trading_date)s, %(status)s)
+                    VALUES (%(session_id)s, %(trading_date)s, COALESCE(%(status)s, 'ACTIVE'))
                     ON CONFLICT (session_id) DO UPDATE SET
-                        status              = COALESCE(EXCLUDED.status, signal_validation_sessions.status),
+                        -- A partial lifecycle/report write must not reopen or
+                        -- overwrite a terminal session with its insert default.
+                        status              = CASE
+                            WHEN EXCLUDED.status = 'ACTIVE'
+                             AND signal_validation_sessions.status <> 'ACTIVE'
+                            THEN signal_validation_sessions.status
+                            ELSE EXCLUDED.status
+                        END,
                         signals_generated   = COALESCE(%(signals_generated)s, signal_validation_sessions.signals_generated),
                         signals_approved    = COALESCE(%(signals_approved)s, signal_validation_sessions.signals_approved),
                         paper_trades        = COALESCE(%(paper_trades)s, signal_validation_sessions.paper_trades),
@@ -379,7 +386,7 @@ def upsert_session(data: dict) -> None:
                 """, {
                     "session_id": data.get("session_id"),
                     "trading_date": data.get("trading_date"),
-                    "status": data.get("status", "ACTIVE"),
+                    "status": data.get("status"),
                     "signals_generated": data.get("signals_generated"),
                     "signals_approved": data.get("signals_approved"),
                     "paper_trades": data.get("paper_trades"),

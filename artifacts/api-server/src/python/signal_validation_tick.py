@@ -408,9 +408,43 @@ def _run_eod_close(session_id: str, trading_date: str) -> dict:
         pass
 
     from signal_validation_model import SignalValidationRecord
-    from signal_validation_outcomes import classify_and_update
     from decimal import Decimal
 
+    # Do not mutate outcome/history rows on an incomplete EOD data pass.  A
+    # session can only be COMPLETE when every record is terminal; in
+    # particular, live paper positions require both an exit price and entry
+    # price to close safely.
+    active_raw = [
+        raw for raw in records_raw
+        if not LifecycleState.is_terminal(raw.get("validation_status"))
+    ]
+    closable_states = (LifecycleState.OPEN_POSITION, LifecycleState.PAPER_ORDER_FILLED)
+    blocked = [
+        raw for raw in active_raw
+        if raw.get("validation_status") not in closable_states
+    ]
+    missing_close = [
+        raw for raw in active_raw
+        if raw.get("validation_status") in closable_states
+        and (not eod_prices.get(raw.get("symbol"), {}).get("close")
+             or not raw.get("entry_price"))
+    ]
+    if blocked or missing_close:
+        db.upsert_session({
+            "session_id": session_id, "trading_date": trading_date,
+            "status": "EOD_RETRY_REQUIRED",
+        })
+        return {
+            "classified": 0,
+            "session_status": "EOD_RETRY_REQUIRED",
+            "retry_required": True,
+            "non_terminal_records": len(active_raw),
+            "missing_close_records": len(missing_close),
+            "blocked_lifecycle_records": len(blocked),
+            "note": "EOD close data/lifecycle is incomplete; no record history was rewritten",
+        }
+
+    from signal_validation_outcomes import classify_and_update
     classified = 0
     for rec_raw in records_raw:
         rec = SignalValidationRecord.from_dict(rec_raw)
@@ -446,10 +480,28 @@ def _run_eod_close(session_id: str, trading_date: str) -> dict:
         db.upsert_record(rec.to_dict())
         classified += 1
 
-    # 2. Compute attribution metrics
+    # Verify post-write lifecycle state from persistence before finalising.
+    # This protects against a failed/invalid transition being masked by a
+    # COMPLETE session stamp.
     recs_obj = [SignalValidationRecord.from_dict(r) for r in db.get_records(
         trading_date=trading_date, limit=None)]
+    non_terminal = [
+        r for r in recs_obj if not LifecycleState.is_terminal(r.validation_status)
+    ]
+    if non_terminal:
+        db.upsert_session({
+            "session_id": session_id, "trading_date": trading_date,
+            "status": "EOD_RETRY_REQUIRED",
+        })
+        return {
+            "classified": classified,
+            "session_status": "EOD_RETRY_REQUIRED",
+            "retry_required": True,
+            "non_terminal_records": len(non_terminal),
+            "note": "EOD classification did not terminally resolve every record",
+        }
 
+    # 2. Compute attribution metrics
     from signal_validation_attribution import (
         calculate_strategy_attribution, calculate_ai_attribution,
         calculate_preopen_attribution, calculate_regime_attribution, calculate_summary
@@ -634,7 +686,10 @@ def run_tick() -> Dict[str, Any]:
     except Exception as e:
         return {**base, "reason": f"Phase '{phase_name}' raised unexpectedly: {e}"}
 
-    if once_only:
+    # Retry-required EOD outcomes intentionally remain eligible for another
+    # invocation in the EOD window.  Recording them as done would turn a
+    # transient provider gap into a permanent incomplete session.
+    if once_only and not detail.get("retry_required", False):
         state.setdefault("phases_done", {})[phase_name] = {
             "ts": now.isoformat(), **detail,
         }

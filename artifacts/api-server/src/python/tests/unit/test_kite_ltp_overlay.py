@@ -113,8 +113,9 @@ class TestFetchLtpOverlay(unittest.TestCase):
         _install_config(True)
         mock_kqp = types.ModuleType("kite_quote_provider")
         mock_kqp.kite_session_verified = MagicMock(return_value=True)
-        mock_kqp.get_ltp = MagicMock(return_value={
-            "INFY": 1800.5, "TCS": 3500.0
+        mock_kqp.get_quotes = MagicMock(return_value={
+            "INFY": {"ltp": 1800.5, "data_source": "kite_live"},
+            "TCS": {"ltp": 3500.0, "data_source": "kite_live"},
         })
         sys.modules["kite_quote_provider"] = mock_kqp
         import importlib
@@ -131,7 +132,8 @@ class TestFetchLtpOverlay(unittest.TestCase):
         _install_config(True)
         mock_kqp = types.ModuleType("kite_quote_provider")
         mock_kqp.kite_session_verified = MagicMock(return_value=True)
-        mock_kqp.get_ltp = MagicMock(return_value={"INFY": 1800.5})
+        mock_kqp.get_quotes = MagicMock(return_value={
+            "INFY": {"ltp": 1800.5, "data_source": "kite_live"}})
         sys.modules["kite_quote_provider"] = mock_kqp
         import importlib
         import kite_ltp_overlay
@@ -139,12 +141,83 @@ class TestFetchLtpOverlay(unittest.TestCase):
         result = kite_ltp_overlay.fetch_ltp_overlay(["INFY"])
         self.assertIn("Kite live LTP", result["note"])
 
+    def test_verified_session_yfinance_fallback_is_not_live_ltp(self) -> None:
+        """A valid Kite login cannot promote a fallback quote to execution LIVE."""
+        _install_config(True)
+        mock_kqp = types.ModuleType("kite_quote_provider")
+        mock_kqp.kite_session_verified = MagicMock(return_value=True)
+        mock_kqp.get_quotes = MagicMock(return_value={
+            "INFY": {"ltp": 1855.25, "data_source": "kite_live"},
+            "TCS": {
+                "ltp": 3500.0, "data_source": "yfinance_fallback",
+                "kite_error": "quote endpoint unavailable",
+            },
+        })
+        sys.modules["kite_quote_provider"] = mock_kqp
+        import importlib
+        import kite_ltp_overlay
+        importlib.reload(kite_ltp_overlay)
+
+        result = kite_ltp_overlay.fetch_ltp_overlay(["INFY", "TCS"])
+        self.assertTrue(result["session_verified"])
+        self.assertEqual(result["ltps"], {"INFY": 1855.25})
+        self.assertEqual(result["quote_sources"]["TCS"], "yfinance_fallback")
+        self.assertIn("quote endpoint unavailable", result["quote_reasons"]["TCS"])
+
+        fallback = kite_ltp_overlay.build_symbol_overlay(
+            "TCS", 3400.0, "ACCEPTABLE", result)
+        self.assertFalse(fallback["kite_ltp_available"])
+        self.assertFalse(fallback["quote_reliable"])
+        self.assertEqual(fallback["execution_price_source"], "yfinance_daily_bars")
+        self.assertNotEqual(fallback["data_quality_for_execution"], "LIVE")
+
+    def test_mixed_quote_outcomes_preserve_per_symbol_provenance(self) -> None:
+        _install_config(True)
+        mock_kqp = types.ModuleType("kite_quote_provider")
+        mock_kqp.kite_session_verified = MagicMock(return_value=True)
+        mock_kqp.get_quotes = MagicMock(return_value={
+            "INFY": {"ltp": 1855.25, "data_source": "kite_live"},
+            "TCS": {
+                "ltp": None, "data_source": "kite_unavailable",
+                "reason_not_live": "Kite returned no valid last_price for symbol",
+            },
+        })
+        sys.modules["kite_quote_provider"] = mock_kqp
+        import importlib
+        import kite_ltp_overlay
+        importlib.reload(kite_ltp_overlay)
+
+        result = kite_ltp_overlay.fetch_ltp_overlay(["INFY", "TCS"])
+        live = kite_ltp_overlay.build_symbol_overlay("INFY", 1800.0, "ACCEPTABLE", result)
+        unavailable = kite_ltp_overlay.build_symbol_overlay("TCS", 3400.0, "ACCEPTABLE", result)
+        self.assertTrue(live["quote_reliable"])
+        self.assertEqual(live["execution_price_source"], "kite_live_ltp")
+        self.assertFalse(unavailable["quote_reliable"])
+        self.assertIn("no valid last_price", unavailable["reason_not_live_ltp"])
+
+    def test_yfinance_quality_label_cannot_become_execution_live(self) -> None:
+        _install_config(True)
+        import importlib
+        import kite_ltp_overlay
+        importlib.reload(kite_ltp_overlay)
+        overlay = kite_ltp_overlay.build_symbol_overlay(
+            "TCS", 3400.0, "LIVE", {
+                "enabled": True,
+                "session_verified": True,
+                "ltps": {},
+                "quote_sources": {"TCS": "yfinance_fallback"},
+                "quote_reasons": {"TCS": "Kite unavailable"},
+                "fetched_at": None,
+            })
+        self.assertEqual(overlay["data_quality_for_execution"], "NON_LIVE_YFINANCE")
+        self.assertFalse(overlay["quote_reliable"])
+
     # Scenario 3: flag enabled + Kite session unavailable → safe fallback
     def test_flag_enabled_session_not_ok_returns_empty_ltps(self) -> None:
         _install_config(True)
         mock_kqp = types.ModuleType("kite_quote_provider")
         mock_kqp.kite_session_verified = MagicMock(return_value=False)
-        mock_kqp.get_ltp = MagicMock(return_value={})
+        mock_kqp.get_quotes = MagicMock(return_value={})
         sys.modules["kite_quote_provider"] = mock_kqp
         import importlib
         import kite_ltp_overlay
@@ -158,7 +231,8 @@ class TestFetchLtpOverlay(unittest.TestCase):
         _install_config(True)
         mock_kqp = types.ModuleType("kite_quote_provider")
         mock_kqp.kite_session_verified = MagicMock(return_value=False)
-        mock_kqp.get_ltp = MagicMock(return_value={"INFY": 1800.5})
+        mock_kqp.get_quotes = MagicMock(return_value={
+            "INFY": {"ltp": 1800.5, "data_source": "kite_live"}})
         sys.modules["kite_quote_provider"] = mock_kqp
         import importlib
         import kite_ltp_overlay
@@ -166,8 +240,8 @@ class TestFetchLtpOverlay(unittest.TestCase):
         result = kite_ltp_overlay.fetch_ltp_overlay(["INFY"])
         # session_verified=False → ltps must be empty regardless of get_ltp
         self.assertEqual(result["ltps"], {})
-        # get_ltp must not have been called
-        mock_kqp.get_ltp.assert_not_called()
+        # get_quotes must not have been called
+        mock_kqp.get_quotes.assert_not_called()
 
     # Exception path → no crash
     def test_exception_returns_safe_dict(self) -> None:
@@ -212,6 +286,8 @@ class TestBuildSymbolOverlay(unittest.TestCase):
         return {
             "enabled": True, "session_verified": True,
             "ltps": ltps, "fetched_at": "2026-08-15T10:00:00Z",
+            "quote_sources": {key: "kite_live" for key in ltps},
+            "quote_reasons": {},
             "note": "overlay active", "error": None,
         }
 
@@ -546,6 +622,8 @@ class TestDiagnosticFields(unittest.TestCase):
         return {
             "enabled": True, "session_verified": True,
             "ltps": {"INFY": 1855.25},
+            "quote_sources": {"INFY": "kite_live"},
+            "quote_reasons": {},
             "fetched_at": "2026-08-15T10:00:00Z",
             "note": "active", "error": None,
         }

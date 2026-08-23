@@ -107,10 +107,19 @@ def _write_raw_cache(raw_trades: List[Dict], state: Dict, canon: Optional[Dict] 
         _log.debug("perf cache write failed (non-fatal): %s", exc)
 
 
-try:
-    from portfolio_store import INITIAL_CAPITAL as INITIAL_CAPITAL  # single source of truth
-except Exception:  # pragma: no cover — portfolio_store must exist in this tree
-    INITIAL_CAPITAL = 100_000.0
+def _initial_capital() -> float:
+    """Read the active Phase-20 capital authority at request time.
+
+    A module-level imported constant becomes stale after an operator rebases
+    capital, causing analytics return/drawdown denominators to disagree with
+    the canonical portfolio.  The accessor is deliberately evaluated per
+    response instead.
+    """
+    try:
+        from portfolio_store import get_initial_capital
+        return float(get_initial_capital())
+    except Exception:  # pragma: no cover — cold-start compatibility only
+        return 100_000.0
 
 
 # ── Sector lookup (best-effort) ───────────────────────────────────────────────
@@ -342,20 +351,21 @@ def build_summary() -> Dict[str, Any]:
     total   = d["total_value"]
     unreal  = d["unrealised_pnl"]
     real    = d["realised_pnl"]
+    initial_capital = _initial_capital()
 
     # Equity curve (for drawdown)
     curves  = build_equity_curves(history)
     daily_pts = _points_from_history(history)
     _annotate_drawdown(daily_pts)
-    dd_stats = compute_drawdown_stats(daily_pts, INITIAL_CAPITAL)
+    dd_stats = compute_drawdown_stats(daily_pts, initial_capital)
 
     trade_stats = compute_trade_statistics(closed)
     risk_stats  = compute_risk_metrics(closed)
     period_pnl  = compute_period_pnl(closed)
 
     net_pnl     = real + unreal
-    lifetime    = total - INITIAL_CAPITAL
-    total_ret   = (lifetime / INITIAL_CAPITAL * 100) if INITIAL_CAPITAL > 0 else 0.0
+    lifetime    = total - initial_capital
+    total_ret   = (lifetime / initial_capital * 100) if initial_capital > 0 else 0.0
     utilisation = (invested / total * 100) if total > 0 else 0.0
 
     max_pos_wt = max((p.weight_pct for p in opens), default=0.0)
@@ -365,7 +375,7 @@ def build_summary() -> Dict[str, Any]:
         "label":  _LABEL,
         # Portfolio value
         "total_portfolio_value": round(total, 2),
-        "initial_capital":       round(INITIAL_CAPITAL, 2),
+        "initial_capital":       round(initial_capital, 2),
         "cash_available":        round(cash, 2),
         "invested_capital":      round(invested, 2),
         "unrealised_pnl":        round(unreal, 2),

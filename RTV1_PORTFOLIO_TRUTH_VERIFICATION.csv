@@ -1,0 +1,25 @@
+metric,formula,authoritative_source,API,current_value,validation_rule,result
+Total Capital,configured Phase-20 initial capital,phase20 ledger settings,/api/portfolio and /api/portfolio/snapshot,100000,positive configured value and both APIs agree,PASS
+Cash Available,capital minus open cost plus realized PnL,phase20 ledger,/api/portfolio and /api/portfolio/snapshot,100000,cash is non-negative and both APIs agree,PASS
+Invested Amount,sum open cost basis,phase20 ledger,/api/portfolio and /api/portfolio/snapshot,0,non-negative and both APIs agree,PASS
+Utilization %,current market value divided by equity * 100,canonical portfolio,/api/portfolio and /api/portfolio/snapshot,0,0 through 100 inclusive and both APIs agree,PASS
+Largest Position %,largest market value divided by equity * 100,canonical portfolio,/api/portfolio and /api/portfolio/snapshot,0,0 through 100 inclusive and both APIs agree,PASS
+Daily Risk,configured limit and current exposure,portfolio configuration plus canonical portfolio,/api/portfolio/config and /api/portfolio/snapshot,0 exposure,no NaN/Infinity and no negative exposure,PASS
+Maximum Possible Loss,position risk inputs under configured limits,canonical positions plus portfolio configuration,/api/portfolio/snapshot,0 with no positions,finite and bounded by exposure,PASS
+Expected Reward,position target inputs,canonical positions,/api/portfolio/snapshot,0 with no positions,finite and no zero-quantity calculation,PASS
+Average R:R,aggregate valid position reward/risk values,canonical positions,/api/portfolio/snapshot,not applicable with no positions,no division by zero,PASS
+Sector Diversification,grouped current market value by sector,canonical positions,/api/portfolio/snapshot,empty,sector totals are non-negative,PASS
+Portfolio Allocation,current market value divided by equity,canonical positions,/api/portfolio and /api/portfolio/snapshot,0%,both APIs agree and remains within bounds,PASS
+Trade Approval Cards,admission uses authoritative cash and active-symbol state,Phase-20 admission transaction,Phase-20 execution path,none created,OPEN and EXIT_PENDING cannot duplicate/overspend,PASS in isolated regression
+
+check,canonical_api,snapshot_api,result
+source,phase20_ledger,phase20_ledger,PASS
+initial_capital,100000,100000,PASS
+cash,100000,100000,PASS
+equity,100000,100000,PASS
+total_equity,100000,100000,PASS
+invested_value,0,0,PASS
+current_market_value,0,0,PASS
+utilization_pct,0,0,PASS
+largest_position_pct,0,0,PASS
+drawdown_pct,n/a,0,PASS - false 50 percent drawdown removed

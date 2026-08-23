@@ -413,6 +413,20 @@ def run_tick() -> Dict[str, Any]:
 
     if not records:
         detail = {"symbols": 0}
+        # Before EOD, Phase 5A data may still become available.  At EOD this
+        # is terminal for the validation session, rather than leaving a
+        # misleading COLLECTING session behind.
+        if cp_name == "eod_classify":
+            try:
+                db.upsert_validation_session({
+                    "session_id": session_id, "trading_date": trading_date,
+                    "status": "NO_CANDIDATES",
+                    "total_candidates": 0, "classified_candidates": 0,
+                    "metrics_computed": False,
+                })
+            except Exception:
+                pass
+            detail.update({"terminal": True, "session_status": "NO_CANDIDATES"})
         state  = _state_add_checkpoint(state, cp_name, {**detail, "skipped": "no_candidates"})
         _save_state(state)
         base["checkpoints_done"] = list(state["checkpoints_done"].keys())

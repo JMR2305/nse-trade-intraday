@@ -106,30 +106,21 @@ def _positions_from_portfolio_service() -> tuple[List[Dict[str, Any]], Dict[str,
 
 def get_portfolio_snapshot() -> Dict[str, Any]:
     """Return a normalised portfolio snapshot suitable for the dashboard."""
-    # ── 0. Primary: PortfolioService (durable Postgres event ledger +
-    #        snapshot repository — resilient to API-server restarts) ────────
+    # ── 0. Primary: Phase-20 canonical portfolio ───────────────────────────
+    # This endpoint is the PortfolioLive operator contract.  Its financial
+    # values must be derived from the same Phase-20 ledger/configuration as
+    # every other operator portfolio API, never from the bridge's independently
+    # seeded service snapshot (which can have another capital basis).
     open_positions: List[Dict[str, Any]] = []
     position_source = None
-    service_ok = False
-    service_aggregates: Dict[str, float] = {}
-    try:
-        open_positions, service_aggregates = _positions_from_portfolio_service()
-        service_ok = True  # a valid EMPTY book is a success, not a fallback cue
-        position_source = "portfolio_service"
-    except Exception as exc:
-        logger.debug("portfolio service snapshot unavailable: %s", exc)
-
-    # ── 1. Fallback: Phase-20 durable open positions ──────────────────────
-    # get_open_positions_view() returns rows with keys:
-    #   fill_price, current_price, unrealized_pnl (American spelling), quantity,
-    #   symbol, sector, strategy_id, side, fill_ts, stop_loss, target, …
-    # Canonical positions (phase20 ledger incl. EXIT_PENDING, canonical marks)
-    # adapted to this endpoint's legacy row shape.  Only used when the
-    # PortfolioService call above failed (a valid empty book is authoritative
-    # and must NOT trigger fallback to possibly-stale sources).
+    canonical_ok = False
+    canonical_snapshot: Dict[str, Any] = {}
     try:
         from canonical_portfolio import build_canonical_portfolio
-        for p in (build_canonical_portfolio()["positions"] if not service_ok else []):
+        canonical_snapshot = build_canonical_portfolio()
+        canonical_ok = True
+        position_source = str(canonical_snapshot.get("source") or "phase20_ledger")
+        for p in canonical_snapshot["positions"]:
             qty = int(p.get("quantity") or 0)
             fill_price = _safe_float(p.get("avg_price"))           # avg entry
             mark = p.get("mark_price")
@@ -156,7 +147,7 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     except Exception as exc:
         logger.debug("canonical positions unavailable: %s", exc)
 
-    # ── 2. Fall back to legacy paper_trader state ──────────────────────────
+    # ── 1. Fallback: legacy paper_trader state ─────────────────────────────
     legacy_state: Dict[str, Any] = {}
     try:
         from paper_trader import _load_state, get_portfolio, INITIAL_CAPITAL as IC
@@ -165,8 +156,9 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     except Exception:
         _INITIAL_CAPITAL_local = _INITIAL_CAPITAL
 
-    # If the service AND phase20 gave us nothing, build from legacy positions
-    if not service_ok and not open_positions:
+    # Only use legacy positions when the canonical source is unavailable.  A
+    # valid empty canonical book is authoritative and must remain empty.
+    if not canonical_ok:
         raw_positions_legacy = legacy_state.get("positions", {})
         if raw_positions_legacy:
             try:
@@ -203,31 +195,19 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     except Exception:
         state = legacy_state
 
-    # Accounting must come from the SAME source as the positions — mixing
-    # recovered service positions with canonical/legacy cash double-counts
-    # or presents stale metrics during a ledger outage.
-    if service_ok:
-        cash = service_aggregates["cash"]
-        total_invested = service_aggregates["invested_cost"]
-        unrealised_pnl = service_aggregates["unrealised_pnl"]
+    # Accounting must come from the SAME source as positions.
+    if canonical_ok:
+        cash = _safe_float(canonical_snapshot.get("cash"))
+        total_invested = _safe_float(canonical_snapshot.get("invested_value"))
+        unrealised_pnl = _safe_float(canonical_snapshot.get("unrealized_pnl"))
         _INITIAL_CAPITAL_local = (
-            service_aggregates.get("initial_capital") or _INITIAL_CAPITAL_local
+            _safe_float(canonical_snapshot.get("initial_capital"))
+            or _INITIAL_CAPITAL_local
         )
     else:
-        # Canonical cash/equity accounting (phase20 ledger):
-        #   cash = INITIAL_CAPITAL − Σ(open cost) + Σ(realized)
-        # Never mix legacy paper_trader cash with ledger positions.
-        try:
-            from canonical_portfolio import build_canonical_portfolio
-            _canon = build_canonical_portfolio()
-            cash = _canon["cash"]
-            total_invested = _canon["invested_value"]
-            unrealised_pnl = _safe_float(_canon["unrealized_pnl"])
-            _INITIAL_CAPITAL_local = _canon["initial_capital"] or _INITIAL_CAPITAL_local
-        except Exception:
-            cash = _safe_float(state.get("cash", _INITIAL_CAPITAL_local))
-            total_invested = sum(p["market_value"] for p in open_positions)
-            unrealised_pnl = sum(p["unrealised_pnl"] for p in open_positions)
+        cash = _safe_float(state.get("cash", _INITIAL_CAPITAL_local))
+        total_invested = sum(p["market_value"] for p in open_positions)
+        unrealised_pnl = sum(p["unrealised_pnl"] for p in open_positions)
 
     # Realised P&L: sum of completed trades recorded today, plus a per-session
     # daily realised P&L history for the dashboard bar chart.
@@ -277,13 +257,39 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
 
     # equity = capital + realized + unrealized MTM (canonical accounting);
     # cash + cost-basis invested would silently drop unrealized P&L.
-    equity = cash + total_invested + unrealised_pnl
-    initial_capital = _safe_float(state.get("initial_capital", _INITIAL_CAPITAL_local))
+    # The canonical adapter owns the equity definition.  Preserve its value
+    # exactly when provided rather than reconstructing it from rounded
+    # component fields: canonical cash/invested/unrealised may intentionally
+    # have a different reconciliation treatment (e.g. realised ledger P&L).
+    if canonical_ok and canonical_snapshot.get("equity") is not None:
+        equity = _safe_float(canonical_snapshot.get("equity"))
+    else:
+        equity = cash + total_invested + unrealised_pnl
+    # Capital and peak history must have the same accounting basis as equity.
+    # In particular, a legacy paper_trader peak cannot be compared to a
+    # canonical/service equity after a capital rebase: it creates a fictitious
+    # drawdown (often ~50%).  The ledger/service currently have no durable
+    # equity-curve series, so their safe peak is this basis's initial/equity
+    # high-water mark rather than legacy history.
+    if canonical_ok:
+        initial_capital = _safe_float(
+            canonical_snapshot.get("initial_capital"), _INITIAL_CAPITAL_local
+        )
+        pnl_history = []
+    else:
+        initial_capital = _safe_float(
+            state.get("initial_capital", _INITIAL_CAPITAL_local)
+        )
+        pnl_history = [
+            p for p in (state.get("pnl_history", []) or [])
+            if isinstance(p, dict)
+        ]
     if initial_capital <= 0:
         initial_capital = _INITIAL_CAPITAL_local
+    total_pnl = equity - initial_capital
 
-    # Peak equity: use the maximum from pnl_history if available
-    pnl_history = [p for p in (state.get("pnl_history", []) or []) if isinstance(p, dict)]
+    # Only same-basis legacy history is eligible to establish a historical
+    # peak. See basis selection directly above.
     if pnl_history:
         peak_equity = max(
             (_safe_float(p.get("value", p.get("equity", equity))) for p in pnl_history),
@@ -345,6 +351,11 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
             "position_count": data["position_count"],
         })
     sector_exposures.sort(key=lambda s: s["exposure_pct"], reverse=True)
+    current_value = total_invested + unrealised_pnl
+    utilisation_pct = (current_value / equity * 100.0) if equity > 0 else 0.0
+    largest_position = max(
+        open_positions, key=lambda p: _safe_float(p.get("market_value")), default=None
+    )
 
     # ── 6. Exposure warnings ───────────────────────────────────────────────
     exposure_warnings: List[Dict[str, Any]] = []
@@ -372,19 +383,49 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
                 "severity": "CRITICAL" if se["ratio"] >= 1.0 else "WARNING",
             })
 
+    calculated_at = _now_iso()
     return {
         "status": status,
         "position_source": position_source or ("canonical_ledger" if open_positions else "none"),
+        # Explicit canonical financial contract for PortfolioLive consumers.
+        "source": position_source or ("canonical_ledger" if canonical_ok else "legacy"),
+        "calculated_at": calculated_at,
+        "source_calculated_at": calculated_at,
+        "portfolio_version": canonical_snapshot.get("portfolio_version") if canonical_ok else None,
+        "mark_basis": canonical_snapshot.get("mark_basis") if canonical_ok else "legacy",
         "paper_mode": True,
-        "snapshotted_at": _now_iso(),
+        "snapshotted_at": calculated_at,
         "equity": round(equity, 2),
+        "total_equity": round(equity, 2),
         "cash": round(cash, 2),
         "buying_power": round(buying_power, 2),
         "invested_value": round(total_invested, 2),
+        "current_value": round(current_value, 2),
+        "current_market_value": round(current_value, 2),
         "initial_capital": round(initial_capital, 2),
         "unrealised_pnl": round(unrealised_pnl, 2),
+        "unrealized_pnl": round(unrealised_pnl, 2),
+        "realised_pnl": round(
+            _safe_float(canonical_snapshot.get("realized_pnl"))
+            if canonical_ok else realised_pnl_today,
+            2,
+        ),
+        "realized_pnl": round(
+            _safe_float(canonical_snapshot.get("realized_pnl"))
+            if canonical_ok else realised_pnl_today,
+            2,
+        ),
         "realised_pnl_today": round(realised_pnl_today, 2),
-        "total_pnl": round(unrealised_pnl + realised_pnl_today, 2),
+        # Lifetime total P&L must use the same canonical equity/capital basis,
+        # not a legacy daily realised-P&L chart bucket.
+        "total_pnl": round(total_pnl, 2),
+        "utilisation_pct": round(utilisation_pct, 2),
+        "utilization_pct": round(utilisation_pct, 2),
+        "largest_position": largest_position,
+        "largest_position_pct": (
+            round(_safe_float(largest_position.get("market_value")) / equity_safe * 100.0, 2)
+            if largest_position else 0.0
+        ),
         "peak_equity": round(peak_equity, 2),
         "drawdown_amount": round(drawdown_amount, 2),
         "drawdown_pct": round(drawdown_pct, 2),
@@ -396,6 +437,8 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
         "sector_limit_pct": sector_limit_pct,
         "limits_from_config": limits_from_config,
         "sector_exposures": sector_exposures,
+        "sector_exposure": sector_exposures,
+        "source_timestamp": calculated_at,
         "exposure_warnings": exposure_warnings,
         # ── Performance history (Task 24) ──────────────────────────────
         # Equity curve points from paper_trader pnl_history (normalised to

@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 PROBE_CACHE_TTL_S = 60          # seconds between live Kite API probes
+SESSION_FRESH_TTL_S = 300       # cached authenticated success is useful for 5 min
 TOKEN_DANGER_HOURS = 20.0       # warn if token is older than this
 KITE_TOKEN_EXPIRY_HOUR_IST = 6  # tokens expire at 06:00 IST
 IST_OFFSET_HOURS = 5.5          # IST = UTC + 5:30
@@ -83,6 +84,44 @@ def _get_secret() -> Optional[str]:
 def creds_present() -> bool:
     k, t = _get_creds()
     return bool(k and t)
+
+
+def cached_session_metadata() -> Dict[str, Any]:
+    """Return non-secret session evidence without contacting Kite.
+
+    Presence of credentials is deliberately not reported as connected.  A
+    connection is only usable in read-only health when an authenticated
+    success was recorded recently and the stored token is not expired.
+    """
+    try:
+        import kite_token_store
+        meta = kite_token_store.metadata()
+    except Exception:
+        meta = {}
+    last_success = meta.get("last_success_at")
+    age_s: Optional[float] = None
+    if last_success:
+        try:
+            stamp = datetime.fromisoformat(str(last_success).replace("Z", "+00:00"))
+            if stamp.tzinfo is None:
+                stamp = stamp.replace(tzinfo=timezone.utc)
+            age_s = max(0.0, (datetime.now(timezone.utc) - stamp).total_seconds())
+        except Exception:
+            age_s = None
+    session_fresh = bool(
+        meta.get("stored")
+        and not meta.get("expired")
+        and age_s is not None
+        and age_s <= SESSION_FRESH_TTL_S
+    )
+    return {
+        "kite_connected": session_fresh,
+        "session_fresh": session_fresh,
+        "last_authenticated_at": last_success,
+        "last_authenticated_age_s": round(age_s, 1) if age_s is not None else None,
+        "token_stored": bool(meta.get("stored")),
+        "token_expired": bool(meta.get("expired")),
+    }
 
 
 # ── Token age / expiry logic ──────────────────────────────────────────────────
@@ -249,11 +288,19 @@ def exchange_request_token(request_token: Optional[str]) -> Dict[str, Any]:
 
 
 def disconnect_session() -> Dict[str, Any]:
-    """Clear the stored access token (backend-only). Read-only safe."""
+    """Clear stored and store-hydrated process credentials; static secrets stay intact."""
     import kite_token_store
     removed = kite_token_store.clear()
+    # A token loaded into this process before disconnect must not remain usable
+    # through env-first credential resolution after its durable record is gone.
+    kite_token_store.clear_process_hydrated_env()
     kite_token_store.clear_auth_failure()
     invalidate_cache()
+    try:
+        from kite_quote_provider import invalidate_cache as invalidate_quote_cache
+        invalidate_quote_cache()
+    except Exception:
+        pass
     return {"success": True, "removed": removed, "state": "LOGIN_REQUIRED",
             "message": "Kite session disconnected. Stored token removed."}
 

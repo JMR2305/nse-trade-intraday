@@ -102,6 +102,7 @@ def cmd_portfolio() -> dict:
     c = build_canonical_portfolio()
     total_pnl = round((c["realized_pnl"] or 0.0) + (c["unrealized_pnl"] or 0.0), 2)
     cap = c["initial_capital"] or 0.0
+    calculated_at = c.get("calculated_at") or datetime.now().astimezone().isoformat()
     # pnl_history retained from the legacy state store for chart continuity
     try:
         from paper_trader import _load_state
@@ -111,17 +112,38 @@ def cmd_portfolio() -> dict:
     return {
         "cash": c["cash"],
         "total_value": c["equity"],
+        "equity": c["equity"],
+        "total_equity": c["equity"],
         "invested_value": c["invested_value"],
+        "current_market_value": round(
+            sum(float(p.get("market_value") or 0.0) for p in c["positions"]), 2
+        ),
         "total_pnl": total_pnl,
         "total_pnl_pct": round(100.0 * total_pnl / cap, 2) if cap else 0.0,
         "positions": c["positions"],
+        "open_positions": c["positions"],
+        "open_position_count": c["open_position_count"],
+        "sector_exposure": c["sector_exposure"],
+        "source": c["source"],
         "pnl_history": pnl_history,
         "initial_capital": cap,
         "realized_pnl": c["realized_pnl"],
         "unrealized_pnl": c["unrealized_pnl"],
+        "utilization_pct": round(
+            (sum(float(p.get("market_value") or 0.0) for p in c["positions"]) / c["equity"] * 100.0)
+            if c["equity"] > 0 else 0.0,
+            2,
+        ),
+        "largest_position_pct": round(
+            (max((float(p.get("market_value") or 0.0) for p in c["positions"]), default=0.0)
+             / c["equity"] * 100.0)
+            if c["equity"] > 0 else 0.0,
+            2,
+        ),
         "scan_id": c["scan_id"],
         "portfolio_version": c["portfolio_version"],
-        "source": c["source"],
+        "calculated_at": calculated_at,
+        "source_timestamp": calculated_at,
     }
 
 
@@ -935,7 +957,11 @@ def main():
             from market_hours import market_status
             from live_quote_service import provider_status
             from live_scan_engine import load_cached_scan
+            from kite_instrument_cache import get_cached_instruments
+            from kite_session_manager import cached_session_metadata
+            from market_data_health import build_market_data_health
             _cached = load_cached_scan()
+            _session = cached_session_metadata()
             result = {
                 "success": True,
                 "market": market_status(),
@@ -943,6 +969,11 @@ def main():
                 "scan_provider_health": _cached.get("provider_health") if _cached else None,
                 "scan_id": _cached.get("scan_id") if _cached else None,
                 "snapshot_ts": _cached.get("snapshot_ts") if _cached else None,
+                # Derived entirely from cache files and recorded session
+                # metadata; this health command never forces quote/profile IO.
+                "market_data_readiness": build_market_data_health(
+                    _cached, _session, get_cached_instruments()),
+                "kite_session": _session,
                 "label": "PAPER / LIVE DATA VALIDATION",
             }
         elif command == "diagnostic_bundle":

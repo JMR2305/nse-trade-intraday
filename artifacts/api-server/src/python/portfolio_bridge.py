@@ -89,7 +89,10 @@ def _build_service():
 
     try:
         import portfolio_store
-        initial_capital = str(portfolio_store.INITIAL_CAPITAL)
+        # This accessor reads the Phase-20 operator setting.  Do not capture
+        # the module fallback constant here: a bridge started after an operator
+        # capital rebase must seed/configure the service on that new basis.
+        initial_capital = str(portfolio_store.get_initial_capital())
     except Exception:
         initial_capital = "100000"
 

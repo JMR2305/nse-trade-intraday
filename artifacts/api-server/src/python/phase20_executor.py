@@ -291,6 +291,27 @@ def _insert_row(row: Dict[str, Any]) -> Dict[str, Any]:
                         )
                     admitted_row = dict(row)
                     if row.get("status") == "OPEN":
+                        # The partial unique index protects OPEN rows only.
+                        # EXIT_PENDING still owns the economic position until
+                        # its exit is committed, so admitting the same symbol
+                        # here would double-spend capital.  Check and lock the
+                        # authoritative row inside the existing transaction
+                        # and admission advisory lock; no schema migration is
+                        # needed and a concurrent exit cannot race this check.
+                        cur.execute(
+                            """
+                            SELECT trade_id
+                            FROM phase20_paper_trades
+                            WHERE UPPER(symbol) = UPPER(%s)
+                              AND status IN ('OPEN', 'EXIT_PENDING')
+                            LIMIT 1
+                            FOR UPDATE
+                            """,
+                            (str(row.get("symbol") or ""),),
+                        )
+                        if cur.fetchone() is not None:
+                            conn.rollback()
+                            raise DuplicateOpenTrade(str(row.get("symbol")))
                         cur.execute(
                             """
                             SELECT symbol, sector, quantity, fill_price
@@ -429,7 +450,7 @@ def _insert_row(row: Dict[str, Any]) -> Dict[str, Any]:
                 return admitted_row
             finally:
                 conn.close()
-        except PaperEntryAdmissionError:
+        except (PaperEntryAdmissionError, DuplicateOpenTrade):
             raise
         except Exception as exc:
             name = type(exc).__name__

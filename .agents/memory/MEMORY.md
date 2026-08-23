@@ -126,3 +126,4 @@
 - [Two-environment DB architecture](two-env-db.md) — production DB (nse-trade-intraday.replit.app) and local dev DB (localhost:8080) are separate; prod initial_capital=500000; dev initial_capital=100000; never assume they share state.
 - [Advisory audit governance](advisory-audit-governance.md) — immutable advisory storage must independently recompute supervisor approval from actual inputs before any write.
 - [Static architecture audit boundary](static-architecture-audit.md) — architecture inventories are source-derived; never treat table/state presence or route reachability as runtime-verified without live evidence.
+- [Trading-data readiness contract](trading-data-readiness.md) — never infer trading readiness from service health; require full token coverage plus fresh scan and per-quote provenance timestamps.

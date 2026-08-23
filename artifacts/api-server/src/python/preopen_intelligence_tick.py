@@ -214,9 +214,28 @@ def _run_collect(session_id: str) -> dict:
     try:
         import preopen_engine as eng
         result = eng.collect_snapshot(session_id=session_id)
+        # Engine's authoritative response is symbol_count.  Keep the former
+        # symbols_captured name as an alias for callers that already use it.
+        collected = result.get("symbol_count", result.get("symbols_captured", 0))
+        persisted = None
+        try:
+            import preopen_db as pdb
+            row = pdb.get_session(session_id)
+            persisted = row.get("symbol_count") if row else None
+        except Exception:
+            pass
+        if persisted is None:
+            persistence_status = "UNCONFIRMED"
+        elif persisted != collected:
+            persistence_status = "MISMATCH"
+        else:
+            persistence_status = "MATCH"
         return {
             "success":          result.get("success", False),
-            "symbols_captured": result.get("symbols_captured", 0),
+            "symbol_count":     collected,
+            "symbols_captured": collected,
+            "persisted_symbol_count": persisted,
+            "persistence_status": persistence_status,
             "stale_count":      result.get("stale_count", 0),
             "provider_status":  result.get("provider_status", "UNKNOWN"),
         }
