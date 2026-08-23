@@ -9,6 +9,22 @@ echo " ApexQuant AI — Deployment Build"
 echo "========================================"
 
 echo ""
+echo "--- Step 0: Capture exact source identity for artifact builds ---"
+# Artifact-specific production builds run after this root pre-build hook. The
+# cleanup below removes .git to keep the publish image under its size limit,
+# so preserve the exact commit in a tiny non-secret handoff file.
+SOURCE_COMMIT="${APEXQUANT_GIT_COMMIT:-${REPLIT_GIT_COMMIT:-${GIT_COMMIT:-${SOURCE_COMMIT:-}}}}"
+if [ -z "$SOURCE_COMMIT" ]; then
+  SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || true)"
+fi
+if ! [[ "$SOURCE_COMMIT" =~ ^[0-9a-fA-F]{7,64}$ ]]; then
+  echo "Unable to resolve an exact source commit for deployment." >&2
+  exit 1
+fi
+printf '%s\n' "$SOURCE_COMMIT" > .apexquant-source-commit
+echo "    Source commit: ${SOURCE_COMMIT:0:12}"
+
+echo ""
 echo "--- Step 1: Create workspace-local virtualenv (.venv) ---"
 # We explicitly create a .venv in the workspace filesystem so packages are
 # guaranteed to be available at runtime.  uv sync without this flag installs

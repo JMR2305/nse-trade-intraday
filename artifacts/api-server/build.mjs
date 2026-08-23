@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
+import { readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
@@ -13,7 +14,7 @@ const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(artifactDir, "../..");
 const GENERIC_BUILD_IDS = new Set(["apexquant-v1.0.0"]);
 
-export function sourceGitCommit(env = process.env) {
+export function sourceGitCommit(env = process.env, root = projectRoot) {
   const configured = [
     env.APEXQUANT_GIT_COMMIT,
     env.REPLIT_GIT_COMMIT,
@@ -23,17 +24,21 @@ export function sourceGitCommit(env = process.env) {
   if (configured) return configured;
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: projectRoot,
+      cwd: root,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
   } catch {
-    return "";
+    try {
+      return readFileSync(path.join(root, ".apexquant-source-commit"), "utf8").trim();
+    } catch {
+      return "";
+    }
   }
 }
 
-export function resolveBuildIdentity(env = process.env) {
-  const gitCommit = sourceGitCommit(env);
+export function resolveBuildIdentity(env = process.env, root = projectRoot) {
+  const gitCommit = sourceGitCommit(env, root);
   if (!/^[0-9a-f]{7,64}$/i.test(gitCommit)) {
     throw new Error(
       "Unable to resolve an exact source commit for the API build. " +
