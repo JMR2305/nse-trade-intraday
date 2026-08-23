@@ -1,0 +1,351 @@
+RTV-1F — PRODUCTION PUBLISH ARTIFACT / COMMIT MISMATCH DIAGNOSIS
+
+CURRENT HARD-STOP EVIDENCE
+
+Approved source commit:
+3ca36c4847c6309149aaf78a94da87b529034881
+
+Production runtime currently reports:
+- environment = production
+- git_commit = a75c9d6d...   [use full value returned by production]
+- build_id = apexquant-phase0c-20260821
+- deployment_id = current production deployment ID
+
+Therefore:
+
+PRODUCTION IS NOT RUNNING THE APPROVED RTV-1E SOURCE.
+
+Do not continue RTV-1E token hydration.
+Do not run scans.
+Do not perform portfolio writes.
+Do not change universe.
+Do not enable auto entries.
+Do not enable bootstrap.
+Do not enable live broker orders.
+Do not place broker orders.
+Do not modify production DB.
+
+Goal:
+Find exactly why Replit Publish is deploying an older/stale build instead of the approved source commit, fix the publish artifact selection/build process, and republish only after proving the exact artifact identity.
+
+TASK 1 — RECORD CURRENT SOURCE STATE
+
+Report:
+
+- current workspace branch
+- current HEAD commit
+- approved RTV-1E commit
+- git status
+- latest 10 commits
+- whether commit 3ca36c4847c6309149aaf78a94da87b529034881 is present in current branch
+- whether current HEAD is ahead of, equal to, or behind 3ca36c...
+- whether source tree contains the RTV-1E runtime identity code
+- whether source tree contains the custom-universe hydration code
+- whether source tree contains the canonical portfolio snapshot fix
+
+Do not modify anything yet.
+
+TASK 2 — IDENTIFY THE PRODUCTION COMMIT
+
+Resolve the FULL production commit currently represented by:
+
+a75c9d6d...
+
+Then report:
+
+- full SHA
+- branch containing it
+- commit timestamp
+- commit message
+- relation to 3ca36c...
+- how many commits behind/ahead
+- whether it predates RTV-1D / RTV-1E fixes
+
+Classify:
+
+A. old ancestor
+B. different branch
+C. stale deployment artifact
+D. generated checkpoint commit
+E. unknown
+
+TASK 3 — TRACE REPLIT PUBLISH SOURCE
+
+Determine what Replit Publish is actually building from.
+
+Trace:
+
+Workspace source
+→ current Git HEAD
+→ Replit checkpoint
+→ build command
+→ build working directory
+→ generated API artifact
+→ publish artifact
+→ deployment runtime
+
+Report at every stage:
+
+- commit SHA
+- source directory
+- build timestamp
+- build ID
+- artifact path
+- whether RTV-1E files are present
+
+Find where the identity changes from:
+
+3ca36c...
+to
+a75c9d6d...
+
+This transition point is the root cause.
+
+TASK 4 — CHECK BUILD CACHE / STALE ARTIFACT
+
+Verify whether Replit is reusing:
+
+- old deployment artifact
+- cached API build
+- previous checkpoint
+- previous publish bundle
+- stale dist directory
+- stale build environment variables
+- old package workspace
+- wrong artifact root
+
+Inspect:
+- artifacts/api-server build output
+- dist/build directories
+- publish configuration
+- deployment run command
+- deployment build command
+- Replit deployment config files
+- workspace root vs artifact root
+
+Do not delete anything until the root cause is documented.
+
+TASK 5 — VERIFY BUILD-TIME IDENTITY INJECTION
+
+Current production still reports:
+
+build_id = apexquant-phase0c-20260821
+
+This is stale.
+
+Trace build identity injection:
+
+current Git HEAD
+→ build.mjs
+→ runtimeIdentity.ts
+→ generated build metadata
+→ compiled production bundle
+→ /api/health/details
+
+Before publishing, locally build the approved candidate and inspect the resulting artifact.
+
+Require:
+
+git_commit =
+3ca36c4847c6309149aaf78a94da87b529034881
+OR the explicitly approved newer commit if RTV-1E fixes were committed afterward
+
+build_id =
+new unique RTV-1E deployment build identifier
+
+Do not publish if the local production artifact still contains:
+a75c9d6d...
+or
+apexquant-phase0c-20260821
+
+TASK 6 — DETERMINE THE TRUE APPROVED DEPLOY COMMIT
+
+Important:
+
+If additional SAFE RTV-1E source/schema fixes were committed after 3ca36c..., identify the latest commit that contains:
+
+- RTV-1D fixes
+- runtime identity correction
+- non-destructive schema correction
+- custom-universe metadata fields
+- no unrelated/risky feature changes
+
+Call this:
+
+APPROVED_DEPLOY_COMMIT
+
+Report its full SHA.
+
+Do not assume 3ca36c... remains the correct final deploy commit if later approved fixes are legitimately required.
+
+Provide a diff:
+
+3ca36c...
+→ APPROVED_DEPLOY_COMMIT
+
+List every changed file and explain why it is required.
+
+If unrelated changes are included:
+STOP.
+
+TASK 7 — BUILD A CLEAN PRODUCTION CANDIDATE
+
+Build from exactly:
+
+APPROVED_DEPLOY_COMMIT
+
+Requirements:
+
+- clean working tree
+- no stale build artifacts used
+- no unrelated source changes
+- no destructive DB migration
+- no production DB write
+- no safety-setting changes
+
+Run the production build from scratch.
+
+After build, inspect the compiled artifact itself and prove:
+
+- embedded git_commit = APPROVED_DEPLOY_COMMIT
+- build_id is new and unique
+- runtime identity endpoint code exists
+- canonical portfolio code exists
+- current-universe readiness code exists
+- custom token hydration code exists
+
+TASK 8 — TEST THE CANDIDATE
+
+Run:
+
+- runtime identity tests
+- portfolio parity tests
+- historical ledger preservation tests
+- custom-universe hydration tests
+- readiness current-universe tests
+- Kite auth/session tests
+- synthetic fail-closed tests
+- API typecheck
+- API build
+- relevant regression suites
+
+Report:
+passed / failed / skipped / warnings.
+
+Do not weaken tests.
+
+TASK 9 — VERIFY DATABASE MIGRATION PLAN AGAIN
+
+Before publishing, regenerate/check schema diff.
+
+Require:
+
+statementsToExecute = []
+columnsToRemove = []
+tablesToRemove = []
+tablesToTruncate = []
+hasStructuralDataLoss = false
+
+Specifically preserve:
+
+- instrument_token
+- instrument_exchange
+- instrument_tradingsymbol
+- instrument_cache_date
+- instrument_mapping_at
+
+If destructive SQL reappears:
+STOP.
+
+TASK 10 — REPUBLISH FROM THE EXACT APPROVED ARTIFACT
+
+Only after Tasks 1–9 pass:
+
+Republish PRODUCTION.
+
+Do not change:
+- active universe
+- capital
+- historical P&L
+- safety flags
+- broker mode
+
+Do not trigger scans or trades.
+
+TASK 11 — IMMEDIATE PRODUCTION IDENTITY GATE
+
+Before any other production verification, query:
+
+https://nse-trade-intraday.replit.app/api/health/details
+
+Require exact match:
+
+environment = production
+git_commit = APPROVED_DEPLOY_COMMIT
+build_id = NEW RTV-1E BUILD ID
+deployment_id = present
+runtime_timestamp = current
+
+If git_commit differs by even one commit:
+STOP.
+
+If build_id is still apexquant-phase0c-20260821:
+STOP.
+
+TASK 12 — ONLY AFTER IDENTITY PASS
+
+Only when production identity matches exactly, continue the previously stopped RTV-1E checks:
+
+1. verify active universe = CUSTOM_LOW_PRICE_SECTOR
+2. verify active count = 23
+3. hydrate metadata only
+4. require 23/23 instrument mappings
+5. verify 23/23 read-only Kite quotes
+6. verify readiness current-universe count = 23
+7. verify token coverage = 100%
+8. verify /api/portfolio == /api/portfolio/snapshot
+9. preserve realized P&L = -278.74
+10. preserve cash/equity = 99,721.26
+11. verify all safety flags unchanged
+
+TASK 13 — OUTPUT
+
+Create:
+
+RTV1F_PUBLISH_ARTIFACT_ROOT_CAUSE_REPORT.md
+
+Include:
+
+- approved source commit
+- actual production commit
+- full commit relationship
+- exact root cause of stale/wrong deployment
+- source/build/publish artifact chain
+- build cache/artifact findings
+- final APPROVED_DEPLOY_COMMIT
+- files included
+- test results
+- schema migration result
+- production identity after republish
+- whether RTV-1E verification resumed
+- remaining blockers
+
+FINAL VERDICT:
+
+A. PUBLISH PIPELINE FIXED — EXACT COMMIT DEPLOYED
+B. WRONG BRANCH/COMMIT SELECTED
+C. STALE BUILD ARTIFACT/CACHE
+D. REPLIT CHECKPOINT/PUBLISH SOURCE MISMATCH
+E. BUILD IDENTITY INJECTION DEFECT
+F. UNRESOLVED — DO NOT CONTINUE
+
+FINAL RULE
+
+Do not bypass the identity gate.
+
+No token hydration.
+No scan validation.
+No production metadata writes.
+No trading changes.
+
+until production reports the exact approved deploy commit.
