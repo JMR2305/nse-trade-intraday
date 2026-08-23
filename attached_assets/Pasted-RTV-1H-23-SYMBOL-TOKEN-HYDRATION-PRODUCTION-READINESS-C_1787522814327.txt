@@ -1,0 +1,597 @@
+RTV-1H — 23-SYMBOL TOKEN HYDRATION + PRODUCTION READINESS COMPLETION
+
+Use these controlling reports:
+- RTV1G_DEPLOYED_COMMIT_RECONCILIATION.md
+- RTV1F_PUBLISH_ARTIFACT_ROOT_CAUSE_REPORT.md
+- RTV1E_NONDESTRUCTIVE_SCHEMA_SAFETY_REPORT.md
+- RTV1D_CONTROLLED_DEPLOYMENT_REPORT.md
+- RTV1C_PRODUCTION_AUTHORITY_RECONCILIATION.md
+
+TARGET:
+PRODUCTION ONLY
+
+API BASE:
+https://nse-trade-intraday.replit.app
+
+APPROVED PRODUCTION IDENTITY:
+
+environment = production
+git_commit = 4392f278ae25562f168f970e2b694f8c3d249d5c
+build_id = apexquant-4392f278ae25
+
+The identity gate has PASSED.
+
+Current confirmed production safety state:
+- Kite authenticated = true
+- Kite connected = true
+- token_status = VALID
+- token_stored = true
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- sectors = BANK 9 / INFRA 13 / IT 1
+- automatic paper entries = disabled
+- bootstrap = disabled
+- automatic exits = enabled
+- live broker order placement = disabled
+- paper mode = enabled
+- initial capital basis = ₹100,000
+- historical realized P&L = ₹-278.74
+- cash/equity = ₹99,721.26
+- open positions = 0
+- /api/portfolio and /api/portfolio/snapshot reconcile
+- synthetic execution-grade data = blocked
+- production schema safety = PASS
+- runtime identity = PASS
+
+Current remaining problem:
+- current custom-universe metadata is not fully hydrated
+- trading_data_ready remains false
+- previous verification observed unavailable symbols while token hydration was intentionally blocked
+- open-session validation is NOT part of this task
+
+Goal:
+Complete metadata-only hydration for the existing 23-symbol production universe, verify read-only Kite quote provenance for all 23 symbols, and make the production readiness contract correctly represent the current 23-symbol configuration.
+
+Do not change strategy.
+Do not change thresholds.
+Do not recompute the universe.
+Do not change universe membership.
+Do not reset portfolio.
+Do not modify historical trades.
+Do not change capital.
+Do not enable automatic entries.
+Do not enable bootstrap.
+Do not enable live broker orders.
+Do not place, modify, or cancel broker orders.
+Do not manually trigger market scans.
+Do not manually trigger pre-open 5A/5B/5C.
+Do not claim open-session validation while NSE is closed.
+
+TASK 1 — RECONFIRM PRODUCTION IDENTITY
+
+Before any metadata write, query:
+
+/api/health/details
+
+Require exact:
+
+environment = production
+git_commit = 4392f278ae25562f168f970e2b694f8c3d249d5c
+build_id = apexquant-4392f278ae25
+
+Also require:
+- deployment_id present
+- runtime_timestamp current
+
+If identity differs:
+STOP.
+
+Do not hydrate anything.
+
+TASK 2 — RECORD PRE-HYDRATION CUSTOM UNIVERSE
+
+Read current active custom universe.
+
+Report:
+- total rows
+- active rows
+- inactive rows
+- active symbol list
+- active sector counts
+- current instrument_token non-null count
+- instrument_exchange non-null count
+- instrument_tradingsymbol non-null count
+- instrument_cache_date non-null count
+- instrument_mapping_at non-null count
+
+Expected membership:
+
+BANK:
+BANKBARODA
+BANKINDIA
+CANBK
+FEDERALBNK
+IDFCFIRSTB
+KTKBANK
+MAHABANK
+PNB
+UNIONBANK
+
+INFRA:
+COALINDIA
+GAIL
+HUDCO
+IRCON
+IRFC
+MRPL
+NBCC
+NMDC
+NTPC
+PFC
+RECLTD
+RVNL
+SAIL
+
+IT:
+WIPRO
+
+Do not alter membership.
+
+TASK 3 — VERIFY GLOBAL KITE INSTRUMENT MASTER
+
+Check current production Kite instrument reference cache.
+
+Report:
+- cache date
+- fetched_at
+- total rows
+- fresh/stale
+- exchange coverage
+- NSE row count if available
+
+If cache is stale:
+invoke only the approved reference-data refresh:
+
+POST /api/kite/instruments/refresh
+
+This route may fetch instrument reference metadata only.
+
+It must not:
+- place orders
+- modify positions
+- modify universe membership
+- trigger a market scan
+
+After refresh report:
+- success/failure
+- new cache date
+- fetched_at
+- total rows
+
+TASK 4 — METADATA-ONLY CUSTOM UNIVERSE HYDRATION
+
+Use the already-approved hydration path in the deployed code.
+
+Hydrate only these fields for existing rows:
+
+- instrument_token
+- instrument_exchange
+- instrument_tradingsymbol
+- instrument_cache_date
+- instrument_mapping_at
+
+Matching authority:
+
+active custom symbol
+→ NSE instrument master tradingsymbol
+→ unique mapping
+→ persist metadata
+
+Do NOT change:
+- symbol
+- active status
+- sector
+- rank
+- score
+- selection reason
+- universe mode
+- created_at semantics unrelated to mapping
+- strategy parameters
+
+Before every update require a unique NSE match.
+
+If:
+0 matches
+or
+>1 matches
+
+do not guess.
+
+Mark symbol:
+MAPPING_FAILED
+
+and record exact reason.
+
+TASK 5 — VERIFY ALL 23 MAPPINGS
+
+After hydration create a table:
+
+symbol
+sector
+exchange
+tradingsymbol
+instrument_token_present
+instrument_cache_date
+instrument_mapping_at
+mapping_status
+
+Require:
+
+active symbols = 23
+valid mappings = 23
+missing = 0
+duplicates = 0
+
+Check duplicate instrument tokens across active rows.
+
+Any duplicate or missing active mapping:
+FAIL.
+
+TASK 6 — MEMBERSHIP INTEGRITY CHECK
+
+Compare pre-hydration and post-hydration universe.
+
+Require EXACTLY unchanged:
+
+- 23 active rows
+- 3 inactive historical rows if still present
+- BANK = 9
+- INFRA = 13
+- IT = 1
+- WIPRO remains IT
+- same 23 active symbols
+
+No active/inactive flag change.
+No rank change.
+No sector change.
+No membership addition/deletion.
+
+Any membership mutation = P0 FAILURE.
+
+TASK 7 — READ-ONLY KITE QUOTE VERIFICATION FOR ALL 23
+
+Using the authenticated production Kite session, perform READ-ONLY quote/LTP requests for all 23 active symbols.
+
+For every symbol report:
+
+- symbol
+- instrument_token present
+- Kite quote request success
+- LTP returned
+- source
+- provider
+- quote timestamp if supplied
+- received timestamp
+- fallback_used
+- fallback_reason
+- reliable
+- synthetic
+
+Expected source when Kite succeeds:
+
+KITE / kite_live
+
+Do not call any order endpoint.
+
+Because market may be closed:
+do not require session_fresh=true.
+
+This proves quote-provider plumbing only.
+
+TASK 8 — NO SILENT FALLBACK
+
+For every active symbol:
+
+If Kite quote succeeds:
+- source must remain KITE
+- fallback_used must be false
+
+If Kite quote fails:
+- identify fallback explicitly
+- do not classify fallback as Kite
+- do not classify stale prior-close as current LTP
+- trading_data_ready must fail closed where required
+
+Synthetic count must remain 0.
+
+Any synthetic value classified execution-grade:
+P0 FAILURE.
+
+TASK 9 — FIX / VERIFY CURRENT-UNIVERSE READINESS AUTHORITY
+
+Query the production readiness contract.
+
+It must use CURRENT configuration:
+
+active_universe = CUSTOM_LOW_PRICE_SECTOR
+active_universe_count = 23
+
+It must NOT use the historical 50-symbol scan as the denominator for current token coverage.
+
+Required current-configuration fields:
+
+- active_universe
+- active_universe_count
+- valid_token_count
+- missing_token_count
+- token_coverage_pct
+- symbols_on_kite
+- symbols_on_fallback
+- symbols_stale
+- symbols_unavailable
+- symbols_synthetic
+
+After successful hydration expect:
+
+active_universe = CUSTOM_LOW_PRICE_SECTOR
+active_universe_count = 23
+valid_token_count = 23
+missing_token_count = 0
+token_coverage_pct = 100
+symbols_synthetic = 0
+
+TASK 10 — KEEP HISTORICAL SCAN STATE SEPARATE
+
+Readiness must separately expose latest scan information:
+
+- latest_scan_id
+- latest_scan_timestamp
+- latest_scan_universe
+- latest_scan_symbol_count
+- scan_fresh_for_session
+
+If latest data-bearing scan still used NIFTY_50 / 50 symbols:
+that is historical metadata.
+
+Do NOT rewrite history.
+
+Do NOT use it to change:
+- active universe count
+- current token denominator
+- current custom mapping coverage
+
+TASK 11 — TRADING READINESS SEMANTICS
+
+Because this task may run off-hours:
+
+Allowed:
+
+service_ready = true
+data_ready = true
+session_fresh = false
+trading_data_ready = false
+
+Even with:
+23/23 token coverage
+and
+23/23 read-only Kite quote plumbing
+
+do not force:
+
+trading_data_ready = true
+
+unless all live-session freshness conditions are actually met.
+
+TASK 12 — PORTFOLIO PARITY RECHECK
+
+READ ONLY.
+
+Query:
+
+/api/portfolio
+/api/portfolio/snapshot
+
+Require common values remain:
+
+initial_capital = 100000
+cash = 99721.26
+realized_pnl = -278.74
+unrealized_pnl = 0
+total_pnl = -278.74
+total_equity = 99721.26
+open_positions = 0
+
+Do not modify the six CLOSED rows.
+
+TASK 13 — HISTORICAL LEDGER INTEGRITY
+
+Read the six CLOSED Phase20 rows.
+
+Compare against previous RTV evidence.
+
+Require:
+- same row count
+- same IDs
+- same symbols
+- same entry/exit/qty
+- same statuses
+- total realized_pnl = -278.74
+
+No ledger mutation allowed.
+
+TASK 14 — KITE AUTH SAFETY
+
+Reconfirm:
+
+- token_status = VALID
+- token_stored = true
+- connected = true
+- authenticated = true
+- login_required = false
+
+Do not expose token contents.
+
+If authentication has expired:
+STOP and report MANUAL KITE RELOGIN REQUIRED.
+
+Do not auto-create credentials.
+
+TASK 15 — SAFETY FLAGS
+
+Confirm unchanged:
+
+paper mode = enabled
+automatic paper entries = disabled
+bootstrap = disabled
+automatic exits = enabled
+live broker orders = disabled
+active universe = CUSTOM_LOW_PRICE_SECTOR
+initial capital basis = 100000
+
+Any unexpected change = CRITICAL FAILURE.
+
+TASK 16 — TEST / VERIFY HYDRATION CODE PATH
+
+Run focused tests covering:
+
+- 23-symbol mapping
+- unique NSE matching
+- zero-match handling
+- duplicate-match handling
+- metadata-only updates
+- membership preservation
+- sector preservation
+- readiness denominator = current active universe
+- historical scan separation
+- Kite provenance
+- synthetic fail-closed behavior
+- portfolio parity
+
+Run relevant regression suites.
+
+Do not weaken tests.
+
+TASK 17 — FINAL PRODUCTION READINESS SNAPSHOT
+
+Produce one compact final snapshot:
+
+RUNTIME IDENTITY
+- environment
+- git_commit
+- build_id
+
+KITE
+- authenticated
+- token status
+- token stored
+
+UNIVERSE
+- mode
+- active count
+- mapped
+- missing
+- duplicates
+
+QUOTE PROVENANCE
+- Kite success count
+- fallback count
+- synthetic count
+
+READINESS
+- service_ready
+- data_ready
+- session_fresh
+- trading_data_ready
+
+PORTFOLIO
+- capital
+- cash/equity
+- realized P&L
+- open positions
+
+SAFETY
+- auto entries
+- bootstrap
+- auto exits
+- live orders
+
+TASK 18 — FINAL VERDICT
+
+Allowed outcomes:
+
+A. RTV-1H PASS — OPEN-SESSION VERIFICATION PENDING
+B. TOKEN HYDRATION FAILED
+C. CURRENT-UNIVERSE READINESS FAILED
+D. KITE AUTH EXPIRED — MANUAL LOGIN REQUIRED
+E. MEMBERSHIP INTEGRITY FAILURE
+F. PORTFOLIO/SAFETY REGRESSION
+G. RUNTIME IDENTITY FAILURE
+
+RTV-1H PASS requires:
+
+1. exact approved runtime identity
+2. Kite authentication valid
+3. active universe remains CUSTOM_LOW_PRICE_SECTOR
+4. active count remains 23
+5. 23/23 instrument metadata mappings
+6. zero missing mappings
+7. zero duplicate mappings
+8. 23/23 read-only quote plumbing verified
+9. readiness current-universe denominator = 23
+10. token coverage = 100%
+11. synthetic count = 0
+12. historical scan kept separate
+13. portfolio parity preserved
+14. historical realized P&L = -278.74 preserved
+15. automatic entries remain disabled
+16. bootstrap remains disabled
+17. live broker orders remain disabled
+
+Do not require session_fresh=true while the NSE session is closed.
+
+TASK 19 — OUTPUT FILES
+
+Create:
+
+1. RTV1H_PRODUCTION_READINESS_COMPLETION.md
+2. RTV1H_CUSTOM_UNIVERSE_TOKEN_MAP.csv
+3. RTV1H_KITE_QUOTE_PROVENANCE.csv
+4. RTV1H_READINESS_RECONCILIATION.csv
+5. RTV1H_NEXT_OPEN_SESSION_GATE.md
+
+RTV1H_NEXT_OPEN_SESSION_GATE.md must cover only the remaining live-session checks:
+
+PRE-OPEN:
+- Kite authenticated
+- 23/23 mapping
+- current universe confirmed
+- portfolio parity
+- 5A provider/persistence parity
+- 5B lifecycle
+- 5C lifecycle
+
+OPEN:
+- first canonical scan uses 23 symbols
+- scheduler uses CUSTOM_LOW_PRICE_SECTOR
+- no duplicate 50-symbol legacy scheduled scan
+- fresh Kite provenance for 23/23
+- current quote timestamps
+- session_fresh=true only when justified
+- trading_data_ready=true only after every gate passes
+
+Automatic paper entries must remain disabled throughout.
+
+FINAL RULE
+
+This is metadata hydration + readiness completion only.
+
+Do not change universe membership.
+Do not run manual scans.
+Do not reset portfolio.
+Do not erase historical P&L.
+Do not enable automatic entry.
+Do not enable bootstrap.
+Do not enable live broker orders.
+Do not call broker order APIs.
+
+Complete the five RTV-1H artifacts and stop.
