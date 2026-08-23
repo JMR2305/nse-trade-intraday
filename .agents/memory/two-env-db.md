@@ -12,5 +12,6 @@ Production (`nse-trade-intraday.replit.app`) and local dev (`localhost:8080`) ar
 **How to apply:**
 - Any settings change that must apply to both environments requires TWO separate API calls.
 - Never infer production state from dev queries or vice versa.
+- Kite login validation must query the same deployed callback/API environment as the login; a missing local-development token does not disprove a valid Autoscale production session.
 - The bot DB (intraday-trading-bot) is yet a third database — it targeted the shared workspace DB but alembic was never applied; do not conflate it with either of the two environments above.
 - In API server code, the DB connection URL is environment-specific and determined by the runtime environment, not by any code setting.
