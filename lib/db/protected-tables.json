@@ -2,6 +2,8 @@
   "comment": "Tables that no routine schema sync may drop, truncate, or destructively alter. safe-migrate.mjs enforces this. Add new production tables here.",
   "protected": [
     "alert_deliveries",
+    "custom_universe_master",
+    "custom_universe_membership_history",
     "paper_portfolio",
     "paper_trades",
     "phase20_kv",

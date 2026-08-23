@@ -69,6 +69,10 @@ def ensure_table() -> bool:
                         avg_turnover_20d    NUMERIC(20,2),
                         ohlcv_available     BOOLEAN NOT NULL DEFAULT FALSE,
                         last_verified_at    TIMESTAMPTZ,
+                        instrument_exchange TEXT,
+                        instrument_tradingsymbol TEXT,
+                        instrument_cache_date DATE,
+                        instrument_mapping_at TIMESTAMPTZ,
                         created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                         updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     )
@@ -76,15 +80,6 @@ def ensure_table() -> bool:
                 cur.execute(f"""
                     CREATE INDEX IF NOT EXISTS idx_{TABLE}_active
                     ON {TABLE} (is_active, sector)
-                """)
-                # These columns hold reference-data provenance only. Hydration
-                # never changes membership, rank, sector, or selection reason.
-                cur.execute(f"""
-                    ALTER TABLE {TABLE}
-                    ADD COLUMN IF NOT EXISTS instrument_exchange TEXT,
-                    ADD COLUMN IF NOT EXISTS instrument_tradingsymbol TEXT,
-                    ADD COLUMN IF NOT EXISTS instrument_cache_date DATE,
-                    ADD COLUMN IF NOT EXISTS instrument_mapping_at TIMESTAMPTZ
                 """)
                 # The master is current-state data. This append-only snapshot
                 # table preserves membership changes for historical replay.
@@ -116,7 +111,9 @@ _COLUMNS = [
     "company_name", "sector", "industry", "allowed_universe", "price_min",
     "price_max", "is_active", "reason_included", "reason_excluded",
     "last_ltp", "last_ltp_source", "avg_volume_20d", "avg_turnover_20d",
-    "ohlcv_available", "last_verified_at", "created_at", "updated_at",
+    "ohlcv_available", "last_verified_at", "instrument_exchange",
+    "instrument_tradingsymbol", "instrument_cache_date",
+    "instrument_mapping_at", "created_at", "updated_at",
 ]
 
 _ACTIVE_REQUIRED_FIELDS = (

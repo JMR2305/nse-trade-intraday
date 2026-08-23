@@ -49,7 +49,9 @@ def _sample_row(symbol: str, is_active: bool = True, ohlcv: bool = True,
     # symbol yahoo_symbol kite_symbol instrument_token company_name sector
     # industry allowed_universe price_min price_max is_active reason_included
     # reason_excluded last_ltp last_ltp_source avg_volume_20d avg_turnover_20d
-    # ohlcv_available last_verified_at created_at updated_at
+    # ohlcv_available last_verified_at instrument_exchange
+    # instrument_tradingsymbol instrument_cache_date instrument_mapping_at
+    # created_at updated_at
     import datetime
     now = datetime.datetime.now(datetime.timezone.utc)
     return (
@@ -58,7 +60,7 @@ def _sample_row(symbol: str, is_active: bool = True, ohlcv: bool = True,
         "operator_approved" if is_active else None,
         None if is_active else "operator_excluded",
         180.0, "yfinance_close", 4_500_000.0, 810_000_000.0,
-        ohlcv, now, now, now,
+        ohlcv, now, "NSE", symbol, now.date(), now, now, now,
     )
 
 
@@ -407,6 +409,25 @@ class TestInvalidMappingReported(unittest.TestCase):
 # ── Test 7 — reference-data-only instrument hydration ────────────────────
 
 class TestInstrumentMetadataHydration(unittest.TestCase):
+    def test_canonical_table_definition_declares_metadata_fields_without_alter(self):
+        import custom_universe_store
+        _conn, mock_cur, fake_connect = _make_db_mock()
+
+        with patch.object(custom_universe_store, "_db_available", return_value=True), \
+             patch.object(custom_universe_store, "_connect", fake_connect):
+            self.assertTrue(custom_universe_store.ensure_table())
+
+        executed_sql = "\n".join(
+            str(call.args[0]) for call in mock_cur.execute.call_args_list
+        ).lower()
+        for column in (
+            "instrument_exchange",
+            "instrument_tradingsymbol",
+            "instrument_cache_date",
+            "instrument_mapping_at",
+        ):
+            self.assertIn(column, executed_sql)
+        self.assertNotIn("alter table custom_universe_master", executed_sql)
 
     def test_hydration_updates_only_active_rows_and_reports_symbol_mapping(self):
         import custom_universe_store
@@ -431,8 +452,21 @@ class TestInstrumentMetadataHydration(unittest.TestCase):
         self.assertEqual(result["symbols"][0]["instrument_token"], 12345)
         update_sql = _cur.execute.call_args_list[-1].args[0]
         self.assertIn("instrument_token", update_sql)
+        self.assertIn("instrument_exchange", update_sql)
+        self.assertIn("instrument_tradingsymbol", update_sql)
+        self.assertIn("instrument_cache_date", update_sql)
+        self.assertIn("instrument_mapping_at", update_sql)
         self.assertNotIn("is_active = %s", update_sql)
         self.assertNotIn("sector = %s", update_sql)
+
+    def test_serialised_rows_include_reference_metadata(self):
+        import custom_universe_store
+        row = custom_universe_store._serialise(_sample_row("WIPRO"))
+
+        self.assertEqual(row["instrument_exchange"], "NSE")
+        self.assertEqual(row["instrument_tradingsymbol"], "WIPRO")
+        self.assertIsNotNone(row["instrument_cache_date"])
+        self.assertIsNotNone(row["instrument_mapping_at"])
 
     def test_hydration_fails_closed_for_missing_mapping(self):
         import custom_universe_store
