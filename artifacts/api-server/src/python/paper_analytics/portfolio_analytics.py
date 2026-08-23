@@ -16,7 +16,7 @@ def get_portfolio_analytics() -> Dict[str, Any]:
     allocation, exposure, concentration, diversification.
     """
     from portfolio_performance.performance_engine import (
-        load_performance_data, INITIAL_CAPITAL,
+        load_performance_data, _initial_capital,
     )
     from portfolio_performance.statistics import (
         compute_sector_allocation,
@@ -24,6 +24,7 @@ def get_portfolio_analytics() -> Dict[str, Any]:
     )
 
     d        = load_performance_data()
+    initial_capital = _initial_capital()
     closed   = d["closed_trades"]
     opens    = d["open_positions_raw"]
     cash     = d["cash"]
@@ -38,7 +39,7 @@ def get_portfolio_analytics() -> Dict[str, Any]:
     ]
 
     # Returns pct since inception
-    total_return_pct = ((total - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100) if INITIAL_CAPITAL else 0.0
+    total_return_pct = ((total - initial_capital) / initial_capital * 100) if initial_capital else 0.0
     utilisation_pct  = (invested / total * 100) if total > 0 else 0.0
 
     # Sector allocation of open positions
@@ -66,7 +67,7 @@ def get_portfolio_analytics() -> Dict[str, Any]:
     return {
         "available":            True,
         "advisory_only":        True,
-        "initial_capital":      INITIAL_CAPITAL,
+        "initial_capital":      initial_capital,
         "total_value":          round(total, 2),
         "cash":                 round(cash, 2),
         "invested":             round(invested, 2),

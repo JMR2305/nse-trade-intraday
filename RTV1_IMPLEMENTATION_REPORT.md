@@ -50,6 +50,7 @@ No manual trades, portfolio resets, broker order APIs, production database write
 | Check | Result |
 |---|---|
 | Focused RTV-1 Python suite | **92 passed**, 1 pre-existing deprecation warning |
+| Paper analytics unit + real-DB smoke | **161 passed**, 1 pre-existing deprecation warning |
 | Workspace API/dashboard TypeScript check | passed |
 | API server rebuild/restart | passed; server listening on port 8080 |
 | PortfolioLive browser verification | passed; ₹1,00,000 cash/equity, 0 positions, 0% drawdown, no console error |
@@ -68,6 +69,10 @@ None open in the implemented code path.
 2. The market is closed and the cached session is not fresh. `trading_data_ready=false` by design.
 3. Instrument hydration, authenticated quote provenance, full token coverage, and live pre-open collection must be verified in the Monday NSE session.
 4. The production backtest scheduler timeout warnings remain an operational follow-up; no research-system redesign was made.
+
+## Completion-validation compatibility correction
+
+The completion smoke test exposed a stale import in active paper-analytics readers after the dynamic capital-accessor correction. Those readers and their test seams now use the Phase-20 runtime capital accessor; the real-DB smoke and the full paper-analytics unit suite pass.
 
 ## Result
 
