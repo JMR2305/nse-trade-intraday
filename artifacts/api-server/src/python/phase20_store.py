@@ -165,6 +165,11 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "initial_capital": 100_000.0,
 }
 
+# The approved RTV operating baseline is intentionally explicit rather than
+# inferred from a potentially overridden runtime setting. This is a reporting
+# control only: it never changes the active scanner universe.
+APPROVED_OPERATING_UNIVERSE = "NIFTY_50"
+
 # Keys excluded from the reproducibility config hash (meta, not behaviour).
 _HASH_EXCLUDE = {"auto_paper_entries_confirmed_at",
                  "email_alerts_enabled", "email_alert_address",
@@ -587,6 +592,38 @@ def get_settings() -> Dict[str, Any]:
     merged["config_hash"] = config_hash(merged)
     merged["confirmation_text"] = CONFIRMATION_TEXT
     return merged
+
+
+def operating_universe_verification(
+    settings: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Report whether the active universe matches the approved RTV baseline.
+
+    This is intentionally read-only. A mismatch is an operator-review signal,
+    not permission for code to silently switch the scan universe or alter any
+    strategy threshold.
+    """
+    active = str(
+        (settings if settings is not None else get_settings()).get(
+            "active_intraday_universe", ""
+        )
+    ).upper().strip()
+    valid = active in ("NIFTY_50", "CUSTOM_LOW_PRICE_SECTOR")
+    matches = valid and active == APPROVED_OPERATING_UNIVERSE
+    return {
+        "approved_baseline": APPROVED_OPERATING_UNIVERSE,
+        "active_universe": active or None,
+        "active_universe_valid": valid,
+        "matches_approved_baseline": matches,
+        "status": "PASS" if matches else "REVIEW_REQUIRED",
+        "detail": (
+            "Active universe matches the approved operating baseline."
+            if matches else
+            "Active universe differs from the approved operating baseline; "
+            "review the persisted operator setting before the next session. "
+            "No setting was changed by this verification."
+        ),
+    }
 
 
 def _persist_settings(data: Dict[str, Any]) -> None:

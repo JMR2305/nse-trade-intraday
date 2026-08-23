@@ -115,11 +115,17 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     position_source = None
     canonical_ok = False
     canonical_snapshot: Dict[str, Any] = {}
+    canonical_financial: Dict[str, Any] = {}
+    canonical_unrealized_pnl: float | None = None
     try:
-        from canonical_portfolio import build_canonical_portfolio
+        from canonical_portfolio import (
+            build_canonical_portfolio,
+            canonical_financial_contract,
+        )
         canonical_snapshot = build_canonical_portfolio()
+        canonical_financial = canonical_financial_contract(canonical_snapshot)
         canonical_ok = True
-        position_source = str(canonical_snapshot.get("source") or "phase20_ledger")
+        position_source = str(canonical_financial["source"])
         for p in canonical_snapshot["positions"]:
             qty = int(p.get("quantity") or 0)
             fill_price = _safe_float(p.get("avg_price"))           # avg entry
@@ -197,11 +203,16 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
 
     # Accounting must come from the SAME source as positions.
     if canonical_ok:
-        cash = _safe_float(canonical_snapshot.get("cash"))
-        total_invested = _safe_float(canonical_snapshot.get("invested_value"))
-        unrealised_pnl = _safe_float(canonical_snapshot.get("unrealized_pnl"))
+        cash = _safe_float(canonical_financial["cash"])
+        total_invested = _safe_float(canonical_financial["invested_value"])
+        # Internal arithmetic can use zero for an unavailable mark because the
+        # canonical equity value already represents known MTM only. Preserve
+        # the nullable source value for the API response so no consumer reads
+        # incomplete MTM as an actual zero P&L.
+        canonical_unrealized_pnl = canonical_financial["unrealized_pnl"]
+        unrealised_pnl = _safe_float(canonical_unrealized_pnl)
         _INITIAL_CAPITAL_local = (
-            _safe_float(canonical_snapshot.get("initial_capital"))
+            _safe_float(canonical_financial["initial_capital"])
             or _INITIAL_CAPITAL_local
         )
     else:
@@ -261,8 +272,8 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     # exactly when provided rather than reconstructing it from rounded
     # component fields: canonical cash/invested/unrealised may intentionally
     # have a different reconciliation treatment (e.g. realised ledger P&L).
-    if canonical_ok and canonical_snapshot.get("equity") is not None:
-        equity = _safe_float(canonical_snapshot.get("equity"))
+    if canonical_ok and canonical_financial.get("equity") is not None:
+        equity = _safe_float(canonical_financial["equity"])
     else:
         equity = cash + total_invested + unrealised_pnl
     # Capital and peak history must have the same accounting basis as equity.
@@ -273,7 +284,7 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
     # high-water mark rather than legacy history.
     if canonical_ok:
         initial_capital = _safe_float(
-            canonical_snapshot.get("initial_capital"), _INITIAL_CAPITAL_local
+            canonical_financial["initial_capital"], _INITIAL_CAPITAL_local
         )
         pnl_history = []
     else:
@@ -286,7 +297,10 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
         ]
     if initial_capital <= 0:
         initial_capital = _INITIAL_CAPITAL_local
-    total_pnl = equity - initial_capital
+    total_pnl = (
+        _safe_float(canonical_financial["total_pnl"])
+        if canonical_ok else equity - initial_capital
+    )
 
     # Only same-basis legacy history is eligible to establish a historical
     # peak. See basis selection directly above.
@@ -351,7 +365,10 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
             "position_count": data["position_count"],
         })
     sector_exposures.sort(key=lambda s: s["exposure_pct"], reverse=True)
-    current_value = total_invested + unrealised_pnl
+    current_value = (
+        _safe_float(canonical_financial["current_value"])
+        if canonical_ok else total_invested + unrealised_pnl
+    )
     utilisation_pct = (current_value / equity * 100.0) if equity > 0 else 0.0
     largest_position = max(
         open_positions, key=lambda p: _safe_float(p.get("market_value")), default=None
@@ -388,30 +405,47 @@ def get_portfolio_snapshot() -> Dict[str, Any]:
         "status": status,
         "position_source": position_source or ("canonical_ledger" if open_positions else "none"),
         # Explicit canonical financial contract for PortfolioLive consumers.
-        "source": position_source or ("canonical_ledger" if canonical_ok else "legacy"),
+        "source": (
+            canonical_financial["source"]
+            if canonical_ok else position_source or "legacy"
+        ),
+        "financial_contract_version": (
+            canonical_financial.get("financial_contract_version")
+            if canonical_ok else None
+        ),
+        "equity_complete": (
+            canonical_financial["equity_complete"] if canonical_ok else True
+        ),
         "calculated_at": calculated_at,
         "source_calculated_at": calculated_at,
-        "portfolio_version": canonical_snapshot.get("portfolio_version") if canonical_ok else None,
-        "mark_basis": canonical_snapshot.get("mark_basis") if canonical_ok else "legacy",
+        "portfolio_version": canonical_financial.get("portfolio_version") if canonical_ok else None,
+        "mark_basis": canonical_financial.get("mark_basis") if canonical_ok else "legacy",
         "paper_mode": True,
         "snapshotted_at": calculated_at,
         "equity": round(equity, 2),
         "total_equity": round(equity, 2),
+        "total_value": round(equity, 2),
         "cash": round(cash, 2),
         "buying_power": round(buying_power, 2),
         "invested_value": round(total_invested, 2),
         "current_value": round(current_value, 2),
         "current_market_value": round(current_value, 2),
         "initial_capital": round(initial_capital, 2),
-        "unrealised_pnl": round(unrealised_pnl, 2),
-        "unrealized_pnl": round(unrealised_pnl, 2),
+        "unrealised_pnl": (
+            canonical_unrealized_pnl
+            if canonical_ok else round(unrealised_pnl, 2)
+        ),
+        "unrealized_pnl": (
+            canonical_unrealized_pnl
+            if canonical_ok else round(unrealised_pnl, 2)
+        ),
         "realised_pnl": round(
-            _safe_float(canonical_snapshot.get("realized_pnl"))
+            _safe_float(canonical_financial["realized_pnl"])
             if canonical_ok else realised_pnl_today,
             2,
         ),
         "realized_pnl": round(
-            _safe_float(canonical_snapshot.get("realized_pnl"))
+            _safe_float(canonical_financial["realized_pnl"])
             if canonical_ok else realised_pnl_today,
             2,
         ),

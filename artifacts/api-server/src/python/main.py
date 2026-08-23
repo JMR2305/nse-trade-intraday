@@ -98,50 +98,35 @@ def _load_portfolio_with_live_prices() -> dict:
 
 def cmd_portfolio() -> dict:
     """Canonical portfolio (phase20 ledger) mapped to the legacy response shape."""
-    from canonical_portfolio import build_canonical_portfolio
+    from canonical_portfolio import (
+        build_canonical_portfolio,
+        canonical_financial_contract,
+    )
     c = build_canonical_portfolio()
-    total_pnl = round((c["realized_pnl"] or 0.0) + (c["unrealized_pnl"] or 0.0), 2)
-    cap = c["initial_capital"] or 0.0
+    contract = canonical_financial_contract(c)
     calculated_at = c.get("calculated_at") or datetime.now().astimezone().isoformat()
-    # pnl_history retained from the legacy state store for chart continuity
-    try:
-        from paper_trader import _load_state
-        pnl_history = (_load_state() or {}).get("pnl_history", [])
-    except Exception:
-        pnl_history = []
     return {
-        "cash": c["cash"],
-        "total_value": c["equity"],
-        "equity": c["equity"],
-        "total_equity": c["equity"],
-        "invested_value": c["invested_value"],
-        "current_market_value": round(
-            sum(float(p.get("market_value") or 0.0) for p in c["positions"]), 2
-        ),
-        "total_pnl": total_pnl,
-        "total_pnl_pct": round(100.0 * total_pnl / cap, 2) if cap else 0.0,
-        "positions": c["positions"],
-        "open_positions": c["positions"],
-        "open_position_count": c["open_position_count"],
-        "sector_exposure": c["sector_exposure"],
-        "source": c["source"],
-        "pnl_history": pnl_history,
-        "initial_capital": cap,
-        "realized_pnl": c["realized_pnl"],
-        "unrealized_pnl": c["unrealized_pnl"],
+        **contract,
+        "total_pnl_pct": round(
+            100.0 * contract["total_pnl"] / contract["initial_capital"], 2
+        ) if contract["initial_capital"] else 0.0,
+        # The legacy paper-trader history can have a different capital basis.
+        # Do not let it reintroduce an old portfolio view beside canonical
+        # ledger balances. A canonical equity history can be added later when
+        # it is recorded from the ledger itself.
+        "pnl_history": [],
         "utilization_pct": round(
-            (sum(float(p.get("market_value") or 0.0) for p in c["positions"]) / c["equity"] * 100.0)
-            if c["equity"] > 0 else 0.0,
+            (contract["current_market_value"] / contract["equity"] * 100.0)
+            if contract["equity"] > 0 else 0.0,
             2,
         ),
         "largest_position_pct": round(
-            (max((float(p.get("market_value") or 0.0) for p in c["positions"]), default=0.0)
-             / c["equity"] * 100.0)
-            if c["equity"] > 0 else 0.0,
+            (max((float(p.get("market_value") or 0.0)
+                 for p in contract["positions"]), default=0.0)
+             / contract["equity"] * 100.0)
+            if contract["equity"] > 0 else 0.0,
             2,
         ),
-        "scan_id": c["scan_id"],
-        "portfolio_version": c["portfolio_version"],
         "calculated_at": calculated_at,
         "source_timestamp": calculated_at,
     }
@@ -1168,8 +1153,18 @@ def main():
 
         # ── Phase 20 — settings / scheduler health / history / paper engine ──
         elif command == "phase20_settings":
-            from phase20_store import get_settings
-            result = {"success": True, "settings": get_settings()}
+            from phase20_store import (
+                get_settings,
+                operating_universe_verification,
+            )
+            settings = get_settings()
+            result = {
+                "success": True,
+                "settings": settings,
+                # Read-only verification: this does not alter the active
+                # universe, strategy, thresholds, or paper-trading state.
+                "universe_verification": operating_universe_verification(settings),
+            }
         elif command == "phase20_capital_migration_status":
             from paper_capital_migration import get_paper_capital_migration_status
             result = get_paper_capital_migration_status()

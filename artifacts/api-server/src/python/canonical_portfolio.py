@@ -197,6 +197,69 @@ def build_canonical_portfolio() -> Dict[str, Any]:
     }
 
 
+def canonical_financial_contract(
+    snapshot: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Return the shared financial fields for every paper-portfolio API.
+
+    This deliberately accepts an already-built canonical snapshot so callers
+    can enrich the contract without triggering another ledger read.  Both
+    `/portfolio` and `/portfolio/snapshot` must use these values rather than
+    reconstructing cash, equity, or realised P&L from their own state stores.
+    """
+    c = snapshot if snapshot is not None else build_canonical_portfolio()
+    positions = list(c.get("positions") or [])
+    initial_capital = round(float(c.get("initial_capital") or 0.0), 2)
+    cash = round(float(c.get("cash") or 0.0), 2)
+    invested_value = round(float(c.get("invested_value") or 0.0), 2)
+    realized_pnl = round(float(c.get("realized_pnl") or 0.0), 2)
+    unrealized_raw = c.get("unrealized_pnl")
+    unrealized_pnl = (
+        round(float(unrealized_raw), 2)
+        if unrealized_raw is not None
+        else None
+    )
+    # Production snapshots always carry equity. The fallback preserves the
+    # pre-existing adapter behaviour for reduced fixtures and older snapshots
+    # that only expose the canonical accounting components.
+    equity = round(
+        float(c["equity"])
+        if c.get("equity") is not None
+        else cash + invested_value + (unrealized_pnl or 0.0),
+        2,
+    )
+    current_market_value = round(
+        sum(float(position.get("market_value") or 0.0) for position in positions),
+        2,
+    )
+
+    return {
+        "financial_contract_version": "phase20-ledger-v1",
+        "source": c.get("source") or "phase20_ledger",
+        "scan_id": c.get("scan_id"),
+        "portfolio_version": c.get("portfolio_version"),
+        "mark_basis": c.get("mark_basis"),
+        "equity_complete": bool(c.get("equity_complete", True)),
+        "initial_capital": initial_capital,
+        "cash": cash,
+        "equity": equity,
+        "total_equity": equity,
+        "total_value": equity,
+        "invested_value": invested_value,
+        "current_value": current_market_value,
+        "current_market_value": current_market_value,
+        "realized_pnl": realized_pnl,
+        "realised_pnl": realized_pnl,
+        "unrealized_pnl": unrealized_pnl,
+        "unrealised_pnl": unrealized_pnl,
+        "total_pnl": round(equity - initial_capital, 2),
+        "positions": positions,
+        "open_positions": positions,
+        "open_position_count": int(c.get("open_position_count") or len(positions)),
+        "sector_exposure": dict(c.get("sector_exposure") or {}),
+    }
+
+
 def canonical_trades(scope: str = "session") -> List[Dict[str, Any]]:
     """Trade history rows derived exclusively from the phase20 ledger.
 
