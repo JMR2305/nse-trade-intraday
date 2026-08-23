@@ -13,6 +13,10 @@ function firstNonEmpty(...values: Array<string | undefined>): string | undefined
   return values.map((value) => value?.trim()).find(Boolean);
 }
 
+function isGenericBuildId(value: string | undefined): boolean {
+  return value === "apexquant-v1.0.0";
+}
+
 /**
  * Public, non-secret process identity for production-vs-source reconciliation.
  * Values intentionally exclude credentials, tokens, and connection details.
@@ -35,7 +39,9 @@ export function runtimeIdentity(): RuntimeIdentity {
       process.env.REPLIT_GIT_COMMIT,
     ) ?? (isProduction ? "production-unidentified" : "unknown"),
     build_id: firstNonEmpty(
-      process.env.APEXQUANT_BUILD_ID,
+      isGenericBuildId(process.env.APEXQUANT_BUILD_ID)
+        ? undefined
+        : process.env.APEXQUANT_BUILD_ID,
       process.env.BUILD_ID,
     ) ?? (isProduction ? "production-unidentified" : "unknown"),
     deployment_id: firstNonEmpty(

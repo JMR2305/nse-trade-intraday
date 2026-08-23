@@ -57,4 +57,15 @@ describe("runtime identity", () => {
     expect(identity.git_commit).toBe("production-unidentified");
     expect(identity.build_id).toBe("production-unidentified");
   });
+
+  it("rejects the retired generic production build label", () => {
+    process.env.NODE_ENV = "production";
+    process.env.APEXQUANT_GIT_COMMIT = "a".repeat(40);
+    process.env.APEXQUANT_BUILD_ID = "apexquant-v1.0.0";
+
+    const identity = runtimeIdentity();
+
+    expect(identity.git_commit).toBe("a".repeat(40));
+    expect(identity.build_id).toBe("production-unidentified");
+  });
 });

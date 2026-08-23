@@ -30,12 +30,17 @@ def build_market_data_health(
     session: Optional[Dict[str, Any]],
     instruments: Optional[Iterable[Dict[str, Any]]],
     now: Optional[datetime] = None,
+    current_universe: Optional[Iterable[Any]] = None,
+    active_universe: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build the health contract without fetching quotes, profiles, or tokens."""
     now = now or datetime.now(timezone.utc)
     scan = scan if isinstance(scan, dict) else {}
     session = session if isinstance(session, dict) else {}
-    universe = _symbols(scan.get("universe") or [])
+    latest_scan_universe = _symbols(scan.get("universe") or [])
+    universe = _symbols(
+        current_universe if current_universe is not None else latest_scan_universe
+    )
     records = {
         str(row.get("symbol") or "").upper().strip(): row
         for row in (scan.get("recommendations") or [])
@@ -118,6 +123,7 @@ def build_market_data_health(
         and kite_quote_timestamps_fresh
     )
     return {
+        "active_universe": active_universe or "UNKNOWN",
         "active_universe_count": active,
         "kite_connected": kite_connected,
         "valid_token_count": valid_tokens,
@@ -140,5 +146,12 @@ def build_market_data_health(
         "data_ready": data_ready,
         "session_fresh": session_fresh,
         "trading_data_ready": trading_data_ready,
+        "latest_scan": {
+            "scan_id": scan.get("scan_id"),
+            "scan_timestamp": scan.get("snapshot_ts"),
+            "scan_universe": latest_scan_universe,
+            "scan_symbol_count": len(latest_scan_universe),
+            "scan_fresh_for_session": market_timestamp_fresh,
+        },
         "read_only": True,
     }

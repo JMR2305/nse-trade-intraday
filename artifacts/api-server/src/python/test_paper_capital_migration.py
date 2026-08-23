@@ -405,7 +405,9 @@ def test_inflight_entry_cannot_insert_after_migration_pauses_entries():
             except Exception as exc:
                 outcome["error"] = exc
 
-        with patch.object(executor, "db_available", return_value=True), \
+        with patch.object(executor, "_market_entry_status",
+                          return_value={"allowed": True, "market_state": "OPEN"}), \
+             patch.object(executor, "db_available", return_value=True), \
              patch.object(executor, "_connect", side_effect=scoped_connect):
             worker = threading.Thread(target=attempt_insert, daemon=True)
             worker.start()
@@ -575,7 +577,9 @@ def test_locked_entry_admission_revalidates_latest_sector_capacity():
             "recomputed": False,
         })
 
-        with patch.object(executor, "db_available", return_value=True), \
+        with patch.object(executor, "_market_entry_status",
+                          return_value={"allowed": True, "market_state": "OPEN"}), \
+             patch.object(executor, "db_available", return_value=True), \
              patch.object(executor, "_connect", side_effect=scoped_connect):
             admitted = executor._insert_row(row)
 

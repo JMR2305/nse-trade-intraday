@@ -108,3 +108,30 @@ def test_malformed_or_stale_live_quote_timestamp_fails_closed():
         assert result["kite_quote_timestamps_fresh"] is False
         assert result["invalid_live_quote_timestamp_symbols"] == ["TCS"]
         assert result["trading_data_ready"] is False
+
+
+def test_current_configuration_is_not_replaced_by_a_historical_scan_universe():
+    historical_scan = _scan([], universe=("INFY", "TCS"))
+    historical_scan["scan_id"] = "historical-nifty-scan"
+    result = build_market_data_health(
+        historical_scan,
+        {"kite_connected": True, "session_fresh": False},
+        [{"symbol": "BANKBARODA", "token": 1}, {"symbol": "WIPRO", "token": 2}],
+        NOW,
+        current_universe=("BANKBARODA", "WIPRO"),
+        active_universe="CUSTOM_LOW_PRICE_SECTOR",
+    )
+
+    assert result["active_universe"] == "CUSTOM_LOW_PRICE_SECTOR"
+    assert result["active_universe_count"] == 2
+    assert result["valid_token_count"] == 2
+    assert result["missing_token_count"] == 0
+    assert result["token_coverage_pct"] == 100
+    assert result["latest_scan"] == {
+        "scan_id": "historical-nifty-scan",
+        "scan_timestamp": "2026-08-15T10:00:00Z",
+        "scan_universe": ["INFY", "TCS"],
+        "scan_symbol_count": 2,
+        "scan_fresh_for_session": True,
+    }
+    assert result["trading_data_ready"] is False

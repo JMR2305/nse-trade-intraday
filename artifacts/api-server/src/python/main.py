@@ -939,6 +939,7 @@ def main():
             _force = len(args) > 2 and args[2] == "force"
             result = {"success": True, **get_quotes(_syms, force=_force)}
         elif command == "live_health_v2":
+            from config import get_active_intraday_universe
             from market_hours import market_status
             from live_quote_service import provider_status
             from live_scan_engine import load_cached_scan
@@ -947,6 +948,23 @@ def main():
             from market_data_health import build_market_data_health
             _cached = load_cached_scan()
             _session = cached_session_metadata()
+            _active_mode = get_active_intraday_universe().value
+            _current_universe = None
+            _current_instruments = get_cached_instruments()
+            if _active_mode == "CUSTOM_LOW_PRICE_SECTOR":
+                from custom_universe_store import (
+                    get_active_symbol_metadata,
+                    get_active_symbols,
+                )
+                _current_universe = get_active_symbols()
+                _current_metadata = get_active_symbol_metadata()
+                # Coverage is authoritative only when the current custom-master
+                # row itself has a durable mapping, never when an unrelated
+                # global cache happens to contain the same symbol.
+                _current_instruments = [
+                    {"symbol": symbol, "token": _current_metadata.get(symbol, {}).get("instrument_token")}
+                    for symbol in _current_universe
+                ]
             result = {
                 "success": True,
                 "market": market_status(),
@@ -957,7 +975,12 @@ def main():
                 # Derived entirely from cache files and recorded session
                 # metadata; this health command never forces quote/profile IO.
                 "market_data_readiness": build_market_data_health(
-                    _cached, _session, get_cached_instruments()),
+                    _cached,
+                    _session,
+                    _current_instruments,
+                    current_universe=_current_universe,
+                    active_universe=_active_mode,
+                ),
                 "kite_session": _session,
                 "label": "PAPER / LIVE DATA VALIDATION",
             }

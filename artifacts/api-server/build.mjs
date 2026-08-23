@@ -10,13 +10,20 @@ import { rm } from "node:fs/promises";
 globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(artifactDir, "../..");
+const GENERIC_BUILD_IDS = new Set(["apexquant-v1.0.0"]);
 
-function sourceGitCommit() {
-  const configured = process.env.APEXQUANT_GIT_COMMIT?.trim();
+export function sourceGitCommit(env = process.env) {
+  const configured = [
+    env.APEXQUANT_GIT_COMMIT,
+    env.REPLIT_GIT_COMMIT,
+    env.GIT_COMMIT,
+    env.SOURCE_COMMIT,
+  ].map((value) => value?.trim()).find(Boolean);
   if (configured) return configured;
   try {
     return execFileSync("git", ["rev-parse", "HEAD"], {
-      cwd: path.resolve(artifactDir, "../.."),
+      cwd: projectRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
@@ -25,10 +32,25 @@ function sourceGitCommit() {
   }
 }
 
+export function resolveBuildIdentity(env = process.env) {
+  const gitCommit = sourceGitCommit(env);
+  if (!/^[0-9a-f]{7,64}$/i.test(gitCommit)) {
+    throw new Error(
+      "Unable to resolve an exact source commit for the API build. " +
+      "Set APEXQUANT_GIT_COMMIT (or provide an available Git checkout) before publishing."
+    );
+  }
+  const configuredBuildId = env.APEXQUANT_BUILD_ID?.trim();
+  const buildId = configuredBuildId && !GENERIC_BUILD_IDS.has(configuredBuildId)
+    ? configuredBuildId
+    : `apexquant-${gitCommit.slice(0, 12)}`;
+  return { gitCommit, buildId };
+}
+
 async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
-  const gitCommit = sourceGitCommit();
+  const { gitCommit, buildId } = resolveBuildIdentity();
 
   await esbuild({
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
@@ -42,7 +64,8 @@ async function buildAll() {
     // contract can therefore identify the code even when the deployed image
     // does not contain a .git directory.
     define: {
-      "process.env.APEXQUANT_GIT_COMMIT": JSON.stringify(gitCommit || "unknown"),
+      "process.env.APEXQUANT_GIT_COMMIT": JSON.stringify(gitCommit),
+      "process.env.APEXQUANT_BUILD_ID": JSON.stringify(buildId),
     },
     // Some packages may not be bundleable, so we externalize them, we can add more here as needed.
     // Some of the packages below may not be imported or installed, but we're adding them in case they are in the future.
@@ -142,7 +165,9 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
 }
 
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  buildAll().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
