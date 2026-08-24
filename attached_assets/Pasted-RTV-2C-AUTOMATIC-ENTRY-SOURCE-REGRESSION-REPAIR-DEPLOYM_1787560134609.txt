@@ -1,0 +1,404 @@
+RTV-2C — AUTOMATIC ENTRY SOURCE REGRESSION REPAIR + DEPLOYMENT GATE RERUN
+
+Use these controlling artifacts:
+- RTV2B_CONTROLLED_DEPLOYMENT_REPORT.md
+- RTV2B_SCHEMA_SAFETY.md
+- RTV2B_RUNTIME_IDENTITY_AND_SAFETY.md
+- RTV2B_NEXT_NATURAL_SESSION_GATE.md
+- RTV2A_SUMMARY.md
+- RTV2A_FIX_AND_TEST_REPORT.md
+
+TARGET:
+SOURCE / DEVELOPMENT FIRST
+
+Do not publish until the safety regression is fully understood and repaired.
+
+CURRENT PRODUCTION:
+git_commit =
+393747a8102ee3fc8adaa36d60b6ed8db18bc4b8
+
+BLOCKED CANDIDATE:
+253c687bb76d29bb09638bb0bddf00ff5e84fee7
+
+BLOCKER:
+
+Tracked runtime settings changed:
+
+auto_paper_entries:
+false -> true
+
+auto_paper_entries_confirmed_at:
+null -> 2026-08-24T03:33:38Z
+
+This change is NOT approved.
+
+Required safety state:
+
+auto_paper_entries = false
+auto_paper_entries_confirmed_at = null
+bootstrap = false
+automatic exits = true
+paper mode = enabled
+live broker orders = disabled
+
+GOAL:
+
+1. Find exactly how auto_paper_entries became true in tracked source/settings.
+2. Restore the approved disabled state.
+3. Prove no equivalent automatic-entry activation exists elsewhere.
+4. Preserve all RTV-2A fixes.
+5. Re-run the full RTV-2B pre-deployment gate.
+6. Publish only after every safety/source/schema/test check passes.
+
+DO NOT:
+- enable automatic entries
+- enable bootstrap
+- enable live broker orders
+- place broker orders
+- change active universe
+- change strategy thresholds
+- reset portfolio
+- modify historical ledger
+- manually trigger 5A/5B/5C
+- manually trigger scans
+
+TASK 1 — ROOT CAUSE THE SETTINGS CHANGE
+
+Trace the exact history of:
+
+auto_paper_entries
+auto_paper_entries_confirmed_at
+
+Identify:
+
+- file path
+- commit that changed false -> true
+- timestamp
+- author/process
+- whether it came from:
+  * user action
+  * Replit Agent
+  * runtime persistence
+  * generated settings synchronization
+  * test fixture
+  * deployment checkpoint
+  * UI/API settings write
+  * another mechanism
+
+Report the exact commit and diff.
+
+Do not assume it was intentional.
+
+TASK 2 — CHECK WHETHER PRODUCTION WAS EVER ACTIVATED
+
+READ ONLY.
+
+Determine whether production runtime or persistent settings ever had:
+
+auto_paper_entries = true
+
+during 2026-08-24.
+
+Inspect:
+- settings history if available
+- audit log
+- config persistence
+- controlled-entry status
+- paper trade creation timestamps
+- scheduler logs
+
+Report:
+
+A. source-only regression
+B. source + runtime setting activation
+C. historical activation but currently disabled
+D. unable to determine
+
+If production automatic entries were ever enabled:
+flag as CRITICAL and identify exact duration/evidence.
+
+TASK 3 — CHECK FOR UNAUTHORIZED PAPER ENTRIES
+
+READ ONLY.
+
+Inspect Phase20/paper-trade ledger since the last known safe checkpoint.
+
+Require:
+
+- no new unauthorized OPEN rows
+- no new CLOSED rows caused by automatic entries
+- historical six CLOSED rows still intact
+- realized P&L still -278.74 unless a clearly authorized trade exists
+- open positions = 0 unless independently justified
+
+List any row created after the RTV-2 baseline.
+
+Do not modify anything.
+
+TASK 4 — RESTORE SOURCE SAFETY
+
+Restore:
+
+auto_paper_entries = false
+auto_paper_entries_confirmed_at = null
+
+Do not merely override it at runtime.
+
+The tracked source/default safety contract must itself be safe.
+
+If another persisted runtime authority exists, confirm its value is also false.
+
+TASK 5 — SEARCH FOR ALL AUTO-ENTRY AUTHORITIES
+
+Search entire runtime source for:
+
+auto_paper_entries
+AUTO_PAPER_ENTRIES
+auto entry
+automatic entry
+execution_allowed
+bootstrap_paper
+controlled paper entry
+
+Build an authority map:
+
+field/source
+default
+runtime store
+API write route
+UI control
+scheduler consumer
+entry engine consumer
+
+Verify there is no second authority capable of silently enabling entry.
+
+TASK 6 — FAIL-CLOSED DEFAULT
+
+Require:
+
+If setting is:
+- missing
+- malformed
+- unavailable
+- DB read fails
+- config file absent
+
+automatic entry defaults to DISABLED.
+
+Add/verify tests.
+
+TASK 7 — PROTECT SAFETY SETTING FROM ACCIDENTAL SOURCE DRIFT
+
+Add a lightweight guard/test ensuring release candidates fail if:
+
+auto_paper_entries != false
+
+or equivalent default safety state is enabled.
+
+Do not hardcode away the legitimate explicit controlled activation mechanism if one is intentionally supported.
+
+The purpose is:
+default/release state must remain OFF unless an explicitly authorized workflow changes it.
+
+TASK 8 — PRESERVE RTV-2A FIXES
+
+Verify the repaired candidate still contains:
+
+- durable Phase 5A PostgreSQL state
+- immutable collection batch IDs
+- provider/persisted same-batch parity
+- freeze exact-batch validation
+- durable predecessor ordering
+- exact session scoping
+- observation GET purity
+- scan origin metadata
+- scheduled readiness certification logic
+
+No regression allowed.
+
+TASK 9 — SCHEMA SAFETY RERUN
+
+Require:
+
+hasDiff = false
+OR only the previously reviewed additive/index RTV-2A schema initialization
+
+No:
+- DROP
+- TRUNCATE
+- destructive alteration
+- historical data rewrite
+
+Report exact result.
+
+TASK 10 — TEST GATE
+
+Run:
+
+- Phase 5A / scan / readiness suite
+- settings/safety tests
+- auto-entry fail-closed tests
+- paper entry admission tests
+- bootstrap tests
+- live broker-disable tests
+- GET side-effect tests
+- scan-origin tests
+- portfolio parity tests
+- ledger integrity tests
+- custom-universe tests
+- Kite session tests
+- API TypeScript
+- production build
+
+Report counts and failures.
+
+Do not weaken tests.
+
+TASK 11 — CANDIDATE SCOPE REVIEW
+
+Record:
+- branch
+- HEAD
+- git status
+- commits since production 393747a...
+- every changed runtime file
+
+Classify each change.
+
+Require no unrelated:
+- strategy
+- threshold
+- universe
+- capital
+- broker
+- portfolio
+- ledger
+- automatic-entry activation
+
+TASK 12 — CREATE NEW APPROVED DEPLOY COMMIT
+
+Only after all gates pass:
+
+APPROVED_DEPLOY_COMMIT =
+<full SHA>
+
+EXPECTED_BUILD_ID =
+apexquant-<first 12 SHA chars>
+
+TASK 13 — CONTROLLED PUBLISH
+
+Publish only the approved repaired candidate.
+
+Do not trigger scans or pre-open lifecycle during post-deploy verification.
+
+TASK 14 — IDENTITY GATE
+
+Require production:
+
+environment = production
+git_commit = APPROVED_DEPLOY_COMMIT
+build_id = EXPECTED_BUILD_ID
+deployment_id = present
+runtime_timestamp = current
+
+Mismatch = STOP.
+
+TASK 15 — POST-DEPLOY SAFETY MATRIX
+
+READ ONLY.
+
+Require:
+
+active universe = CUSTOM_LOW_PRICE_SECTOR
+active count = 23
+token mappings = 23/23
+
+initial capital = 100000
+cash/equity = expected current canonical value
+historical realized P&L = expected canonical value
+open positions = expected safe state
+
+paper mode = enabled
+auto_paper_entries = false
+auto_paper_entries_confirmed_at = null
+bootstrap = false
+automatic exits = true
+live broker orders = disabled
+
+Any mismatch = SAFETY FAILURE.
+
+TASK 16 — KITE SESSION RECHECK
+
+Production previously reported:
+token stored = true
+token expired = false
+connected = false
+
+Recheck:
+
+credentials_present
+token_status
+token_stored
+token_expired
+connected
+authenticated
+login_required
+
+If token is valid but connected=false:
+diagnose without creating credentials or placing orders.
+
+If manual login is required:
+report MANUAL KITE LOGIN REQUIRED.
+
+TASK 17 — OBSERVATION ENDPOINT PURITY
+
+Using only approved read-only endpoints verify repeated GETs do not:
+
+- create scans
+- trigger pre-open phases
+- mutate DB lifecycle
+- create trades
+- alter portfolio
+- place orders
+
+TASK 18 — FINAL VERDICT
+
+Allowed:
+
+A. RTV-2C PASS — DEPLOYED AND NEXT NATURAL SESSION UNLOCKED
+B. SOURCE SAFETY REGRESSION UNRESOLVED
+C. PRODUCTION AUTO-ENTRY ACTIVATION DETECTED
+D. UNAUTHORIZED PAPER TRADE DETECTED
+E. SCHEMA FAILURE
+F. TEST FAILURE
+G. DEPLOYMENT IDENTITY FAILURE
+H. KITE RELOGIN REQUIRED
+I. SAFETY REGRESSION
+
+PASS requires:
+
+1. source auto entries restored false
+2. confirmation timestamp null
+3. production auto entries false
+4. no unauthorized trades
+5. RTV-2A fixes preserved
+6. schema safe
+7. tests pass
+8. exact production identity
+9. universe 23 preserved
+10. portfolio/ledger preserved
+11. bootstrap disabled
+12. live broker orders disabled
+13. GET observation endpoints side-effect-free
+
+OUTPUT:
+
+1. RTV2C_AUTO_ENTRY_ROOT_CAUSE.md
+2. RTV2C_SAFETY_AUTHORITY_MAP.md
+3. RTV2C_CONTROLLED_DEPLOYMENT_REPORT.md
+4. RTV2C_RUNTIME_IDENTITY_AND_SAFETY.md
+5. RTV2C_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL RULE:
+
+Do not unlock the next natural-session certification until the source and production automatic-entry state are both proven disabled.
