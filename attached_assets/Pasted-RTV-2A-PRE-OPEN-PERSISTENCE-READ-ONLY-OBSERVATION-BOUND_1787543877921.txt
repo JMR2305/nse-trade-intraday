@@ -1,0 +1,433 @@
+RTV-2A — PRE-OPEN PERSISTENCE + READ-ONLY OBSERVATION BOUNDARY FIX
+
+Use these controlling artifacts:
+- RTV2_LIVE_SESSION_VALIDATION_REPORT.md
+- RTV2_PREOPEN_LIFECYCLE.csv
+- RTV2_FIRST_CANONICAL_SCAN.csv
+- RTV2_LIVE_KITE_PROVENANCE.csv
+- RTV2_READINESS_TRANSITION.csv
+- RTV2_SESSION_SAFETY_RECONCILIATION.md
+- RTV1H_PRODUCTION_READINESS_COMPLETION.md
+
+TARGET:
+SOURCE / DEVELOPMENT FIRST
+
+Do not deploy until fixes and tests pass.
+
+CURRENT VERIFIED PRODUCTION IDENTITY:
+git_commit = 4392f278ae25562f168f970e2b694f8c3d249d5c
+build_id = apexquant-4392f278ae25
+
+CURRENT SAFETY BASELINE:
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- mappings = 23/23
+- automatic paper entries = disabled
+- bootstrap = disabled
+- automatic exits = enabled
+- live broker orders = disabled
+- historical realized P&L = -278.74
+- open positions = 0
+
+RTV-2 FOUND TWO DEFECTS:
+
+DEFECT A — PHASE 5A DURABLE PERSISTENCE FAILURE
+
+Today's production scheduler created:
+
+session_id =
+preopen-2026-08-24-226281
+
+Scheduler progressed through:
+- collect
+- freeze
+
+But durable state remained:
+
+status = INITIALISING
+symbol_count = null
+valid_count = null
+stale_count = null
+
+and no current-day persisted snapshot was available.
+
+This is a real Phase 5A provider/persistence failure.
+
+DEFECT B — READ ENDPOINT CAN TRIGGER A SCAN
+
+GET /api/live-data/recommendations
+
+was assumed to be read-only, but source inspection showed:
+
+getP7Scan(false)
+
+can invoke:
+
+spawnP7Scan(["phase7_scan"])
+
+when market is open and cache is empty.
+
+This caused scan:
+fb88f7199f27
+
+That scan is NON-CERTIFYING because the observer triggered it.
+
+GOAL:
+
+1. Fix Phase 5A so natural scheduler execution produces a durable current-day session result.
+2. Make production observation/read endpoints strictly side-effect-free.
+3. Preserve existing scheduler behavior, strategy, universe, portfolio, and safety controls.
+4. Add tests that prove GET/read-only verification cannot trigger scans.
+5. Prepare a new controlled deployment and next-session validation gate.
+
+Do not:
+- enable auto entries
+- enable bootstrap
+- enable live broker orders
+- change universe membership
+- change strategy or thresholds
+- reset portfolio
+- modify historical ledger
+- manually trigger a production scan
+- manually trigger production 5A/5B/5C during diagnosis
+
+TASK 1 — ROOT CAUSE PHASE 5A
+
+Trace today's scheduler path:
+
+scheduler
+→ preopen init
+→ collect
+→ provider collection
+→ persistence
+→ freeze
+→ durable session status
+→ snapshot/report API
+
+Identify exactly where today's state stopped progressing.
+
+Inspect:
+- scheduler event timestamps
+- Phase 5A logs
+- exceptions
+- provider result
+- collected symbol count
+- persistence call
+- transaction commit
+- session update
+- freeze transition
+- retry behavior
+- status serialization
+- report endpoint authority
+
+Answer:
+
+A. Did provider collection complete?
+B. How many symbols were collected?
+C. Was persistence attempted?
+D. Did persistence fail?
+E. Was the DB transaction committed?
+F. Was session status update skipped?
+G. Did freeze run against incomplete state?
+H. Did an exception get swallowed?
+I. Did scheduler mark a phase done before durable persistence completed?
+J. Is the report endpoint reading the same authoritative store?
+
+Do not normalize nulls to zero.
+
+TASK 2 — PRE-OPEN STATE MACHINE AUDIT
+
+Document valid lifecycle:
+
+INITIALISING
+→ COLLECTING
+→ [persist snapshot]
+→ COLLECTED / VALIDATED equivalent
+→ FREEZE / COMPLETE
+
+Use the actual source-defined states.
+
+Identify all terminal and failure states.
+
+Require:
+- a phase must not be recorded DONE before required durable write succeeds
+- freeze cannot silently convert an incomplete collection into success
+- provider count and persisted count must be stored
+- failure reason must be durable
+- retry state must be explicit
+- NO_CANDIDATES must be different from persistence failure
+
+TASK 3 — FIX PHASE 5A DURABLE PERSISTENCE
+
+Implement the smallest safe correction.
+
+Required behavior:
+
+If provider collection succeeds:
+- persist current-day snapshots
+- persist provider_collected_count
+- persist persisted_count
+- persist failed_count
+- persist timestamps/source
+- commit
+- then advance lifecycle state
+
+If persistence fails:
+- do NOT advance to successful terminal state
+- persist explicit failure/retry state when possible
+- log exact cause
+- keep downstream 5B/5C from treating it as successful
+- fail closed
+
+Do not change ranking logic or provider selection unless root cause requires it.
+
+TASK 4 — TEST PROVIDER/PERSISTENCE PARITY
+
+Add tests for:
+
+1. successful collection + successful persistence
+2. successful collection + DB failure
+3. partial symbol persistence
+4. zero candidates
+5. provider failure
+6. freeze after successful persistence
+7. freeze after failed persistence
+8. restart/recovery from incomplete session
+9. repeated scheduler tick idempotency
+10. provider_count != persisted_count must fail/degrade explicitly
+
+Require:
+provider_collected_count == persisted_count
+for successful 5A completion.
+
+TASK 5 — AUDIT ALL OBSERVATION GET ENDPOINTS
+
+Start with:
+
+GET /api/live-data/recommendations
+
+Trace exact route behavior.
+
+Then inspect all endpoints used by RTV verification, including:
+- health
+- readiness
+- scheduler status
+- scan history
+- recommendations
+- current scan/snapshot
+- pre-open report/status
+- portfolio
+- ledger
+- Kite status
+- universe status
+
+Classify each:
+
+PURE READ
+READ WITH CACHE FILL
+READ THAT MAY SPAWN COMPUTE
+READ THAT MAY WRITE
+UNKNOWN
+
+A GET endpoint used for production observation must not:
+- spawn phase7_scan
+- trigger 5A/5B/5C
+- mutate DB
+- refresh universe
+- place orders
+- change cache in a way that invokes computation
+
+TASK 6 — FIX RECOMMENDATIONS OBSERVATION BOUNDARY
+
+Separate:
+
+READ EXISTING SNAPSHOT
+
+from
+
+RUN/REFRESH SCAN
+
+Preferred contract:
+
+GET /api/live-data/recommendations
+→ return latest persisted/cached result only
+→ if none exists, return explicit NO_CURRENT_SNAPSHOT / 204 / suitable read-only response
+→ NEVER spawn phase7_scan
+
+If a scan-trigger endpoint is needed, it must be explicit and separate, e.g. POST action, and must not be used by RTV observation.
+
+Do not change existing trading behavior beyond removing hidden GET-side-effect scan execution.
+
+TASK 7 — ADD SIDE-EFFECT SAFETY TESTS
+
+Add tests proving:
+
+GET /api/live-data/recommendations
+
+with:
+- market open
+- cache empty
+- cache populated
+- stale cache
+- current cache
+
+NEVER calls:
+spawnP7Scan
+phase7_scan
+scheduler scan execution
+
+Also test all other RTV observation GET endpoints for no unexpected scan/job spawning where applicable.
+
+TASK 8 — SCHEDULER NATURAL-SCAN AUTHORITY
+
+Identify the one authoritative naturally scheduled canonical scan path.
+
+Document:
+
+scheduler function
+→ command
+→ universe resolver
+→ phase7_scan
+→ persisted scan result
+→ scan history
+
+Specify how RTV-2 can observe it without triggering it.
+
+Provide a safe evidence route/query for:
+- latest persisted scheduler-emitted scan
+- scan ID
+- scheduler origin
+- universe
+- requested count
+- received count
+- timestamps
+- provenance
+
+If current APIs do not expose scheduler origin safely, add a non-mutating field or read endpoint.
+
+TASK 9 — SCAN ORIGIN METADATA
+
+Every canonical scan should make its origin distinguishable:
+
+scheduled
+manual
+API-triggered
+recovery/backfill
+unknown
+
+Persist/report a non-secret field such as:
+trigger_origin / execution_origin
+
+RTV must be able to prove:
+trigger_origin = scheduled
+
+for certification.
+
+Do not rewrite historical rows.
+
+TASK 10 — READINESS MUST USE CERTIFYING SCAN
+
+Ensure trading_data_ready cannot become true merely because an operator-triggered/API-triggered scan produced fresh data.
+
+For live-session certification require, as appropriate:
+- current session
+- current active universe
+- 23/23 coverage
+- fresh Kite data
+- acceptable scan origin = scheduled
+- no synthetic/fallback execution data
+
+If business logic intentionally allows non-scheduled scans for readiness, document that separately; RTV certification must still distinguish them.
+
+TASK 11 — TEST FULL PRE-OPEN → SCAN FLOW
+
+In test/dev simulation only:
+
+natural scheduler 5A
+→ durable persistence
+→ 5B
+→ 5C
+→ market-open scheduler
+→ canonical 23-symbol scan
+
+Require:
+- no manual/API trigger
+- exactly 23 current custom symbols
+- persisted scheduler origin
+- readiness transitions only after valid evidence
+- auto entries still disabled
+
+TASK 12 — REGRESSION / SAFETY
+
+Run:
+- pre-open suites
+- scheduler suites
+- scan suites
+- GET endpoint side-effect tests
+- readiness suites
+- custom-universe suites
+- Kite provenance suites
+- portfolio parity suites
+- ledger integrity suites
+- API typecheck/build
+
+Report passed/failed/skipped/warnings.
+
+Do not weaken tests.
+
+TASK 13 — CONTROLLED DEPLOYMENT PRECHECK
+
+Before publish verify:
+- clean intended diff
+- no strategy changes
+- no threshold changes
+- no universe membership changes
+- no capital changes
+- no ledger changes
+- no broker behavior changes
+- schema diff non-destructive / preferably none
+
+Create APPROVED_DEPLOY_COMMIT.
+
+TASK 14 — DEPLOY ONLY AFTER TEST PASS
+
+Controlled production publish.
+
+Immediately verify:
+- exact runtime commit/build identity
+- Kite auth still valid
+- 23/23 mappings preserved
+- portfolio parity preserved
+- safety flags preserved
+
+Do not trigger scan/pre-open jobs as part of post-deploy verification.
+
+TASK 15 — OUTPUTS
+
+Create:
+
+1. RTV2A_PREOPEN_PERSISTENCE_ROOT_CAUSE.md
+2. RTV2A_READ_ENDPOINT_SIDE_EFFECT_AUDIT.csv
+3. RTV2A_SCHEDULER_SCAN_AUTHORITY.md
+4. RTV2A_FIX_AND_TEST_REPORT.md
+5. RTV2A_NEXT_SESSION_VALIDATION_GATE.md
+
+FINAL VERDICT:
+
+A. FIXED AND DEPLOYED — NEXT NATURAL SESSION VALIDATION REQUIRED
+B. PHASE 5A ROOT CAUSE UNRESOLVED
+C. READ-ENDPOINT SIDE EFFECT UNRESOLVED
+D. SCHEDULER ORIGIN NOT CERTIFIABLE
+E. SAFETY/REGRESSION FAILURE
+F. CODE PASS — DEPLOYMENT PENDING
+
+FINAL RULE
+
+Do not attempt another RTV-2 live-session certification until:
+- Phase 5A durable persistence is fixed
+- GET/read observation endpoints are side-effect-free
+- scheduler-emitted scan origin can be proven without triggering a scan
+
+Automatic paper entries remain disabled.
+Bootstrap remains disabled.
+Live broker orders remain disabled.
