@@ -1,0 +1,225 @@
+RTV-2B — CONTROLLED PRODUCTION DEPLOYMENT OF RTV-2A FIXES
+
+Use:
+- RTV2A_SUMMARY.md
+- RTV2A_FIX_AND_TEST_REPORT.md
+- RTV2A_PREOPEN_PERSISTENCE_ROOT_CAUSE.md
+- RTV2A_NEXT_SESSION_VALIDATION_GATE.md
+- RTV2_LIVE_SESSION_VALIDATION_REPORT.md
+
+GOAL:
+Deploy only the verified RTV-2A fixes to production and prove the exact deployed identity before the next natural-session validation.
+
+DO NOT:
+- trigger pre-open jobs
+- trigger scans
+- change universe membership
+- change strategy/thresholds
+- reset portfolio
+- modify historical ledger
+- enable automatic entries
+- enable bootstrap
+- enable live broker orders
+- place broker orders
+
+TASK 1 — SOURCE CANDIDATE
+
+Record:
+- branch
+- HEAD commit
+- git status
+- changed files
+- commit list since current production commit
+  4392f278ae25562f168f970e2b694f8c3d249d5c
+
+Classify every changed file.
+
+Require all runtime changes to be scoped to:
+- Phase 5A durable persistence
+- immutable collection batch evidence
+- lifecycle ordering
+- session scoping
+- observation GET purity
+- scan origin metadata
+- readiness certification logic
+- tests/schema safety
+
+If unrelated trading changes exist:
+STOP.
+
+TASK 2 — DEFINE APPROVED_DEPLOY_COMMIT
+
+Commit all approved RTV-2A source changes.
+
+Report:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+
+Report expected commit-derived build ID:
+
+apexquant-<first 12 SHA chars>
+
+TASK 3 — SCHEMA SAFETY
+
+RTV-2A introduces/uses the pre-open collection batch field and dependent index.
+
+Verify production schema migration is strictly additive.
+
+Allowed:
+- ADD nullable/non-destructive batch column where required
+- CREATE compatible index
+
+NOT ALLOWED:
+- DROP COLUMN
+- DROP TABLE
+- TRUNCATE
+- destructive type conversion
+- recreation of production lifecycle tables
+- deletion/backfill that rewrites historical pre-open evidence
+
+Show exact SQL.
+
+Classify each statement:
+SAFE ADDITIVE
+SAFE INDEX
+DESTRUCTIVE — NOT ALLOWED
+
+If destructive:
+STOP.
+
+TASK 4 — HISTORICAL DATA SAFETY
+
+Before publish record read-only checks for:
+- pre-open historical sessions
+- pre-open snapshots
+- Phase20 six CLOSED ledger rows
+- portfolio values
+- active universe
+
+Require no planned migration deletes or rewrites historical rows.
+
+TASK 5 — PRE-DEPLOY TEST GATE
+
+Run the validated suites again:
+
+- Phase 5A / scan / readiness
+- immutable batch persistence
+- exact-batch freeze
+- lifecycle recovery/retry
+- GET observation side-effect tests
+- scan-origin tests
+- portfolio parity
+- custom universe
+- Kite session/provenance
+- API TypeScript
+- build
+
+Report counts.
+
+No weakened tests.
+
+TASK 6 — CONTROLLED PRODUCTION PUBLISH
+
+Publish only after Tasks 1–5 pass.
+
+Do not manually trigger any scheduler activity after deployment.
+
+TASK 7 — PRODUCTION IDENTITY GATE
+
+Immediately query production:
+
+/api/health/details
+
+Require:
+
+environment = production
+git_commit = APPROVED_DEPLOY_COMMIT
+build_id = commit-derived expected value
+deployment_id = present
+runtime_timestamp = current
+
+Any mismatch:
+STOP.
+
+TASK 8 — POST-DEPLOY SAFETY READS
+
+READ ONLY.
+
+Confirm:
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- mappings = 23/23
+- Kite token valid/stored/connected
+- initial capital = 100000
+- cash/equity = 99721.26
+- realized P&L = -278.74
+- open positions = 0
+- automatic entries = disabled
+- bootstrap = disabled
+- automatic exits = enabled
+- live broker orders = disabled
+
+TASK 9 — OBSERVATION ENDPOINT PURITY
+
+Do NOT call any endpoint known to trigger work.
+
+Using only the newly approved pure-read routes, confirm that repeated observation requests:
+
+- do not create a scan
+- do not create a lifecycle phase
+- do not change pre-open session state
+- do not modify portfolio
+- do not create orders
+
+Compare before/after IDs/counts.
+
+TASK 10 — PRODUCTION CODE PRESENCE
+
+Verify deployed source/runtime contains:
+
+- durable PostgreSQL Phase 5A state
+- immutable collection batch ID
+- same-batch parity requirement
+- freeze exact-batch verification
+- durable lifecycle predecessor enforcement
+- exact session scoping
+- GET recommendations/scan observation purity
+- API_TRIGGERED vs SCHEDULED scan origin distinction
+- readiness requiring certifying scheduled evidence
+
+TASK 11 — FINAL VERDICT
+
+Allowed:
+
+A. RTV-2B DEPLOYMENT PASS — NEXT NATURAL SESSION REQUIRED
+B. SOURCE SCOPE FAILURE
+C. SCHEMA SAFETY FAILURE
+D. DEPLOYMENT IDENTITY FAILURE
+E. SAFETY REGRESSION
+F. OBSERVATION ENDPOINT STILL HAS SIDE EFFECT
+G. TEST FAILURE
+
+PASS requires:
+1. exact production identity
+2. safe/additive schema only
+3. RTV-2A controls present
+4. 23-symbol universe preserved
+5. portfolio/ledger preserved
+6. Kite auth preserved
+7. auto entries off
+8. bootstrap off
+9. live orders off
+10. observation GETs side-effect-free
+
+OUTPUT:
+
+1. RTV2B_CONTROLLED_DEPLOYMENT_REPORT.md
+2. RTV2B_SCHEMA_SAFETY.md
+3. RTV2B_RUNTIME_IDENTITY_AND_SAFETY.md
+4. RTV2B_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL RULE:
+
+Do not manually trigger 5A/5B/5C or a canonical scan.
+
+The next live certification must come only from the next naturally scheduled NSE session.
