@@ -56,3 +56,25 @@ Keep `trading_data_ready=false` until the natural pre-open and first canonical
 scan prove all RTV-2 gates. Do not enable automatic entries, bootstrap, or live
 orders. Do not manually trigger scans or 5A/5B/5C. If any later safety value
 changes unexpectedly, stop immediately and record the exact transition.
+
+
+---
+
+## Continuation stop condition — 2026-08-24
+
+The production pre-open scheduler created session `preopen-2026-08-24-226281`
+but did not persist a completed Phase 5A result: it remained
+`INITIALISING` with null counts after the collect/freeze window.
+This is recorded as a pre-open failure, not normalized to success.
+
+During the evidence collection, `GET /api/live-data/recommendations` generated
+scan `fb88f7199f27` because the market-open route's cold-cache code path spawns
+`phase7_scan`. That endpoint call is a non-certifying observation-boundary
+failure. All further production observations stopped immediately after source
+confirmation.
+
+No safety-control mutation was made during this continuation. The last verified
+values before the stop condition remain: automatic entries disabled, bootstrap
+disabled, automatic exits enabled, paper-only mode enabled, and live broker
+order placement disabled. There is no post-natural-scan safety assertion in
+this artifact because no qualifying natural scan was observed.

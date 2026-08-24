@@ -1,6 +1,6 @@
-# RTV-2 Live NSE Session Validation Report
+#   Live NSE Session Validation Report
 
-## Final verdict
+## Initial checkpoint verdict
 
 **G. LIVE SESSION INCOMPLETE — CONTINUE OBSERVATION**
 
@@ -165,3 +165,62 @@ cleared.
 See the other five RTV-2 artifacts for structured evidence. Continue only with
 natural scheduled observation at the next checkpoint; do not manually trigger
 anything.
+
+
+---
+
+## Continuation checkpoint — 2026-08-24 natural-session observation
+
+## Final verdict after continuation
+
+**B. PRE-OPEN FAILURE — LIVE-SESSION PASS NOT CERTIFIABLE**
+
+The scheduled production pre-open session was created (`preopen-2026-08-24-226281`;
+created `2026-08-24T03:14:55.448638+00:00`), and its scheduler progressed through
+`collect` and `freeze`. However, after that window its durable session remained
+`INITIALISING`, with `symbol_count=None`,
+`valid_count=None`, `stale_count=None`,
+and no persisted current-day snapshot. This does not meet Phase 5A
+provider-collected/persisted-count parity. The production pre-open lifecycle is
+therefore a **PRE-OPEN 5A FAILURE**.
+
+A second, independent boundary prevents live-session certification: during this
+observation, `GET /api/live-data/recommendations` was used under the assumption
+it served a stored canonical snapshot. Source verification immediately after
+showed that route calls `getP7Scan(false)`, which, when the market is OPEN and
+its cache is empty, invokes `spawnP7Scan(["phase7_scan"])`. The resulting scan
+`fb88f7199f27` at `2026-08-24T03:50:49Z` must be recorded as **non-certifying** and must
+not be called a natural scheduled scan. No further production observations or
+writes were performed after this was established.
+
+### Non-certifying scan evidence retained for audit
+
+The scan output itself used `CUSTOM_LOW_PRICE_SECTOR`, contained exactly 23
+symbols matching the RTV1H active universe, and reported:
+
+- 23/23 `kite_live_ltp` current and execution price sources;
+- 23/23 reliable quotes;
+- zero fallback and zero synthetic execution sources;
+- historical indicators/OHLCV from `yfinance_daily_bars`;
+- zero symbol errors; and
+- no paper orders.
+
+These facts are audit evidence only. They do **not** satisfy the requirement for
+the first naturally scheduled canonical scan or the post-natural-scan readiness
+transition.
+
+### Remaining fields deliberately not claimed
+
+- Phase 5B was not certified from a durable production lifecycle result.
+- Phase 5C was not certified from a durable production lifecycle result.
+- No new scheduled 50-symbol-path classification is possible from the invalid
+  observation boundary; classification remains **D. unable to determine**.
+- No post-natural-scan readiness transition, portfolio/ledger comparison, or
+  safety recheck was performed after the stop condition.
+- Automatic entries, bootstrap, and live broker orders were not enabled; no
+  broker order operation, portfolio reset, universe change, or ledger mutation
+  was performed.
+
+The current RTV-2 run must not be promoted to verdict A. Any future validation
+must use scheduler-emitted durable scan/state evidence only and must avoid
+endpoints that invoke `getP7Scan` during market-open cache misses.

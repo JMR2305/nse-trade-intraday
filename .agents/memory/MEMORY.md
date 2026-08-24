@@ -2,6 +2,7 @@
 - [Phase 7 live scan design](phase7-live-scan.md) — canonical scan has one scan_id/snapshot_ts; health endpoint probes 3 symbols only (quick); full scan via /live-data/scan/run.
 - [Phase 7 safety gates](phase7-safety-gates.md) — STALE→WATCH, UNAVAILABLE→IGNORE enforced in live_scan_engine._apply_quality_gate(); never in market_scanner.py.
 - [Manual scan market-hours gate](manual-scan-market-hours.md) — every full-scan entry point, including operator triggers, must require OPEN; execution gates alone are not enough.
+- [Dashboard scan GET side effect](dashboard-scan-get-side-effect.md) — `/live-data/recommendations` is not observation-safe at market open: a cold cache calls `phase7_scan`.
 - [Phase 8 broker safety design](phase8-broker-safety.md) — credential masking, no-auto-execution guarantee, two-step confirm tokens, MockBrokerClient fallback.
 - [Phase 8 test pattern](phase8-tests.md) — all broker tests must stay unit-level with mocked clients; never hit a real broker in tests.
 - [Watchlist default fallback](watchlist-default.md) — watchlist.json may not exist; any reader must fall back to config.DEFAULT_WATCHLIST like main.py does, or features silently show empty.
