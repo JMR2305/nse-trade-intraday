@@ -628,3 +628,10 @@ uri = "file://RTV0_RUNTIME_AUTHORITY_MAP.md"
 type = "text"
 title = "RTV-0 Runtime Authority Map"
 description = "Observed source-of-truth map, concurrency classification, and topology."
+
+[[outputs]]
+id = "OyycAQiA8vJXXyTS0yZtw"
+uri = "file://RTV2A_SUMMARY.md"
+type = "text"
+title = "RTV-2A Summary"
+description = "Shareable summary of Phase 5A persistence, exact collection-batch safety, validation evidence, and the natural-session certification gate."
