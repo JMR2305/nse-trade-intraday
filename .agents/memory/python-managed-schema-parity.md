@@ -15,5 +15,7 @@ publish diff treats them as extra and proposes destructive drops.
 **How to apply:** Add new fields to the canonical table declaration, align the
 development table with an additive-only change when necessary, verify the
 publish schema diff is empty or additive, and include the Python-managed table
-in the migration guard's protected registry. Never run schema DDL against
-production outside the publish flow.
+in the migration guard's protected registry. For established tables, add the
+field with `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` before creating an index
+or query that references it. Never run schema DDL against production outside
+the publish flow.

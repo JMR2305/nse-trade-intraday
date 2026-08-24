@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import sys
 import json
+import types
 import unittest
 import unittest.mock as mock
 from datetime import datetime, timezone, timedelta
@@ -34,7 +35,7 @@ class TestPhaseWindowDetection(unittest.TestCase):
         self.assertEqual(self._phase(8, 47), "init")
 
     def test_init_window_end(self):
-        self.assertEqual(self._phase(8, 51), "init")
+        self.assertIsNone(self._phase(8, 51))  # end-exclusive boundary
 
     def test_gap_between_init_and_readiness(self):
         self.assertIsNone(self._phase(8, 52))
@@ -43,18 +44,16 @@ class TestPhaseWindowDetection(unittest.TestCase):
         self.assertEqual(self._phase(8, 55), "readiness")
 
     def test_readiness_window_end(self):
-        self.assertEqual(self._phase(9, 0), "readiness")
+        self.assertEqual(self._phase(9, 0), "collect")
 
     def test_collect_window_start(self):
-        self.assertEqual(self._phase(9, 0), "readiness")  # 09:00 is readiness end / collect start
-        # collect starts at 09:00 inclusive too — both windows share 09:00;
-        # readiness takes priority (comes first in _PHASES)
+        self.assertEqual(self._phase(9, 0), "collect")
 
     def test_collect_window_mid(self):
         self.assertEqual(self._phase(9, 7), "collect")
 
     def test_collect_window_end(self):
-        self.assertEqual(self._phase(9, 15), "collect")  # 09:15 is collect end / freeze start
+        self.assertEqual(self._phase(9, 15), "freeze")
 
     def test_freeze_window(self):
         self.assertEqual(self._phase(9, 16), "freeze")
@@ -63,7 +62,7 @@ class TestPhaseWindowDetection(unittest.TestCase):
         self.assertEqual(self._phase(9, 19), "reconcile")
 
     def test_reconcile_end(self):
-        self.assertEqual(self._phase(9, 23), "reconcile")
+        self.assertIsNone(self._phase(9, 23))
 
     def test_after_all_phases(self):
         self.assertIsNone(self._phase(9, 24))
@@ -139,8 +138,14 @@ class TestInitPhase(unittest.TestCase):
              mock.patch("preopen_intelligence_tick._load_state", return_value={}), \
              mock.patch("preopen_intelligence_tick._save_state"), \
              mock.patch("preopen_intelligence_tick._run_init",
-                        return_value={"provider_status": "LIVE", "session_status": "INITIALISED",
-                                      "steps": {}}):
+                       return_value={"success": True, "provider_status": "LIVE", "session_status": "INITIALISED",
+                                     "steps": {}}), \
+             mock.patch.dict(sys.modules, {
+                 "preopen_db": types.SimpleNamespace(
+                     get_session_for_trading_date=lambda _: None,
+                     update_phase_state=lambda *_, **__: True,
+                 ),
+             }):
             r = t.run_tick()
         self.assertTrue(r["ran"])
         self.assertEqual(r["phase"], "init")
@@ -222,7 +227,8 @@ class TestFreezePhase(unittest.TestCase):
              mock.patch("preopen_intelligence_tick._load_state", return_value=state), \
              mock.patch("preopen_intelligence_tick._save_state"), \
              mock.patch("preopen_intelligence_tick._run_freeze",
-                        return_value={"success": True, "phase": "FROZEN"}):
+                        return_value={"success": True, "phase": "FROZEN"}), \
+             mock.patch("preopen_db.update_phase_state", return_value=True):
             r = t.run_tick()
         self.assertTrue(r["ran"])
         self.assertEqual(r["phase"], "freeze")
@@ -238,7 +244,11 @@ class TestFreezePhase(unittest.TestCase):
         with mock.patch("preopen_intelligence_tick._is_enabled", return_value=True), \
              mock.patch("preopen_intelligence_tick._is_trading_day", return_value=True), \
              mock.patch("preopen_intelligence_tick._now_ist", return_value=_ist(9, 17)), \
-             mock.patch("preopen_intelligence_tick._load_state", return_value=state):
+             mock.patch("preopen_intelligence_tick._load_state", return_value=state), \
+             mock.patch("preopen_db.get_session_for_trading_date", return_value={
+                 "session_id": "preopen-test-001",
+                 "phase_state": {"freeze": {"completed": True}},
+             }):
             r = t.run_tick()
         self.assertFalse(r["ran"])
         self.assertIn("already completed", r["reason"])
@@ -257,7 +267,12 @@ class TestProviderFailureIsolation(unittest.TestCase):
              mock.patch("preopen_intelligence_tick._now_ist", return_value=_ist(8, 47)), \
              mock.patch("preopen_intelligence_tick._load_state", return_value={}), \
              mock.patch("preopen_intelligence_tick._save_state"), \
-             mock.patch("preopen_intelligence_tick._run_init", side_effect=_bad_init):
+             mock.patch("preopen_intelligence_tick._run_init", side_effect=_bad_init), \
+             mock.patch.dict(sys.modules, {
+                 "preopen_db": types.SimpleNamespace(
+                     get_session_for_trading_date=lambda _: None,
+                 ),
+             }):
             r = t.run_tick()
         # Must not raise; must return a structured result
         self.assertIsInstance(r, dict)

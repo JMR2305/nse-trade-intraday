@@ -229,6 +229,7 @@ class Phase7ScanResult:
     timings: Dict[str, Any] = field(default_factory=dict)  # stage breakdown (s)
     universe_mode: str = "NIFTY_50"
     sector_counts: Dict[str, int] = field(default_factory=dict)
+    trigger_origin: str = "UNKNOWN"
 
 
 def _bootstrap_ineligibility_reason(r: "Phase7Recommendation") -> str:
@@ -710,6 +711,7 @@ def run_live_scan(
     capital: float = INITIAL_CAPITAL,
     force: bool = False,
     heartbeat: Optional[Any] = None,
+    trigger_origin: str = "UNKNOWN",
 ) -> Phase7ScanResult:
     """
     Run a full Phase 7 canonical scan.
@@ -1090,6 +1092,7 @@ def run_live_scan(
         timings=timings,
         universe_mode=universe_mode,
         sector_counts=sector_counts,
+        trigger_origin=trigger_origin,
     )
 
     # ── Persist cache (Phase 19B: durable shared store + local warm cache) ───
@@ -1184,6 +1187,7 @@ def get_or_run_scan(
     capital: float = INITIAL_CAPITAL,
     force: bool = False,
     wait_for_lock: bool = True,
+    trigger_origin: str = "UNKNOWN",
 ) -> Dict[str, Any]:
     """
     Return cached scan if fresh enough, otherwise run a new scan.
@@ -1221,7 +1225,10 @@ def get_or_run_scan(
         acquire_scan_lock = None  # type: ignore[assignment]
 
     if acquire_scan_lock is None:
-        result = run_live_scan(symbols=symbols, capital=capital, force=force)
+        result = run_live_scan(
+            symbols=symbols, capital=capital, force=force,
+            trigger_origin=trigger_origin,
+        )
         d = asdict(result)
         d["_from_cache"] = False
         d["_cache_age_s"] = 0.0
@@ -1267,8 +1274,10 @@ def get_or_run_scan(
             pass
 
     try:
-        result = run_live_scan(symbols=symbols, capital=capital, force=force,
-                               heartbeat=_beat)
+        result = run_live_scan(
+            symbols=symbols, capital=capital, force=force, heartbeat=_beat,
+            trigger_origin=trigger_origin,
+        )
     except Exception as exc:
         # Failed scan must NEVER overwrite the last successful snapshot —
         # run_live_scan only persists on success, so just record the failure.

@@ -58,6 +58,11 @@ _PHASES = [
     ("reconcile_0930",  (9, 28), (9, 35),  True),   # post-open enrichment: patch price_at_0930
 ]
 
+_PHASE_PREREQUISITES = {
+    "reconcile": "freeze",
+    "reconcile_0930": "reconcile",
+}
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _is_enabled() -> bool:
@@ -85,7 +90,10 @@ def _active_phase(now: datetime) -> Optional[tuple]:
     hm = now.hour * 60 + now.minute
     for p in _PHASES:
         name, (wh, wm), (eh, em), once = p
-        if wh * 60 + wm <= hm <= eh * 60 + em:
+        # Windows are end-exclusive so a boundary minute belongs to the next
+        # phase (09:00 is collection; 09:15 is freeze), never whichever tuple
+        # happens to be listed first.
+        if wh * 60 + wm <= hm < eh * 60 + em:
             return p
     return None
 
@@ -161,13 +169,12 @@ def _run_init(session_id: str, trading_date: str) -> dict:
     # 3. DB readiness
     try:
         import preopen_db as pdb
-        pdb.upsert_session({
+        steps["db_ready"] = bool(pdb.upsert_session({
             "session_id":      session_id,
             "trading_date":    trading_date,
             "status":          "INITIALISING",
             "provider_status": provider_status,
-        })
-        steps["db_ready"] = True
+        }))
     except Exception as e:
         steps["db_error"] = str(e)
         steps["db_ready"] = False
@@ -187,6 +194,7 @@ def _run_init(session_id: str, trading_date: str) -> dict:
     )
 
     return {
+        "success":          bool(steps.get("db_ready")),
         "provider_status":  provider_status,
         "session_status":   session_status,
         "steps":            steps,
@@ -214,28 +222,31 @@ def _run_collect(session_id: str) -> dict:
     try:
         import preopen_engine as eng
         result = eng.collect_snapshot(session_id=session_id)
-        # Engine's authoritative response is symbol_count.  Keep the former
-        # symbols_captured name as an alias for callers that already use it.
-        collected = result.get("symbol_count", result.get("symbols_captured", 0))
-        persisted = None
-        try:
-            import preopen_db as pdb
-            row = pdb.get_session(session_id)
-            persisted = row.get("symbol_count") if row else None
-        except Exception:
-            pass
-        if persisted is None:
-            persistence_status = "UNCONFIRMED"
-        elif persisted != collected:
-            persistence_status = "MISMATCH"
-        else:
-            persistence_status = "MATCH"
+        # The engine returns collection proof from the same transaction that
+        # wrote snapshots. Never infer success from a later, aggregate session
+        # row: an earlier batch could otherwise mask a failed current batch.
+        collected = result.get(
+            "provider_collected_count",
+            result.get("symbol_count", result.get("symbols_captured", 0)),
+        )
+        persisted = result.get("persisted_count")
+        persistence_status = str(result.get("persistence_status") or "UNCONFIRMED")
+        success = bool(
+            result.get("success", False)
+            and persistence_status == "MATCH"
+            and persisted is not None
+            and int(persisted) == int(collected)
+        )
         return {
-            "success":          result.get("success", False),
+            "success":          success,
             "symbol_count":     collected,
             "symbols_captured": collected,
             "persisted_symbol_count": persisted,
             "persistence_status": persistence_status,
+            "provider_collected_count": collected,
+            "persisted_count": persisted,
+            "failed_count": result.get("failed_count"),
+            "error": result.get("error"),
             "stale_count":      result.get("stale_count", 0),
             "provider_status":  result.get("provider_status", "UNKNOWN"),
         }
@@ -248,9 +259,9 @@ def _run_freeze(session_id: str, trading_date: str) -> dict:
     try:
         from preopen_scheduler import PreOpenScheduler
         sched = PreOpenScheduler(session_id=session_id)
-        sched._phase_09_15_freeze()
+        success = bool(sched._phase_09_15_freeze())
         return {
-            "success": sched.phase not in ("ERROR",),
+            "success": success,
             "phase":   sched.phase,
             "log":     sched._log[-5:],
         }
@@ -345,14 +356,38 @@ def run_tick() -> Dict[str, Any]:
 
     phase_name, _, _, once_only = active
 
-    # Load or initialise today's state
+    # Load or initialise today's state. The sidecar is merely a warm cache:
+    # authoritative session identity and one-shot phase outcomes live in
+    # Postgres so an Autoscale restart resumes the same session.
     state = _load_state(trading_date)
+    durable = None
+    try:
+        import preopen_db as pdb
+        durable = pdb.get_session_for_trading_date(trading_date)
+    except Exception:
+        durable = None
     if not state:
         state = {
             "trading_date":  trading_date,
-            "session_id":    f"preopen-{trading_date}-{uuid.uuid4().hex[:6]}",
-            "phases_done":   {},
+            "session_id":    (durable or {}).get(
+                "session_id", f"preopen-{trading_date}-{uuid.uuid4().hex[:6]}"),
+            "phases_done":   {
+                name: detail for name, detail
+                in ((durable or {}).get("phase_state") or {}).items()
+                if isinstance(detail, dict) and detail.get("completed") is True
+            },
             "collect_count": 0,
+        }
+    elif durable:
+        # The JSON sidecar is only a cache for counts/status display. A
+        # completed one-shot phase is authoritative only after its database
+        # record exists, so a crash between local writes can never unlock a
+        # later phase.
+        state["session_id"] = durable.get("session_id") or state["session_id"]
+        state["phases_done"] = {
+            name: detail for name, detail
+            in (durable.get("phase_state") or {}).items()
+            if isinstance(detail, dict) and detail.get("completed") is True
         }
 
     session_id = state["session_id"]
@@ -369,13 +404,25 @@ def run_tick() -> Dict[str, Any]:
 
     # Execute the phase
     try:
-        if phase_name == "init":
+        prerequisite = _PHASE_PREREQUISITES.get(phase_name)
+        if prerequisite and prerequisite not in state.get("phases_done", {}):
+            detail = {
+                "success": False,
+                "status": "BLOCKED_PREREQUISITE",
+                "error": (
+                    f"Phase '{phase_name}' requires durably completed "
+                    f"phase '{prerequisite}'"
+                ),
+            }
+        elif phase_name == "init":
             detail = _run_init(session_id, trading_date)
         elif phase_name == "readiness":
             detail = _run_readiness(trading_date)
         elif phase_name == "collect":
             detail = _run_collect(session_id)
-            state["collect_count"] = state.get("collect_count", 0) + 1
+            state["collect_attempt_count"] = state.get("collect_attempt_count", 0) + 1
+            if detail.get("success"):
+                state["collect_count"] = state.get("collect_count", 0) + 1
         elif phase_name == "freeze":
             detail = _run_freeze(session_id, trading_date)
         elif phase_name == "reconcile":
@@ -387,19 +434,48 @@ def run_tick() -> Dict[str, Any]:
     except Exception as e:
         return {**base, "reason": f"Phase '{phase_name}' raised unexpectedly: {e}"}
 
-    # Persist state for once-only phases
-    if once_only:
+    phase_succeeded = bool(
+        detail.get(
+            "success",
+            detail.get("ready") if phase_name == "readiness" else False,
+        )
+    )
+    # Persist state for once-only phases only after a verified success. Failed
+    # phases remain retryable in their time window and cannot unlock downstream
+    # lifecycle work.
+    if once_only and phase_succeeded:
         state.setdefault("phases_done", {})[phase_name] = {
             "ts": now.isoformat(), **detail,
+        }
+    durable_state_write_ok = True
+    try:
+        import preopen_db as pdb
+        durable_state_write_ok = bool(pdb.update_phase_state(
+            session_id, phase_name, {"ts": now.isoformat(), **detail},
+            completed=phase_succeeded,
+        ))
+    except Exception:
+        durable_state_write_ok = False
+
+    if once_only and phase_succeeded and not durable_state_write_ok:
+        state.get("phases_done", {}).pop(phase_name, None)
+        phase_succeeded = False
+        detail = {
+            **detail,
+            "success": False,
+            "status": "PHASE_STATE_PERSISTENCE_FAILED",
+            "error": f"Could not durably record phase '{phase_name}' completion",
         }
 
     _save_state(state)
 
     return {
         **base,
-        "ran":             True,
+        "ran":             phase_succeeded,
         "phase":           phase_name,
-        "reason":          f"Phase '{phase_name}' executed",
+        "reason":          (f"Phase '{phase_name}' executed"
+                            if phase_succeeded
+                            else f"Phase '{phase_name}' failed; retry remains available"),
         "collect_count":   state.get("collect_count", 0),
         "phases_done":     list(state.get("phases_done", {}).keys()),
         "next_phase":      _next_phase_label(now),

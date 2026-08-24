@@ -1605,7 +1605,7 @@ def run_tick() -> Dict[str, Any]:
     try:
         from live_scan_engine import get_or_run_scan
         snap = get_or_run_scan(max_age_s=interval_min * 60, force=False,
-                               wait_for_lock=False)
+                               wait_for_lock=False, trigger_origin="SCHEDULED")
         duration = time.time() - t0
 
         if snap.get("_scan_lock_busy"):

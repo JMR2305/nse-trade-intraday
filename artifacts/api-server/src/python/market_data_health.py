@@ -106,6 +106,8 @@ def build_market_data_health(
     valid_tokens = active - len(missing_symbols)
     coverage_pct = round((valid_tokens / active) * 100, 2) if active else 0.0
     service_ready = bool(scan and scan.get("snapshot_ts"))
+    scan_origin = str(scan.get("trigger_origin") or "UNKNOWN").upper()
+    certifying_scheduled_scan = scan_origin == "SCHEDULED"
     data_ready = bool(
         active
         and len(records) == active
@@ -121,6 +123,7 @@ def build_market_data_health(
         and valid_tokens == active
         and market_timestamp_fresh
         and kite_quote_timestamps_fresh
+        and certifying_scheduled_scan
     )
     return {
         "active_universe": active_universe or "UNKNOWN",
@@ -152,6 +155,8 @@ def build_market_data_health(
             "scan_universe": latest_scan_universe,
             "scan_symbol_count": len(latest_scan_universe),
             "scan_fresh_for_session": market_timestamp_fresh,
+            "trigger_origin": scan_origin,
+            "certifying_scheduled_scan": certifying_scheduled_scan,
         },
         "read_only": True,
     }

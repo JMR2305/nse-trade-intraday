@@ -163,6 +163,7 @@ function makeScanResult() {
 let currentStatusRotation = 1;
 let currentPhase7Trigger: ((data: unknown) => void) | null = null;
 let currentMarketState = "OPEN";
+let currentSnapshot: unknown = makeScanResult();
 
 function makeSpawnImpl() {
   return (_bin: string, spawnArgs: string[]) => {
@@ -188,7 +189,7 @@ function makeSpawnImpl() {
       return makePyProc({ success: true, state: currentMarketState });
     }
     if (cmd === "scan_snapshot") {
-      return makePyProc(makeScanResult());
+      return makePyProc(currentSnapshot);
     }
     // system_event and any other side-effect commands: fast-close.
     return makePyProc({});
@@ -259,6 +260,7 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     currentStatusRotation = 1;
     currentPhase7Trigger = null;
     currentMarketState = "OPEN";
+    currentSnapshot = makeScanResult();
     mockSpawn.mockClear();
     mockSpawn.mockImplementation(makeSpawnImpl());
   });
@@ -322,6 +324,13 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     await flushAsync();
     await flushAsync();
     expect(spawnCount("phase7_scan")).toBe(1);
+    const phase7Spawn = mockSpawn.mock.calls.find((call) => spawnCmd(call) === "phase7_scan");
+    expect(phase7Spawn?.[1]).toEqual(
+      expect.arrayContaining(["phase7_scan", "force", "origin=API_TRIGGERED"]),
+    );
+    expect((phase7Spawn?.[1] as string[]).indexOf("force")).toBeLessThan(
+      (phase7Spawn?.[1] as string[]).indexOf("origin=API_TRIGGERED"),
+    );
 
     // Advance rotation to distinguish fresh vs cached.
     currentStatusRotation = 2;
@@ -447,8 +456,7 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     expect(spawnCount("scan_status")).toBe(1);
   });
 
-  it("serves the durable snapshot after close without cold-starting a full scan", async () => {
-    currentMarketState = "CLOSED";
+  it("serves the durable snapshot on an OPEN-market cold cache without cold-starting a full scan", async () => {
 
     const response = await get("/api/live-data/recommendations");
 
@@ -461,16 +469,28 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     expect(spawnCount("phase7_scan")).toBe(0);
   });
 
-  it("rejects an explicit GET refresh after close without spawning a full scan", async () => {
-    currentMarketState = "CLOSED";
+  it("returns an explicit no-snapshot response instead of computing on a GET", async () => {
+    currentSnapshot = { success: false, error: "No successful canonical scan snapshot is available." };
+
+    const response = await get("/api/live-data/recommendations");
+
+    expect(response.status).toBe(503);
+    expect(response.body).toMatchObject({
+      success: false,
+      status: "NO_SNAPSHOT_AVAILABLE",
+    });
+    expect(spawnCount("scan_snapshot")).toBe(1);
+    expect(spawnCount("phase7_scan")).toBe(0);
+  });
+
+  it("rejects an explicit GET refresh without spawning a full scan", async () => {
 
     const response = await get("/api/live-data/scan?force=true");
 
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(405);
     expect(response.body).toMatchObject({
       success: false,
-      status: "MARKET_CLOSED",
-      market_state: "CLOSED",
+      status: "READ_ONLY_ENDPOINT",
     });
     expect(spawnCount("phase7_scan")).toBe(0);
   });

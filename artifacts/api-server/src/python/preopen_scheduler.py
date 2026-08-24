@@ -159,16 +159,67 @@ class PreOpenScheduler:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _phase_09_15_freeze(self) -> None:
-        """09:15 — freeze final snapshot + generate watchlists."""
-        self._emit(SchedulerPhase.FROZEN)
+    def _phase_09_15_freeze(self) -> bool:
+        """09:15 — freeze only a complete, durably persisted collection."""
         try:
             import preopen_db as db_mod
             import preopen_engine as engine
             from preopen_watchlist import generate_watchlists
 
             today = _today_ist()
-            snaps_raw = db_mod.get_latest_snapshots(today)
+            session = db_mod.get_session(self.session_id)
+            collected = (session or {}).get("provider_collected_count")
+            persisted = (session or {}).get("persisted_count")
+            persistence_status = str((session or {}).get("persistence_status") or "")
+            collection_batch_id = (session or {}).get("verified_collection_batch_id")
+            if (
+                not session
+                or persistence_status != "MATCH"
+                or collected is None
+                or persisted is None
+                or int(collected) != int(persisted)
+                or not collection_batch_id
+            ):
+                reason = (
+                    "Freeze blocked: Phase 5A collection is not durably complete "
+                    f"(provider={collected}, persisted={persisted}, "
+                    f"status={persistence_status or 'UNKNOWN'}, "
+                    f"batch={collection_batch_id or 'UNKNOWN'})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+
+            snaps_raw = db_mod.get_session_snapshots(
+                self.session_id, str(collection_batch_id),
+            )
+            snapshot_ids = {
+                str(s.get("snapshot_id") or "") for s in snaps_raw
+                if s.get("snapshot_id")
+            }
+            symbols = {
+                str(s.get("symbol") or "").upper() for s in snaps_raw
+                if s.get("symbol")
+            }
+            if (
+                not snaps_raw
+                or len(snaps_raw) != int(persisted)
+                or len(snapshot_ids) != int(persisted)
+                or len(symbols) != int(persisted)
+            ):
+                reason = (
+                    "Freeze blocked: exact verified collection batch does not "
+                    f"match its persisted proof (batch={collection_batch_id}, "
+                    f"rows={len(snaps_raw)}, snapshots={len(snapshot_ids)}, "
+                    f"symbols={len(symbols)}, persisted={persisted})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
 
             # Rebuild PreOpenSnapshot objects for watchlist generation
             from preopen_data_model import PreOpenSnapshot
@@ -215,26 +266,49 @@ class PreOpenScheduler:
                 {"symbol_count": len(snap_objs),
                  "valid_count": sum(1 for s in snap_objs if not s.is_stale)},
             )
-            db_mod.upsert_session({
+            if not db_mod.upsert_session({
                 "session_id": self.session_id,
                 "trading_date": today,
                 "status": "FROZEN",
+                "frozen_collection_batch_id": collection_batch_id,
                 "frozen_at": _now_ist().isoformat(),
-            })
+            }):
+                raise RuntimeError("Could not durably mark pre-open session FROZEN")
             self._emit(SchedulerPhase.FROZEN, {
                 "watchlists_generated": list(watchlists.keys()),
                 "symbols": len(snap_objs),
             })
+            return True
         except Exception as e:
             self._emit(SchedulerPhase.ERROR, {"error": f"freeze failed: {e}"})
+            return False
 
-    def _phase_09_20_reconcile(self) -> None:
+    def _phase_09_20_reconcile(self) -> bool:
         """09:20 — reconcile indicative vs actual prices (best-effort)."""
         self._emit(SchedulerPhase.RECON)
         try:
             import preopen_db as db_mod
             today = _today_ist()
-            snaps = db_mod.get_latest_snapshots(today)
+            session = db_mod.get_session(self.session_id) or {}
+            if session.get("status") not in ("FROZEN", "RECONCILED", "RECONCILED_0930"):
+                reason = (
+                    "Reconcile blocked: durable FROZEN prerequisite is missing "
+                    f"(session status={session.get('status') or 'UNKNOWN'})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "RECONCILE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            collection_batch_id = session.get("frozen_collection_batch_id")
+            if not collection_batch_id:
+                reason = "Reconcile blocked: no durable frozen collection batch is recorded."
+                db_mod.record_collection_failure(
+                    self.session_id, "RECONCILE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            snaps = db_mod.get_session_snapshots(self.session_id, str(collection_batch_id))
 
             # Attempt to get actual prices from live quote service
             try:
@@ -250,7 +324,7 @@ class PreOpenScheduler:
             from preopen_reconciliation import reconcile_session
 
             # Watchlist symbols from the frozen watchlists
-            wl = db_mod.get_latest_watchlists(today)
+            wl = db_mod.get_session_watchlists(self.session_id)
             wl_syms = set()
             for items in wl.values():
                 for item in items:
@@ -264,17 +338,20 @@ class PreOpenScheduler:
                 prices_0930={},
                 watchlist_symbols=wl_syms,
             )
-            db_mod.upsert_session({
+            if not db_mod.upsert_session({
                 "session_id": self.session_id,
                 "trading_date": today,
                 "status": "RECONCILED",
                 "reconciled_at": _now_ist().isoformat(),
-            })
+            }):
+                raise RuntimeError("Could not durably mark pre-open session RECONCILED")
             self._emit(SchedulerPhase.DONE, {"reconciliation": result})
+            return True
         except Exception as e:
             self._emit(SchedulerPhase.ERROR, {"error": f"reconcile failed: {e}"})
+            return False
 
-    def _phase_09_30_post_open_reconcile(self) -> None:
+    def _phase_09_30_post_open_reconcile(self) -> bool:
         """
         09:30 — enrich reconciliation records with actual 09:30 prices.
 
@@ -287,7 +364,26 @@ class PreOpenScheduler:
         try:
             import preopen_db as db_mod
             today = _today_ist()
-            snaps = db_mod.get_latest_snapshots(today)
+            session = db_mod.get_session(self.session_id) or {}
+            if session.get("status") not in ("RECONCILED", "RECONCILED_0930"):
+                reason = (
+                    "09:30 reconcile blocked: durable RECONCILED prerequisite "
+                    f"is missing (session status={session.get('status') or 'UNKNOWN'})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "RECONCILE_0930_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            collection_batch_id = session.get("frozen_collection_batch_id")
+            if not collection_batch_id:
+                reason = "09:30 reconcile blocked: no durable frozen collection batch is recorded."
+                db_mod.record_collection_failure(
+                    self.session_id, "RECONCILE_0930_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            snaps = db_mod.get_session_snapshots(self.session_id, str(collection_batch_id))
 
             # Fetch live quotes at 09:30
             try:
@@ -301,19 +397,22 @@ class PreOpenScheduler:
                 prices_0930 = {}
 
             if prices_0930:
-                db_mod.update_reconciliation_0930(today, prices_0930)
+                db_mod.update_reconciliation_0930(self.session_id, prices_0930)
 
-            db_mod.upsert_session({
+            if not db_mod.upsert_session({
                 "session_id": self.session_id,
                 "trading_date": today,
                 "status": "RECONCILED_0930",
-            })
+            }):
+                raise RuntimeError("Could not durably mark pre-open session RECONCILED_0930")
             self._emit(SchedulerPhase.DONE, {
                 "step": "0930",
                 "prices_patched": len(prices_0930),
             })
+            return True
         except Exception as e:
             self._emit(SchedulerPhase.ERROR, {"error": f"09:30 reconcile failed: {e}"})
+            return False
 
     def run_once(self) -> Dict[str, Any]:
         """Run the full pre-open cycle synchronously (for testing / manual trigger)."""
@@ -322,9 +421,10 @@ class PreOpenScheduler:
         self._phase_08_45_init()
         self._phase_08_55_readiness()
         result = self._collect_one()
-        self._phase_09_15_freeze()
-        self._phase_09_20_reconcile()
-        self._phase_09_30_post_open_reconcile()
+        froze = self._phase_09_15_freeze()
+        reconciled = self._phase_09_20_reconcile() if froze else False
+        if reconciled:
+            self._phase_09_30_post_open_reconcile()
         return {"ran": True, "session_id": self.session_id, "log": self._log}
 
     def status(self) -> Dict[str, Any]:

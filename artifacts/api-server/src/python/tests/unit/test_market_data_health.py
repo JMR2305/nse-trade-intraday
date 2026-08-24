@@ -8,7 +8,7 @@ NOW = datetime(2026, 8, 15, 10, 5, tzinfo=timezone.utc)
 
 def _scan(rows, universe=("INFY", "TCS")):
     return {"snapshot_ts": "2026-08-15T10:00:00Z", "universe": list(universe),
-            "recommendations": rows}
+            "recommendations": rows, "trigger_origin": "SCHEDULED"}
 
 
 def test_authenticated_kite_coverage_is_trading_ready():
@@ -67,6 +67,24 @@ def test_all_kite_data_with_missing_instrument_tokens_fails_trading_ready():
         [{"symbol": "INFY", "token": 1}], NOW)
     assert result["data_ready"] is True
     assert result["missing_symbols"] == ["TCS"]
+    assert result["trading_data_ready"] is False
+
+
+def test_manual_or_api_scan_is_not_certifying_readiness_evidence():
+    rows = [
+        {"symbol": s, "kite_ltp_available": True,
+         "execution_price_source": "kite_live_ltp",
+         "latest_price_time_ist": "2026-08-15T10:00:00Z"}
+        for s in ("INFY", "TCS")
+    ]
+    scan = _scan(rows)
+    scan["trigger_origin"] = "API_TRIGGERED"
+    result = build_market_data_health(
+        scan, {"kite_connected": True, "session_fresh": True},
+        [{"symbol": "INFY", "token": 1}, {"symbol": "TCS", "token": 2}], NOW)
+    assert result["data_ready"] is True
+    assert result["latest_scan"]["trigger_origin"] == "API_TRIGGERED"
+    assert result["latest_scan"]["certifying_scheduled_scan"] is False
     assert result["trading_data_ready"] is False
 
 
@@ -133,5 +151,7 @@ def test_current_configuration_is_not_replaced_by_a_historical_scan_universe():
         "scan_universe": ["INFY", "TCS"],
         "scan_symbol_count": 2,
         "scan_fresh_for_session": True,
+        "trigger_origin": "SCHEDULED",
+        "certifying_scheduled_scan": True,
     }
     assert result["trading_data_ready"] is False

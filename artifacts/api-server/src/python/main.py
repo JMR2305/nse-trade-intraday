@@ -999,9 +999,21 @@ def main():
         elif command == "phase7_scan":
             from live_scan_engine import get_or_run_scan
             import time as _time
-            force = len(args) > 1 and args[1] == "force"
+            force = "force" in args[1:]
+            origin_arg = next(
+                (arg.split("=", 1)[1] for arg in args[1:]
+                 if arg.startswith("origin=")),
+                "MANUAL",
+            )
+            trigger_origin = origin_arg.upper()
+            if trigger_origin not in {
+                "SCHEDULED", "MANUAL", "API_TRIGGERED", "RECOVERY", "BACKFILL", "UNKNOWN",
+            }:
+                trigger_origin = "UNKNOWN"
             _scan_t0 = _time.time()
-            result = get_or_run_scan(max_age_s=600, force=force)
+            result = get_or_run_scan(
+                max_age_s=600, force=force, trigger_origin=trigger_origin,
+            )
             result["success"] = True
             # Phase 20: record MANUAL scan runs in the durable history.
             if not result.get("_from_cache"):

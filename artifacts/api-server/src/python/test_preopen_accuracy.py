@@ -357,9 +357,9 @@ class TestScheduler0930Phase(unittest.TestCase):
         """Phase completes without error when live quotes unavailable."""
         import preopen_db as db
         with (
-            patch.object(db, "get_latest_snapshots", return_value=[
+            patch.object(db, "get_session_snapshots", return_value=[
                 {"symbol": "SBIN"}, {"symbol": "TCS"},
-            ]),
+            ]) as mock_session_snapshots,
             patch("preopen_scheduler.live_quote_service", create=True) as mock_lqs,
         ):
             mock_lqs.get_quotes = MagicMock(side_effect=ImportError("not available"))
@@ -382,12 +382,16 @@ class TestScheduler0930Phase(unittest.TestCase):
         }
 
         with (
-            patch.object(db, "get_latest_snapshots", return_value=[
+            patch.object(db, "get_session_snapshots", return_value=[
                 {"symbol": "SBIN"}, {"symbol": "TCS"},
-            ]),
+            ]) as mock_session_snapshots,
             patch.object(db, "get_latest_watchlists", return_value={}),
+            patch.object(db, "get_session", return_value={
+                "status": "RECONCILED",
+                "frozen_collection_batch_id": "batch-0930",
+            }),
             patch.object(db, "update_reconciliation_0930") as mock_update,
-            patch.object(db, "upsert_session"),
+            patch.object(db, "upsert_session", return_value=True),
         ):
             # Patch the import inside the method
             mock_lqs = MagicMock()
@@ -396,7 +400,11 @@ class TestScheduler0930Phase(unittest.TestCase):
                 self.scheduler._phase_09_30_post_open_reconcile()
 
             mock_update.assert_called_once()
+            db.get_session_snapshots.assert_called_once_with(
+                self.scheduler.session_id, "batch-0930",
+            )
             call_args = mock_update.call_args
+            self.assertEqual(call_args[0][0], self.scheduler.session_id)
             prices = call_args[0][1] if call_args[0] else call_args[1].get("prices_0930", {})
             self.assertIn("SBIN", prices)
             self.assertAlmostEqual(prices["SBIN"], 1022.5)
@@ -448,6 +456,7 @@ class TestTickDrivenReconcile0930(unittest.TestCase):
 
     def test_reconcile_0930_in_phases_list(self):
         import preopen_intelligence_tick as tick
+        import preopen_db as db
         phase_names = [p[0] for p in tick._PHASES]
         self.assertIn("reconcile_0930", phase_names)
 
@@ -483,6 +492,7 @@ class TestTickDrivenReconcile0930(unittest.TestCase):
         persist it in phases_done.
         """
         import preopen_intelligence_tick as tick
+        import preopen_db as db
 
         fake_state = {
             "trading_date":  "2026-07-29",
@@ -500,10 +510,18 @@ class TestTickDrivenReconcile0930(unittest.TestCase):
             patch.object(tick, "_now_ist", return_value=self._fake_now(9, 30)),
             patch.object(tick, "_is_trading_day", return_value=True),
             patch.object(tick, "_load_state", return_value=fake_state),
+            patch.object(db, "get_session_for_trading_date", return_value={
+                "session_id": "sess-tick-0930",
+                "phase_state": {
+                    "freeze": {"completed": True},
+                    "reconcile": {"completed": True},
+                },
+            }),
             patch.object(tick, "_save_state") as mock_save,
             patch.object(tick, "_run_reconcile_0930", return_value={
                 "success": True, "prices_patched": 10
             }) as mock_fn,
+            patch.object(db, "update_phase_state", return_value=True),
         ):
             result = tick.run_tick()
 
@@ -551,12 +569,16 @@ class TestTickDrivenReconcile0930(unittest.TestCase):
         mock_quotes = {"quotes": {"SBIN": {"price": 1022.0}, "TCS": {"price": 3450.0}}}
 
         with (
-            patch.object(db, "get_latest_snapshots", return_value=[
+            patch.object(db, "get_session_snapshots", return_value=[
                 {"symbol": "SBIN"}, {"symbol": "TCS"},
-            ]),
+            ]) as mock_session_snapshots,
             patch.object(db, "get_latest_watchlists", return_value={}),
+            patch.object(db, "get_session", return_value={
+                "status": "RECONCILED",
+                "frozen_collection_batch_id": "batch-0930",
+            }),
             patch.object(db, "update_reconciliation_0930") as mock_update,
-            patch.object(db, "upsert_session") as mock_upsert,
+            patch.object(db, "upsert_session", return_value=True) as mock_upsert,
         ):
             mock_lqs = MagicMock()
             mock_lqs.get_quotes.return_value = mock_quotes
@@ -566,6 +588,8 @@ class TestTickDrivenReconcile0930(unittest.TestCase):
         self.assertTrue(result.get("success"), f"Expected success, got: {result}")
         mock_update.assert_called_once()
         mock_upsert.assert_called_once()
+        mock_session_snapshots.assert_called_once_with("sess-001", "batch-0930")
+        self.assertEqual(mock_update.call_args[0][0], "sess-001")
         # Verify session status was set to RECONCILED_0930
         upsert_call = mock_upsert.call_args[0][0]
         self.assertEqual(upsert_call.get("status"), "RECONCILED_0930")
@@ -576,10 +600,14 @@ class TestTickDrivenReconcile0930(unittest.TestCase):
         import preopen_db as db
 
         with (
-            patch.object(db, "get_latest_snapshots", return_value=[{"symbol": "SBIN"}]),
+            patch.object(db, "get_session_snapshots", return_value=[{"symbol": "SBIN"}]),
             patch.object(db, "get_latest_watchlists", return_value={}),
+            patch.object(db, "get_session", return_value={
+                "status": "RECONCILED",
+                "frozen_collection_batch_id": "batch-0930",
+            }),
             patch.object(db, "update_reconciliation_0930") as mock_update,
-            patch.object(db, "upsert_session"),
+            patch.object(db, "upsert_session", return_value=True),
         ):
             # live_quote_service raises ImportError (unavailable)
             mock_lqs = MagicMock()

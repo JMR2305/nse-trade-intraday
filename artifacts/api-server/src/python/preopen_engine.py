@@ -128,7 +128,6 @@ def get_health() -> dict:
         provider = _get_provider()
         health = provider.health_check()
         today = _today_ist()
-        db.save_provider_health(None, today, type(provider).__name__, health)
         return {
             "success": True,
             "provider_health": health,
@@ -141,15 +140,14 @@ def get_health() -> dict:
 
 # ── Snapshot collection ───────────────────────────────────────────────────────
 
-def _ensure_session(trading_date: str, session_id: str) -> str:
-    """Upsert a session record and return its session_id."""
-    db.upsert_session({
+def _ensure_session(trading_date: str, session_id: str) -> bool:
+    """Create/refresh the durable session and report whether that write landed."""
+    return bool(db.upsert_session({
         "session_id": session_id,
         "trading_date": trading_date,
         "status": "COLLECTING",
         "provider_status": ProviderState.LIVE,
-    })
-    return session_id
+    }))
 
 
 def collect_snapshot(session_id: Optional[str] = None) -> dict:
@@ -162,7 +160,18 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
 
     today = _today_ist()
     session_id = session_id or f"preopen-{today}-{uuid.uuid4().hex[:8]}"
-    _ensure_session(today, session_id)
+    collection_batch_id = f"collection-{uuid.uuid4().hex}"
+    if not _ensure_session(today, session_id):
+        return {
+            "success": False,
+            "status": "PERSISTENCE_UNAVAILABLE",
+            "session_id": session_id,
+            "provider_collected_count": None,
+            "persisted_count": None,
+            "persistence_status": "PERSISTENCE_UNAVAILABLE",
+            "error": "Cannot create a durable pre-open session",
+            "label": "PAPER / ADVISORY ONLY",
+        }
 
     try:
         provider = _get_provider()
@@ -170,13 +179,10 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
 
         # Provider unavailable — do not crash, mark module unavailable
         if health.get("status") == ProviderState.UNAVAILABLE:
-            db.upsert_session({
-                "session_id": session_id,
-                "trading_date": today,
-                "status": "COLLECTING",
-                "provider_status": ProviderState.UNAVAILABLE,
-                "error": health.get("message", "Provider unavailable"),
-            })
+            db.record_collection_failure(
+                session_id, "PROVIDER_UNAVAILABLE",
+                health.get("message", "Provider unavailable"),
+            )
             return {
                 "success": False,
                 "status": "PROVIDER_UNAVAILABLE",
@@ -187,6 +193,10 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
 
         raw_snapshots = provider.fetch_market_snapshot()
         if not raw_snapshots:
+            db.record_collection_failure(
+                session_id, "NO_DATA",
+                "Provider returned no pre-open snapshots",
+            )
             return {
                 "success": False,
                 "status": "NO_DATA",
@@ -198,38 +208,46 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
         enriched = enrich_universe(raw_snapshots)
 
         snaps_dicts = [s.to_dict() for s in enriched]
-        db.save_snapshots(session_id, snaps_dicts)
-
         valid = sum(1 for s in enriched if not s.is_stale)
         stale = sum(1 for s in enriched if s.is_stale)
-        db.upsert_session({
-            "session_id": session_id,
-            "trading_date": today,
-            "status": "COLLECTING",
-            "symbol_count": len(enriched),
-            "valid_count": valid,
-            "stale_count": stale,
-            "provider_status": health.get("status", ProviderState.DELAYED),
-        })
+        persisted = db.persist_collection(
+            session_id=session_id,
+            trading_date=today,
+            snapshots=snaps_dicts,
+            provider_status=health.get("status", ProviderState.DELAYED),
+            valid_count=valid,
+            stale_count=stale,
+            source="SCHEDULED",
+            collection_batch_id=collection_batch_id,
+        )
+        if not persisted.get("success"):
+            return {
+                "success": False,
+                "status": "PERSISTENCE_FAILED",
+                "session_id": session_id,
+                "symbol_count": len(enriched),
+                "valid_count": valid,
+                "stale_count": stale,
+                "provider_status": health.get("status"),
+                **persisted,
+                "label": "PAPER / ADVISORY ONLY",
+            }
 
         return {
             "success": True,
             "status": "COLLECTED",
             "session_id": session_id,
+            "collection_batch_id": collection_batch_id,
             "symbol_count": len(enriched),
             "valid_count": valid,
             "stale_count": stale,
             "provider_status": health.get("status"),
             "provider_label": health.get("provider", getattr(provider, "PROVIDER_LABEL", "Unknown")),
+            **persisted,
             "label": "PAPER / ADVISORY ONLY",
         }
     except Exception as e:
-        db.upsert_session({
-            "session_id": session_id,
-            "trading_date": today,
-            "status": "ERROR",
-            "error": str(e),
-        })
+        db.record_collection_failure(session_id, "ERROR", str(e))
         return {"success": False, "error": str(e), "session_id": session_id}
 
 

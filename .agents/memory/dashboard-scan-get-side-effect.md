@@ -3,14 +3,15 @@ name: Dashboard scan GET side effect
 description: Prevent accidental Phase 7 scans during read-only market-session observation.
 ---
 
-**Rule:** Do not call `/api/live-data/recommendations` during a read-only
-market-session validation unless starting a scan is explicitly authorized.
+**Rule:** Observation routes must load the latest durable canonical snapshot;
+they must never call the canonical scan engine. `/api/live-data/recommendations`
+and `/api/live-data/scan` now follow that rule.
 
-**Why:** Its market-open cold-cache path delegates to `getP7Scan()`, which
-spawns `phase7_scan`; the HTTP method and route description make this easy to
-mistake for a stored-snapshot read.
+**Why:** A prior market-open cold-cache path delegated to `getP7Scan()`, which
+spawned `phase7_scan`. That made a harmless dashboard GET create market evidence
+and obscured the scheduler's authority.
 
-**How to apply:** For observation, use the durable scan metadata/history
-endpoints only after a scheduler-emitted scan has completed. Treat any scan
-returned by the recommendations route after a cold-cache request as
-non-certifying for natural-scheduler evidence.
+**How to apply:** Return an explicit no-snapshot response when nothing is
+durable; reject `force` on GET. Keep compute behind the explicit POST action
+and preserve that scan's trigger origin. A scheduled session is certifying only
+when the stored origin is `SCHEDULED`.

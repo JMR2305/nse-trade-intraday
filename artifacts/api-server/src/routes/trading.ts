@@ -1002,6 +1002,13 @@ class MarketClosedScanError extends Error {
   }
 }
 
+class NoCanonicalSnapshotError extends Error {
+  constructor() {
+    super("No successful canonical scan snapshot is available. Run an explicit scan action when NSE is OPEN.");
+    this.name = "NoCanonicalSnapshotError";
+  }
+}
+
 // ── Abort support ────────────────────────────────────────────────────────────
 //
 // Two separate scan flows can be in flight:
@@ -1149,27 +1156,29 @@ function spawnRunScan(args: string[]): Promise<unknown> {
   });
 }
 
-async function getP7Scan(force = false): Promise<unknown> {
-  if (!force && p7Cache && Date.now() - p7Cache.ts < P7_CACHE_MS) return p7Cache.data;
+async function readLatestP7Scan(): Promise<unknown> {
+  if (p7Cache && Date.now() - p7Cache.ts < P7_CACHE_MS) return p7Cache.data;
+  const persisted = await runPython(["scan_snapshot"]) as Record<string, unknown>;
+  if (persisted?.success === false
+      || (!persisted?.scan_id && !Array.isArray(persisted?.recommendations))) {
+    throw new NoCanonicalSnapshotError();
+  }
+  p7Cache = { data: persisted, ts: Date.now() };
+  return persisted;
+}
 
-  // A cold Node cache must not turn a read-only dashboard request into a new
-  // market scan after close. Serve the last durable canonical snapshot instead.
-  // Explicit refreshes fail closed so operators receive an honest boundary.
+/** Explicit compute path. Never call this from an observation GET route. */
+async function getP7Scan(force = false): Promise<unknown> {
   const market = await runPython(["market_status"]) as Record<string, unknown>;
   const marketState = String(market.state ?? market.market_state ?? "UNKNOWN").toUpperCase();
   if (marketState !== "OPEN") {
-    if (force) throw new MarketClosedScanError(marketState);
-
-    const persisted = await runPython(["scan_snapshot"]) as Record<string, unknown>;
-    if (persisted?.success !== false && (persisted?.scan_id || Array.isArray(persisted?.recommendations))) {
-      p7Cache = { data: persisted, ts: Date.now() };
-      return persisted;
-    }
     throw new MarketClosedScanError(marketState);
   }
 
   if (!p7InFlight) {
-    p7InFlight = spawnP7Scan(["phase7_scan", ...(force ? ["force"] : [])])
+    p7InFlight = spawnP7Scan([
+      "phase7_scan", ...(force ? ["force"] : []), "origin=API_TRIGGERED",
+    ])
       .then((data) => { p7Cache = { data, ts: Date.now() }; return data; })
       .finally(() => { p7InFlight = null; });
   }
@@ -1199,8 +1208,15 @@ router.get("/live-data/health", async (req, res) => {
 // look up rr_gap symbols bound to that exact scan.
 router.get("/live-data/scan", async (req, res) => {
   try {
-    const force = req.query.force === "true";
-    const scanData = await getP7Scan(force);
+    if (req.query.force !== undefined) {
+      res.status(405).json({
+        success: false,
+        status: "READ_ONLY_ENDPOINT",
+        error: "GET /live-data/scan is read-only. Use POST /live-data/scan/run to request a scan.",
+      });
+      return;
+    }
+    const scanData = await readLatestP7Scan();
     const scan = scanData as Record<string, unknown>;
     // Extract the concrete scan_id from the resolved scan result so the rr_gap
     // query is always scoped to the same scan we are returning.
@@ -1223,6 +1239,14 @@ router.get("/live-data/scan", async (req, res) => {
         success: false,
         status: "MARKET_CLOSED",
         market_state: err.marketState,
+        error: err.message,
+      });
+      return;
+    }
+    if (err instanceof NoCanonicalSnapshotError) {
+      res.status(503).json({
+        success: false,
+        status: "NO_SNAPSHOT_AVAILABLE",
         error: err.message,
       });
       return;
@@ -1619,7 +1643,15 @@ router.get("/live-data/diagnostic-bundle/download", async (req, res) => {
 // GET /api/live-data/recommendations — ranked recommendations from canonical scan
 router.get("/live-data/recommendations", async (req, res) => {
   try {
-    const scan = await getP7Scan(req.query.force === "true") as any;
+    if (req.query.force !== undefined) {
+      res.status(405).json({
+        success: false,
+        status: "READ_ONLY_ENDPOINT",
+        error: "GET /live-data/recommendations is read-only. Use POST /live-data/scan/run to request a scan.",
+      });
+      return;
+    }
+    const scan = await readLatestP7Scan() as any;
     res.json({
       success: true,
       scan_id: scan?.scan_id, snapshot_ts: scan?.snapshot_ts,
@@ -1633,6 +1665,14 @@ router.get("/live-data/recommendations", async (req, res) => {
         success: false,
         status: "MARKET_CLOSED",
         market_state: err.marketState,
+        error: err.message,
+      });
+      return;
+    }
+    if (err instanceof NoCanonicalSnapshotError) {
+      res.status(503).json({
+        success: false,
+        status: "NO_SNAPSHOT_AVAILABLE",
         error: err.message,
       });
       return;
