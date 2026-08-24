@@ -635,3 +635,31 @@ uri = "file://RTV2A_SUMMARY.md"
 type = "text"
 title = "RTV-2A Summary"
 description = "Shareable summary of Phase 5A persistence, exact collection-batch safety, validation evidence, and the natural-session certification gate."
+
+[[outputs]]
+id = "R0_vY7hCeB0taJ26SSdzx"
+uri = "file://RTV2B_CONTROLLED_DEPLOYMENT_REPORT.md"
+type = "text"
+title = "RTV-2B Controlled Deployment Report"
+description = "Blocked deployment verdict, source-scope evidence, current production identity, and required resolution."
+
+[[outputs]]
+id = "2bfWUSVW1t5rBiKeTNGWd"
+uri = "file://RTV2B_SCHEMA_SAFETY.md"
+type = "text"
+title = "RTV-2B Schema Safety"
+description = "Additive schema statement classification and publish-time schema-diff result."
+
+[[outputs]]
+id = "KvCY-sIlQSrnkPqeVL9Jk"
+uri = "file://RTV2B_RUNTIME_IDENTITY_AND_SAFETY.md"
+type = "text"
+title = "RTV-2B Runtime Identity and Safety"
+description = "Current production identity and read-only safety observations recorded before the stop."
+
+[[outputs]]
+id = "cecBA_Sl-pBgkajdz1Y3p"
+uri = "file://RTV2B_NEXT_NATURAL_SESSION_GATE.md"
+type = "text"
+title = "RTV-2B Next Natural-Session Gate"
+description = "Conditions required before natural-session certification can resume."
