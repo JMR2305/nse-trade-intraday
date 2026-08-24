@@ -5,7 +5,7 @@ Runs once per calendar trading day (idempotent via KV guard).
 Responsibilities:
   1. Archive previous day's paper portfolio (trades stamped archived_at).
   2. Reset paper portfolio to ₹50,000 fresh capital.
-  3. Automatically enable auto_paper_entries with the required confirmation.
+  3. Preserve the operator-controlled automatic-entry state.
   4. Verify / warm-start all Phase 10 agents.
   5. Log the session initialisation to the notification store.
 
@@ -133,7 +133,7 @@ def initialize_daily_session(force: bool = False) -> Dict[str, Any]:
     Perform today's one-time session initialisation:
       1. Archive previous paper portfolio (trades preserved in history).
       2. Reset portfolio to ₹50,000 fresh capital.
-      3. Enable auto_paper_entries with the required confirmation text.
+       3. Preserve automatic-entry state; this routine never enables entries.
       4. Warm-start all agents.
       5. Apply Mode B top-up if Continuous Research Mode is active.
       6. Record KV guards so this is idempotent today.
@@ -167,20 +167,17 @@ def initialize_daily_session(force: bool = False) -> Dict[str, Any]:
     except Exception as exc:
         result["steps"]["portfolio_reset"] = f"ERROR: {str(exc)[:200]}"
 
-    # ── 2. Enable auto_paper_entries ──────────────────────────────────────────
+    # ── 2. Preserve automatic-entry state ─────────────────────────────────────
     try:
-        from phase20_store import update_settings, CONFIRMATION_TEXT
-        update_settings(
-            {
-                "auto_paper_entries": True,
-                "auto_paper_exits":   True,
-                "auto_scan_enabled":  True,
-            },
-            confirmation_text=CONFIRMATION_TEXT,
-        )
-        result["steps"]["auto_entries_enabled"] = "OK"
+        from phase20_store import get_settings
+        settings = get_settings()
+        result["steps"]["auto_entries"] = {
+            "action": "UNCHANGED",
+            "enabled": bool(settings.get("auto_paper_entries")),
+            "confirmed": bool(settings.get("auto_paper_entries_confirmed_at")),
+        }
     except Exception as exc:
-        result["steps"]["auto_entries_enabled"] = f"ERROR: {str(exc)[:200]}"
+        result["steps"]["auto_entries"] = f"ERROR: {str(exc)[:200]}"
 
     # ── 3. Warm-start agents ──────────────────────────────────────────────────
     try:

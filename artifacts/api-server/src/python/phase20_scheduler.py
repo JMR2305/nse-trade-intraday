@@ -1265,7 +1265,7 @@ def run_tick() -> Dict[str, Any]:
 
     # ── Daily session initialisation (pre-market + OPEN fallback) ────────────
     # Runs once per trading day before the first scan.  Idempotent.
-    # Handles: portfolio archive, ₹50K capital reset, auto_paper_entries ON,
+    # Handles: portfolio archive, ₹50K capital reset, preserved entry state,
     # agent warm-start, and Mode B top-up check.
     session_init: Any = None
     try:

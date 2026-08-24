@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import sys
 import types
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict
 from unittest.mock import MagicMock, call, patch
@@ -94,6 +95,10 @@ from phase20_executor import (  # noqa: E402
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _fresh_timestamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _make_snapshot(
     kite_session_verified: bool = True,
     kite_ltp_overlay_enabled: bool = True,
@@ -104,7 +109,7 @@ def _make_snapshot(
         recs = [_make_rec()]
     return {
         "scan_id": "test-scan-001",
-        "snapshot_ts": "2026-08-17T05:00:00Z",
+        "snapshot_ts": _fresh_timestamp(),
         "safety": {
             "kite_ltp_session_verified": kite_session_verified,
             "kite_ltp_overlay_enabled": kite_ltp_overlay_enabled,
@@ -158,7 +163,7 @@ def _settings_bootstrap_on() -> Dict[str, Any]:
     return {
         "bootstrap_paper_enabled": True,
         "auto_paper_entries": True,
-        "auto_paper_entries_confirmed_at": "2026-08-17T05:00:00Z",
+        "auto_paper_entries_confirmed_at": _fresh_timestamp(),
         "fill_model": "SLIPPAGE_ADJUSTED",
         "slippage_pct": 0.15,
         "charges_pct": 0.12,
@@ -498,7 +503,7 @@ class TestBootstrapRefusesUnauthenticatedKite:
         False in the snapshot safety block, bootstrap must decline."""
         snapshot = {
             "scan_id": "s1",
-            "snapshot_ts": "2026-08-17T05:00:00Z",
+            "snapshot_ts": _fresh_timestamp(),
             "safety": {
                 "kite_ltp_session_verified": False,
                 "kite_ltp_overlay_enabled": False,
@@ -877,7 +882,7 @@ class TestSettingsAndSchedulerGate:
         settings = {
             "bootstrap_paper_enabled": False,
             "auto_paper_entries": True,
-            "auto_paper_entries_confirmed_at": "2026-08-17T05:00:00Z",
+            "auto_paper_entries_confirmed_at": _fresh_timestamp(),
             "slippage_pct": 0.15,
         }
         result = run_bootstrap_auto_entry(snapshot, settings)
@@ -902,7 +907,7 @@ class TestSettingsAndSchedulerGate:
         # Scenario 1: auto_paper_entries ON, confirmed, but bootstrap_paper_enabled OFF
         s1 = {
             "auto_paper_entries": True,
-            "auto_paper_entries_confirmed_at": "2026-08-17T05:00:00Z",
+            "auto_paper_entries_confirmed_at": _fresh_timestamp(),
             "bootstrap_paper_enabled": False,
         }
         _bs_entries_on_1 = s1.get("auto_paper_entries") and s1.get("auto_paper_entries_confirmed_at")
@@ -924,7 +929,7 @@ class TestSettingsAndSchedulerGate:
         # Scenario 3: both on → bootstrap is allowed
         s3 = {
             "auto_paper_entries": True,
-            "auto_paper_entries_confirmed_at": "2026-08-17T05:00:00Z",
+            "auto_paper_entries_confirmed_at": _fresh_timestamp(),
             "bootstrap_paper_enabled": True,
         }
         _bs_entries_on_3 = s3.get("auto_paper_entries") and s3.get("auto_paper_entries_confirmed_at")

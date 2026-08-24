@@ -6,6 +6,9 @@ description: Safety and concurrency invariants for the automatic scan scheduler 
 - **Auto paper entries default OFF.** Enabling requires the exact confirmation sentence stored in settings (`confirmation_text`); disabling clears `auto_paper_entries_confirmed_at`. `run_auto_entries` re-checks both flags (defence in depth).
   **Why:** research-only system; accidental automation is the top risk.
   **How to apply:** any new entry path must go through settings validation in phase20_store, never bypass it.
+- **Only a durable, explicit activation flow may enable entries.** A local settings cache, scheduler, or daily-session lifecycle may report or consume entry state but must never turn it on; unavailable or malformed durable settings resolve to OFF.
+  **Why:** a checked-in cache value and daily initialization once reintroduced automation without a fresh operator acknowledgement.
+  **How to apply:** keep Phase 22 readiness + caller-typed confirmation as the explicit activation boundary; preserve entry state everywhere else.
 - **Exits never fabricate fills.** Stale/unavailable quotes → `EXIT_PENDING` (recorded, retried), never a simulated sell at a guessed price.
 - **Trailing stop uses a persisted high-water mark** (kv `trail_peak:<trade_id>`): arm when peak ≥ fill+2R, exit when quote ≤ fill+1R. A single-quote condition is unreachable — regression tests cover arm/no-arm boundaries.
 - **Concurrency:** partial unique index `phase20_open_symbol_uidx (symbol) WHERE status='OPEN'`; entries claim the ledger row BEFORE the buy and delete it if the buy fails. File fallback replicates the duplicate check.

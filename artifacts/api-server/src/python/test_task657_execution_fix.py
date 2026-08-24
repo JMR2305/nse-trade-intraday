@@ -25,6 +25,7 @@ from __future__ import annotations
 import ast
 import os
 import unittest
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
 
@@ -39,6 +40,9 @@ TERMINAL_OUTCOME_TYPES = frozenset({
     "ORDER_CANCELLED",
     "EXECUTION_SKIPPED_WITH_REASON",
 })
+
+def _fresh_timestamp() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 # ── Task 1: static code analysis ─────────────────────────────────────────────
@@ -142,7 +146,7 @@ class TestHDFCLIFEDryRun(unittest.TestCase):
     }
 
     _SCAN_ID = "b20baab14cfd"
-    _SNAPSHOT_TS = "2026-08-12T07:26:30Z"  # 12:56:30 IST
+    _SNAPSHOT_TS = _fresh_timestamp()
 
     def test_no_import_error_on_execution_path(self):
         """create_paper_entry must not raise ImportError for an eligible candidate."""
@@ -259,7 +263,7 @@ class TestNoSilentBuyDrop(unittest.TestCase):
         mock_evaluation = {
             "global_pass": False,
             "scan_id": "test-scan-001",
-            "snapshot_ts": "2026-08-13T04:00:00Z",
+            "snapshot_ts": _fresh_timestamp(),
             "candidates": [
                 self._make_candidate("HDFCLIFE", eligible=False,
                                      failed_gates=["min_risk_reward", "per_stock_cap"]),
@@ -269,7 +273,7 @@ class TestNoSilentBuyDrop(unittest.TestCase):
 
         mock_settings = {
             "auto_paper_entries": True,
-            "auto_paper_entries_confirmed_at": "2026-08-13T04:00:00Z",
+            "auto_paper_entries_confirmed_at": _fresh_timestamp(),
             "max_trades_per_day": 3,
         }
 
@@ -312,7 +316,7 @@ class TestNoSilentBuyDrop(unittest.TestCase):
         mock_evaluation = {
             "global_pass": False,
             "scan_id": "test-scan-002",
-            "snapshot_ts": "2026-08-13T04:00:00Z",
+            "snapshot_ts": _fresh_timestamp(),
             "candidates": [
                 self._make_candidate("DRREDDY", eligible=False,
                                      failed_gates=["per_stock_cap"]),
@@ -322,7 +326,7 @@ class TestNoSilentBuyDrop(unittest.TestCase):
 
         mock_settings = {
             "auto_paper_entries": True,
-            "auto_paper_entries_confirmed_at": "2026-08-13T04:00:00Z",
+            "auto_paper_entries_confirmed_at": _fresh_timestamp(),
             "max_trades_per_day": 3,
         }
 

@@ -6,8 +6,11 @@ All tests are pure-unit: no network, no scan runs, no DB writes to canonical
 scan state. PAPER TRADING / RESEARCH ONLY.
 """
 
+import inspect
+import json
+from pathlib import Path
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import phase20_store as store
 from phase20_store import DEFAULT_SETTINGS, CONFIRMATION_TEXT, config_hash
@@ -18,6 +21,58 @@ class TestSettingsDefaults(unittest.TestCase):
     def test_auto_paper_entries_default_off(self):
         self.assertFalse(DEFAULT_SETTINGS["auto_paper_entries"])
         self.assertIsNone(DEFAULT_SETTINGS["auto_paper_entries_confirmed_at"])
+
+    def test_checked_in_release_settings_keep_automatic_entries_off(self):
+        settings_path = Path(__file__).with_name("phase20_settings.json")
+        with settings_path.open() as source:
+            release_settings = json.load(source)
+        self.assertFalse(release_settings["auto_paper_entries"])
+        self.assertIsNone(release_settings["auto_paper_entries_confirmed_at"])
+        self.assertFalse(release_settings["bootstrap_paper_enabled"])
+        self.assertTrue(release_settings["auto_paper_exits"])
+
+    def test_settings_fail_closed_when_durable_store_is_unavailable(self):
+        unsafe_cache = {
+            "auto_paper_entries": True,
+            "auto_paper_entries_confirmed_at": "should-not-be-trusted",
+        }
+        with patch.object(store, "db_available", return_value=False), \
+             patch.object(store, "_read_json", return_value=unsafe_cache):
+            settings = store.get_settings()
+        self.assertFalse(settings["auto_paper_entries"])
+        self.assertIsNone(settings["auto_paper_entries_confirmed_at"])
+
+    def test_settings_fail_closed_when_durable_payload_is_malformed(self):
+        cursor = MagicMock()
+        cursor.__enter__.return_value = cursor
+        cursor.fetchone.return_value = ("{not-json",)
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+        with patch.object(store, "db_available", return_value=True), \
+             patch.object(store, "_connect", return_value=conn), \
+             patch.object(store, "_ensure_schema"):
+            settings = store.get_settings()
+        self.assertFalse(settings["auto_paper_entries"])
+        self.assertIsNone(settings["auto_paper_entries_confirmed_at"])
+
+    def test_daily_session_manager_cannot_silently_enable_entries(self):
+        import daily_session_manager
+        source = inspect.getsource(daily_session_manager.initialize_daily_session)
+        self.assertNotIn('"auto_paper_entries": True', source)
+        self.assertNotIn("update_settings(", source)
+
+    def test_cli_activation_delegates_to_explicit_phase22_flow(self):
+        main_path = Path(__file__).with_name("main.py")
+        source = main_path.read_text()
+        command_start = source.index('elif command == "daily_session_enable_autonomous":')
+        command_end = source.index(
+            'elif command == "daily_session_disable_autonomous":',
+            command_start,
+        )
+        command_source = source[command_start:command_end]
+        self.assertIn("phase22_activation import enable_paper_automation", command_source)
+        self.assertIn("confirmation_text", command_source)
+        self.assertNotIn("CONFIRMATION_TEXT", command_source)
 
     def test_interval_default_and_allowed(self):
         self.assertEqual(DEFAULT_SETTINGS["scan_interval_minutes"], 5)
@@ -692,7 +747,8 @@ class TestTimeoutExitPending(unittest.TestCase):
              patch.object(x, "record_exit",
                           side_effect=lambda *a, **k: recorded.append((a, k))), \
              patch.object(x.store, "add_notification", lambda *a, **k: None), \
-             patch("phase20_executor.get_ledger", return_value=ledger):
+              patch("phase20_executor.get_exit_pending_trades",
+                    return_value=ledger):
             result = x.manage_open_positions(settings)
         return result, recorded, sells
 
@@ -783,7 +839,8 @@ class TestTimeoutExitPending(unittest.TestCase):
         recorded = []
         with patch("paper_trader.execute_sell",
                    side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
-             patch("phase20_executor.get_ledger", return_value=[trade]), \
+             patch("phase20_executor.get_exit_pending_trades",
+                   return_value=[trade]), \
              patch.object(x, "record_exit",
                           side_effect=lambda *a, **k: recorded.append((a, k))), \
              patch.object(x.store, "add_notification", lambda *a, **k: None):

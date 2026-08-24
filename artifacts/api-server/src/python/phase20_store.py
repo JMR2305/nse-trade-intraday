@@ -3,7 +3,8 @@ phase20_store.py — Phase 20: durable settings, scan-run history, scheduler
 health, and notifications.
 
 All state lives in shared PostgreSQL (DATABASE_URL) so Replit Autoscale
-instances agree; JSON-file fallback keeps local dev/tests working.
+instances agree. The JSON file is only a warm cache and is never trusted to
+enable automatic paper entries when durable settings are unavailable.
 
 PAPER TRADING / RESEARCH ONLY. This module never places live orders.
 Auto paper entries default OFF and can only be enabled through an explicit
@@ -544,7 +545,23 @@ def get_settings() -> Dict[str, Any]:
             stored = json.loads(stored)
         return stored
 
-    stored = _with_db(from_db, lambda: _read_json(_SETTINGS_FILE, {}))
+    # Automatic entries are a durable-safety control. A stale local cache must
+    # never grant permission when Postgres is missing, unreadable, or malformed.
+    stored: Any = {}
+    if db_available():
+        conn = None
+        try:
+            conn = _connect()
+            _ensure_schema(conn)
+            stored = from_db(conn)
+        except Exception:
+            stored = {}
+        finally:
+            if conn is not None:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
     merged = dict(DEFAULT_SETTINGS)
     if isinstance(stored, dict):
         for k, v in stored.items():

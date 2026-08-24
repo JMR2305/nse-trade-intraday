@@ -4600,11 +4600,13 @@ def main():
         elif command == "daily_session_verify_agents":
             from daily_session_manager import verify_agents as _f; result = _f()
         elif command == "daily_session_enable_autonomous":
-            # Convenience: enable auto entries for the current session.
-            from phase20_store import update_settings, CONFIRMATION_TEXT
-            result = update_settings(
-                {"auto_paper_entries": True, "auto_scan_enabled": True, "auto_paper_exits": True},
-                confirmation_text=CONFIRMATION_TEXT,
+            # Explicit operator activation only: Phase 22 requires both its
+            # readiness checklist and the caller's exact typed confirmation.
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            from phase22_activation import enable_paper_automation as _f
+            result = _f(
+                str(_payload.get("confirmation_text") or ""),
+                user=_payload.get("user"),
             )
         elif command == "daily_session_disable_autonomous":
             from phase20_store import update_settings
