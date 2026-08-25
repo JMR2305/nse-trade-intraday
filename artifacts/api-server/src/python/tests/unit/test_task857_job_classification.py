@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import json
 import sys
 import tempfile
 import types
@@ -69,6 +70,127 @@ class TestJobMetadata(unittest.TestCase):
         self.assertEqual(item["market_state"], "CLOSED")
         self.assertFalse(item["entry_eligible"])
         self.assertIn("+05:30", item["started_at_ist"])
+
+    def test_manual_scan_provenance_is_sanitized_and_persisted(self):
+        import phase20_scheduler as scheduler
+
+        snapshot = {
+            "scan_id": "manual-provenance-scan",
+            "snapshot_ts": "2026-08-20T04:00:00Z",
+            "scan_audit": {"scan_completed_ts": "2026-08-20T04:00:04Z"},
+            "provider_health": {"symbols_requested": 50, "symbols_succeeded": 50},
+            "safety": {},
+        }
+        captured = []
+        fake_hours = types.SimpleNamespace(
+            market_status=lambda: {"state": "OPEN"},
+        )
+        with patch.dict(sys.modules, {"market_hours": fake_hours}), \
+             patch.object(scheduler.store, "record_scan_run", side_effect=captured.append):
+            scheduler.record_manual_scan(
+                snapshot,
+                4.0,
+                trigger_origin="API_TRIGGERED",
+                provenance={
+                    "actor": "authenticated_operator",
+                    "actor_source": "SESSION_AUTHENTICATED",
+                    "request_id": "request-929",
+                    "approval_context": "RELEASE_VALIDATION",
+                    "audit_reference": "RTV-3E-2026-08-25",
+                    "trigger_route": "/api/live-data/scan/run",
+                    "access_token": "must-not-persist",
+                },
+            )
+
+        self.assertEqual(len(captured), 1)
+        record = captured[0]
+        self.assertEqual(record["job_type"], "MANUAL_SCAN")
+        self.assertEqual(record["trigger_source"], "API_TRIGGERED")
+        self.assertFalse(record["entry_eligible"])
+        self.assertFalse(record["execution_eligible"])
+        self.assertEqual(record["details"]["provenance"]["actor"], "authenticated_operator")
+        self.assertEqual(record["details"]["provenance"]["approval_context"], "RELEASE_VALIDATION")
+        self.assertEqual(record["details"]["provenance"]["audit_reference"], "RTV-3E-2026-08-25")
+        self.assertNotIn("access_token", record["details"]["provenance"])
+
+    def test_unattributed_manual_scan_has_an_explicit_safe_source(self):
+        import phase20_scheduler as scheduler
+
+        snapshot = {
+            "scan_id": "unattributed-manual-scan",
+            "snapshot_ts": "2026-08-20T04:00:00Z",
+            "provider_health": {},
+            "safety": {},
+        }
+        captured = []
+        fake_hours = types.SimpleNamespace(market_status=lambda: {"state": "OPEN"})
+        with patch.dict(sys.modules, {"market_hours": fake_hours}), \
+             patch.object(scheduler.store, "record_scan_run", side_effect=captured.append):
+            scheduler.record_manual_scan(snapshot)
+
+        self.assertEqual(captured[0]["trigger_source"], "MANUAL")
+        self.assertEqual(captured[0]["details"]["provenance"], {
+            "actor": "anonymous_operator",
+            "actor_source": "UNATTRIBUTED_MANUAL",
+        })
+
+    def test_file_history_exposes_safe_manual_provenance(self):
+        import phase20_store as store
+
+        with tempfile.TemporaryDirectory() as temp:
+            path = os.path.join(temp, "runs.json")
+            with patch.object(store, "_SCAN_RUNS_FILE", path), \
+                 patch.object(store, "db_available", return_value=False):
+                store.record_scan_run({
+                    "job_type": "MANUAL_SCAN",
+                    "trigger_source": "MANUAL",
+                    "source": "MANUAL",
+                    "market_state": "OPEN",
+                    "started_at": "2026-08-20T04:00:00Z",
+                    "completed_at": "2026-08-20T04:00:02Z",
+                    "duration_s": 2,
+                    "status": "SUCCESS",
+                    "details": {
+                        "provenance": {
+                            "actor": "authenticated_operator",
+                            "approval_context": "RELEASE_VALIDATION",
+                            "audit_reference": "RTV-3E-2026-08-25",
+                            "trigger_route": "/api/live-data/scan/run",
+                            "api_key": "must-not-persist",
+                        },
+                    },
+                })
+                item = store.list_scan_runs(1)[0]
+
+        self.assertEqual(item["provenance"]["actor"], "authenticated_operator")
+        self.assertEqual(item["provenance"]["approval_context"], "RELEASE_VALIDATION")
+        self.assertNotIn("api_key", item["provenance"])
+
+    def test_credential_shaped_provenance_is_neither_stored_nor_serialized(self):
+        import phase20_store as store
+
+        with tempfile.TemporaryDirectory() as temp:
+            path = os.path.join(temp, "runs.json")
+            legacy_secret = "sk-secret-should-never-appear"
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump([{
+                    "scan_id": "legacy-unsafe-provenance",
+                    "details": {
+                        "provenance": {
+                            "actor": "authenticated_operator",
+                            "approval_context": legacy_secret,
+                            "audit_reference": "AKIAIOSFODNN7EXAMPLE",
+                        },
+                    },
+                }], fh)
+            with patch.object(store, "_SCAN_RUNS_FILE", path), \
+                 patch.object(store, "db_available", return_value=False):
+                item = store.list_scan_runs(1)[0]
+
+        serialized = json.dumps(item)
+        self.assertNotIn(legacy_secret, serialized)
+        self.assertNotIn("AKIAIOSFODNN7EXAMPLE", serialized)
+        self.assertEqual(item["provenance"], {"actor": "authenticated_operator"})
 
 
 class TestPostmarketRetry(unittest.TestCase):

@@ -191,18 +191,42 @@ def _run_meta_from_snapshot(snap: Dict[str, Any], trigger: str,
     )
 
 
-def record_manual_scan(snap: Dict[str, Any], duration_s: float = 0.0) -> None:
-    """Record a MANUAL scan run (called from the phase7_scan CLI path)."""
+def record_manual_scan(
+    snap: Dict[str, Any],
+    duration_s: float = 0.0,
+    *,
+    provenance: Optional[Dict[str, Any]] = None,
+    trigger_origin: str = "MANUAL",
+) -> None:
+    """Record an explicit scan run with safe, operator-facing provenance.
+
+    ``MANUAL`` is the direct CLI/operator default. ``API_TRIGGERED`` identifies
+    the explicit API route separately from the scheduler without allowing it to
+    become execution-eligible.
+    """
     try:
         from market_hours import market_status
         mstate = str((market_status() or {}).get("state") or "UNKNOWN").upper()
-        # Manual scans are diagnostic evidence. They never grant scheduler
-        # entry/execution eligibility, including when an operator runs one
-        # during an open market.
+        origin = str(trigger_origin or "MANUAL").upper()
+        if origin not in {"MANUAL", "API_TRIGGERED", "RECOVERY", "BACKFILL", "UNKNOWN"}:
+            origin = "MANUAL"
+        # Explicit scans are diagnostic evidence. They never grant scheduler
+        # entry/execution eligibility, including when an operator/API caller
+        # runs one during an open market.
         record = _run_meta_from_snapshot(
-            snap, "MANUAL", duration_s, market_state=mstate, job_type="MANUAL_SCAN")
+            snap, origin, duration_s, market_state=mstate, job_type="MANUAL_SCAN")
         record["entry_eligible"] = False
         record["execution_eligible"] = False
+        safe_provenance = store.sanitize_scan_provenance(provenance)
+        if not safe_provenance:
+            # Direct CLI/recovery invocations have no authenticated HTTP actor.
+            # Label that absence explicitly instead of leaving a future manual
+            # history row indistinguishable from older unannotated records.
+            safe_provenance = {
+                "actor": "system" if origin in {"RECOVERY", "BACKFILL"} else "anonymous_operator",
+                "actor_source": "SYSTEM" if origin in {"RECOVERY", "BACKFILL"} else "UNATTRIBUTED_MANUAL",
+            }
+        record["details"] = {"provenance": safe_provenance}
         store.record_scan_run(record)
     except Exception:
         pass

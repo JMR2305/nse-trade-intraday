@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 from zoneinfo import ZoneInfo
@@ -738,6 +739,59 @@ def _job_type_for(run: Dict[str, Any]) -> str:
     return "MANUAL_SCAN" if trigger == "MANUAL" else "MARKET_SCAN"
 
 
+_SAFE_APPROVAL_CONTEXTS = {
+    "OPERATOR_REQUEST",
+    "RELEASE_VALIDATION",
+    "INCIDENT_RESPONSE",
+}
+_SAFE_AUDIT_REFERENCE = re.compile(
+    r"^(?!API-|KEY-|TOKEN-|SECRET-)[A-Z]{2,12}-(?:\d{1,8}|[A-Z0-9]{1,12}-20\d{2}-\d{2}-\d{2})$"
+)
+
+
+def sanitize_scan_provenance(provenance: Any) -> Dict[str, Optional[str]]:
+    """Return a small allowlisted audit record with no credentials or secrets.
+
+    Provenance enters Python through a request boundary, but this second
+    validation makes direct CLI callers and future routes equally safe.  Values
+    must be short, plain labels; arbitrary nested objects and token-like request
+    data are never persisted.
+    """
+    if not isinstance(provenance, dict):
+        return {}
+    clean: Dict[str, Optional[str]] = {}
+    actor = provenance.get("actor")
+    if actor in {"authenticated_operator", "anonymous_operator", "system"}:
+        clean["actor"] = actor
+    actor_source = provenance.get("actor_source")
+    if actor_source in {"SESSION_AUTHENTICATED", "UNATTRIBUTED_MANUAL", "SYSTEM"}:
+        clean["actor_source"] = actor_source
+    request_id = provenance.get("request_id")
+    if isinstance(request_id, str) and request_id.isdecimal() and len(request_id) <= 20:
+        clean["request_id"] = request_id
+    approval_context = provenance.get("approval_context")
+    if isinstance(approval_context, str) and approval_context in _SAFE_APPROVAL_CONTEXTS:
+        clean["approval_context"] = approval_context
+    audit_reference = provenance.get("audit_reference")
+    if isinstance(audit_reference, str) and _SAFE_AUDIT_REFERENCE.fullmatch(audit_reference):
+        clean["audit_reference"] = audit_reference
+    if provenance.get("trigger_route") == "/api/live-data/scan/run":
+        clean["trigger_route"] = "/api/live-data/scan/run"
+    return clean
+
+
+def sanitize_scan_details(details: Any) -> Dict[str, Any]:
+    """Return history-safe details without exposing raw provenance JSON."""
+    safe_details = dict(details) if isinstance(details, dict) else {}
+    safe_details.pop("provenance", None)
+    provenance = sanitize_scan_provenance(
+        details.get("provenance") if isinstance(details, dict) else None,
+    )
+    if provenance:
+        safe_details["provenance"] = provenance
+    return safe_details
+
+
 def record_scan_run(run: Dict[str, Any]) -> None:
     """Append one classified scheduler, scan, or maintenance job record.
 
@@ -774,7 +828,7 @@ def record_scan_run(run: Dict[str, Any]) -> None:
         "error": (str(run.get("error"))[:500] if run.get("error") else None),
         "timings": run.get("timings") or None,
         "perf": run.get("perf") or None,
-        "details": run.get("details") or {},
+        "details": sanitize_scan_details(run.get("details")),
         "created_at": _iso(_now()),
     }
 
@@ -861,12 +915,27 @@ def list_scan_runs(limit: int = 50) -> List[Dict[str, Any]]:
                 "source": r[21] or r[1],
                 "started_at_ist": r[22] or _to_ist_iso(r[2]),
                 "completed_at_ist": r[23] or _to_ist_iso(r[3]),
-                "details": r[24] or {},
+                "details": sanitize_scan_details(r[24]),
+                "provenance": sanitize_scan_provenance(
+                    r[24].get("provenance") if isinstance(r[24], dict) else None,
+                ),
             })
         return out
 
-    return _with_db(from_db,
-                    lambda: list(reversed(_read_json(_SCAN_RUNS_FILE, [])))[:limit])
+    def from_file():
+        rows = list(reversed(_read_json(_SCAN_RUNS_FILE, [])))[:limit]
+        out = []
+        for saved in rows:
+            row = dict(saved) if isinstance(saved, dict) else {}
+            details = row.get("details")
+            row["details"] = sanitize_scan_details(details)
+            row["provenance"] = sanitize_scan_provenance(
+                details.get("provenance") if isinstance(details, dict) else None,
+            )
+            out.append(row)
+        return out
+
+    return _with_db(from_db, from_file)
 
 
 def list_jobs_today_ist(limit: int = 100) -> List[Dict[str, Any]]:
@@ -932,7 +1001,10 @@ def _serialize_job_rows(rows: List[Any]) -> List[Dict[str, Any]]:
             "source": r[21] or trigger,
             "started_at_ist": r[22] or _to_ist_iso(r[2]),
             "completed_at_ist": r[23] or _to_ist_iso(r[3]),
-            "details": r[24] or {},
+            "details": sanitize_scan_details(r[24]),
+            "provenance": sanitize_scan_provenance(
+                r[24].get("provenance") if isinstance(r[24], dict) else None,
+            ),
         })
     return out
 

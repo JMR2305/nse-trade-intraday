@@ -380,7 +380,7 @@ export default function SignalsScreen() {
     setScanRunning(true);
 
     try {
-      const resp = await runLiveDataScan();
+      const resp = await runLiveDataScan({ data: {} });
       const next = { scanRunning: true, scanError: false };
       applyRunResponse(resp, next);
       if (!next.scanRunning) {

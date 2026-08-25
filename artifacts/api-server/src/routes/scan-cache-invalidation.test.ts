@@ -66,6 +66,7 @@ import {
 } from "vitest";
 import type { Server } from "node:http";
 import { EventEmitter } from "node:events";
+import { createSession } from "../lib/session";
 
 // ── Mock child_process ────────────────────────────────────────────────────────
 const mockSpawn = vi.fn();
@@ -210,10 +211,17 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     return { status: res.status, body, headers: res.headers };
   }
 
-  async function post(path: string, body = "{}"): Promise<{ status: number; body: unknown }> {
+  async function post(
+    path: string,
+    body = "{}",
+    authenticated = true,
+  ): Promise<{ status: number; body: unknown }> {
     const res = await fetch(`http://127.0.0.1:${port}${path}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(authenticated ? { cookie: `__session=${createSession()}` } : {}),
+      },
       body,
     });
     const responseBody = await res.json().catch(() => null);
@@ -304,7 +312,25 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     expect(spawnCount("scan_history")).toBe(2);
   });
 
+  it("keeps scan history GET read-only and never starts a canonical scan", async () => {
+    const history = await get("/api/live-data/scan/history?limit=5");
+
+    expect(history.status).toBe(200);
+    expect((history.body as Record<string, unknown>)["count"]).toBe(1);
+    expect(spawnCount("scan_history")).toBe(1);
+    expect(spawnCount("phase7_scan")).toBe(0);
+  });
+
   // ── 2. Immediate invalidation (POST /run handler, ~line 1320) ─────────────
+
+  it("rejects an unauthenticated scan trigger without creating a scan", async () => {
+    const response = await post("/api/live-data/scan/run", "{}", false);
+
+    expect(response.status).toBe(401);
+    expect(response.body).toMatchObject({ success: false, error: "Unauthorized" });
+    expect(spawnCount("market_status")).toBe(0);
+    expect(spawnCount("phase7_scan")).toBe(0);
+  });
 
   it("POST /live-data/scan/run immediately clears the cache so the very next GET fetches fresh data", async () => {
     // Populate cache with rotation:1.
@@ -316,7 +342,11 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     expect(spawnCount("scan_status")).toBe(1);
 
     // POST /run → cache cleared synchronously inside the handler.
-    const r2 = await post("/api/live-data/scan/run");
+    const r2 = await post("/api/live-data/scan/run", JSON.stringify({
+      approval_context: "release validation",
+      audit_reference: "RTV-3E-2026-08-25",
+      access_token: "must-not-be-recorded",
+    }));
     expect(r2.status).toBe(200);
     expect((r2.body as Record<string, unknown>)["started"]).toBe(true);
     expect((r2.body as Record<string, unknown>)["status"]).toBe("RUNNING");
@@ -331,6 +361,17 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     expect((phase7Spawn?.[1] as string[]).indexOf("force")).toBeLessThan(
       (phase7Spawn?.[1] as string[]).indexOf("origin=API_TRIGGERED"),
     );
+    const provenanceArg = (phase7Spawn?.[1] as string[]).find((arg) => arg.startsWith("provenance="));
+    expect(provenanceArg).toBeDefined();
+    const provenance = JSON.parse(provenanceArg!.slice("provenance=".length));
+    expect(provenance).toMatchObject({
+      actor: "authenticated_operator",
+      actor_source: "SESSION_AUTHENTICATED",
+      approval_context: "RELEASE_VALIDATION",
+      audit_reference: "RTV-3E-2026-08-25",
+      trigger_route: "/api/live-data/scan/run",
+    });
+    expect(JSON.stringify(provenance)).not.toContain("must-not-be-recorded");
 
     // Advance rotation to distinguish fresh vs cached.
     currentStatusRotation = 2;
@@ -340,6 +381,25 @@ describe("scan/status cache invalidation — POST /live-data/scan/run", () => {
     expect(r3.status).toBe(200);
     expect((r3.body as Record<string, unknown>)["rotation"]).toBe(2);
     expect(spawnCount("scan_status")).toBe(2); // one before POST, one after
+  });
+
+  it("does not hand credential-shaped audit labels to the Python scan process", async () => {
+    const response = await post("/api/live-data/scan/run", JSON.stringify({
+      approval_context: "sk-this-must-not-be-stored",
+      audit_reference: "AKIAIOSFODNN7EXAMPLE",
+    }));
+
+    expect(response.status).toBe(200);
+    await flushAsync();
+    await flushAsync();
+    const phase7Spawn = mockSpawn.mock.calls.find((call) => spawnCmd(call) === "phase7_scan");
+    const provenanceArg = (phase7Spawn?.[1] as string[]).find((arg) => arg.startsWith("provenance="));
+    expect(provenanceArg).toBeDefined();
+    const provenance = JSON.parse(provenanceArg!.slice("provenance=".length));
+    expect(provenance.approval_context).toBeNull();
+    expect(provenance.audit_reference).toBeNull();
+    expect(JSON.stringify(provenance)).not.toContain("sk-this-must-not-be-stored");
+    expect(JSON.stringify(provenance)).not.toContain("AKIAIOSFODNN7EXAMPLE");
   });
 
   // ── 3. Deferred invalidation (completion callback, ~line 1344) ────────────

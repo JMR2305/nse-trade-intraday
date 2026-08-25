@@ -10,6 +10,69 @@ const router: IRouter = Router();
 
 import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 import { dispatchSignalPushNotifications } from "../lib/pushNotifier";
+import { requireApiKey } from "../lib/auth";
+
+type ManualScanProvenance = {
+  actor: "authenticated_operator";
+  actor_source: "SESSION_AUTHENTICATED";
+  request_id: string | null;
+  approval_context: string | null;
+  audit_reference: string | null;
+  trigger_route: "/api/live-data/scan/run";
+};
+
+const APPROVAL_CONTEXTS = new Set([
+  "OPERATOR_REQUEST",
+  "RELEASE_VALIDATION",
+  "INCIDENT_RESPONSE",
+]);
+const AUDIT_REFERENCE = /^(?!API-|KEY-|TOKEN-|SECRET-)[A-Z]{2,12}-(?:\d{1,8}|[A-Z0-9]{1,12}-20\d{2}-\d{2}-\d{2})$/;
+
+/**
+ * Preserve only concise operator-facing labels. This deliberately rejects
+ * arbitrary request content so cookies, bearer tokens, and pasted secrets
+ * cannot become durable scan-audit data.
+ */
+function safeRequestId(value: unknown): string | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const trimmed = String(value).trim();
+  return /^[0-9]{1,20}$/.test(trimmed) ? trimmed : null;
+}
+
+function safeApprovalContext(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  return APPROVAL_CONTEXTS.has(normalized) ? normalized : null;
+}
+
+function safeAuditReference(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase();
+  return AUDIT_REFERENCE.test(normalized) ? normalized : null;
+}
+
+function manualScanProvenance(req: import("express").Request): ManualScanProvenance {
+  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
+    ? req.body as Record<string, unknown>
+    : {};
+  const requestId = safeRequestId((req as import("express").Request & { id?: unknown }).id);
+
+  return {
+    // The current session model is intentionally single-operator and has no
+    // per-user profile. Record its authenticated nature without persisting the
+    // session token, network address, or a caller-controlled identity.
+    actor: "authenticated_operator",
+    actor_source: "SESSION_AUTHENTICATED",
+    request_id: requestId,
+    // These request fields deliberately accept only server-recognised context
+    // values and structured audit IDs. Free-form strings can conceal a token.
+    approval_context: safeApprovalContext(body["approval_context"] ?? body["approvalContext"]),
+    audit_reference: safeAuditReference(body["audit_reference"] ?? body["auditReference"]),
+    // Fixed route rather than originalUrl: query strings can carry sensitive
+    // values and are not useful when identifying the trigger surface.
+    trigger_route: "/api/live-data/scan/run",
+  };
+}
 
 // Mission Control's live state is authoritative only at request time. Keep
 // server-side coalescing caches below, but forbid browsers, CDNs, and proxies
@@ -1168,7 +1231,10 @@ async function readLatestP7Scan(): Promise<unknown> {
 }
 
 /** Explicit compute path. Never call this from an observation GET route. */
-async function getP7Scan(force = false): Promise<unknown> {
+async function getP7Scan(
+  force = false,
+  provenance?: ManualScanProvenance,
+): Promise<unknown> {
   const market = await runPython(["market_status"]) as Record<string, unknown>;
   const marketState = String(market.state ?? market.market_state ?? "UNKNOWN").toUpperCase();
   if (marketState !== "OPEN") {
@@ -1178,6 +1244,7 @@ async function getP7Scan(force = false): Promise<unknown> {
   if (!p7InFlight) {
     p7InFlight = spawnP7Scan([
       "phase7_scan", ...(force ? ["force"] : []), "origin=API_TRIGGERED",
+      ...(provenance ? [`provenance=${JSON.stringify(provenance)}`] : []),
     ])
       .then((data) => { p7Cache = { data, ts: Date.now() }; return data; })
       .finally(() => { p7InFlight = null; });
@@ -1485,7 +1552,7 @@ const SCAN_RUN_MIN_GAP_MS = 30_000;
 //   { started: true,  status: "ALREADY_RUNNING" }  — scan already in flight
 //   { started: false, status: "RATE_LIMITED",
 //     retry_in_s: N }                              — 429 (30 s gap)
-router.post("/live-data/scan/run", async (_req, res) => {
+router.post("/live-data/scan/run", requireApiKey, async (req, res) => {
   try {
     // A manual trigger must obey the same market-hours boundary as the
     // scheduler. Without this check an operator could publish a fresh
@@ -1525,6 +1592,7 @@ router.post("/live-data/scan/run", async (_req, res) => {
     }
 
     // ── Kick off scan in background ──────────────────────────────────────────
+    const provenance = manualScanProvenance(req);
     lastScanRunTs = now;
     p7Cache         = null;   // Phase 7 cache — must refresh
     marketScanCache = null;   // Phase 19B: Market Scanner view
@@ -1534,7 +1602,9 @@ router.post("/live-data/scan/run", async (_req, res) => {
     void runPython(["system_event", "SCAN_STARTED",
       JSON.stringify({ reason: "Fresh live scan started." })]).catch(() => undefined);
 
-    void getP7Scan(true)
+    // Provenance is supplied only at this explicit operator/API trigger. The
+    // scheduler never shares it, so its SCHEDULED rows remain distinguishable.
+    void getP7Scan(true, provenance)
       .then((result) => {
         const r = result as Record<string, unknown>;
         eventBus.publish("scan.completed", {

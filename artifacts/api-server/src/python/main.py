@@ -1010,16 +1010,37 @@ def main():
                 "SCHEDULED", "MANUAL", "API_TRIGGERED", "RECOVERY", "BACKFILL", "UNKNOWN",
             }:
                 trigger_origin = "UNKNOWN"
+            provenance_arg = next(
+                (arg.split("=", 1)[1] for arg in args[1:]
+                 if arg.startswith("provenance=")),
+                "",
+            )
+            provenance = {}
+            if provenance_arg:
+                try:
+                    parsed_provenance = json.loads(provenance_arg)
+                    if isinstance(parsed_provenance, dict):
+                        provenance = parsed_provenance
+                except (TypeError, ValueError):
+                    # Provenance is audit enrichment only. An invalid caller
+                    # value must not make a canonical scan fail.
+                    provenance = {}
             _scan_t0 = _time.time()
             result = get_or_run_scan(
                 max_age_s=600, force=force, trigger_origin=trigger_origin,
             )
             result["success"] = True
-            # Phase 20: record MANUAL scan runs in the durable history.
+            # Phase 20: record explicit/manual scan runs in the durable
+            # history with the safe provenance supplied by the API boundary.
             if not result.get("_from_cache"):
                 try:
                     from phase20_scheduler import record_manual_scan
-                    record_manual_scan(result, _time.time() - _scan_t0)
+                    record_manual_scan(
+                        result,
+                        _time.time() - _scan_t0,
+                        provenance=provenance,
+                        trigger_origin=trigger_origin,
+                    )
                 except Exception:
                     pass
                 # Phase 22: manual scans get the same post-scan regeneration
@@ -1050,6 +1071,8 @@ def main():
                     "symbols_unavailable": _health.get("symbols_unavailable"),
                     "missing_symbols": _health.get("unavailable_symbols") or [],
                     "stale_symbols": _health.get("stale_symbols") or [],
+                    "trigger_origin": trigger_origin,
+                    "provenance": provenance,
                 }
             except Exception:
                 pass

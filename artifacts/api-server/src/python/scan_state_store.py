@@ -569,6 +569,19 @@ def _classified_jobs_today_ist(limit: int) -> list[Dict[str, Any]]:
             gap = max(0, round((started - previous_completed).total_seconds()))
         if isinstance(completed, datetime):
             previous_completed = completed
+        try:
+            # The durable row may predate provenance rules or be written by a
+            # non-HTTP caller. Re-apply the central allowlist at this response
+            # boundary rather than returning raw JSON from its details column.
+            from phase20_store import sanitize_scan_details, sanitize_scan_provenance
+            provenance = sanitize_scan_provenance(
+                (row[17] or {}).get("provenance")
+                if isinstance(row[17], dict) else None,
+            )
+            safe_details = sanitize_scan_details(row[17])
+        except Exception:
+            provenance = {}
+            safe_details = {}
         history.append({
             "scan_id": row[0],
             "started_at": _iso(started) if isinstance(started, datetime) else started,
@@ -589,7 +602,8 @@ def _classified_jobs_today_ist(limit: int) -> list[Dict[str, Any]]:
             "entry_eligible": bool(row[12]),
             "execution_eligible": bool(row[13]),
             "source": row[14] or row[1],
-            "details": row[17] or {},
+            "details": safe_details,
+            "provenance": provenance,
         })
     return history
 
