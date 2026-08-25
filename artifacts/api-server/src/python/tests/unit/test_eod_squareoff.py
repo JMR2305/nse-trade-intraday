@@ -19,7 +19,9 @@ No application modules imported at module scope.
 """
 from __future__ import annotations
 
+import importlib
 import sys
+import tempfile
 import types
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -692,6 +694,149 @@ class TestEodForceClose(unittest.TestCase):
         self.assertEqual(len(result["blocked"]), 1)
         self.assertEqual(result["unresolved"], [])
         self.assertEqual(sell_calls, [])
+
+
+class TestEodFileFallbackLedgerCoverage(unittest.TestCase):
+    """Regression coverage for EOD lookup beyond the activity-feed row cap."""
+
+    def test_eod_closes_old_open_row_behind_more_than_500_terminal_fallback_rows(self):
+        """File fallback must retain and square off an OPEN row older than 500 later rows."""
+        module_names = [
+            "phase20_executor",
+            "phase20_exits",
+            "phase20_store",
+            "scan_state_store",
+            "paper_trader",
+            "phase15_scan_context",
+            "pipeline_events",
+            "canonical_portfolio",
+            "phase20_eod_outcomes",
+            "ohlcv_cache_store",
+            "phase3f_logging",
+        ]
+        originals = {name: sys.modules.get(name) for name in module_names}
+        eod_outcomes: List[Dict[str, Any]] = []
+
+        try:
+            for name in module_names:
+                sys.modules.pop(name, None)
+
+            # Keep this test on the real executor's file-fallback path; no
+            # database connection or live paper-portfolio dependency is used.
+            scan_store = types.ModuleType("scan_state_store")
+            scan_store.db_available = lambda: False
+            scan_store._connect = lambda: None
+            sys.modules["scan_state_store"] = scan_store
+
+            store = types.ModuleType("phase20_store")
+            store.add_notification = MagicMock()
+            sys.modules["phase20_store"] = store
+
+            logging = types.ModuleType("phase3f_logging")
+            logging.get_logger = MagicMock(return_value=MagicMock())
+            sys.modules["phase3f_logging"] = logging
+
+            executor = importlib.import_module("phase20_executor")
+
+            paper_trader = types.ModuleType("paper_trader")
+            paper_trader.execute_sell = MagicMock(return_value=(True, "closed"))
+            sys.modules["paper_trader"] = paper_trader
+
+            scan_context = types.ModuleType("phase15_scan_context")
+            scan_context.build_scan_context = MagicMock(return_value={
+                "available": False,
+                "stale": True,
+                "is_today_session": False,
+                "symbols": {},
+                "scan_id": "fallback-eod-scan",
+            })
+            sys.modules["phase15_scan_context"] = scan_context
+
+            events = types.ModuleType("pipeline_events")
+            events.emit = MagicMock()
+            sys.modules["pipeline_events"] = events
+
+            portfolio = types.ModuleType("canonical_portfolio")
+            portfolio.build_canonical_portfolio = MagicMock(return_value={
+                "cash": 50_000.0,
+                "equity": 50_000.0,
+                "positions": [],
+                "realized_pnl": 0.0,
+                "unrealized_pnl": 0.0,
+            })
+            sys.modules["canonical_portfolio"] = portfolio
+
+            eod_store = types.ModuleType("phase20_eod_outcomes")
+
+            def _record_eod_outcome(**kwargs):
+                eod_outcomes.append(kwargs)
+                return True
+
+            eod_store.record_eod_outcome = _record_eod_outcome
+            sys.modules["phase20_eod_outcomes"] = eod_store
+
+            ohlcv_cache = types.ModuleType("ohlcv_cache_store")
+            ohlcv_cache.read_symbol_from_cache = MagicMock(return_value=None)
+            sys.modules["ohlcv_cache_store"] = ohlcv_cache
+
+            exits = importlib.import_module("phase20_exits")
+
+            old_open = {
+                **_trade(
+                    trade_id="P20-fallback-old-open",
+                    symbol="RELIANCE",
+                    fill_price=100.0,
+                    qty=2,
+                ),
+                "status": "OPEN",
+                "created_at": "2026-08-01T09:15:00Z",
+            }
+            later_terminal_rows = [{
+                **_trade(
+                    trade_id=f"P20-terminal-{index:03d}",
+                    symbol=f"TERM{index:03d}",
+                    fill_price=100.0,
+                ),
+                "status": "CLOSED",
+                "created_at": f"2026-08-20T10:{index % 60:02d}:00Z",
+            } for index in range(501)]
+
+            with tempfile.TemporaryDirectory() as directory, patch.object(
+                executor,
+                "_LEDGER_FILE",
+                f"{directory}/phase20_ledger.json",
+            ):
+                self.assertTrue(executor._write_ledger_file(
+                    [old_open, *later_terminal_rows]))
+
+                # The dashboard accessor is capped at 500, but EOD must use
+                # the uncapped safety accessor and still find the first row.
+                open_rows = executor.get_all_open_trades()
+                self.assertEqual([row["trade_id"] for row in open_rows],
+                                 ["P20-fallback-old-open"])
+
+                result = exits.eod_force_close_open_positions(
+                    _settings(), session_date="2026-08-20")
+
+                self.assertEqual(result["evaluated"], 1)
+                self.assertEqual(
+                    [row["trade_id"] for row in result["force_closed"]],
+                    ["P20-fallback-old-open"],
+                )
+                persisted = executor.get_trade("P20-fallback-old-open")
+                self.assertEqual(persisted and persisted.get("status"), "CLOSED")
+                self.assertTrue(any(
+                    outcome.get("trade_id") == "P20-fallback-old-open"
+                    and outcome.get("selected_outcome") == "CLOSED"
+                    for outcome in eod_outcomes
+                ))
+        finally:
+            for name in module_names:
+                previous = originals[name]
+                if previous is None:
+                    sys.modules.pop(name, None)
+                else:
+                    sys.modules[name] = previous
 
 
 class TestSchedulerEodIntegration(unittest.TestCase):
