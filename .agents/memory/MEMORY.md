@@ -117,6 +117,7 @@
 - [Phase 27E/27F test conventions](phase27ef-tests.md) — frontend vitest needs PORT=9999 BASE_PATH=/trading-dashboard/; Python check_* fns are pure (inject inputs dict directly, no patching needed for most).
 - [Scheduler health shape & IST counting](scheduler-health-shape.md) — get_scheduler_health() is FLAT (no state wrapper); "today" counts need ist_day_bounds_utc, never UTC dates.
 - [Kite LTP overlay (Option A)](kite-ltp-overlay.md) — KITE_LTP_OVERLAY_ENABLED flag; overlays current_price/execution_price only; indicators always yfinance_daily_bars; kite_ltp_overlay.py is the single source; 37/37 tests.
+- [Membership-price provenance](membership-price-provenance.md) — durable universe refresh prices are not current quotes; derive live provider/freshness from canonical health.
 - [Local NIFTY 50 OHLCV cache](ohlcv-cache.md) — cache-first fetch_batch (< 5s warm vs 22 min cold); post-market refresh at POST_CLOSE tick; ltps key is bare symbol not .NS; tickers in MultiIndex level 0.
 - [OHLCV cold-start check](ohlcv-cold-start.md) — token-fenced expiring takeover (not kv_claim_once); ColdStartTestCase per-test save/restore avoids cross-file sys.modules contamination.
 - [Paper-capital admission concurrency](paper-capital-migration-concurrency.md) — migration, entry state, and final exposure sizing share one advisory gate; gate-time snapshots are not authoritative.

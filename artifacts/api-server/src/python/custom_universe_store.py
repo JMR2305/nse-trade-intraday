@@ -536,9 +536,19 @@ def get_status() -> Dict[str, Any]:
         sector = str(row.get("sector") or "OTHER")
         sector_counts[sector] = sector_counts.get(sector, 0) + 1
     ohlcv_hits = sum(1 for row in active if row.get("ohlcv_available"))
-    kite_ltp_count = sum(
-        1 for row in active if str(row.get("last_ltp_source") or "").startswith("kite")
-    )
+    membership_price_sources: Dict[str, int] = {}
+    kite_ltp_count = 0
+    yahoo_close_count = 0
+    unavailable_price_count = 0
+    for row in active:
+        source = str(row.get("last_ltp_source") or "unavailable").strip().lower()
+        membership_price_sources[source] = membership_price_sources.get(source, 0) + 1
+        if source.startswith("kite"):
+            kite_ltp_count += 1
+        elif source.startswith("yfinance") or source.startswith("yahoo"):
+            yahoo_close_count += 1
+        else:
+            unavailable_price_count += 1
     complete_mappings = [
         row for row in active
         if row.get("instrument_token") is not None
@@ -608,9 +618,21 @@ def get_status() -> Dict[str, Any]:
         "sector_counts": sector_counts,
         "last_refresh": latest,
         "ohlcv_cache_hit_rate_pct": round(ohlcv_hits / len(active) * 100, 1) if active else 0.0,
-        "kite_ltp": {
-            "available_symbols": kite_ltp_count,
-            "status": "AVAILABLE" if kite_ltp_count else "FALLBACK_OR_UNAVAILABLE",
+        "membership_price_evidence": {
+            # These values describe the last approved membership refresh, not
+            # the current canonical scan. Current quote provenance is exposed
+            # by /api/live-data/health-v2 and must never be inferred from this
+            # durable eligibility metadata.
+            "scope": "LAST_MEMBERSHIP_REFRESH",
+            "refreshed_at": latest,
+            "source_counts": membership_price_sources,
+            "kite_ltp_symbols": kite_ltp_count,
+            "yahoo_close_symbols": yahoo_close_count,
+            "unavailable_symbols": unavailable_price_count,
+            "note": (
+                "Stored eligibility-price evidence from the last membership "
+                "refresh; not current market quote provenance."
+            ),
         },
         "instrument_metadata": {
             "active_count": len(active),

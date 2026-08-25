@@ -216,7 +216,15 @@ interface CustomUniverseStatus {
   sector_counts?: Record<string, number>;
   last_refresh?: string | null;
   ohlcv_cache_hit_rate_pct?: number;
-  kite_ltp?: { available_symbols?: number; status?: string };
+  membership_price_evidence?: {
+    scope?: string;
+    refreshed_at?: string | null;
+    source_counts?: Record<string, number>;
+    kite_ltp_symbols?: number;
+    yahoo_close_symbols?: number;
+    unavailable_symbols?: number;
+    note?: string;
+  };
   instrument_metadata?: {
     active_count?: number;
     complete_mapping_count?: number;
@@ -248,6 +256,98 @@ interface CustomUniverseSymbol {
   ohlcv_available?: boolean;
 }
 interface CustomUniverseSymbolsResponse { symbols?: CustomUniverseSymbol[] }
+interface MarketDataReadiness {
+  active_universe_count?: number;
+  kite_connected?: boolean;
+  symbols_on_kite?: number;
+  symbols_fallback?: number;
+  symbols_stale?: number;
+  symbols_unavailable?: number;
+  symbols_synthetic?: number;
+  latest_quote_age_s?: number | null;
+  kite_quote_timestamps_fresh?: boolean;
+  invalid_live_quote_timestamp_symbols?: string[];
+  market_timestamp_fresh?: boolean;
+}
+interface LiveDataHealthResponse {
+  market_data_readiness?: MarketDataReadiness;
+}
+
+export interface PriceProvenanceSummary {
+  kiteConnection: "CONNECTED" | "NOT CONNECTED" | "UNKNOWN";
+  currentPriceSource: string;
+  freshness: "LIVE" | "FALLBACK" | "STALE" | "UNAVAILABLE" | "SYNTHETIC" | "UNKNOWN";
+  fallbackCount: number | null;
+}
+
+/**
+ * Present current quote provenance from the canonical cached scan health.
+ * Membership-refresh price fields are intentionally excluded: they are
+ * eligibility evidence and cannot attest to a current market quote.
+ */
+export function summarizeCurrentPriceProvenance(
+  activeCount: number | undefined,
+  readiness: MarketDataReadiness | undefined,
+): PriceProvenanceSummary {
+  if (!readiness) {
+    return {
+      kiteConnection: "UNKNOWN",
+      currentPriceSource: "Awaiting current scan provenance",
+      freshness: "UNKNOWN",
+      fallbackCount: null,
+    };
+  }
+
+  const expected = Number(activeCount ?? readiness.active_universe_count ?? 0);
+  const kite = Number(readiness.symbols_on_kite ?? 0);
+  const fallback = Number(readiness.symbols_fallback ?? 0);
+  const stale = Number(readiness.symbols_stale ?? 0);
+  const unavailable = Number(readiness.symbols_unavailable ?? 0);
+  const synthetic = Number(readiness.symbols_synthetic ?? 0);
+  const invalidKiteTimestamps = readiness.invalid_live_quote_timestamp_symbols?.length ?? 0;
+  const kiteTimestampsStale = readiness.kite_quote_timestamps_fresh === false
+    || invalidKiteTimestamps > 0;
+  const scanStale = readiness.market_timestamp_fresh === false;
+  const liveKiteVerified = readiness.kite_quote_timestamps_fresh === true
+    && readiness.market_timestamp_fresh === true
+    && invalidKiteTimestamps === 0;
+  let currentPriceSource = "No current quote source";
+  if (kiteTimestampsStale) {
+    currentPriceSource = "Kite quote timestamps stale";
+  } else if (scanStale) {
+    currentPriceSource = "Canonical scan stale";
+  } else if (expected > 0 && kite === expected && liveKiteVerified) {
+    currentPriceSource = "Kite live LTP";
+  } else if (expected > 0 && fallback === expected) {
+    currentPriceSource = "Yahoo Finance fallback";
+  } else if (kite > 0 && fallback > 0 && liveKiteVerified) {
+    currentPriceSource = "Mixed: Kite live LTP + Yahoo Finance fallback";
+  } else if (kite > 0 && liveKiteVerified) {
+    currentPriceSource = "Kite live LTP (partial coverage)";
+  } else if (kite > 0) {
+    currentPriceSource = "Kite quote freshness unverified";
+  } else if (fallback > 0) {
+    currentPriceSource = "Yahoo Finance fallback (partial coverage)";
+  }
+
+  let freshness: PriceProvenanceSummary["freshness"] = "UNKNOWN";
+  if (synthetic > 0) freshness = "SYNTHETIC";
+  else if (unavailable > 0) freshness = "UNAVAILABLE";
+  else if (stale > 0 || kiteTimestampsStale || scanStale) freshness = "STALE";
+  else if (fallback > 0) freshness = "FALLBACK";
+  else if (expected > 0 && kite === expected && liveKiteVerified) freshness = "LIVE";
+
+  return {
+    kiteConnection: readiness.kite_connected === true
+      ? "CONNECTED"
+      : readiness.kite_connected === false
+        ? "NOT CONNECTED"
+        : "UNKNOWN",
+    currentPriceSource,
+    freshness,
+    fallbackCount: fallback,
+  };
+}
 /** Task 857: latest job summary (market or system). */
 interface LatestJobSummary {
   job_type?: string | null;        // "MARKET_SCAN" | "CACHE_REFRESH" | "SYSTEM_HEALTH" | …
@@ -2379,9 +2479,11 @@ const METADATA_HYDRATION_CONFIRMATION = "HYDRATE_INSTRUMENT_METADATA_ONLY";
 export function LowPriceUniverseCard({
   statusQ,
   symbolsQ,
+  marketDataHealthQ,
 }: {
   statusQ: UseQueryResult<CustomUniverseStatus>;
   symbolsQ: UseQueryResult<CustomUniverseSymbolsResponse>;
+  marketDataHealthQ?: UseQueryResult<LiveDataHealthResponse>;
 }) {
   const queryClient = useQueryClient();
   const [adminToken, setAdminToken] = useState("");
@@ -2421,6 +2523,10 @@ export function LowPriceUniverseCard({
   const excluded = symbols.filter((symbol) => !symbol.is_active);
   const band = status.price_filter ?? {};
   const metadata = status.instrument_metadata;
+  const provenance = summarizeCurrentPriceProvenance(
+    status.active_count,
+    marketDataHealthQ?.data?.market_data_readiness,
+  );
   const confirmationRequired = metadata?.confirmation_required ?? METADATA_HYDRATION_CONFIRMATION;
   const canHydrateMetadata = Boolean(
     adminToken.trim() && metadataConfirmation.trim() === confirmationRequired,
@@ -2611,12 +2717,18 @@ export function LowPriceUniverseCard({
 
         {customModeActive && (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Active</p><p className="font-semibold text-teal-300">{status.active_count ?? 0}</p></div>
-              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">OHLCV cache</p><p className="font-semibold">{status.ohlcv_cache_hit_rate_pct ?? 0}%</p></div>
-              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Kite LTP</p><p className="font-semibold">{status.kite_ltp?.status ?? "UNKNOWN"}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Kite</p><p className="font-semibold" data-testid="mc-custom-universe-kite-connection">{provenance.kiteConnection}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Mappings</p><p className="font-semibold" data-testid="mc-custom-universe-provenance-mappings">{metadata ? `${metadata.complete_mapping_count ?? 0} / ${metadata.active_count ?? status.active_count ?? 0}` : "—"}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Current price source</p><p className="font-semibold break-words" data-testid="mc-custom-universe-current-price-source">{provenance.currentPriceSource}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Price freshness</p><p className="font-semibold" data-testid="mc-custom-universe-price-freshness">{provenance.freshness}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Fallback</p><p className="font-semibold" data-testid="mc-custom-universe-fallback-count">{provenance.fallbackCount ?? "—"}</p></div>
               <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Last refresh</p><p className="font-semibold">{timeAgo(status.last_refresh)}</p></div>
             </div>
+            <p className="text-muted-foreground leading-snug" data-testid="mc-custom-universe-provenance-note">
+              Current quote provenance is from the cached canonical scan. Membership-refresh eligibility prices are stored separately and do not represent a live quote.
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(status.sector_counts ?? {}).map(([sector, count]) => (
                 <Badge key={sector} variant="outline" className="text-[9px]">{sector}: {count}</Badge>
@@ -2770,6 +2882,13 @@ export default function MissionControl() {
     queryKey: ["mc", "custom-universe-symbols"],
     path: "/universe/custom/symbols",
     refetchInterval: 30_000,
+    timeoutMs: 30_000,
+    enabled: customUniverseStatusQ.data?.active_universe === "CUSTOM_LOW_PRICE_SECTOR",
+  });
+  const customUniverseMarketDataHealthQ = useWidgetQuery<LiveDataHealthResponse>({
+    queryKey: ["mc", "custom-universe-market-data-health"],
+    path: "/live-data/health-v2",
+    refetchInterval: 15_000,
     timeoutMs: 30_000,
     enabled: customUniverseStatusQ.data?.active_universe === "CUSTOM_LOW_PRICE_SECTOR",
   });
@@ -2956,7 +3075,11 @@ export default function MissionControl() {
       <UniverseModeControl statusQ={customUniverseStatusQ} />
 
       {customUniverseStatusQ.data && (
-        <LowPriceUniverseCard statusQ={customUniverseStatusQ} symbolsQ={customUniverseSymbolsQ} />
+        <LowPriceUniverseCard
+          statusQ={customUniverseStatusQ}
+          symbolsQ={customUniverseSymbolsQ}
+          marketDataHealthQ={customUniverseMarketDataHealthQ}
+        />
       )}
 
       {layout.customizing && (

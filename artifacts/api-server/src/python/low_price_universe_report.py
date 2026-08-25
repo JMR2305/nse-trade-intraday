@@ -22,6 +22,12 @@ def build_report(status: Dict[str, Any], rows: list[Dict[str, Any]]) -> str:
         f"- {row.get('symbol')}: {row.get('reason_excluded') or 'not eligible'}"
         for row in excluded
     ]
+    membership_price = status.get("membership_price_evidence") or {}
+    membership_sources = membership_price.get("source_counts") or {}
+    source_lines = [
+        f"- {source}: {count}"
+        for source, count in sorted(membership_sources.items())
+    ]
     lines = [
         "# ApexQuant AI — Custom Low-Price IT/Infra/Bank Universe Report",
         "",
@@ -49,7 +55,12 @@ def build_report(status: Dict[str, Any], rows: list[Dict[str, Any]]) -> str:
         "",
         "## 12. Data Sources and Coverage",
         f"- OHLCV cache hit rate: {status.get('ohlcv_cache_hit_rate_pct', 0)}%",
-        f"- Kite LTP status: {(status.get('kite_ltp') or {}).get('status', 'UNKNOWN')}",
+        "- Membership refresh price evidence (not current scan provenance):",
+        *(source_lines or ["- No stored membership price evidence"]),
+        (
+            "- Current scan quote provenance is reported separately by "
+            "`/api/live-data/health-v2`."
+        ),
         "- ASM/GSM ingestion: unavailable, skip.",
         "",
         "## 13. Safety and Governance",

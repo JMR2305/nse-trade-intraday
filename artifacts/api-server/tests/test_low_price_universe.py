@@ -20,6 +20,7 @@ if str(PYTHON_DIR) not in sys.path:
 
 import custom_universe_store as store
 import low_price_universe_refresh as refresh
+import low_price_universe_report as universe_report
 
 
 def _bars(volume: float = 800_000, close: float = 100.0, count: int = 120) -> pd.DataFrame:
@@ -140,8 +141,12 @@ class LowPriceUniverseTests(unittest.TestCase):
 
     def test_13_backtest_no_lookahead(self):
         import backtest_runner
-        with patch("custom_universe_store.get_active_symbols_as_of", return_value=["OLD"]), \
-             patch("custom_universe_store.get_active_symbols", return_value=["TODAY"]):
+        with patch("custom_universe_store.get_historical_universe_resolution", return_value={
+            "status": "HISTORICAL_SNAPSHOT",
+            "symbols": ["OLD"],
+            "as_of_date": "2025-01-10",
+            "snapshot_at": "2025-01-09T10:00:00+00:00",
+        }), patch("custom_universe_store.get_active_symbols", return_value=["TODAY"]):
             self.assertEqual(
                 backtest_runner.resolve_universe(
                     {"universe_mode": "CUSTOM_LOW_PRICE_SECTOR", "end": "2025-01-10"}
@@ -150,10 +155,15 @@ class LowPriceUniverseTests(unittest.TestCase):
             )
         self.assertIn(
             "custom_universe_membership_history",
-            inspect.getsource(store.get_active_symbols_as_of),
+            inspect.getsource(store.get_historical_universe_resolution),
         )
         no_history = {"universe_mode": "CUSTOM_LOW_PRICE_SECTOR", "end": "2020-01-01"}
-        with patch("custom_universe_store.get_active_symbols_as_of", return_value=[]), \
+        unavailable = {
+            "status": "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+            "symbols": [],
+            "as_of_date": "2020-01-01",
+        }
+        with patch("custom_universe_store.get_historical_universe_resolution", return_value=unavailable), \
              patch("custom_universe_store.get_active_symbols", return_value=["TODAY"]) as current:
             self.assertEqual(backtest_runner.resolve_universe(no_history), [])
         current.assert_not_called()
@@ -164,7 +174,7 @@ class LowPriceUniverseTests(unittest.TestCase):
                 "end": "2020-01-01",
                 "allow_current_universe_fallback": falsey_lookalike,
             }
-            with patch("custom_universe_store.get_active_symbols_as_of", return_value=[]), \
+            with patch("custom_universe_store.get_historical_universe_resolution", return_value=unavailable), \
                  patch("custom_universe_store.get_active_symbols", return_value=["TODAY"]) as current:
                 self.assertEqual(backtest_runner.resolve_universe(cfg), [])
             current.assert_not_called()
@@ -173,13 +183,28 @@ class LowPriceUniverseTests(unittest.TestCase):
         rows = [
             {"symbol": "A", "is_active": True, "sector": "IT", "ohlcv_available": True,
              "last_ltp_source": "kite_ltp", "last_verified_at": "2025-01-01T00:00:00Z"},
-            {"symbol": "B", "is_active": False, "sector": "BANK", "ohlcv_available": False,
+            {"symbol": "B", "is_active": True, "sector": "BANK", "ohlcv_available": False,
+             "last_ltp_source": "yfinance_close", "last_verified_at": "2025-01-01T00:00:00Z"},
+            {"symbol": "C", "is_active": False, "sector": "BANK", "ohlcv_available": False,
              "last_ltp_source": "unavailable", "last_verified_at": "2025-01-01T00:00:00Z"},
         ]
         with patch.object(store, "get_all_symbols", return_value=rows):
             status = store.get_status()
-        self.assertEqual(status["active_count"], 1)
-        self.assertEqual(status["sector_counts"], {"IT": 1})
+        self.assertEqual(status["active_count"], 2)
+        self.assertEqual(status["sector_counts"], {"IT": 1, "BANK": 1})
+        evidence = status["membership_price_evidence"]
+        self.assertEqual(evidence["scope"], "LAST_MEMBERSHIP_REFRESH")
+        self.assertEqual(evidence["kite_ltp_symbols"], 1)
+        self.assertEqual(evidence["yahoo_close_symbols"], 1)
+        self.assertEqual(evidence["unavailable_symbols"], 0)
+        self.assertEqual(evidence["source_counts"], {
+            "kite_ltp": 1,
+            "yfinance_close": 1,
+        })
+        self.assertIn("not current market quote provenance", evidence["note"])
+        report = universe_report.build_report(status, rows)
+        self.assertIn("Membership refresh price evidence", report)
+        self.assertNotIn("Kite LTP status", report)
 
 
 if __name__ == "__main__":

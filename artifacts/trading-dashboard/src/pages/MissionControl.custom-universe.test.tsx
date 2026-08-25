@@ -3,7 +3,7 @@ import React from "react";
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { LowPriceUniverseCard } from "./MissionControl";
+import { LowPriceUniverseCard, summarizeCurrentPriceProvenance } from "./MissionControl";
 
 const status = {
   active_universe: "CUSTOM_LOW_PRICE_SECTOR",
@@ -23,7 +23,11 @@ const status = {
   },
 };
 
-function renderCard(activeUniverse = "CUSTOM_LOW_PRICE_SECTOR") {
+function renderCard(
+  activeUniverse = "CUSTOM_LOW_PRICE_SECTOR",
+  marketDataReadiness?: Record<string, unknown>,
+  statusPatch: Record<string, unknown> = {},
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -31,12 +35,18 @@ function renderCard(activeUniverse = "CUSTOM_LOW_PRICE_SECTOR") {
     <QueryClientProvider client={client}>
       <LowPriceUniverseCard
         statusQ={{
-          data: { ...status, active_universe: activeUniverse },
+          data: { ...status, ...statusPatch, active_universe: activeUniverse },
           dataUpdatedAt: Date.now(),
           isLoading: false,
           isError: false,
         } as never}
         symbolsQ={{ data: { symbols: [] }, dataUpdatedAt: Date.now(), isLoading: false, isError: false } as never}
+        marketDataHealthQ={{
+          data: marketDataReadiness ? { market_data_readiness: marketDataReadiness } : undefined,
+          dataUpdatedAt: Date.now(),
+          isLoading: false,
+          isError: false,
+        } as never}
       />
     </QueryClientProvider>,
   );
@@ -78,5 +88,85 @@ describe("LowPriceUniverseCard mapping freshness", () => {
     expect(screen.getByTestId("mc-custom-universe-inactive-note").textContent).toMatch(/before switching modes/i);
     expect(screen.getByTestId("mc-custom-universe-mapping-status")).toBeTruthy();
     expect(screen.queryByTestId("mc-refresh-low-price-universe")).toBeNull();
+  });
+});
+
+describe("LowPriceUniverseCard current price provenance", () => {
+  it("separates connected Kite mappings from Yahoo current-price fallback", () => {
+    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
+      kite_connected: true,
+      symbols_on_kite: 0,
+      symbols_fallback: 5,
+      symbols_stale: 0,
+      symbols_unavailable: 0,
+      symbols_synthetic: 0,
+    });
+
+    expect(screen.getByTestId("mc-custom-universe-kite-connection").textContent).toBe("CONNECTED");
+    expect(screen.getByTestId("mc-custom-universe-provenance-mappings").textContent).toBe("3 / 5");
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("Yahoo Finance fallback");
+    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("FALLBACK");
+    expect(screen.getByTestId("mc-custom-universe-fallback-count").textContent).toBe("5");
+    expect(screen.queryByText("Kite LTP")).toBeNull();
+  });
+
+  it("shows complete Kite mappings separately from a live Kite current-price source", () => {
+    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
+      kite_connected: true,
+      symbols_on_kite: 5,
+      symbols_fallback: 0,
+      symbols_stale: 0,
+      symbols_unavailable: 0,
+      symbols_synthetic: 0,
+      kite_quote_timestamps_fresh: true,
+      market_timestamp_fresh: true,
+    }, {
+      instrument_metadata: {
+        ...status.instrument_metadata,
+        complete_mapping_count: 5,
+        invalid_mapping_count: 0,
+        stale_mapping_count: 0,
+        refresh_required: false,
+      },
+    });
+
+    expect(screen.getByTestId("mc-custom-universe-kite-connection").textContent).toBe("CONNECTED");
+    expect(screen.getByTestId("mc-custom-universe-provenance-mappings").textContent).toBe("5 / 5");
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("Kite live LTP");
+    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("LIVE");
+    expect(screen.getByTestId("mc-custom-universe-fallback-count").textContent).toBe("0");
+  });
+
+  it("never presents expired Kite quotes as live LTP even with complete Kite coverage", () => {
+    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
+      kite_connected: true,
+      symbols_on_kite: 5,
+      symbols_fallback: 0,
+      symbols_stale: 0,
+      symbols_unavailable: 0,
+      symbols_synthetic: 0,
+      kite_quote_timestamps_fresh: false,
+      invalid_live_quote_timestamp_symbols: ["WIPRO"],
+      market_timestamp_fresh: false,
+    });
+
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("Kite quote timestamps stale");
+    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("STALE");
+    expect(screen.queryByText("Kite live LTP")).toBeNull();
+  });
+
+  it("renders explicit stale, unavailable, and synthetic outcomes without relabeling them as Kite", () => {
+    expect(summarizeCurrentPriceProvenance(5, {
+      kite_connected: true, symbols_on_kite: 5, symbols_fallback: 0, symbols_stale: 1,
+      symbols_unavailable: 0, symbols_synthetic: 0,
+    }).freshness).toBe("STALE");
+    expect(summarizeCurrentPriceProvenance(5, {
+      kite_connected: true, symbols_on_kite: 4, symbols_fallback: 0, symbols_stale: 0,
+      symbols_unavailable: 1, symbols_synthetic: 0,
+    }).freshness).toBe("UNAVAILABLE");
+    expect(summarizeCurrentPriceProvenance(5, {
+      kite_connected: true, symbols_on_kite: 5, symbols_fallback: 0, symbols_stale: 0,
+      symbols_unavailable: 0, symbols_synthetic: 1,
+    }).freshness).toBe("SYNTHETIC");
   });
 });
