@@ -94,7 +94,16 @@ class TestJobMetadata(unittest.TestCase):
                 provenance={
                     "actor": "authenticated_operator",
                     "actor_source": "SESSION_AUTHENTICATED",
-                    "request_id": "request-929",
+                    "request_id": "scan-11111111-1111-4111-8111-111111111111",
+                    "correlation_id": "scan-11111111-1111-4111-8111-111111111111",
+                    "actor_type": "operator_api",
+                    "actor_id_or_label": "unavailable",
+                    "request_endpoint": "/api/live-data/scan/run",
+                    "request_method": "POST",
+                    "trigger_source": "API_MANUAL_SCAN",
+                    "approval_required": False,
+                    "approval_status": "NOT_REQUIRED",
+                    "requested_at": "2026-08-20T04:00:00Z",
                     "approval_context": "RELEASE_VALIDATION",
                     "audit_reference": "RTV-3E-2026-08-25",
                     "trigger_route": "/api/live-data/scan/run",
@@ -109,6 +118,10 @@ class TestJobMetadata(unittest.TestCase):
         self.assertFalse(record["entry_eligible"])
         self.assertFalse(record["execution_eligible"])
         self.assertEqual(record["details"]["provenance"]["actor"], "authenticated_operator")
+        self.assertEqual(record["details"]["provenance"]["actor_type"], "operator_api")
+        self.assertEqual(record["details"]["provenance"]["request_endpoint"], "/api/live-data/scan/run")
+        self.assertEqual(record["details"]["provenance"]["trigger_source"], "API_MANUAL_SCAN")
+        self.assertEqual(record["details"]["provenance"]["approval_status"], "NOT_REQUIRED")
         self.assertEqual(record["details"]["provenance"]["approval_context"], "RELEASE_VALIDATION")
         self.assertEqual(record["details"]["provenance"]["audit_reference"], "RTV-3E-2026-08-25")
         self.assertNotIn("access_token", record["details"]["provenance"])
@@ -129,10 +142,36 @@ class TestJobMetadata(unittest.TestCase):
             scheduler.record_manual_scan(snapshot)
 
         self.assertEqual(captured[0]["trigger_source"], "MANUAL")
-        self.assertEqual(captured[0]["details"]["provenance"], {
-            "actor": "anonymous_operator",
-            "actor_source": "UNATTRIBUTED_MANUAL",
-        })
+        provenance = captured[0]["details"]["provenance"]
+        self.assertEqual(provenance["actor"], "anonymous_operator")
+        self.assertEqual(provenance["actor_type"], "operator_cli")
+        self.assertEqual(provenance["actor_id_or_label"], "unavailable")
+        self.assertEqual(provenance["approval_status"], "NOT_REQUIRED")
+        self.assertRegex(
+            provenance["request_id"],
+            r"^scan-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        )
+
+    def test_internal_diagnostic_origin_is_not_classified_as_a_manual_scan(self):
+        import phase20_scheduler as scheduler
+
+        snapshot = {
+            "scan_id": "recovery-diagnostic-scan",
+            "snapshot_ts": "2026-08-20T04:00:00Z",
+            "provider_health": {},
+            "safety": {},
+        }
+        captured = []
+        fake_hours = types.SimpleNamespace(market_status=lambda: {"state": "OPEN"})
+        with patch.dict(sys.modules, {"market_hours": fake_hours}), \
+             patch.object(scheduler.store, "record_scan_run", side_effect=captured.append):
+            scheduler.record_manual_scan(snapshot, trigger_origin="RECOVERY")
+
+        self.assertEqual(captured[0]["job_type"], "INTERNAL_DIAGNOSTIC")
+        self.assertEqual(
+            captured[0]["details"]["provenance"]["trigger_source"],
+            "INTERNAL_DIAGNOSTIC",
+        )
 
     def test_file_history_exposes_safe_manual_provenance(self):
         import phase20_store as store
@@ -153,6 +192,16 @@ class TestJobMetadata(unittest.TestCase):
                     "details": {
                         "provenance": {
                             "actor": "authenticated_operator",
+                            "actor_type": "operator_api",
+                            "actor_id_or_label": "unavailable",
+                            "request_endpoint": "/api/live-data/scan/run",
+                            "request_method": "POST",
+                            "request_id": "scan-11111111-1111-4111-8111-111111111111",
+                            "correlation_id": "scan-11111111-1111-4111-8111-111111111111",
+                            "trigger_source": "API_MANUAL_SCAN",
+                            "approval_required": False,
+                            "approval_status": "NOT_REQUIRED",
+                            "requested_at": "2026-08-20T04:00:00Z",
                             "approval_context": "RELEASE_VALIDATION",
                             "audit_reference": "RTV-3E-2026-08-25",
                             "trigger_route": "/api/live-data/scan/run",
@@ -163,6 +212,11 @@ class TestJobMetadata(unittest.TestCase):
                 item = store.list_scan_runs(1)[0]
 
         self.assertEqual(item["provenance"]["actor"], "authenticated_operator")
+        self.assertFalse(item["provenance"]["legacy"])
+        self.assertEqual(
+            item["provenance"]["request_id"],
+            "scan-11111111-1111-4111-8111-111111111111",
+        )
         self.assertEqual(item["provenance"]["approval_context"], "RELEASE_VALIDATION")
         self.assertNotIn("api_key", item["provenance"])
 
@@ -175,6 +229,7 @@ class TestJobMetadata(unittest.TestCase):
             with open(path, "w", encoding="utf-8") as fh:
                 json.dump([{
                     "scan_id": "legacy-unsafe-provenance",
+                    "trigger_source": "MANUAL",
                     "details": {
                         "provenance": {
                             "actor": "authenticated_operator",
@@ -190,7 +245,33 @@ class TestJobMetadata(unittest.TestCase):
         serialized = json.dumps(item)
         self.assertNotIn(legacy_secret, serialized)
         self.assertNotIn("AKIAIOSFODNN7EXAMPLE", serialized)
-        self.assertEqual(item["provenance"], {"actor": "authenticated_operator"})
+        self.assertTrue(item["provenance"]["legacy"])
+        self.assertEqual(item["provenance"]["trigger_source"], "UNKNOWN_LEGACY")
+
+    def test_legacy_manual_history_is_explicitly_unavailable_not_backfilled(self):
+        import phase20_store as store
+
+        legacy = store.history_scan_provenance(
+            {"provenance": {"actor": "authenticated_operator"}},
+            "MANUAL_SCAN",
+        )
+
+        self.assertTrue(legacy["legacy"])
+        self.assertIsNone(legacy["actor_type"])
+        self.assertEqual(legacy["approval_status"], "UNKNOWN")
+
+    def test_jwt_shaped_ids_are_neither_persisted_nor_serialized(self):
+        import phase20_store as store
+
+        jwt_like = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJvcGVyYXRvciJ9.signature"
+        safe = store.sanitize_scan_provenance({
+            "actor_type": "operator_api",
+            "request_id": jwt_like,
+            "correlation_id": jwt_like,
+        })
+
+        self.assertEqual(safe, {"actor_type": "operator_api"})
+        self.assertNotIn(jwt_like, json.dumps(safe))
 
 
 class TestPostmarketRetry(unittest.TestCase):

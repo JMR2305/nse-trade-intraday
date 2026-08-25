@@ -3,7 +3,11 @@ import React from "react";
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { LowPriceUniverseCard, summarizeCurrentPriceProvenance } from "./MissionControl";
+import {
+  LowPriceUniverseCard,
+  manualScanAuditPresentation,
+  summarizeCurrentPriceProvenance,
+} from "./MissionControl";
 
 const status = {
   active_universe: "CUSTOM_LOW_PRICE_SECTOR",
@@ -87,6 +91,8 @@ describe("LowPriceUniverseCard mapping freshness", () => {
 
     expect(screen.getByTestId("mc-custom-universe-inactive-note").textContent).toMatch(/before switching modes/i);
     expect(screen.getByTestId("mc-custom-universe-mapping-status")).toBeTruthy();
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("UNAVAILABLE / NOT PROVEN");
+    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("UNAVAILABLE / NOT PROVEN");
     expect(screen.queryByTestId("mc-refresh-low-price-universe")).toBeNull();
   });
 });
@@ -168,5 +174,54 @@ describe("LowPriceUniverseCard current price provenance", () => {
       kite_connected: true, symbols_on_kite: 5, symbols_fallback: 0, symbols_stale: 0,
       symbols_unavailable: 0, symbols_synthetic: 1,
     }).freshness).toBe("SYNTHETIC");
+  });
+
+  it("shows a closed market's recorded quote as last known and keeps historical OHLCV distinct", () => {
+    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
+      kite_connected: true,
+      symbols_on_kite: 0,
+      symbols_fallback: 5,
+      symbols_stale: 0,
+      symbols_unavailable: 0,
+      symbols_synthetic: 0,
+      current_quote_provider: "YFINANCE",
+      current_quote_timestamp: "2026-08-25T10:00:00Z",
+      current_quote_freshness: "MARKET_CLOSED_LAST_KNOWN",
+      historical_ohlcv_provider: "YFINANCE",
+      scan_provenance_state: "SCHEDULED",
+    });
+
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("Yahoo Finance");
+    expect(screen.getByTestId("mc-custom-universe-last-quote").textContent).toBe("2026-08-25T10:00:00Z");
+    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("MARKET CLOSED / LAST KNOWN");
+    expect(screen.getByTestId("mc-custom-universe-historical-provider").textContent).toBe("Yahoo Finance");
+    expect(screen.getByTestId("mc-custom-universe-scan-provenance").textContent).toBe("SCHEDULED");
+  });
+});
+
+describe("manual scan audit presentation", () => {
+  it("keeps legacy manual scans explicitly unavailable instead of inventing an actor", () => {
+    expect(manualScanAuditPresentation({ legacy: true })).toMatchObject({
+      legacy: true,
+      triggeredBy: "unavailable",
+      approval: "UNKNOWN",
+    });
+  });
+
+  it("renders safe persisted audit identifiers for a future manual scan", () => {
+    expect(manualScanAuditPresentation({
+      actor_type: "operator_api",
+      actor_id_or_label: "unavailable",
+      request_method: "POST",
+      request_endpoint: "/api/live-data/scan/run",
+      request_id: "scan-123",
+      approval_status: "NOT_REQUIRED",
+    })).toEqual({
+      legacy: false,
+      triggeredBy: "operator_api (unavailable)",
+      endpoint: "POST /api/live-data/scan/run",
+      approval: "NOT_REQUIRED",
+      requestId: "scan-123",
+    });
   });
 });

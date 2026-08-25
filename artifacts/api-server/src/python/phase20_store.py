@@ -39,6 +39,7 @@ JOB_TYPES = (
     "PREMARKET_READINESS_CHECK",
     "SYSTEM_HEARTBEAT",
     "MANUAL_SCAN",
+    "INTERNAL_DIAGNOSTIC",
 )
 
 ALLOWED_INTERVALS = (3, 4, 5, 6, 10, 15)
@@ -747,9 +748,13 @@ _SAFE_APPROVAL_CONTEXTS = {
 _SAFE_AUDIT_REFERENCE = re.compile(
     r"^(?!API-|KEY-|TOKEN-|SECRET-)[A-Z]{2,12}-(?:\d{1,8}|[A-Z0-9]{1,12}-20\d{2}-\d{2}-\d{2})$"
 )
+_SAFE_SCAN_AUDIT_ID = re.compile(
+    r"^(?:\d{1,20}|scan-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$",
+    re.I,
+)
 
 
-def sanitize_scan_provenance(provenance: Any) -> Dict[str, Optional[str]]:
+def sanitize_scan_provenance(provenance: Any) -> Dict[str, Any]:
     """Return a small allowlisted audit record with no credentials or secrets.
 
     Provenance enters Python through a request boundary, but this second
@@ -759,7 +764,7 @@ def sanitize_scan_provenance(provenance: Any) -> Dict[str, Optional[str]]:
     """
     if not isinstance(provenance, dict):
         return {}
-    clean: Dict[str, Optional[str]] = {}
+    clean: Dict[str, Any] = {}
     actor = provenance.get("actor")
     if actor in {"authenticated_operator", "anonymous_operator", "system"}:
         clean["actor"] = actor
@@ -777,7 +782,75 @@ def sanitize_scan_provenance(provenance: Any) -> Dict[str, Optional[str]]:
         clean["audit_reference"] = audit_reference
     if provenance.get("trigger_route") == "/api/live-data/scan/run":
         clean["trigger_route"] = "/api/live-data/scan/run"
+    actor_type = provenance.get("actor_type")
+    if actor_type in {
+        "operator_api", "operator_cli", "internal_diagnostic", "unknown_legacy",
+    }:
+        clean["actor_type"] = actor_type
+    actor_id_or_label = provenance.get("actor_id_or_label")
+    if actor_id_or_label in {"unavailable", "system"}:
+        clean["actor_id_or_label"] = actor_id_or_label
+    request_endpoint = provenance.get("request_endpoint")
+    if request_endpoint in {"/api/live-data/scan/run", "CLI"}:
+        clean["request_endpoint"] = request_endpoint
+    request_method = provenance.get("request_method")
+    if request_method in {"POST", "PROCESS"}:
+        clean["request_method"] = request_method
+    for field in ("request_id", "correlation_id"):
+        value = provenance.get(field)
+        if isinstance(value, str) and _SAFE_SCAN_AUDIT_ID.fullmatch(value):
+            clean[field] = value
+    trigger_source = provenance.get("trigger_source")
+    if trigger_source in {
+        "MISSION_CONTROL_UI", "API_MANUAL_SCAN", "ADMIN_TOOL",
+        "INTERNAL_DIAGNOSTIC", "TEST", "UNKNOWN_LEGACY",
+    }:
+        clean["trigger_source"] = trigger_source
+    if provenance.get("approval_required") is False:
+        clean["approval_required"] = False
+    approval_status = provenance.get("approval_status")
+    if approval_status in {"NOT_REQUIRED", "APPROVED", "REJECTED", "UNKNOWN"}:
+        clean["approval_status"] = approval_status
+    approval_id = provenance.get("approval_id")
+    if (isinstance(approval_id, str)
+            and _SAFE_AUDIT_REFERENCE.fullmatch(approval_id)):
+        clean["approval_id"] = approval_id
+    requested_at = provenance.get("requested_at")
+    if isinstance(requested_at, str):
+        try:
+            stamp = datetime.fromisoformat(requested_at.replace("Z", "+00:00"))
+            if stamp.tzinfo is not None:
+                clean["requested_at"] = stamp.isoformat()
+        except (TypeError, ValueError):
+            pass
     return clean
+
+
+def history_scan_provenance(details: Any, job_type: Any) -> Dict[str, Any]:
+    """Return display-safe manual-scan provenance without rewriting old rows."""
+    provenance = sanitize_scan_provenance(
+        details.get("provenance") if isinstance(details, dict) else None,
+    )
+    if str(job_type or "").upper() != "MANUAL_SCAN":
+        return provenance
+    if provenance.get("actor_type"):
+        return {**provenance, "legacy": False}
+    # This presentation-only fallback preserves the absence of historical
+    # evidence. It is never written back to a legacy scan record.
+    return {
+        "actor_type": None,
+        "actor_id_or_label": None,
+        "request_endpoint": None,
+        "request_method": None,
+        "request_id": None,
+        "correlation_id": None,
+        "trigger_source": "UNKNOWN_LEGACY",
+        "approval_required": None,
+        "approval_status": "UNKNOWN",
+        "approval_id": None,
+        "requested_at": None,
+        "legacy": True,
+    }
 
 
 def sanitize_scan_details(details: Any) -> Dict[str, Any]:
@@ -893,6 +966,10 @@ def list_scan_runs(limit: int = 50) -> List[Dict[str, Any]]:
             rows = cur.fetchall()
         out = []
         for r in rows:
+            job_type = r[16] or (
+                "MANUAL_SCAN" if str(r[1] or "").upper() == "MANUAL"
+                else "MARKET_SCAN"
+            )
             out.append({
                 "scan_id": r[0], "trigger_source": r[1],
                 "started_at": _iso(r[2]) if isinstance(r[2], datetime) else r[2],
@@ -904,10 +981,7 @@ def list_scan_runs(limit: int = 50) -> List[Dict[str, Any]]:
                 "provider": r[10], "status": r[11], "error": r[12],
                 "created_at": _iso(r[13]) if isinstance(r[13], datetime) else r[13],
                 "timings": r[14], "perf": r[15],
-                "job_type": r[16] or (
-                    "MANUAL_SCAN" if str(r[1] or "").upper() == "MANUAL"
-                    else "MARKET_SCAN"
-                ),
+                "job_type": job_type,
                 "scan_type": r[17] or "CANONICAL",
                 "market_state": r[18] or "UNKNOWN",
                 "entry_eligible": bool(r[19]),
@@ -916,9 +990,7 @@ def list_scan_runs(limit: int = 50) -> List[Dict[str, Any]]:
                 "started_at_ist": r[22] or _to_ist_iso(r[2]),
                 "completed_at_ist": r[23] or _to_ist_iso(r[3]),
                 "details": sanitize_scan_details(r[24]),
-                "provenance": sanitize_scan_provenance(
-                    r[24].get("provenance") if isinstance(r[24], dict) else None,
-                ),
+                "provenance": history_scan_provenance(r[24], job_type),
             })
         return out
 
@@ -929,8 +1001,8 @@ def list_scan_runs(limit: int = 50) -> List[Dict[str, Any]]:
             row = dict(saved) if isinstance(saved, dict) else {}
             details = row.get("details")
             row["details"] = sanitize_scan_details(details)
-            row["provenance"] = sanitize_scan_provenance(
-                details.get("provenance") if isinstance(details, dict) else None,
+            row["provenance"] = history_scan_provenance(
+                details, _job_type_for(row),
             )
             out.append(row)
         return out
@@ -980,6 +1052,10 @@ def _serialize_job_rows(rows: List[Any]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     for r in rows:
         trigger = r[1]
+        job_type = r[16] or (
+            "MANUAL_SCAN" if str(trigger or "").upper() == "MANUAL"
+            else "MARKET_SCAN"
+        )
         out.append({
             "scan_id": r[0], "trigger_source": trigger,
             "started_at": _iso(r[2]) if isinstance(r[2], datetime) else r[2],
@@ -990,10 +1066,7 @@ def _serialize_job_rows(rows: List[Any]) -> List[Dict[str, Any]]:
             "status": r[11], "error": r[12],
             "created_at": _iso(r[13]) if isinstance(r[13], datetime) else r[13],
             "timings": r[14], "perf": r[15],
-            "job_type": r[16] or (
-                "MANUAL_SCAN" if str(trigger or "").upper() == "MANUAL"
-                else "MARKET_SCAN"
-            ),
+            "job_type": job_type,
             "scan_type": r[17] or "CANONICAL",
             "market_state": r[18] or "UNKNOWN",
             "entry_eligible": bool(r[19]),
@@ -1002,9 +1075,7 @@ def _serialize_job_rows(rows: List[Any]) -> List[Dict[str, Any]]:
             "started_at_ist": r[22] or _to_ist_iso(r[2]),
             "completed_at_ist": r[23] or _to_ist_iso(r[3]),
             "details": sanitize_scan_details(r[24]),
-            "provenance": sanitize_scan_provenance(
-                r[24].get("provenance") if isinstance(r[24], dict) else None,
-            ),
+            "provenance": history_scan_provenance(r[24], job_type),
         })
     return out
 

@@ -42,7 +42,43 @@ def test_fallback_and_missing_instrument_are_honest_and_not_trading_ready():
     assert result["missing_token_count"] == 1
     assert result["missing_symbols"] == ["TCS"]
     assert result["latest_quote_timestamp"] is None
+    assert result["current_quote_timestamp"] is None
+    assert result["historical_ohlcv_provider"] == "UNAVAILABLE_NOT_PROVEN"
     assert result["trading_data_ready"] is False
+
+
+def test_yfinance_fallback_never_uses_scan_timestamp_as_a_quote_time():
+    rows = [
+        {"symbol": s, "data_source": "yfinance_fallback",
+         "current_price_source": "yfinance_daily_bars",
+         "execution_price_source": "yfinance_daily_bars"}
+        for s in ("INFY", "TCS")
+    ]
+    result = build_market_data_health(
+        _scan(rows), {"kite_connected": False, "session_fresh": True},
+        [{"symbol": "INFY", "token": 1}, {"symbol": "TCS", "token": 2}], NOW)
+
+    assert result["current_quote_provider"] == "YFINANCE"
+    assert result["current_quote_timestamp"] is None
+    assert result["market_timestamp"] == "2026-08-15T10:00:00Z"
+    assert result["historical_ohlcv_provider"] == "UNAVAILABLE_NOT_PROVEN"
+
+
+def test_closed_market_without_recorded_quote_time_is_not_last_known():
+    rows = [
+        {"symbol": s, "data_source": "yfinance_fallback",
+         "current_price_source": "yfinance_daily_bars",
+         "execution_price_source": "yfinance_daily_bars"}
+        for s in ("INFY", "TCS")
+    ]
+    result = build_market_data_health(
+        _scan(rows), {"kite_connected": False, "session_fresh": True},
+        [{"symbol": "INFY", "token": 1}, {"symbol": "TCS", "token": 2}],
+        NOW, market_state="CLOSED")
+
+    assert result["current_quote_provider"] == "YFINANCE"
+    assert result["current_quote_timestamp"] is None
+    assert result["current_quote_freshness"] == "UNAVAILABLE_NOT_PROVEN"
 
 
 def test_token_or_credentials_alone_do_not_claim_kite_connection():
@@ -155,3 +191,31 @@ def test_current_configuration_is_not_replaced_by_a_historical_scan_universe():
         "certifying_scheduled_scan": True,
     }
     assert result["trading_data_ready"] is False
+
+
+def test_price_provenance_marks_closed_market_quotes_as_last_known_without_changing_readiness():
+    rows = [
+        {"symbol": "INFY", "kite_ltp_available": True,
+         "execution_price_source": "kite_live_ltp",
+         "latest_price_time_ist": "2026-08-15T10:00:00Z"},
+        {"symbol": "TCS", "kite_ltp_available": True,
+         "execution_price_source": "kite_live_ltp",
+         "latest_price_time_ist": "2026-08-15T10:00:00Z"},
+    ]
+    scan = _scan(rows)
+    scan["scan_id"] = "scheduled-closed-market-scan"
+    scan["safety"] = {"ohlcv_source": "yfinance (historical)"}
+    result = build_market_data_health(
+        scan,
+        {"kite_connected": True, "session_fresh": True},
+        [{"symbol": "INFY", "token": 1}, {"symbol": "TCS", "token": 2}],
+        NOW,
+        market_state="CLOSED",
+    )
+
+    assert result["current_quote_provider"] == "ZERODHA_KITE"
+    assert result["current_quote_timestamp"] == "2026-08-15T10:00:00Z"
+    assert result["current_quote_freshness"] == "MARKET_CLOSED_LAST_KNOWN"
+    assert result["historical_ohlcv_provider"] == "YFINANCE"
+    assert result["scan_provenance_state"] == "SCHEDULED"
+    assert result["trading_data_ready"] is True

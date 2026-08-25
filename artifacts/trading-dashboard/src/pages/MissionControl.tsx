@@ -264,7 +264,13 @@ interface MarketDataReadiness {
   symbols_stale?: number;
   symbols_unavailable?: number;
   symbols_synthetic?: number;
+  latest_quote_timestamp?: string | null;
   latest_quote_age_s?: number | null;
+  current_quote_provider?: string;
+  current_quote_timestamp?: string | null;
+  current_quote_freshness?: string;
+  historical_ohlcv_provider?: string;
+  scan_provenance_state?: string;
   kite_quote_timestamps_fresh?: boolean;
   invalid_live_quote_timestamp_symbols?: string[];
   market_timestamp_fresh?: boolean;
@@ -274,10 +280,16 @@ interface LiveDataHealthResponse {
 }
 
 export interface PriceProvenanceSummary {
-  kiteConnection: "CONNECTED" | "NOT CONNECTED" | "UNKNOWN";
+  kiteConnection: string;
   currentPriceSource: string;
-  freshness: "LIVE" | "FALLBACK" | "STALE" | "UNAVAILABLE" | "SYNTHETIC" | "UNKNOWN";
+  activeUniverseCount: number | null;
+  lastQuote: string | null;
+  freshness: string;
+  historicalOhlcvProvider: string;
   fallbackCount: number | null;
+  syntheticCount: number | null;
+  unavailableCount: number | null;
+  scanProvenanceState: string;
 }
 
 /**
@@ -291,10 +303,16 @@ export function summarizeCurrentPriceProvenance(
 ): PriceProvenanceSummary {
   if (!readiness) {
     return {
-      kiteConnection: "UNKNOWN",
-      currentPriceSource: "Awaiting current scan provenance",
-      freshness: "UNKNOWN",
+      kiteConnection: "UNAVAILABLE / NOT PROVEN",
+      currentPriceSource: "UNAVAILABLE / NOT PROVEN",
+      activeUniverseCount: null,
+      lastQuote: null,
+      freshness: "UNAVAILABLE / NOT PROVEN",
+      historicalOhlcvProvider: "UNAVAILABLE / NOT PROVEN",
       fallbackCount: null,
+      syntheticCount: null,
+      unavailableCount: null,
+      scanProvenanceState: "UNAVAILABLE / NOT PROVEN",
     };
   }
 
@@ -311,31 +329,52 @@ export function summarizeCurrentPriceProvenance(
   const liveKiteVerified = readiness.kite_quote_timestamps_fresh === true
     && readiness.market_timestamp_fresh === true
     && invalidKiteTimestamps === 0;
-  let currentPriceSource = "No current quote source";
-  if (kiteTimestampsStale) {
+  const normalizedProvider = String(readiness.current_quote_provider ?? "").toUpperCase();
+  const providerLabel = normalizedProvider === "ZERODHA_KITE"
+    ? "Zerodha Kite"
+    : normalizedProvider === "YFINANCE"
+      ? "Yahoo Finance"
+      : normalizedProvider === "MIXED"
+        ? "Mixed: Zerodha Kite + Yahoo Finance"
+        : null;
+  let currentPriceSource = providerLabel ?? "No current quote source";
+  if (!providerLabel && kiteTimestampsStale) {
     currentPriceSource = "Kite quote timestamps stale";
-  } else if (scanStale) {
+  } else if (!providerLabel && scanStale) {
     currentPriceSource = "Canonical scan stale";
-  } else if (expected > 0 && kite === expected && liveKiteVerified) {
+  } else if (!providerLabel && expected > 0 && kite === expected && liveKiteVerified) {
     currentPriceSource = "Kite live LTP";
-  } else if (expected > 0 && fallback === expected) {
+  } else if (!providerLabel && expected > 0 && fallback === expected) {
     currentPriceSource = "Yahoo Finance fallback";
-  } else if (kite > 0 && fallback > 0 && liveKiteVerified) {
+  } else if (!providerLabel && kite > 0 && fallback > 0 && liveKiteVerified) {
     currentPriceSource = "Mixed: Kite live LTP + Yahoo Finance fallback";
-  } else if (kite > 0 && liveKiteVerified) {
+  } else if (!providerLabel && kite > 0 && liveKiteVerified) {
     currentPriceSource = "Kite live LTP (partial coverage)";
-  } else if (kite > 0) {
+  } else if (!providerLabel && kite > 0) {
     currentPriceSource = "Kite quote freshness unverified";
-  } else if (fallback > 0) {
+  } else if (!providerLabel && fallback > 0) {
     currentPriceSource = "Yahoo Finance fallback (partial coverage)";
   }
 
-  let freshness: PriceProvenanceSummary["freshness"] = "UNKNOWN";
-  if (synthetic > 0) freshness = "SYNTHETIC";
-  else if (unavailable > 0) freshness = "UNAVAILABLE";
-  else if (stale > 0 || kiteTimestampsStale || scanStale) freshness = "STALE";
-  else if (fallback > 0) freshness = "FALLBACK";
-  else if (expected > 0 && kite === expected && liveKiteVerified) freshness = "LIVE";
+  const explicitFreshness = String(readiness.current_quote_freshness ?? "").toUpperCase();
+  let freshness = explicitFreshness === "MARKET_CLOSED_LAST_KNOWN"
+    ? "MARKET CLOSED / LAST KNOWN"
+    : explicitFreshness === "UNAVAILABLE_NOT_PROVEN"
+      ? "UNAVAILABLE / NOT PROVEN"
+      : explicitFreshness || "UNKNOWN";
+  if (!explicitFreshness) {
+    if (synthetic > 0) freshness = "SYNTHETIC";
+    else if (unavailable > 0) freshness = "UNAVAILABLE";
+    else if (stale > 0 || kiteTimestampsStale || scanStale) freshness = "STALE";
+    else if (fallback > 0) freshness = "FALLBACK";
+    else if (expected > 0 && kite === expected && liveKiteVerified) freshness = "LIVE";
+  }
+  const historicalProvider = String(readiness.historical_ohlcv_provider ?? "").toUpperCase();
+  const historicalOhlcvProvider = historicalProvider === "YFINANCE"
+    ? "Yahoo Finance"
+    : historicalProvider === "ZERODHA_KITE"
+      ? "Zerodha Kite"
+      : historicalProvider || "UNAVAILABLE / NOT PROVEN";
 
   return {
     kiteConnection: readiness.kite_connected === true
@@ -344,8 +383,14 @@ export function summarizeCurrentPriceProvenance(
         ? "NOT CONNECTED"
         : "UNKNOWN",
     currentPriceSource,
+    activeUniverseCount: readiness.active_universe_count ?? expected,
+    lastQuote: readiness.current_quote_timestamp ?? readiness.latest_quote_timestamp ?? null,
     freshness,
+    historicalOhlcvProvider,
     fallbackCount: fallback,
+    syntheticCount: synthetic,
+    unavailableCount: unavailable,
+    scanProvenanceState: readiness.scan_provenance_state ?? "UNAVAILABLE / NOT PROVEN",
   };
 }
 /** Task 857: latest job summary (market or system). */
@@ -427,6 +472,20 @@ interface ScanHistoryEntry {
   market_state?: string | null;       // "open" | "pre_open" | "closed" | …
   entry_eligible?: boolean | null;
   execution_eligible?: boolean | null;
+  provenance?: {
+    actor_type?: string | null;
+    actor_id_or_label?: string | null;
+    request_endpoint?: string | null;
+    request_method?: string | null;
+    request_id?: string | null;
+    correlation_id?: string | null;
+    trigger_source?: string | null;
+    approval_required?: boolean | null;
+    approval_status?: string | null;
+    approval_id?: string | null;
+    requested_at?: string | null;
+    legacy?: boolean;
+  };
   // ─────────────────────────────────────────────────────────────────────
 }
 interface ScanHistoryResp {
@@ -436,6 +495,27 @@ interface ScanHistoryResp {
 
 export function normalizedJobValue(value?: string | null): string {
   return String(value ?? "").trim().toUpperCase();
+}
+
+export function manualScanAuditPresentation(
+  provenance?: ScanHistoryEntry["provenance"],
+): { legacy: boolean; triggeredBy: string; endpoint: string; approval: string; requestId: string } {
+  if (!provenance?.actor_type || provenance.legacy) {
+    return {
+      legacy: true,
+      triggeredBy: "unavailable",
+      endpoint: "unavailable",
+      approval: "UNKNOWN",
+      requestId: "unavailable",
+    };
+  }
+  return {
+    legacy: false,
+    triggeredBy: `${provenance.actor_type}${provenance.actor_id_or_label ? ` (${provenance.actor_id_or_label})` : ""}`,
+    endpoint: [provenance.request_method, provenance.request_endpoint].filter(Boolean).join(" ") || "unavailable",
+    approval: provenance.approval_status ?? "UNKNOWN",
+    requestId: provenance.request_id ?? provenance.correlation_id ?? "unavailable",
+  };
 }
 
 export interface ScanPresentation {
@@ -1815,6 +1895,8 @@ function ScannerPanel({
                     const gapCls = gapMin != null && gapMin > 10 ? "text-amber-400 font-semibold" : "";
                     // Non-market rows get a visible label; market rows use compact display.
                     const isMarketScan = !entry.job_type || normalizedJobValue(entry.job_type) === "MARKET_SCAN";
+                    const isManualScan = normalizedJobValue(entry.job_type) === "MANUAL_SCAN";
+                    const audit = isManualScan ? manualScanAuditPresentation(entry.provenance) : null;
 
                     return (
                       <div
@@ -1889,6 +1971,24 @@ function ScannerPanel({
                             )}
                             {entry.source != null && (
                               <span data-testid={`mc-history-source-${i}`}>{entry.source}</span>
+                            )}
+                          </div>
+                        )}
+                        {audit && (
+                          <div
+                            className="mt-1 rounded border border-border/40 bg-background/30 px-1.5 py-1 text-[9px] text-muted-foreground"
+                            data-testid={`mc-history-manual-audit-${i}`}
+                          >
+                            {audit.legacy ? (
+                              <span className="text-amber-300">Legacy scan — provenance unavailable</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-x-2 gap-y-0.5">
+                                <span>Origin: MANUAL</span>
+                                <span>Triggered by: {audit.triggeredBy}</span>
+                                <span>Endpoint: {audit.endpoint}</span>
+                                <span>Approval: {audit.approval}</span>
+                                <span>Request ID: {audit.requestId}</span>
+                              </div>
                             )}
                           </div>
                         )}
@@ -2715,20 +2815,26 @@ export function LowPriceUniverseCard({
           </div>
         )}
 
-        {customModeActive && (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Active</p><p className="font-semibold text-teal-300">{status.active_count ?? 0}</p></div>
-              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Kite</p><p className="font-semibold" data-testid="mc-custom-universe-kite-connection">{provenance.kiteConnection}</p></div>
+        <>
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-2">
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Active scan universe</p><p className="font-semibold text-teal-300">{provenance.activeUniverseCount ?? "—"}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Kite connection</p><p className="font-semibold" data-testid="mc-custom-universe-kite-connection">{provenance.kiteConnection}</p></div>
               <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Mappings</p><p className="font-semibold" data-testid="mc-custom-universe-provenance-mappings">{metadata ? `${metadata.complete_mapping_count ?? 0} / ${metadata.active_count ?? status.active_count ?? 0}` : "—"}</p></div>
-              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Current price source</p><p className="font-semibold break-words" data-testid="mc-custom-universe-current-price-source">{provenance.currentPriceSource}</p></div>
-              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Price freshness</p><p className="font-semibold" data-testid="mc-custom-universe-price-freshness">{provenance.freshness}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Current quote provider</p><p className="font-semibold break-words" data-testid="mc-custom-universe-current-price-source">{provenance.currentPriceSource}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Last quote</p><p className="font-semibold break-words" data-testid="mc-custom-universe-last-quote">{provenance.lastQuote ?? "UNAVAILABLE / NOT PROVEN"}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Quote freshness</p><p className="font-semibold" data-testid="mc-custom-universe-price-freshness">{provenance.freshness}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Historical OHLCV</p><p className="font-semibold break-words" data-testid="mc-custom-universe-historical-provider">{provenance.historicalOhlcvProvider}</p></div>
               <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Fallback</p><p className="font-semibold" data-testid="mc-custom-universe-fallback-count">{provenance.fallbackCount ?? "—"}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Synthetic</p><p className="font-semibold" data-testid="mc-custom-universe-synthetic-count">{provenance.syntheticCount ?? "—"}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Unavailable</p><p className="font-semibold" data-testid="mc-custom-universe-unavailable-count">{provenance.unavailableCount ?? "—"}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Scan provenance</p><p className="font-semibold break-words" data-testid="mc-custom-universe-scan-provenance">{provenance.scanProvenanceState}</p></div>
               <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Last refresh</p><p className="font-semibold">{timeAgo(status.last_refresh)}</p></div>
             </div>
             <p className="text-muted-foreground leading-snug" data-testid="mc-custom-universe-provenance-note">
-              Current quote provenance is from the cached canonical scan. Membership-refresh eligibility prices are stored separately and do not represent a live quote.
+              Current quote provenance is from the cached canonical scan for the active intraday universe. Membership-refresh eligibility prices are stored separately and do not represent a live quote.
             </p>
+            {customModeActive && (
+              <>
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(status.sector_counts ?? {}).map(([sector, count]) => (
                 <Badge key={sector} variant="outline" className="text-[9px]">{sector}: {count}</Badge>
@@ -2757,8 +2863,9 @@ export function LowPriceUniverseCard({
                 </div>
               </div>
             </div>
-          </>
-        )}
+              </>
+            )}
+        </>
       </div>
     </Widget>
   );
@@ -2890,7 +2997,10 @@ export default function MissionControl() {
     path: "/live-data/health-v2",
     refetchInterval: 15_000,
     timeoutMs: 30_000,
-    enabled: customUniverseStatusQ.data?.active_universe === "CUSTOM_LOW_PRICE_SECTOR",
+    // The Mapping Review card remains visible while NIFTY 50 is active, so its
+    // active-universe quote provenance must remain observable too. This GET
+    // reads the cached health snapshot and never starts a scan.
+    enabled: true,
   });
   const scanPresentation = getScanPresentation(monotonicScan.data);
   const scanning = scanPresentation.isScanning;

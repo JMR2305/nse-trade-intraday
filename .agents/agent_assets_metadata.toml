@@ -754,3 +754,17 @@ uri = "file://PRE_TOMORROW_FINAL_READINESS_AUDIT.md"
 type = "text"
 title = "Pre-Tomorrow Final Readiness Audit"
 description = "Read-only production audit with the next natural-session certification gate and final readiness classification."
+
+[[outputs]]
+id = "1Kl2w4tzdIsc3Wq3CPxXI"
+uri = "file://OBSERVABILITY-HARDENING-FINAL-VALIDATION-CONTROLLED-DEP.md"
+type = "text"
+title = "Observability Hardening Final Validation Summary"
+description = "Final validation outcome, deployment decision, completed checks, safety controls, and open issues."
+
+[[outputs]]
+id = "g3-OYdbnOXRLoX1_ZvOG7"
+uri = "file://TASK_935_FRONTEND_VALIDATION_AND_RELEASE_REPORT.md"
+type = "text"
+title = "Task #935 Frontend Validation and Release Report"
+description = "Completed validation results, the Vitest harness fix, the blocked release verdict, and next steps."

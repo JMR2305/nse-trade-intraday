@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import socket
 import time
+import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, Optional
 from zoneinfo import ZoneInfo
@@ -213,8 +214,14 @@ def record_manual_scan(
         # Explicit scans are diagnostic evidence. They never grant scheduler
         # entry/execution eligibility, including when an operator/API caller
         # runs one during an open market.
+        is_manual = origin in {"MANUAL", "API_TRIGGERED"}
         record = _run_meta_from_snapshot(
-            snap, origin, duration_s, market_state=mstate, job_type="MANUAL_SCAN")
+            snap,
+            origin,
+            duration_s,
+            market_state=mstate,
+            job_type="MANUAL_SCAN" if is_manual else "INTERNAL_DIAGNOSTIC",
+        )
         record["entry_eligible"] = False
         record["execution_eligible"] = False
         safe_provenance = store.sanitize_scan_provenance(provenance)
@@ -222,9 +229,22 @@ def record_manual_scan(
             # Direct CLI/recovery invocations have no authenticated HTTP actor.
             # Label that absence explicitly instead of leaving a future manual
             # history row indistinguishable from older unannotated records.
+            is_internal = origin in {"RECOVERY", "BACKFILL"}
+            scan_id = str(snap.get("scan_id") or "unknown")
+            audit_id = f"scan-{uuid.uuid5(uuid.NAMESPACE_URL, f'phase20-manual:{scan_id}')}"
             safe_provenance = {
-                "actor": "system" if origin in {"RECOVERY", "BACKFILL"} else "anonymous_operator",
-                "actor_source": "SYSTEM" if origin in {"RECOVERY", "BACKFILL"} else "UNATTRIBUTED_MANUAL",
+                "actor": "system" if is_internal else "anonymous_operator",
+                "actor_source": "SYSTEM" if is_internal else "UNATTRIBUTED_MANUAL",
+                "actor_type": "internal_diagnostic" if is_internal else "operator_cli",
+                "actor_id_or_label": "system" if is_internal else "unavailable",
+                "request_endpoint": "CLI",
+                "request_method": "PROCESS",
+                "request_id": audit_id,
+                "correlation_id": audit_id,
+                "trigger_source": "INTERNAL_DIAGNOSTIC" if is_internal else "API_MANUAL_SCAN",
+                "approval_required": False,
+                "approval_status": "NOT_REQUIRED",
+                "requested_at": record["started_at"],
             }
         record["details"] = {"provenance": safe_provenance}
         store.record_scan_run(record)

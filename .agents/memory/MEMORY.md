@@ -133,3 +133,4 @@
 - [Python-managed schema parity](python-managed-schema-parity.md) — durable columns belong in canonical CREATE TABLE, never production-only runtime ALTER paths.
 - [RTV-2D test harness](rtv2d-test-harness.md) — legacy Python scripts require source-dir CWD, isolated processes, and cleanup of generated local fixtures.
 - [Phase 5A universe coverage](phase5a-universe-coverage.md) — parity is insufficient; settings outages and incomplete exact symbol sets must fail closed.
+- [Observability provenance](observability-provenance.md) — keep current quotes, historical OHLCV, scan origin, and manual audit evidence distinct; never fabricate legacy evidence.

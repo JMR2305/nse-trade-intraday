@@ -25,6 +25,43 @@ def _symbols(items: Iterable[Any]) -> List[str]:
     return sorted({str(item).upper().strip() for item in items if str(item).strip()})
 
 
+def _provider_label(value: Any) -> str:
+    """Map a recorded provider identifier to an operator-safe display enum."""
+    normalized = str(value or "").lower()
+    if "kite" in normalized or "zerodha" in normalized:
+        return "ZERODHA_KITE"
+    if "yfinance" in normalized or "yahoo" in normalized:
+        return "YFINANCE"
+    return "UNAVAILABLE_NOT_PROVEN"
+
+
+def _recorded_historical_ohlcv_provider(scan: Dict[str, Any]) -> str:
+    """Return historical provenance only when the cached scan recorded it.
+
+    The live quote service can report the provider it would use for a spot
+    quote, but that is not evidence of the provider that supplied this scan's
+    historical bars. Keep those domains separate: absent or conflicting OHLCV
+    evidence must remain explicitly unavailable.
+    """
+    sources: List[str] = []
+    safety = scan.get("safety")
+    if isinstance(safety, dict):
+        sources.extend([
+            str(safety.get("ohlcv_source") or ""),
+            str(safety.get("indicator_source") or ""),
+        ])
+    for row in scan.get("recommendations") or []:
+        if isinstance(row, dict):
+            sources.append(str(row.get("ohlcv_source") or ""))
+
+    providers = {
+        _provider_label(source)
+        for source in sources
+        if _provider_label(source) != "UNAVAILABLE_NOT_PROVEN"
+    }
+    return providers.pop() if len(providers) == 1 else "UNAVAILABLE_NOT_PROVEN"
+
+
 def build_market_data_health(
     scan: Optional[Dict[str, Any]],
     session: Optional[Dict[str, Any]],
@@ -32,6 +69,7 @@ def build_market_data_health(
     now: Optional[datetime] = None,
     current_universe: Optional[Iterable[Any]] = None,
     active_universe: Optional[str] = None,
+    market_state: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build the health contract without fetching quotes, profiles, or tokens."""
     now = now or datetime.now(timezone.utc)
@@ -55,6 +93,7 @@ def build_market_data_health(
     }
     missing_symbols = [symbol for symbol in universe if symbol not in instrument_tokens]
     valid_quote_timestamps: List[tuple[str, float]] = []
+    observed_quote_timestamps: List[tuple[str, float]] = []
     invalid_live_quote_timestamp_symbols: List[str] = []
     counts = {"kite": 0, "fallback": 0, "stale": 0, "unavailable": 0, "synthetic": 0}
     for symbol in universe:
@@ -77,6 +116,8 @@ def build_market_data_health(
             counts["kite"] += 1
             quote_timestamp = row.get("latest_price_time_ist")
             quote_age_s = _iso_age_seconds(quote_timestamp, now)
+            if quote_age_s is not None:
+                observed_quote_timestamps.append((str(quote_timestamp), quote_age_s))
             if quote_age_s is None or quote_age_s > MARKET_TIMESTAMP_FRESH_TTL_S:
                 invalid_live_quote_timestamp_symbols.append(symbol)
             else:
@@ -92,6 +133,11 @@ def build_market_data_health(
             valid_quote_timestamps, key=lambda item: item[1])
     else:
         latest_quote_timestamp, latest_quote_age_s = None, None
+    if observed_quote_timestamps:
+        last_known_quote_timestamp, last_known_quote_age_s = min(
+            observed_quote_timestamps, key=lambda item: item[1])
+    else:
+        last_known_quote_timestamp, last_known_quote_age_s = None, None
     kite_quote_timestamps_fresh = bool(
         counts["kite"] > 0 and not invalid_live_quote_timestamp_symbols)
     # The scan snapshot is the bounded-freshness timestamp for the whole
@@ -108,6 +154,40 @@ def build_market_data_health(
     service_ready = bool(scan and scan.get("snapshot_ts"))
     scan_origin = str(scan.get("trigger_origin") or "UNKNOWN").upper()
     certifying_scheduled_scan = scan_origin == "SCHEDULED"
+    if counts["kite"] and counts["fallback"]:
+        current_quote_provider = "MIXED"
+    elif counts["kite"]:
+        current_quote_provider = "ZERODHA_KITE"
+    elif counts["fallback"]:
+        current_quote_provider = "YFINANCE"
+    else:
+        current_quote_provider = "UNAVAILABLE_NOT_PROVEN"
+    current_quote_timestamp = latest_quote_timestamp or last_known_quote_timestamp
+    current_quote_age_s = (
+        latest_quote_age_s
+        if latest_quote_age_s is not None
+        else last_known_quote_age_s
+    )
+    observed_market_state = str(market_state or "").upper()
+    if current_quote_provider == "UNAVAILABLE_NOT_PROVEN":
+        current_quote_freshness = "UNAVAILABLE_NOT_PROVEN"
+    elif observed_market_state == "CLOSED" and current_quote_timestamp is not None:
+        current_quote_freshness = "MARKET_CLOSED_LAST_KNOWN"
+    elif observed_market_state == "CLOSED":
+        current_quote_freshness = "UNAVAILABLE_NOT_PROVEN"
+    elif counts["synthetic"]:
+        current_quote_freshness = "SYNTHETIC"
+    elif counts["unavailable"]:
+        current_quote_freshness = "UNAVAILABLE_NOT_PROVEN"
+    elif counts["stale"] or not market_timestamp_fresh or not kite_quote_timestamps_fresh:
+        current_quote_freshness = "STALE"
+    elif counts["fallback"]:
+        current_quote_freshness = "FALLBACK"
+    else:
+        current_quote_freshness = "LIVE"
+    scan_provenance_state = (
+        scan_origin if scan.get("scan_id") else "UNAVAILABLE_NOT_PROVEN"
+    )
     data_ready = bool(
         active
         and len(records) == active
@@ -140,6 +220,14 @@ def build_market_data_health(
         "symbols_synthetic": counts["synthetic"],
         "latest_quote_timestamp": latest_quote_timestamp,
         "latest_quote_age_s": latest_quote_age_s,
+        # These are display-only provenance labels from recorded scan data.
+        # They do not alter data-ready or execution/readiness gates below.
+        "current_quote_provider": current_quote_provider,
+        "current_quote_timestamp": current_quote_timestamp,
+        "current_quote_age_s": current_quote_age_s,
+        "current_quote_freshness": current_quote_freshness,
+        "historical_ohlcv_provider": _recorded_historical_ohlcv_provider(scan),
+        "scan_provenance_state": scan_provenance_state,
         "kite_quote_timestamps_fresh": kite_quote_timestamps_fresh,
         "invalid_live_quote_timestamp_symbols": invalid_live_quote_timestamp_symbols,
         "market_timestamp": market_timestamp if market_timestamp_age_s is not None else None,

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { spawn } from "child_process";
 import type { ChildProcess } from "child_process";
+import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs";
 import { eventBus } from "../lib/events";
@@ -15,7 +16,19 @@ import { requireApiKey } from "../lib/auth";
 type ManualScanProvenance = {
   actor: "authenticated_operator";
   actor_source: "SESSION_AUTHENTICATED";
-  request_id: string | null;
+  actor_type: "operator_api";
+  actor_id_or_label: "unavailable";
+  request_endpoint: "/api/live-data/scan/run";
+  request_method: "POST";
+  request_id: string;
+  correlation_id: string;
+  trigger_source: "API_MANUAL_SCAN";
+  approval_required: false;
+  approval_status: "NOT_REQUIRED";
+  approval_id: null;
+  requested_at: string;
+  // Kept for established safe history consumers while the explicit fields
+  // above become the canonical manual-scan audit contract.
   approval_context: string | null;
   audit_reference: string | null;
   trigger_route: "/api/live-data/scan/run";
@@ -36,7 +49,12 @@ const AUDIT_REFERENCE = /^(?!API-|KEY-|TOKEN-|SECRET-)[A-Z]{2,12}-(?:\d{1,8}|[A-
 function safeRequestId(value: unknown): string | null {
   if (typeof value !== "string" && typeof value !== "number") return null;
   const trimmed = String(value).trim();
-  return /^[0-9]{1,20}$/.test(trimmed) ? trimmed : null;
+  // Accepted IDs must be issued by server middleware (numeric) or generated
+  // below. Do not allow caller-shaped opaque strings here: JWTs and bearer
+  // credentials can look like harmless dotted identifiers.
+  return /^(?:\d{1,20}|scan-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(trimmed)
+    ? trimmed
+    : null;
 }
 
 function safeApprovalContext(value: unknown): string | null {
@@ -55,7 +73,11 @@ function manualScanProvenance(req: import("express").Request): ManualScanProvena
   const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
     ? req.body as Record<string, unknown>
     : {};
-  const requestId = safeRequestId((req as import("express").Request & { id?: unknown }).id);
+  // Request IDs come from server middleware when available. Generate a compact
+  // opaque ID otherwise; never accept caller-provided headers or request data as
+  // audit identifiers because they can contain credentials.
+  const requestId = safeRequestId((req as import("express").Request & { id?: unknown }).id)
+    ?? `scan-${randomUUID()}`;
 
   return {
     // The current session model is intentionally single-operator and has no
@@ -63,7 +85,17 @@ function manualScanProvenance(req: import("express").Request): ManualScanProvena
     // session token, network address, or a caller-controlled identity.
     actor: "authenticated_operator",
     actor_source: "SESSION_AUTHENTICATED",
+    actor_type: "operator_api",
+    actor_id_or_label: "unavailable",
+    request_endpoint: "/api/live-data/scan/run",
+    request_method: "POST",
     request_id: requestId,
+    correlation_id: requestId,
+    trigger_source: "API_MANUAL_SCAN",
+    approval_required: false,
+    approval_status: "NOT_REQUIRED",
+    approval_id: null,
+    requested_at: new Date().toISOString(),
     // These request fields deliberately accept only server-recognised context
     // values and structured audit IDs. Free-form strings can conceal a token.
     approval_context: safeApprovalContext(body["approval_context"] ?? body["approvalContext"]),

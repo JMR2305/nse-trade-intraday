@@ -947,6 +947,8 @@ def main():
             from kite_session_manager import cached_session_metadata
             from market_data_health import build_market_data_health
             _cached = load_cached_scan()
+            _market = market_status()
+            _quote_provider = provider_status()
             _session = cached_session_metadata()
             _active_mode = get_active_intraday_universe().value
             _current_universe = None
@@ -967,8 +969,8 @@ def main():
                 ]
             result = {
                 "success": True,
-                "market": market_status(),
-                "quote_provider": provider_status(),
+                "market": _market,
+                "quote_provider": _quote_provider,
                 "scan_provider_health": _cached.get("provider_health") if _cached else None,
                 "scan_id": _cached.get("scan_id") if _cached else None,
                 "snapshot_ts": _cached.get("snapshot_ts") if _cached else None,
@@ -980,6 +982,7 @@ def main():
                     _current_instruments,
                     current_universe=_current_universe,
                     active_universe=_active_mode,
+                    market_state=_market.get("state"),
                 ),
                 "kite_session": _session,
                 "label": "PAPER / LIVE DATA VALIDATION",

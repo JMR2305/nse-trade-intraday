@@ -573,11 +573,12 @@ def _classified_jobs_today_ist(limit: int) -> list[Dict[str, Any]]:
             # The durable row may predate provenance rules or be written by a
             # non-HTTP caller. Re-apply the central allowlist at this response
             # boundary rather than returning raw JSON from its details column.
-            from phase20_store import sanitize_scan_details, sanitize_scan_provenance
-            provenance = sanitize_scan_provenance(
-                (row[17] or {}).get("provenance")
-                if isinstance(row[17], dict) else None,
+            from phase20_store import history_scan_provenance, sanitize_scan_details
+            job_type = row[9] or (
+                "MANUAL_SCAN" if str(row[1] or "").upper() == "MANUAL"
+                else "MARKET_SCAN"
             )
+            provenance = history_scan_provenance(row[17], job_type)
             safe_details = sanitize_scan_details(row[17])
         except Exception:
             provenance = {}
@@ -593,10 +594,7 @@ def _classified_jobs_today_ist(limit: int) -> list[Dict[str, Any]]:
             "gap_from_prev_s": gap,
             "status": row[7] or "UNKNOWN",
             "error": row[8],
-            "job_type": row[9] or (
-                "MANUAL_SCAN" if str(row[1] or "").upper() == "MANUAL"
-                else "MARKET_SCAN"
-            ),
+            "job_type": job_type,
             "scan_type": row[10] or "CANONICAL",
             "market_state": row[11] or "UNKNOWN",
             "entry_eligible": bool(row[12]),
