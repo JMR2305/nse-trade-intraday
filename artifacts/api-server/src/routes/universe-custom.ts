@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { spawn } from "child_process";
 import path from "path";
 import { PYTHON_BIN, PYTHON_DIR } from "../lib/python-env";
+import { invalidateCoverageCache } from "./trading";
 
 const router: IRouter = Router();
 
@@ -92,10 +93,21 @@ router.post("/universe/active", wrap(async (req, res) => {
     res.status(400).json({ success: false, error: "Invalid universe mode" });
     return;
   }
-  res.json(await runPython([
+  const result = await runPython([
     "phase20_settings_update",
     JSON.stringify({ patch: { active_intraday_universe: active } }),
-  ]));
+  ]);
+  if (
+    result
+    && typeof result === "object"
+    && !Array.isArray(result)
+    && (result as Record<string, unknown>)["success"] === false
+  ) {
+    res.json(result);
+    return;
+  }
+  invalidateCoverageCache();
+  res.json(result);
 }));
 
 router.get("/universe/custom/symbols", wrap(async (_req, res) => {

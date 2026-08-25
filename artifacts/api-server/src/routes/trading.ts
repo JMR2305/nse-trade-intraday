@@ -1361,6 +1361,19 @@ router.get("/live-data/scan", async (req, res) => {
 const COVERAGE_CACHE_MS = 30_000;
 let coverageCache: { data: unknown; ts: number } | null = null;
 let coverageInFlight: Promise<unknown> | null = null;
+let coverageGen = 0;
+
+/**
+ * Clears the scanner-coverage cache so the next GET /live-data/coverage
+ * resolves the currently active universe. The generation guard prevents a
+ * pre-invalidation Python response from repopulating the cache with stale
+ * universe data after an active-universe update.
+ */
+export function invalidateCoverageCache(): void {
+  coverageGen++;
+  coverageCache = null;
+  coverageInFlight = null;
+}
 
 router.get("/live-data/coverage", async (_req, res) => {
   try {
@@ -1369,13 +1382,18 @@ router.get("/live-data/coverage", async (_req, res) => {
       return;
     }
     if (!coverageInFlight) {
+      const gen = coverageGen;
       coverageInFlight = runPython(["scanner_coverage"])
         .then((data) => {
-          coverageCache = { data, ts: Date.now() };
+          if (gen === coverageGen) {
+            coverageCache = { data, ts: Date.now() };
+          }
           return data;
         })
         .finally(() => {
-          coverageInFlight = null;
+          if (gen === coverageGen) {
+            coverageInFlight = null;
+          }
         });
     }
     res.json(await coverageInFlight);
@@ -1441,6 +1459,7 @@ export function resetScanRunRateLimit(): void {
  */
 export function resetScanStateForTest(): void {
   invalidateScanCaches();
+  invalidateCoverageCache();
   lastScanRunTs      = 0;
   p7InFlight         = null;  // allow a fresh scan; orphaned Promise GC'd in time
   p7Cache            = null;
@@ -3697,6 +3716,9 @@ router.put("/phase20/settings", async (req, res) => {
     if (result && result["success"] === false) {
       res.status(400).json(result);
       return;
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, "active_intraday_universe")) {
+      invalidateCoverageCache();
     }
     res.json(result);
   } catch (err: unknown) {
