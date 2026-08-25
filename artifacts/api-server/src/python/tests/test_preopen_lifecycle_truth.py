@@ -58,6 +58,7 @@ class TestPreopenPersistenceFailures(unittest.TestCase):
         )
         with (
             patch.object(preopen_engine, "_is_enabled", return_value=True),
+            patch.object(preopen_engine, "_resolve_collection_symbols", return_value=["SBIN"]),
             patch.object(preopen_engine, "_get_provider", return_value=provider),
             patch.object(preopen_engine.db, "save_provider_health") as save_health,
         ):
@@ -143,8 +144,11 @@ class TestPreopenPersistenceFailures(unittest.TestCase):
             get_session=lambda _: {
                 "provider_collected_count": 1,
                 "persisted_count": 1,
+                "expected_count": 1,
+                "failed_count": 0,
                 "persistence_status": "MATCH",
                 "verified_collection_batch_id": latest_batch,
+                "collection_coverage": {"expected_symbols": ["SBIN"]},
             },
             get_session_snapshots=Mock(return_value=[{
                 "snapshot_id": "batch-2-SBIN",

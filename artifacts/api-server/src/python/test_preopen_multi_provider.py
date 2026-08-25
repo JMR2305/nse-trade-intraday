@@ -354,6 +354,7 @@ class TestProviderManagerFailover(unittest.TestCase):
         import preopen_provider_manager as mgr
         mgr._cached_provider    = None
         mgr._cached_provider_ts = 0.0
+        mgr._cached_symbol_key  = None
 
     def test_nse_wins_when_available(self):
         from preopen_data_model import ProviderState
@@ -457,6 +458,25 @@ class TestProviderManagerFailover(unittest.TestCase):
             p2, _ = mgr.get_best_provider(["INFY"])       # should hit cache
         self.assertEqual(call_count[0], 1)                # only one real probe
         self.assertIs(p1, p2)
+
+    def test_cache_is_not_reused_for_a_different_requested_universe(self):
+        import preopen_provider_manager as mgr
+        first = MagicMock()
+        second = MagicMock()
+        providers = iter([(first, "NSE Official"), (second, "NSE Official")])
+
+        with patch("preopen_provider_manager._try_nse",
+                   side_effect=lambda symbols: next(providers)) as choose:
+            p1, _ = mgr.get_best_provider(["ALPHA", "BETA"], force=True)
+            p2, _ = mgr.get_best_provider(["ALPHA", "BETA"])
+            p3, _ = mgr.get_best_provider(["GAMMA"])
+
+        self.assertIs(p1, first)
+        self.assertIs(p2, first)
+        self.assertIs(p3, second)
+        self.assertEqual(choose.call_count, 2)
+        self.assertEqual(choose.call_args_list[0].args[0], ["ALPHA", "BETA"])
+        self.assertEqual(choose.call_args_list[1].args[0], ["GAMMA"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -29,6 +29,30 @@ PROVIDER_CACHE_TTL = 300
 
 _cached_provider    = None
 _cached_provider_ts = 0.0
+_cached_symbol_key: Optional[Tuple[str, ...]] = None
+
+
+def _symbol_key(symbols: Optional[List[str]]) -> Tuple[str, ...]:
+    """Build the cache key for one requested provider universe.
+
+    A provider holds its requested symbols on the instance. Reusing a provider
+    built for a different universe can silently truncate a later collection,
+    so cache identity must include the normalised requested set.
+    """
+    if symbols is None:
+        try:
+            import config
+            symbols = list(config.DEFAULT_WATCHLIST)
+        except Exception:
+            symbols = []
+    seen = set()
+    normalised = []
+    for symbol in symbols:
+        value = str(symbol or "").strip().upper()
+        if value and value not in seen:
+            seen.add(value)
+            normalised.append(value)
+    return tuple(normalised)
 
 
 def _try_nse(symbols: List[str]) -> Tuple[Optional[Any], str]:
@@ -85,25 +109,23 @@ def get_best_provider(
     Returns (YFinancePreOpenProvider, "Yahoo Finance (Fallback)") in the
     worst case — never raises.
     """
-    global _cached_provider, _cached_provider_ts
+    global _cached_provider, _cached_provider_ts, _cached_symbol_key
 
     now = time.monotonic()
+    requested_key = _symbol_key(symbols)
     if (not force and _cached_provider is not None
+            and _cached_symbol_key == requested_key
             and now - _cached_provider_ts < PROVIDER_CACHE_TTL):
         return _cached_provider
 
-    if symbols is None:
-        try:
-            import config
-            symbols = list(config.DEFAULT_WATCHLIST)
-        except Exception:
-            symbols = []
+    symbols = list(requested_key)
 
     # 1. NSE Official
     p, label = _try_nse(symbols)
     if p:
         _cached_provider    = (p, label)
         _cached_provider_ts = now
+        _cached_symbol_key  = requested_key
         return _cached_provider
 
     # 2. Zerodha Kite
@@ -111,6 +133,7 @@ def get_best_provider(
     if p:
         _cached_provider    = (p, label)
         _cached_provider_ts = now
+        _cached_symbol_key  = requested_key
         return _cached_provider
 
     # 3. Yahoo Finance (fallback)
@@ -118,6 +141,7 @@ def get_best_provider(
     if p:
         _cached_provider    = (p, label)
         _cached_provider_ts = now
+        _cached_symbol_key  = requested_key
         return _cached_provider
 
     # Should never reach here, but be safe
@@ -125,6 +149,7 @@ def get_best_provider(
     fallback = (YFinancePreOpenProvider(symbols), YFinancePreOpenProvider.PROVIDER_LABEL)
     _cached_provider    = fallback
     _cached_provider_ts = now
+    _cached_symbol_key  = requested_key
     return fallback
 
 

@@ -129,6 +129,7 @@ DEFAULT_WATCHLIST: list[str] = [
 # ── Intraday universe selection ───────────────────────────────────────────────
 from enum import Enum
 import os as _os
+import json as _json
 
 
 class UniverseMode(str, Enum):
@@ -157,6 +158,45 @@ def get_active_intraday_universe() -> UniverseMode:
         return UniverseMode(persisted)
     except Exception:
         return ACTIVE_INTRADAY_UNIVERSE
+
+
+def get_active_intraday_universe_strict() -> UniverseMode:
+    """Read the durable universe mode without masking storage failures.
+
+    Phase 5A collection is allowed to use environment/default compatibility
+    only when its durable settings record is readable. A read failure must not
+    silently substitute the legacy watchlist for a custom operator universe.
+    """
+    from phase20_store import DEFAULT_SETTINGS, _connect, _ensure_schema, db_available
+
+    if not db_available():
+        raise RuntimeError("Durable Phase 20 settings are unavailable")
+
+    conn = None
+    try:
+        conn = _connect()
+        _ensure_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute("SELECT data FROM phase20_settings WHERE id = 1")
+            row = cur.fetchone()
+        stored = row[0] if row and row[0] else {}
+        if isinstance(stored, str):
+            stored = _json.loads(stored)
+        if not isinstance(stored, dict):
+            raise RuntimeError("Durable Phase 20 settings are malformed")
+        raw = stored.get(
+            "active_intraday_universe",
+            DEFAULT_SETTINGS["active_intraday_universe"],
+        )
+        return UniverseMode(str(raw).upper().strip())
+    except Exception as exc:
+        raise RuntimeError(f"Durable active universe is unavailable: {exc}") from exc
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 # Human/provider sector names are intentionally normalised before custom
 # universe filtering. Keep this mapping close to configuration rather than

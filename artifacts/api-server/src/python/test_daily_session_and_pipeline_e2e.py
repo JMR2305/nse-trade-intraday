@@ -304,8 +304,16 @@ class TestOpenAlert(unittest.TestCase):
         self.assertTrue(out["session_alert"]["alerted"])
         self.assertEqual(notifications,
                          [("SESSION_INIT_FAILED", "CRITICAL")])
-        claim.assert_called_once_with(
-            f"session_init_open_alert:{dsm._today_ist()}")
+        alert_key = f"session_init_open_alert:{dsm._today_ist()}"
+        claimed_keys = [
+            call.args[0] for call in claim.call_args_list
+            if call.args
+        ]
+        self.assertIn(alert_key, claimed_keys)
+        self.assertTrue(any(
+            str(key).startswith("system_heartbeat:")
+            for key in claimed_keys
+        ))
 
     def test_run_tick_disabled_no_alert_when_initialised(self):
         """OPEN + disabled scans + session INITIALISED today → no alert."""

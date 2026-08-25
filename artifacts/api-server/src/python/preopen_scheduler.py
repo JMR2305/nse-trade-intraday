@@ -170,6 +170,8 @@ class PreOpenScheduler:
             session = db_mod.get_session(self.session_id)
             collected = (session or {}).get("provider_collected_count")
             persisted = (session or {}).get("persisted_count")
+            expected = (session or {}).get("expected_count")
+            failed = (session or {}).get("failed_count")
             persistence_status = str((session or {}).get("persistence_status") or "")
             collection_batch_id = (session or {}).get("verified_collection_batch_id")
             if (
@@ -177,12 +179,16 @@ class PreOpenScheduler:
                 or persistence_status != "MATCH"
                 or collected is None
                 or persisted is None
+                or expected is None
                 or int(collected) != int(persisted)
+                or int(collected) != int(expected)
+                or int(failed or 0) != 0
                 or not collection_batch_id
             ):
                 reason = (
                     "Freeze blocked: Phase 5A collection is not durably complete "
-                    f"(provider={collected}, persisted={persisted}, "
+                    f"(expected={expected}, provider={collected}, persisted={persisted}, "
+                    f"failed={failed}, "
                     f"status={persistence_status or 'UNKNOWN'}, "
                     f"batch={collection_batch_id or 'UNKNOWN'})."
                 )
@@ -200,20 +206,29 @@ class PreOpenScheduler:
                 if s.get("snapshot_id")
             }
             symbols = {
-                str(s.get("symbol") or "").upper() for s in snaps_raw
+                str(s.get("symbol") or "").strip().upper() for s in snaps_raw
                 if s.get("symbol")
+            }
+            coverage = session.get("collection_coverage") or {}
+            expected_symbols = {
+                str(symbol or "").strip().upper()
+                for symbol in coverage.get("expected_symbols") or []
+                if str(symbol or "").strip()
             }
             if (
                 not snaps_raw
                 or len(snaps_raw) != int(persisted)
                 or len(snapshot_ids) != int(persisted)
                 or len(symbols) != int(persisted)
+                or len(expected_symbols) != int(expected)
+                or symbols != expected_symbols
             ):
                 reason = (
                     "Freeze blocked: exact verified collection batch does not "
                     f"match its persisted proof (batch={collection_batch_id}, "
                     f"rows={len(snaps_raw)}, snapshots={len(snapshot_ids)}, "
-                    f"symbols={len(symbols)}, persisted={persisted})."
+                    f"symbols={len(symbols)}, expected_symbols={len(expected_symbols)}, "
+                    f"persisted={persisted})."
                 )
                 db_mod.record_collection_failure(
                     self.session_id, "FREEZE_BLOCKED", reason,

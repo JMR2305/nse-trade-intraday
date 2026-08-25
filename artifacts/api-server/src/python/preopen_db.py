@@ -51,6 +51,13 @@ def _ensure_schema(conn) -> None:
                 provider_collected_count INTEGER,
                 persisted_count INTEGER,
                 failed_count INTEGER,
+                expected_count INTEGER,
+                provider_returned_count INTEGER,
+                normalized_count INTEGER,
+                missing_count INTEGER,
+                duplicate_count INTEGER,
+                malformed_count INTEGER,
+                collection_coverage JSONB,
                 collection_started_at TIMESTAMPTZ,
                 collection_completed_at TIMESTAMPTZ,
                 collection_source TEXT,
@@ -74,6 +81,13 @@ def _ensure_schema(conn) -> None:
                 ADD COLUMN IF NOT EXISTS provider_collected_count INTEGER,
                 ADD COLUMN IF NOT EXISTS persisted_count INTEGER,
                 ADD COLUMN IF NOT EXISTS failed_count INTEGER,
+                ADD COLUMN IF NOT EXISTS expected_count INTEGER,
+                ADD COLUMN IF NOT EXISTS provider_returned_count INTEGER,
+                ADD COLUMN IF NOT EXISTS normalized_count INTEGER,
+                ADD COLUMN IF NOT EXISTS missing_count INTEGER,
+                ADD COLUMN IF NOT EXISTS duplicate_count INTEGER,
+                ADD COLUMN IF NOT EXISTS malformed_count INTEGER,
+                ADD COLUMN IF NOT EXISTS collection_coverage JSONB,
                 ADD COLUMN IF NOT EXISTS collection_started_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS collection_completed_at TIMESTAMPTZ,
                 ADD COLUMN IF NOT EXISTS collection_source TEXT,
@@ -326,7 +340,10 @@ def get_session(session_id: str) -> Optional[dict]:
             cur.execute("""
                 SELECT session_id, trading_date, status, symbol_count, valid_count,
                        stale_count, provider_status, provider_collected_count,
-                       persisted_count, failed_count, collection_started_at,
+                       persisted_count, failed_count, expected_count,
+                       provider_returned_count, normalized_count, missing_count,
+                       duplicate_count, malformed_count, collection_coverage,
+                       collection_started_at,
                        collection_completed_at, collection_source, persistence_status,
                         retry_state, phase_state, verified_collection_batch_id,
                         frozen_collection_batch_id, frozen_at, reconciled_at, error,
@@ -338,7 +355,10 @@ def get_session(session_id: str) -> Optional[dict]:
                 return None
             cols = ["session_id","trading_date","status","symbol_count","valid_count",
                     "stale_count","provider_status","provider_collected_count",
-                    "persisted_count","failed_count","collection_started_at",
+                    "persisted_count","failed_count","expected_count",
+                    "provider_returned_count","normalized_count","missing_count",
+                    "duplicate_count","malformed_count","collection_coverage",
+                    "collection_started_at",
                     "collection_completed_at","collection_source","persistence_status",
                     "retry_state","phase_state","verified_collection_batch_id",
                     "frozen_collection_batch_id","frozen_at","reconciled_at","error",
@@ -354,7 +374,10 @@ def get_latest_session() -> Optional[dict]:
             cur.execute("""
                 SELECT session_id, trading_date, status, symbol_count, valid_count,
                        stale_count, provider_status, provider_collected_count,
-                       persisted_count, failed_count, collection_started_at,
+                       persisted_count, failed_count, expected_count,
+                       provider_returned_count, normalized_count, missing_count,
+                       duplicate_count, malformed_count, collection_coverage,
+                       collection_started_at,
                        collection_completed_at, collection_source, persistence_status,
                         retry_state, phase_state, verified_collection_batch_id,
                         frozen_collection_batch_id, frozen_at, reconciled_at, error,
@@ -366,7 +389,10 @@ def get_latest_session() -> Optional[dict]:
                 return None
             cols = ["session_id","trading_date","status","symbol_count","valid_count",
                     "stale_count","provider_status","provider_collected_count",
-                    "persisted_count","failed_count","collection_started_at",
+                    "persisted_count","failed_count","expected_count",
+                    "provider_returned_count","normalized_count","missing_count",
+                    "duplicate_count","malformed_count","collection_coverage",
+                    "collection_started_at",
                     "collection_completed_at","collection_source","persistence_status",
                     "retry_state","phase_state","verified_collection_batch_id",
                     "frozen_collection_batch_id","frozen_at","reconciled_at","error",
@@ -460,7 +486,8 @@ def save_snapshots(session_id: str, snapshots: List[dict]) -> bool:
 def persist_collection(session_id: str, trading_date: str, snapshots: List[dict],
                        provider_status: str, valid_count: int,
                        stale_count: int, source: str = "SCHEDULED",
-                       collection_batch_id: Optional[str] = None) -> dict:
+                       collection_batch_id: Optional[str] = None,
+                       coverage: Optional[dict] = None) -> dict:
     """Atomically persist a provider batch and prove every supplied row exists.
 
     The returned counts describe *this exact provider batch*, not a previous
@@ -469,6 +496,28 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
     """
     collection_batch_id = collection_batch_id or f"collection-{uuid.uuid4().hex}"
     provider_count = len(snapshots)
+    coverage = dict(coverage or {})
+    expected_count = int(coverage.get("expected_count", provider_count) or 0)
+    provider_returned_count = int(
+        coverage.get("provider_returned_count", provider_count) or 0
+    )
+    normalized_count = int(coverage.get("normalized_count", provider_count) or 0)
+    missing_count = int(coverage.get("missing_count", 0) or 0)
+    duplicate_count = int(coverage.get("duplicate_count", 0) or 0)
+    malformed_count = int(coverage.get("malformed_count", 0) or 0)
+    unusable_count = int(coverage.get(
+        "unusable_count",
+        duplicate_count + malformed_count + int(coverage.get("unexpected_count", 0) or 0),
+    ) or 0)
+    coverage.update({
+        "expected_count": expected_count,
+        "provider_returned_count": provider_returned_count,
+        "normalized_count": normalized_count,
+        "missing_count": missing_count,
+        "duplicate_count": duplicate_count,
+        "malformed_count": malformed_count,
+        "collection_batch_id": collection_batch_id,
+    })
     snapshot_ids = [str(s.get("snapshot_id") or "") for s in snapshots]
     started_at = _now()
 
@@ -485,9 +534,26 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
                 persisted_count = int(cur.fetchone()[0] or 0)
             else:
                 persisted_count = 0
-            failed_count = max(0, provider_count - persisted_count)
-            persistence_status = "MATCH" if persisted_count == provider_count else "MISMATCH"
-            status = "COLLECTED" if persistence_status == "MATCH" else "PERSISTENCE_FAILED"
+            storage_match = persisted_count == provider_count
+            coverage_complete = (
+                expected_count > 0
+                and normalized_count == expected_count
+                and persisted_count == expected_count
+                and missing_count == 0
+                and duplicate_count == 0
+                and malformed_count == 0
+                and unusable_count == 0
+            )
+            failed_count = max(0, expected_count - persisted_count) + unusable_count
+            if not storage_match:
+                persistence_status = "MISMATCH"
+                status = "PERSISTENCE_FAILED"
+            elif not coverage_complete:
+                persistence_status = "COVERAGE_INCOMPLETE"
+                status = "PARTIAL_COVERAGE"
+            else:
+                persistence_status = "MATCH"
+                status = "COLLECTED"
             cur.execute("""
                 UPDATE preopen_sessions
                 SET status = CASE
@@ -498,6 +564,10 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
                     symbol_count = %s, valid_count = %s, stale_count = %s,
                     provider_status = %s, provider_collected_count = %s,
                     persisted_count = %s, failed_count = %s,
+                    expected_count = %s, provider_returned_count = %s,
+                    normalized_count = %s, missing_count = %s,
+                    duplicate_count = %s, malformed_count = %s,
+                    collection_coverage = %s::jsonb,
                     collection_started_at = %s, collection_completed_at = NOW(),
                     collection_source = %s, persistence_status = %s,
                     verified_collection_batch_id = CASE
@@ -507,14 +577,20 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
                         ELSE verified_collection_batch_id
                     END,
                     retry_state = CASE WHEN %s = 'MATCH' THEN NULL ELSE 'RETRY_REQUIRED' END,
-                    error = CASE WHEN %s = 'MATCH' THEN NULL
-                                 ELSE 'Provider collection did not persist completely' END,
+                    error = CASE
+                        WHEN %s = 'MATCH' THEN NULL
+                        WHEN %s = 'COVERAGE_INCOMPLETE'
+                            THEN 'Provider response did not cover the active pre-open universe'
+                        ELSE 'Provider collection did not persist completely'
+                    END,
                     updated_at = NOW()
                 WHERE session_id = %s
             """, [status, provider_count, valid_count, stale_count, provider_status,
-                  provider_count, persisted_count, failed_count, started_at, source,
+                  provider_count, persisted_count, failed_count, expected_count,
+                  provider_returned_count, normalized_count, missing_count,
+                  duplicate_count, malformed_count, json.dumps(coverage), started_at, source,
                   persistence_status, persistence_status, collection_batch_id,
-                  persistence_status, persistence_status, session_id])
+                  persistence_status, persistence_status, persistence_status, session_id])
             if cur.rowcount != 1:
                 raise RuntimeError(f"Unknown pre-open session {session_id}")
         conn.commit()
@@ -523,6 +599,13 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
             "provider_collected_count": provider_count,
             "persisted_count": persisted_count,
             "failed_count": failed_count,
+            "expected_count": expected_count,
+            "provider_returned_count": provider_returned_count,
+            "normalized_count": normalized_count,
+            "missing_count": missing_count,
+            "duplicate_count": duplicate_count,
+            "malformed_count": malformed_count,
+            "collection_coverage": coverage,
             "persistence_status": persistence_status,
             "collection_batch_id": collection_batch_id,
             "source": source,
@@ -532,7 +615,14 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
         "success": False,
         "provider_collected_count": provider_count,
         "persisted_count": None,
-        "failed_count": provider_count,
+        "failed_count": max(0, expected_count - provider_count) + unusable_count,
+        "expected_count": expected_count,
+        "provider_returned_count": provider_returned_count,
+        "normalized_count": normalized_count,
+        "missing_count": missing_count,
+        "duplicate_count": duplicate_count,
+        "malformed_count": malformed_count,
+        "collection_coverage": coverage,
         "persistence_status": "PERSISTENCE_UNAVAILABLE",
         "collection_batch_id": collection_batch_id,
         "source": source,
@@ -541,17 +631,34 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
 
 
 def record_collection_failure(session_id: str, status: str, error: str,
-                              source: str = "SCHEDULED") -> bool:
+                              source: str = "SCHEDULED",
+                              coverage: Optional[dict] = None) -> bool:
     """Persist a retryable, explicit collection failure when the DB is reachable."""
+    coverage = dict(coverage or {})
+    coverage_json = json.dumps(coverage) if coverage else None
+
+    def _count(name: str):
+        return coverage.get(name) if coverage else None
+
     def to_db(conn):
         with conn.cursor() as cur:
             cur.execute("""
                 UPDATE preopen_sessions
                 SET status = %s, collection_completed_at = NOW(), collection_source = %s,
                     persistence_status = 'NOT_COMPLETE', retry_state = 'RETRY_REQUIRED',
+                    expected_count = COALESCE(%s, expected_count),
+                    provider_returned_count = COALESCE(%s, provider_returned_count),
+                    normalized_count = COALESCE(%s, normalized_count),
+                    missing_count = COALESCE(%s, missing_count),
+                    duplicate_count = COALESCE(%s, duplicate_count),
+                    malformed_count = COALESCE(%s, malformed_count),
+                    collection_coverage = COALESCE(%s::jsonb, collection_coverage),
                     error = %s, updated_at = NOW()
                 WHERE session_id = %s
-            """, [status, source, str(error)[:500], session_id])
+            """, [status, source, _count("expected_count"),
+                  _count("provider_returned_count"), _count("normalized_count"),
+                  _count("missing_count"), _count("duplicate_count"),
+                  _count("malformed_count"), coverage_json, str(error)[:500], session_id])
             if cur.rowcount != 1:
                 raise RuntimeError(f"Unknown pre-open session {session_id}")
         conn.commit()

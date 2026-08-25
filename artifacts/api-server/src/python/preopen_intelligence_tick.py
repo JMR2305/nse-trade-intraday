@@ -230,12 +230,16 @@ def _run_collect(session_id: str) -> dict:
             result.get("symbol_count", result.get("symbols_captured", 0)),
         )
         persisted = result.get("persisted_count")
+        expected = result.get("expected_count")
         persistence_status = str(result.get("persistence_status") or "UNCONFIRMED")
         success = bool(
             result.get("success", False)
             and persistence_status == "MATCH"
             and persisted is not None
+            and expected is not None
             and int(persisted) == int(collected)
+            and int(persisted) == int(expected)
+            and int(result.get("failed_count") or 0) == 0
         )
         return {
             "success":          success,
@@ -245,6 +249,7 @@ def _run_collect(session_id: str) -> dict:
             "persistence_status": persistence_status,
             "provider_collected_count": collected,
             "persisted_count": persisted,
+            "expected_count": expected,
             "failed_count": result.get("failed_count"),
             "error": result.get("error"),
             "stale_count":      result.get("stale_count", 0),
