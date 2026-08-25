@@ -30,10 +30,9 @@ PAPER TRADING / RESEARCH ONLY — read-only; never triggers a scan.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
-
-from config import MIN_SYMBOLS_EXPECTED
+from typing import Any, Dict, List, Optional, Tuple
 
 # Session states where full, session-fresh coverage is required.
 IN_SESSION_STATES = {"OPEN", "PRE_OPEN"}
@@ -52,11 +51,57 @@ def _parse_ts(value: Any) -> Optional[datetime]:
         return None
 
 
+def _expected_universe() -> Tuple[str, List[str]]:
+    """Return the authoritative active universe and its symbols.
+
+    The static NIFTY list is the source of truth for the default mode. Custom
+    mode is deliberately resolved from durable settings and the custom master;
+    an empty or unreadable custom master must never be treated as zero expected
+    symbols, because that would make an empty scan look healthy.
+
+    A database-free NIFTY configuration is supported for local/test runs. Once
+    a database is configured, settings read failures remain fail-closed.
+    """
+    import config
+
+    try:
+        mode = config.get_active_intraday_universe_strict()
+    except Exception:
+        if os.environ.get("DATABASE_URL") or (
+            config.ACTIVE_INTRADAY_UNIVERSE
+            == config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR
+        ):
+            raise
+        mode = config.ACTIVE_INTRADAY_UNIVERSE
+
+    if mode == config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR:
+        from custom_universe_store import get_active_symbols
+
+        symbols = sorted({
+            str(symbol).strip().upper()
+            for symbol in get_active_symbols()
+            if str(symbol).strip()
+        })
+        if not symbols:
+            raise RuntimeError(
+                "Durable custom active universe is unavailable or empty"
+            )
+        return mode.value, symbols
+
+    symbols = sorted({
+        str(symbol).strip().upper()
+        for symbol in config.NIFTY_50
+        if str(symbol).strip()
+    })
+    if not symbols:
+        raise RuntimeError("Configured NIFTY 50 universe is empty")
+    return mode.value, symbols
+
+
 def coverage_probe() -> Dict[str, Any]:
     """Return the market-hours coverage verdict. Never raises."""
     result: Dict[str, Any] = {
         "success": True,
-        "min_symbols_expected": MIN_SYMBOLS_EXPECTED,
         "label": "PAPER / RESEARCH ONLY",
     }
     try:
@@ -79,6 +124,28 @@ def coverage_probe() -> Dict[str, Any]:
     result["market_state"] = state
     result["in_session"] = in_session
     result["session_start_ist"] = session_start.isoformat()
+
+    try:
+        active_universe, expected_symbols = _expected_universe()
+        expected_count = len(expected_symbols)
+        result.update({
+            "active_universe": active_universe,
+            "expected_symbols": expected_symbols,
+            # Keep the established field name for dashboard/scheduler
+            # consumers, but make it reflect the selected universe.
+            "min_symbols_expected": expected_count,
+        })
+    except Exception as exc:
+        result.update({
+            "success": False,
+            "ok": not in_session,
+            "coverage": None,
+            "warning": (
+                f"Active universe unavailable: {exc}"
+                if in_session else None
+            ),
+        })
+        return result
 
     try:
         import scan_state_store
@@ -112,16 +179,17 @@ def coverage_probe() -> Dict[str, Any]:
         "scan_fresh_for_session": scan_fresh,
     })
 
-    # Coverage is judged against the configured expected universe, never the
-    # scan's own requested count.
-    low = received < MIN_SYMBOLS_EXPECTED
+    # Coverage is judged against the active expected universe, never the
+    # scan's own requested count. This prevents a reduced custom scan from
+    # declaring itself complete merely because its own request was satisfied.
+    low = received < expected_count
 
     if not in_session:
         result["ok"] = True
         result["warning"] = None
         if low:
             result["note"] = (
-                f"Coverage {received}/{MIN_SYMBOLS_EXPECTED} outside market "
+                f"Coverage {received}/{expected_count} outside market "
                 f"hours ({state}) — expected to self-resolve at next open."
             )
         return result
@@ -132,7 +200,7 @@ def coverage_probe() -> Dict[str, Any]:
         age = f" (last scan: {meta.get('completed_at') or meta.get('snapshot_ts') or 'unknown'})"
         result["warning"] = (
             f"No scan completed in today's session{age} — coverage "
-            f"{received}/{MIN_SYMBOLS_EXPECTED} is from a previous session and "
+            f"{received}/{expected_count} is from a previous session and "
             "does NOT confirm recovery; run a fresh scan."
         )
         return result
@@ -148,7 +216,7 @@ def coverage_probe() -> Dict[str, Any]:
         else:
             gap_note = "symbol(s) currently unavailable from provider — "
         result["warning"] = (
-            f"Scanner coverage {received}/{MIN_SYMBOLS_EXPECTED} during market "
+            f"Scanner coverage {received}/{expected_count} during market "
             f"hours{miss} — {gap_note}"
             "run a fresh scan and investigate the provider."
         )

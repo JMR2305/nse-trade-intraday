@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import market_hours
 import scan_state_store
+import config
 from scanner_coverage import coverage_probe
 from config import MIN_SYMBOLS_EXPECTED
 
@@ -58,6 +59,8 @@ def _probe(state: str, now: datetime, meta):
     with patch.object(market_hours, "market_status",
                       return_value={"state": state}), \
          patch.object(market_hours, "now_ist", return_value=now), \
+         patch.object(config, "get_active_intraday_universe_strict",
+                      return_value=config.UniverseMode.NIFTY_50), \
          patch.object(scan_state_store, "load_latest_meta",
                       return_value=meta):
         return coverage_probe()
@@ -101,6 +104,58 @@ class TestScannerCoverage(unittest.TestCase):
         r = _probe("OPEN", MONDAY_10AM, _meta(48, requested=48))
         self.assertFalse(r["ok"])
         self.assertIn(f"48/{MIN_SYMBOLS_EXPECTED}", r["warning"])
+
+    def test_custom_universe_full_coverage_is_healthy_at_its_active_size(self):
+        """A healthy 23-symbol custom scan is not compared with NIFTY 50."""
+        custom_symbols = [f"CUSTOM{i}" for i in range(23)]
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch.object(
+                 config,
+                 "get_active_intraday_universe_strict",
+                 return_value=config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR,
+             ), \
+             patch(
+                 "custom_universe_store.get_active_symbols",
+                 return_value=custom_symbols,
+             ), \
+             patch.object(
+                 scan_state_store,
+                 "load_latest_meta",
+                 return_value=_meta(23, requested=23),
+             ):
+            r = coverage_probe()
+
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["active_universe"], "CUSTOM_LOW_PRICE_SECTOR")
+        self.assertEqual(r["expected_symbols"], sorted(custom_symbols))
+        self.assertEqual(r["min_symbols_expected"], 23)
+        self.assertIsNone(r["warning"])
+
+    def test_custom_universe_partial_coverage_still_fails_closed(self):
+        custom_symbols = [f"CUSTOM{i}" for i in range(23)]
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch.object(
+                 config,
+                 "get_active_intraday_universe_strict",
+                 return_value=config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR,
+             ), \
+             patch(
+                 "custom_universe_store.get_active_symbols",
+                 return_value=custom_symbols,
+             ), \
+             patch.object(
+                 scan_state_store,
+                 "load_latest_meta",
+                 return_value=_meta(22, requested=22, missing=["CUSTOM22"]),
+             ):
+            r = coverage_probe()
+
+        self.assertFalse(r["ok"])
+        self.assertIn("22/23", r["warning"])
 
     def test_weekday_holiday_low_coverage_is_expected(self):
         """HOLIDAY is out of session — stale/low coverage is not a warning."""
