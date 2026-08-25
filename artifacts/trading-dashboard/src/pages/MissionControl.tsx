@@ -217,6 +217,22 @@ interface CustomUniverseStatus {
   last_refresh?: string | null;
   ohlcv_cache_hit_rate_pct?: number;
   kite_ltp?: { available_symbols?: number; status?: string };
+  instrument_metadata?: {
+    active_count?: number;
+    complete_mapping_count?: number;
+    oldest_cache_date?: string | null;
+    newest_cache_date?: string | null;
+    cache_age_days?: number | null;
+    newest_cache_age_days?: number | null;
+    oldest_mapping_at?: string | null;
+    newest_mapping_at?: string | null;
+    invalid_mapping_count?: number;
+    stale_mapping_count?: number;
+    refresh_required?: boolean;
+    provenance?: string | null;
+    approval_required?: boolean;
+    confirmation_required?: string | null;
+  };
 }
 interface CustomUniverseSymbol {
   symbol: string;
@@ -2358,7 +2374,9 @@ export function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStrea
   );
 }
 
-function LowPriceUniverseCard({
+const METADATA_HYDRATION_CONFIRMATION = "HYDRATE_INSTRUMENT_METADATA_ONLY";
+
+export function LowPriceUniverseCard({
   statusQ,
   symbolsQ,
 }: {
@@ -2366,6 +2384,8 @@ function LowPriceUniverseCard({
   symbolsQ: UseQueryResult<CustomUniverseSymbolsResponse>;
 }) {
   const queryClient = useQueryClient();
+  const [adminToken, setAdminToken] = useState("");
+  const [metadataConfirmation, setMetadataConfirmation] = useState("");
   const refresh = useMutation({
     mutationFn: () => apiJson("/universe/custom/refresh", { method: "POST" }, 180_000),
     onSuccess: () => {
@@ -2373,16 +2393,42 @@ function LowPriceUniverseCard({
       void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-symbols"] });
     },
   });
+  const hydrateMetadata = useMutation({
+    mutationFn: (request: { token: string; confirmation: string }) => apiJson(
+      "/universe/custom/hydrate-instruments",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": request.token,
+        },
+        body: JSON.stringify({ confirmation: request.confirmation }),
+      },
+      60_000,
+    ),
+    onSuccess: () => {
+      setAdminToken("");
+      setMetadataConfirmation("");
+      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-symbols"] });
+    },
+  });
   const status = statusQ.data;
-  if (status?.active_universe !== "CUSTOM_LOW_PRICE_SECTOR") return null;
+  if (!status) return null;
+  const customModeActive = status.active_universe === "CUSTOM_LOW_PRICE_SECTOR";
   const symbols = symbolsQ.data?.symbols ?? [];
   const included = symbols.filter((symbol) => symbol.is_active);
   const excluded = symbols.filter((symbol) => !symbol.is_active);
   const band = status.price_filter ?? {};
+  const metadata = status.instrument_metadata;
+  const confirmationRequired = metadata?.confirmation_required ?? METADATA_HYDRATION_CONFIRMATION;
+  const canHydrateMetadata = Boolean(
+    adminToken.trim() && metadataConfirmation.trim() === confirmationRequired,
+  );
 
   return (
     <Widget
-      title="Low Price Universe Builder"
+      title={customModeActive ? "Low Price Universe Builder" : "Custom Universe Mapping Review"}
       icon={PieChart}
       query={statusQ}
       refreshMs={15_000}
@@ -2391,61 +2437,216 @@ function LowPriceUniverseCard({
       skeletonClass="h-48"
     >
       <div className="space-y-3 text-[10px]">
-        <div className="flex flex-wrap gap-2 items-center">
-          <Badge className="text-[9px] bg-teal-950 text-teal-300 border border-teal-800">
-            {status.custom_universe_name ?? "CUSTOM_LOW_PRICE_SECTOR"}
-          </Badge>
-          <span className="text-muted-foreground">Price ₹{band.min ?? 20}–₹{band.max ?? 200}</span>
-          <span className="text-muted-foreground">Sectors: {(status.sectors ?? ["IT", "INFRA", "BANK"]).join(" · ")}</span>
-          <button
-            type="button"
-            className="ml-auto inline-flex items-center gap-1 rounded-md border border-teal-700/60 px-2 py-1 text-[10px] text-teal-300 hover:bg-teal-950/50 disabled:opacity-50"
-            onClick={() => refresh.mutate()}
-            disabled={refresh.isPending}
-            data-testid="mc-refresh-low-price-universe"
+        {customModeActive ? (
+          <>
+            <div className="flex flex-wrap gap-2 items-center">
+              <Badge className="text-[9px] bg-teal-950 text-teal-300 border border-teal-800">
+                {status.custom_universe_name ?? "CUSTOM_LOW_PRICE_SECTOR"}
+              </Badge>
+              <span className="text-muted-foreground">Price ₹{band.min ?? 20}–₹{band.max ?? 200}</span>
+              <span className="text-muted-foreground">Sectors: {(status.sectors ?? ["IT", "INFRA", "BANK"]).join(" · ")}</span>
+              <button
+                type="button"
+                className="ml-auto inline-flex items-center gap-1 rounded-md border border-teal-700/60 px-2 py-1 text-[10px] text-teal-300 hover:bg-teal-950/50 disabled:opacity-50"
+                onClick={() => refresh.mutate()}
+                disabled={refresh.isPending}
+                data-testid="mc-refresh-low-price-universe"
+              >
+                <RefreshCw className={`h-3 w-3 ${refresh.isPending ? "animate-spin" : ""}`} />
+                {refresh.isPending ? "Refreshing membership…" : "Refresh membership"}
+              </button>
+            </div>
+            {refresh.isError && <p className="text-red-400">Refresh failed: {(refresh.error as Error).message}</p>}
+            {refresh.isSuccess && <p className="text-emerald-400">Membership refresh completed. Stored instrument mappings were not changed.</p>}
+          </>
+        ) : (
+          <p className="rounded-md border border-border/50 bg-muted/10 px-2 py-1.5 text-muted-foreground" data-testid="mc-custom-universe-inactive-note">
+            Custom universe is inactive. Review its mapping freshness here before switching modes or approving a metadata-only refresh.
+          </p>
+        )}
+
+        {metadata && (
+          <div
+            className={`rounded-lg border px-2.5 py-2 space-y-2 ${
+              metadata.refresh_required
+                ? "border-amber-700/60 bg-amber-950/20"
+                : "border-border/50 bg-muted/10"
+            }`}
+            data-testid="mc-custom-universe-mapping-status"
           >
-            <RefreshCw className={`h-3 w-3 ${refresh.isPending ? "animate-spin" : ""}`} />
-            {refresh.isPending ? "Refreshing…" : "Refresh Universe"}
-          </button>
-        </div>
-        {refresh.isError && <p className="text-red-400">Refresh failed: {(refresh.error as Error).message}</p>}
-        {refresh.isSuccess && <p className="text-emerald-400">Universe refresh completed.</p>}
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-          <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Active</p><p className="font-semibold text-teal-300">{status.active_count ?? 0}</p></div>
-          <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">OHLCV cache</p><p className="font-semibold">{status.ohlcv_cache_hit_rate_pct ?? 0}%</p></div>
-          <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Kite LTP</p><p className="font-semibold">{status.kite_ltp?.status ?? "UNKNOWN"}</p></div>
-          <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Last refresh</p><p className="font-semibold">{timeAgo(status.last_refresh)}</p></div>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {Object.entries(status.sector_counts ?? {}).map(([sector, count]) => (
-            <Badge key={sector} variant="outline" className="text-[9px]">{sector}: {count}</Badge>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-          <div className="min-w-0">
-            <p className="mb-1 font-medium text-emerald-300">Included ({included.length})</p>
-            <div className="max-h-44 overflow-auto rounded-md border border-border/60">
-              <table className="w-full text-left">
-                <thead className="sticky top-0 bg-card text-muted-foreground"><tr><th className="p-1.5">Symbol</th><th>LTP</th><th>Sector</th><th>20D vol</th><th>20D turnover</th></tr></thead>
-                <tbody>{included.map((row) => <tr key={row.symbol} className="border-t border-border/40">
-                  <td className="p-1.5 font-mono">{row.symbol}</td><td>{fmtINR(row.last_ltp, 2)}</td><td>{row.sector ?? "—"}</td>
-                  <td>{(row.avg_volume_20d ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}</td><td>{fmtINR(row.avg_turnover_20d)}</td>
-                </tr>)}{!included.length && <tr><td className="p-2 text-muted-foreground" colSpan={5}>No active symbols yet.</td></tr>}</tbody>
-              </table>
+            <div className="flex flex-wrap items-start gap-2">
+              <div className="min-w-0">
+                <p className="font-medium text-foreground flex items-center gap-1.5">
+                  <RefreshCw className="h-3 w-3 shrink-0 text-teal-300" />
+                  Instrument mapping freshness
+                </p>
+                <p className="text-muted-foreground leading-snug mt-0.5">
+                  The instrument cache and stored custom-universe mappings are separate.
+                  Refreshing the cache does not update these mappings automatically.
+                </p>
+              </div>
+              <Badge
+                variant="outline"
+                className={`ml-auto text-[9px] ${
+                  metadata.refresh_required
+                    ? "border-amber-600/60 text-amber-300"
+                    : "border-emerald-700/50 text-emerald-300"
+                }`}
+                data-testid="mc-custom-universe-mapping-refresh-status"
+              >
+                {metadata.refresh_required ? "REFRESH REQUIRED" : "MAPPING CURRENT"}
+              </Badge>
             </div>
-          </div>
-          <div className="min-w-0">
-            <p className="mb-1 font-medium text-amber-300">Excluded ({excluded.length})</p>
-            <div className="max-h-44 overflow-auto rounded-md border border-border/60">
-              <table className="w-full text-left"><thead className="sticky top-0 bg-card text-muted-foreground"><tr><th className="p-1.5">Symbol</th><th>Reason</th></tr></thead>
-                <tbody>{excluded.map((row) => <tr key={row.symbol} className="border-t border-border/40"><td className="p-1.5 font-mono">{row.symbol}</td><td className="text-muted-foreground">{row.reason_excluded ?? "Not eligible"}</td></tr>)}
-                {!excluded.length && <tr><td className="p-2 text-muted-foreground" colSpan={2}>No exclusions recorded.</td></tr>}</tbody>
-              </table>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="rounded-md bg-muted/30 p-2">
+                <p className="text-muted-foreground">Complete coverage</p>
+                <p className="font-semibold text-foreground" data-testid="mc-custom-universe-mapping-coverage">
+                  {metadata.complete_mapping_count ?? 0} / {metadata.active_count ?? status.active_count ?? 0} active
+                </p>
+              </div>
+              <div className="rounded-md bg-muted/30 p-2">
+                <p className="text-muted-foreground">Newest mapping date</p>
+                <p className="font-semibold text-foreground" data-testid="mc-custom-universe-newest-mapping-date">
+                  {metadata.newest_cache_date ?? "—"}
+                </p>
+              </div>
+              <div className="rounded-md bg-muted/30 p-2">
+                <p className="text-muted-foreground">Mapping age</p>
+                <p
+                  className={`font-semibold ${
+                    metadata.refresh_required ? "text-amber-300" : "text-foreground"
+                  }`}
+                  data-testid="mc-custom-universe-mapping-age"
+                >
+                  {metadata.cache_age_days != null ? `${metadata.cache_age_days} day${metadata.cache_age_days === 1 ? "" : "s"} (oldest)` : "—"}
+                </p>
+              </div>
+              <div className="rounded-md bg-muted/30 p-2">
+                <p className="text-muted-foreground">Provenance</p>
+                <p className="font-semibold text-foreground break-words" data-testid="mc-custom-universe-mapping-provenance">
+                  {metadata.provenance ?? "Unknown"}
+                </p>
+              </div>
             </div>
+
+            {(metadata.invalid_mapping_count || metadata.stale_mapping_count) ? (
+              <p className="text-amber-300 leading-snug" data-testid="mc-custom-universe-mapping-issues">
+                {metadata.invalid_mapping_count ?? 0} incomplete and {metadata.stale_mapping_count ?? 0} stale active mapping{(metadata.invalid_mapping_count ?? 0) + (metadata.stale_mapping_count ?? 0) === 1 ? "" : "s"}.
+              </p>
+            ) : null}
+
+            <form
+              className="border-t border-border/40 pt-2 space-y-1.5"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (canHydrateMetadata) {
+                  hydrateMetadata.mutate({
+                    token: adminToken.trim(),
+                    confirmation: metadataConfirmation.trim(),
+                  });
+                }
+              }}
+            >
+              <p className="font-medium text-foreground">Metadata-only approval</p>
+              <p className="text-muted-foreground leading-snug">
+                This does not refresh membership or choose symbols. It only hydrates NSE instrument metadata
+                for the existing active membership. Administrator credential and exact confirmation are required.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <label className="space-y-1">
+                  <span className="text-muted-foreground">Administrator credential</span>
+                  <input
+                    type="password"
+                    value={adminToken}
+                    onChange={(event) => setAdminToken(event.target.value)}
+                    placeholder="Enter admin token"
+                    autoComplete="off"
+                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50"
+                    data-testid="mc-custom-universe-admin-token"
+                  />
+                </label>
+                <label className="space-y-1">
+                  <span className="text-muted-foreground">
+                    Type <code className="font-mono text-teal-300">{confirmationRequired}</code>
+                  </span>
+                  <input
+                    type="text"
+                    value={metadataConfirmation}
+                    onChange={(event) => setMetadataConfirmation(event.target.value)}
+                    placeholder="Exact confirmation"
+                    autoComplete="off"
+                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-[10px] font-mono text-foreground placeholder:text-muted-foreground/50"
+                    data-testid="mc-custom-universe-metadata-confirmation"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1 rounded-md border border-amber-700/60 px-2 py-1 text-[10px] text-amber-300 hover:bg-amber-950/40 disabled:opacity-50"
+                  disabled={!canHydrateMetadata || hydrateMetadata.isPending}
+                  data-testid="mc-approve-metadata-only-hydration"
+                >
+                  <RefreshCw className={`h-3 w-3 ${hydrateMetadata.isPending ? "animate-spin" : ""}`} />
+                  {hydrateMetadata.isPending ? "Hydrating metadata…" : "Approve metadata-only refresh"}
+                </button>
+                <span className="text-muted-foreground">
+                  {metadata.approval_required === false ? "Approval not currently required." : "Approval required"}
+                </span>
+              </div>
+              {hydrateMetadata.isError && (
+                <p className="text-red-400" data-testid="mc-custom-universe-metadata-error">
+                  Metadata refresh failed: {(hydrateMetadata.error as Error).message}
+                </p>
+              )}
+              {hydrateMetadata.isSuccess && (
+                <p className="text-emerald-400" data-testid="mc-custom-universe-metadata-success">
+                  Metadata-only refresh completed. Review the updated mapping date and coverage above.
+                </p>
+              )}
+            </form>
           </div>
-        </div>
+        )}
+
+        {customModeActive && (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Active</p><p className="font-semibold text-teal-300">{status.active_count ?? 0}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">OHLCV cache</p><p className="font-semibold">{status.ohlcv_cache_hit_rate_pct ?? 0}%</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Kite LTP</p><p className="font-semibold">{status.kite_ltp?.status ?? "UNKNOWN"}</p></div>
+              <div className="rounded-md bg-muted/30 p-2"><p className="text-muted-foreground">Last refresh</p><p className="font-semibold">{timeAgo(status.last_refresh)}</p></div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(status.sector_counts ?? {}).map(([sector, count]) => (
+                <Badge key={sector} variant="outline" className="text-[9px]">{sector}: {count}</Badge>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              <div className="min-w-0">
+                <p className="mb-1 font-medium text-emerald-300">Included ({included.length})</p>
+                <div className="max-h-44 overflow-auto rounded-md border border-border/60">
+                  <table className="w-full text-left">
+                    <thead className="sticky top-0 bg-card text-muted-foreground"><tr><th className="p-1.5">Symbol</th><th>LTP</th><th>Sector</th><th>20D vol</th><th>20D turnover</th></tr></thead>
+                    <tbody>{included.map((row) => <tr key={row.symbol} className="border-t border-border/40">
+                      <td className="p-1.5 font-mono">{row.symbol}</td><td>{fmtINR(row.last_ltp, 2)}</td><td>{row.sector ?? "—"}</td>
+                      <td>{(row.avg_volume_20d ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 0 })}</td><td>{fmtINR(row.avg_turnover_20d)}</td>
+                    </tr>)}{!included.length && <tr><td className="p-2 text-muted-foreground" colSpan={5}>No active symbols yet.</td></tr>}</tbody>
+                  </table>
+                </div>
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1 font-medium text-amber-300">Excluded ({excluded.length})</p>
+                <div className="max-h-44 overflow-auto rounded-md border border-border/60">
+                  <table className="w-full text-left"><thead className="sticky top-0 bg-card text-muted-foreground"><tr><th className="p-1.5">Symbol</th><th>Reason</th></tr></thead>
+                    <tbody>{excluded.map((row) => <tr key={row.symbol} className="border-t border-border/40"><td className="p-1.5 font-mono">{row.symbol}</td><td className="text-muted-foreground">{row.reason_excluded ?? "Not eligible"}</td></tr>)}
+                    {!excluded.length && <tr><td className="p-2 text-muted-foreground" colSpan={2}>No exclusions recorded.</td></tr>}</tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </Widget>
   );
@@ -2754,7 +2955,7 @@ export default function MissionControl() {
 
       <UniverseModeControl statusQ={customUniverseStatusQ} />
 
-      {customUniverseStatusQ.data?.active_universe === "CUSTOM_LOW_PRICE_SECTOR" && (
+      {customUniverseStatusQ.data && (
         <LowPriceUniverseCard statusQ={customUniverseStatusQ} symbolsQ={customUniverseSymbolsQ} />
       )}
 
