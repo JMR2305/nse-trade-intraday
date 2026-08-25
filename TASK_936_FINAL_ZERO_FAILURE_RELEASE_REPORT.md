@@ -2,22 +2,22 @@
 
 **Validation date:** August 25, 2026
 
-## Pre-deployment verdict
+## Final post-deployment verdict
 
-**PASS — ZERO-FAILURE PRE-DEPLOYMENT GATE**
+**G. SAFETY / OBSERVABILITY REGRESSION**
 
-The local release candidate passed the required source, test, typecheck, build,
-scope, and schema-safety checks. Deployment has **not** been initiated; Replit
-publishing requires a user-initiated publish action. Post-deployment verification
-is therefore still pending.
+The zero-failure pre-deployment gate passed and the release was published. The
+post-deployment safety check found that Mission Control fails to display
+production quote-provenance evidence that the API does provide. This blocks an
+“deployed and verified” verdict until the display mismatch is corrected.
 
 ## Approved release candidate
 
-- **Approved deploy commit:** `1c3d24ec0b778678b4eb8f3b595e305660c2fd0e`
-- **Expected build ID:** `apexquant-1c3d24ec0b77`
+- **Published UI/API build ID:** `apexquant-5b22ea84b68e`
+- **Deployed source commit:** `5b22ea84b68e05b818f88e0d98ecdfd39090f1ab`
+- **Publish marker commit:** `9d36bafc3a78da5fbc8d78a41c979beccfc5dab2`
 - **Task #936 merge:** `ee6eb38e5003226f6b5c58e606067099f641f98b`
-- **Commit after Task #936:** `1c3d24ec` — documentation-only update to the
-  observability hardening implementation summary
+- The publish marker has no source-file delta from the deployed source commit.
 
 ## Gate results
 
@@ -36,6 +36,35 @@ is therefore still pending.
 | Source scope | PASS | Since the publish checkpoint, changes are confined to observability provenance, manual-scan auditability, freshness coverage, tests, UI, generated API types, and supporting reports. |
 | Schema safety | PASS | No migration files, destructive DDL, `DROP`, `TRUNCATE`, or historical evidence rewrite found. |
 | Trading/execution safety | PASS | No change enabling auto entries, bootstrap, controlled execution, live broker orders, or trading policy was found. |
+
+## Post-deployment read-only verification
+
+| Check | Result | Production evidence |
+| --- | --- | --- |
+| Deployment health | PASS | Public autoscale deployment has a successful build. |
+| UI/API build identity | PASS | Mission Control displays `UI Build apexquant-5b22ea84b68e`, `API Build apexquant-5b22ea84b68e`, and `MATCH`. |
+| Dashboard freshness coverage | PASS | Browser audit visited 41 registered routes: no missing indicators, no route errors, and one consistent scan ID (`e4707672`). |
+| Active universe and mappings | PASS | `CUSTOM_LOW_PRICE_SECTOR` is active with 23 active symbols and 23/23 instrument mappings. |
+| Execution barriers | PASS | Market is closed; automatic paper entries and bootstrap are false; broker mode is `PAPER_TRADING`; live-assisted readiness is `NOT_READY`; daily orders are zero. |
+| Portfolio and ledger state | PASS — snapshot | Portfolio API uses the Phase 20 ledger; production snapshots are paper-mode with 0 open and 0 pending positions; all 6 Phase 20 trade records are closed. |
+| Legacy manual scan | PASS | Scan `e1ded4dfba2e` remains one legacy manual canonical record with 23 requested/received symbols and an explicit unknown-legacy provenance object. |
+| Future manual-scan provenance schema | PASS | Production history responses expose the sanitized provenance fields, including actor, request, correlation, approval, timestamp, trigger source, and legacy marker. |
+| Truthful Mission Control price provenance | **FAIL** | `/api/live-data/health-v2` reports `ZERODHA_KITE`, `2026-08-25T09:53:23Z`, `MARKET_CLOSED_LAST_KNOWN`, `YFINANCE`, and `SCHEDULED`; the rendered Mission Control provenance cards all show `UNAVAILABLE / NOT PROVEN`. |
+
+### Observed closed-market evidence
+
+The API correctly preserves the distinction between current quote and historical
+data:
+
+- current quote provider: `ZERODHA_KITE`;
+- recorded current quote timestamp: `2026-08-25T09:53:23Z`;
+- freshness: `MARKET_CLOSED_LAST_KNOWN`;
+- historical OHLCV provider: `YFINANCE`; and
+- scan provenance: `SCHEDULED`.
+
+Because the recorded quote timestamp exists, a closed-market last-known label is
+valid. The rendered UI instead reports that all of this evidence is unavailable,
+which is misleading.
 
 ## Scope review
 
@@ -63,23 +92,10 @@ portfolio/ledger data, universe settings, or broker-order behavior.
 - Historical scan `e1ded4dfba2e` and Task #930 evidence were not changed or
   backfilled.
 
-## Deployment state
+## Required remediation and recheck
 
-An existing public autoscale deployment has a successful current build. This
-validation did not publish a new build or perform production mutation.
-
-## Required next step
-
-Publish the approved commit through the user-initiated publishing flow, then run
-the attached checklist's read-only post-deployment checks:
-
-1. UI/API build identity match;
-2. truthful current-price and closed-market timestamp evidence;
-3. future manual-scan provenance availability;
-4. unchanged legacy scan and Task #930 evidence;
-5. route-level freshness coverage;
-6. active custom universe count/mappings; and
-7. unchanged paper-mode and execution-safety settings.
-
-Only after those checks pass can the final deployment verdict be recorded as
-**A. PASS — ZERO-FAILURE GATE, DEPLOYED AND VERIFIED**.
+Task #939, **Prevent Mission Control from hiding recorded closed-market quote
+provenance**, must reconcile the health response with the rendered Mission
+Control cards. After that focused fix is published, repeat only the read-only
+production checks in the table above. Do not trigger scans, change settings, or
+alter Task #930 evidence as part of the recheck.

@@ -10,11 +10,12 @@
 - Task #937 was cancelled because its warning-handling scope was no longer needed after the validation fixes.
 - The Task #936 post-merge dashboard gate passed with **51 test files and 998
   tests passing**.
-- The approved controlled-deployment source is
-  `1c3d24ec0b778678b4eb8f3b595e305660c2fd0e`, with expected build identity
-  `apexquant-1c3d24ec0b77`.
-- Publishing and post-deployment verification remain pending the required
-  user-initiated publish action.
+- The deployment was published with matching UI/API identity
+  `apexquant-5b22ea84b68e`; the later `Published your App` commit has no source
+  delta from that deployed source commit.
+- Post-deployment verification is **blocked**: the Mission Control cards render
+  `UNAVAILABLE / NOT PROVEN` even though the production health response contains
+  recorded closed-market quote provenance. Task #939 tracks the correction.
 
 ## Task #934 — Observability provenance
 
@@ -111,7 +112,9 @@ readiness, execution, portfolio, universe, or broker behavior.
   `PORT=9999 BASE_PATH=/trading-dashboard/` contract. Existing sourcemap,
   dynamic-import, and bundle-size notices remained warnings only.
 - The remaining release action is a user-initiated controlled publish followed
-  by the specified read-only production verification.
+  by the specified read-only production verification. The publish is complete,
+  but that verification currently fails because the Mission Control display does
+  not present the production provenance evidence truthfully.
 
 ## Follow-up
 
