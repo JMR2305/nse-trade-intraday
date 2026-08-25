@@ -8,7 +8,13 @@
 - Task #934, **Harden observability provenance**, is merged.
 - Task #936, **Restore dashboard-wide freshness checks so releases can pass safely**, is merged at commit `ee6eb38e5003226f6b5c58e606067099f641f98b`.
 - Task #937 was cancelled because its warning-handling scope was no longer needed after the validation fixes.
-- No new deployment was approved or published from these changes. The full dashboard suite must be rerun after the Task #936 merge before reopening deployment approval.
+- The Task #936 post-merge dashboard gate passed with **51 test files and 998
+  tests passing**.
+- The approved controlled-deployment source is
+  `1c3d24ec0b778678b4eb8f3b595e305660c2fd0e`, with expected build identity
+  `apexquant-1c3d24ec0b77`.
+- Publishing and post-deployment verification remain pending the required
+  user-initiated publish action.
 
 ## Task #934 — Observability provenance
 
@@ -96,16 +102,20 @@ readiness, execution, portfolio, universe, or broker behavior.
 
 ### Dashboard suite status
 
-- Before the Task #936 merge, the full dashboard suite reported **49 files
-  passed, 2 failed; 925 tests passed, 71 failed**.
-- Task #936 contains the route-level freshness coverage and marker fixes for
-  those failures.
-- A complete zero-failure dashboard run after the merge is still required
-  before any deployment decision is reopened.
+- The full post-merge dashboard suite passed: **51 files passed, 998 tests
+  passed, 0 failures**.
+- The formerly failing `freshness-coverage.test.ts` and
+  `AIValidationV2Page.markers.test.tsx` files both pass.
+- Dashboard, API, and workspace TypeScript checks passed.
+- The dashboard production build passed using the required
+  `PORT=9999 BASE_PATH=/trading-dashboard/` contract. Existing sourcemap,
+  dynamic-import, and bundle-size notices remained warnings only.
+- The remaining release action is a user-initiated controlled publish followed
+  by the specified read-only production verification.
 
 ## Follow-up
 
 Task #936 is the existing follow-up for restoring a clean dashboard-wide release
-gate. Do not create a duplicate task for that work. Task #930 evidence remains
-outside this summary’s scope and must not be manually replayed, changed, or
-backfilled.
+gate. Its pre-deployment validation is complete; do not create a duplicate task.
+Task #930 evidence remains outside this summary’s scope and must not be manually
+replayed, changed, or backfilled.

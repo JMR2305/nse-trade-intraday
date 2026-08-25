@@ -1,0 +1,124 @@
+TASK #936 — FINAL POST-MERGE ZERO-FAILURE DASHBOARD GATE
+
+Current merged commit:
+
+ee6eb38e5003226f6b5c58e606067099f641f98b
+
+GOAL:
+
+Run the full dashboard validation against the merged Task #936 code and reopen
+deployment approval only if the suite is completely green.
+
+DO NOT:
+- modify trading logic
+- modify readiness logic
+- modify Task #930 logic/evidence
+- trigger scans
+- trigger Phase 5A/5B/5C
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- modify portfolio/ledger/universe/settings
+
+TASK 1 — VERIFY SOURCE
+
+Confirm:
+
+git status = clean
+HEAD includes Task #936 merge
+commit ee6eb38e5003226f6b5c58e606067099f641f98b is present
+
+Report any commits after it.
+
+TASK 2 — FULL DASHBOARD TEST SUITE
+
+Run:
+
+pnpm --filter @workspace/trading-dashboard test
+
+Require:
+
+0 failed files
+0 failed tests
+
+Specifically confirm these formerly failing files now pass:
+
+artifacts/trading-dashboard/src/lib/freshness-coverage.test.ts
+
+artifacts/trading-dashboard/src/pages/__tests__/AIValidationV2Page.markers.test.tsx
+
+TASK 3 — REGRESSION CHECKS
+
+Reconfirm:
+
+- Mission Control focused tests = PASS
+- dashboard TypeScript = PASS
+- API TypeScript = PASS
+- workspace TypeScript = PASS
+- dashboard production build = PASS
+
+TASK 4 — SOURCE SCOPE
+
+Confirm the release contains only approved Task #934/#936 observability,
+freshness, auditability, test, and related UI changes.
+
+No trading/runtime execution changes.
+
+TASK 5 — SCHEMA SAFETY
+
+Confirm:
+
+- no destructive migration
+- no DROP
+- no TRUNCATE
+- no historical evidence rewrite
+
+TASK 6 — RELEASE COMMIT
+
+If Tasks 1–5 pass:
+
+define:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first 12 chars>
+
+TASK 7 — CONTROLLED DEPLOYMENT
+
+Deploy only the approved commit.
+
+Do not trigger any scan or pre-open lifecycle after deployment.
+
+TASK 8 — POST-DEPLOY READ-ONLY VERIFY
+
+Confirm:
+
+- UI/API build identity MATCH
+- current-price provenance UI truthful
+- market-closed state uses last-known provider only when timestamp evidence exists
+- future manual-scan provenance fields available
+- legacy scan e1ded4dfba2e unchanged
+- freshness indicator present across registered dashboard routes
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- mappings = 23/23
+- auto entries = false
+- bootstrap = false
+- controlled execution = disabled
+- live broker orders = disabled
+- portfolio/ledger unchanged
+- Task #930 evidence untouched
+
+OUTPUT:
+
+TASK_936_FINAL_ZERO_FAILURE_RELEASE_REPORT.md
+
+FINAL VERDICT:
+
+A. PASS — ZERO-FAILURE GATE, DEPLOYED AND VERIFIED
+B. DASHBOARD SUITE STILL RED
+C. TYPESCRIPT/BUILD FAILURE
+D. SOURCE SCOPE FAILURE
+E. SCHEMA FAILURE
+F. DEPLOYMENT IDENTITY FAILURE
+G. SAFETY REGRESSION
