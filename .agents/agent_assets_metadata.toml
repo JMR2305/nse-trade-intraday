@@ -705,3 +705,10 @@ uri = "file://RTV3_SAFETY_AND_LEDGER_RECONCILIATION.md"
 type = "text"
 title = "RTV-3 Safety and Ledger Reconciliation"
 description = "Appended safety and canonical portfolio parity evidence at the Phase 5A failure checkpoint."
+
+[[outputs]]
+id = "DDiy9lIsFZNLiWYgwAJY8"
+uri = "file://OPEN_TASKS.md"
+type = "text"
+title = "Open Project Tasks"
+description = "Complete live snapshot of 241 open project tasks with status, dependencies, blockers, and brief comments."
