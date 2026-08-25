@@ -15,16 +15,26 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
+import { ROUTE_FRESHNESS } from "@/components/RouteFreshnessIndicator";
 
 const SRC = resolve(__dirname, "..");
 const appSource = readFileSync(join(SRC, "App.tsx"), "utf8");
+const layoutSource = readFileSync(
+  join(SRC, "components", "layout", "AppLayout.tsx"),
+  "utf8",
+);
+const routeIndicatorSource = readFileSync(
+  join(SRC, "components", "RouteFreshnessIndicator.tsx"),
+  "utf8",
+);
 const barSource = readFileSync(
   join(SRC, "components", "DataFreshnessBar.tsx"),
   "utf8",
 );
 
-/** Routes whose page is allowed to have no freshness bar. */
+/** Catch-all routes do not map to a page source file. */
 const EXEMPT_COMPONENTS = new Set(["NotFound"]);
+const VALID_ROUTE_VARIANTS = new Set(["scan", "historical", "none"]);
 
 function registeredRoutes(): { path: string; component: string }[] {
   const routes: { path: string; component: string }[] = [];
@@ -55,18 +65,38 @@ describe("Phase 19C — every registered page shows a freshness indicator", () =
 
   for (const { path, component } of routes) {
     if (EXEMPT_COMPONENTS.has(component)) continue;
-    it(`${path} (${component}) renders DataFreshnessBar or the no-live-dataset marker`, () => {
+    it(`${path} (${component}) renders a local or registered route-level freshness indicator`, () => {
       const file = componentFile(component);
       expect(file, `import for ${component} not found in App.tsx`).toBeTruthy();
       const src = readFileSync(file as string, "utf8");
-      const hasBar = /<DataFreshnessBar\b/.test(src);
-      const hasMarker = /No live dataset used on this page/.test(src);
+      const hasLocalBar = /<DataFreshnessBar\b/.test(src);
+      const hasLocalMarker = /No live dataset used on this page/.test(src);
+      const routeConfig = ROUTE_FRESHNESS[path];
       expect(
-        hasBar || hasMarker,
-        `${component} must render <DataFreshnessBar> (any variant) or the "No live dataset used on this page" marker`,
+        hasLocalBar || hasLocalMarker || Boolean(routeConfig),
+        `${component} must render a local freshness indicator or be covered by the route-level freshness registry`,
       ).toBe(true);
+      if (routeConfig) {
+        expect(
+          VALID_ROUTE_VARIANTS.has(routeConfig.variant),
+          `${path} must use a known freshness variant`,
+        ).toBe(true);
+      }
     });
   }
+
+  it("does not retain route-level freshness entries for removed routes", () => {
+    const registeredPaths = new Set(routes.map((route) => route.path));
+    for (const path of Object.keys(ROUTE_FRESHNESS)) {
+      expect(registeredPaths, `${path} is not registered in App.tsx`).toContain(path);
+    }
+  });
+
+  it("renders route-level indicators through the shared layout", () => {
+    expect(layoutSource).toContain("<RouteFreshnessIndicator");
+    expect(routeIndicatorSource).toContain("<DataFreshnessBar");
+    expect(routeIndicatorSource).toContain('data-testid="route-freshness-indicator"');
+  });
 });
 
 describe("Phase 19C — DataFreshnessBar integrity", () => {

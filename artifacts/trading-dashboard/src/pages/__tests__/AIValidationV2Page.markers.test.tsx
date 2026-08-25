@@ -256,7 +256,7 @@ describe("TradeSimulationTab rendering (integration)", () => {
 
   it("overview renders without crashing and shows the page heading", async () => {
     await renderSimTab();
-    expect(screen.getByText("AI Validation Centre V2")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Strategy Validation — Research Models" })).toBeTruthy();
   });
 
   it("legend contains both 'Entry' and 'Exit' marker labels", async () => {

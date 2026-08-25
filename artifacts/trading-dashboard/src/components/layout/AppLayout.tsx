@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import CopilotPanel from "@/components/CopilotPanel";
 import LiveMarketTicker from "@/components/LiveMarketTicker";
 import { StaleScanBanner } from "@/components/Phase15SystemHealth";
+import { RouteFreshnessIndicator } from "@/components/RouteFreshnessIndicator";
 import { Logo } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
 import {
@@ -552,6 +553,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-10">
           <div className="mx-auto max-w-[1440px]">
+            <RouteFreshnessIndicator path={location} />
             {children}
           </div>
         </main>
