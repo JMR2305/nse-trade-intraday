@@ -100,6 +100,29 @@ truthfully be compared to the currently served UI artifact. A new
 user-initiated dashboard publish is required before the source-derived UI
 identity and MATCH/MISMATCH display can be confirmed in production.
 
+## Automated post-publish smoke check
+
+The dashboard now provides a read-only production smoke check:
+
+```bash
+APEXQUANT_PUBLIC_URL=https://your-app.replit.app \
+  pnpm --filter @workspace/trading-dashboard run test:build-identity:public
+```
+
+It fetches the public dashboard HTML, resolves its referenced hashed Vite entry
+asset, and requires a linked full UI commit plus
+`apexquant-<12-character-commit>` identity. It rejects every retired identity,
+including `apexquant-v1.0.0`, and reads `/api/health/details` only to compare
+the source-derived API identity.
+
+The check then opens the public `/trading-dashboard/mission-control` route in
+headless Chromium and requires the rendered identity area to expose **Product
+Version**, **UI Build**, **API Build**, and the truthful **MATCH** or
+**MISMATCH** state. A failed identity check exits non-zero and prints cache
+headers for the HTML/asset plus HTML/asset service-worker markers, conventional
+worker-route probes, and browser service-worker registrations. It never sends
+an order, command, mutation, or scan trigger.
+
 ## Final UI/API status
 
 The currently live API identity is valid and commit-derived. The currently

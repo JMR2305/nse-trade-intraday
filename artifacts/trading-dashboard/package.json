@@ -10,6 +10,7 @@
     "typecheck": "tsc -b ../../lib/api-client-react && tsc -p tsconfig.json --noEmit",
     "test": "PORT=9999 BASE_PATH=/trading-dashboard/ vitest run",
     "test:build-identity": "node ./scripts/check-build-identity.mjs",
+    "test:build-identity:public": "node ./scripts/check-build-identity.mjs --public",
     "test:e2e": "PLAYWRIGHT_BROWSERS_PATH=/nix/store/12iaw5ng4xvxxffm381lgxlh1ysh0bl4-playwright-browsers playwright test"
   },
   "devDependencies": {
