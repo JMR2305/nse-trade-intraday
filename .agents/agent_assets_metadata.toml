@@ -712,3 +712,31 @@ uri = "file://OPEN_TASKS.md"
 type = "text"
 title = "Open Project Tasks"
 description = "Complete live snapshot of 241 open project tasks with status, dependencies, blockers, and brief comments."
+
+[[outputs]]
+id = "wGqBAxyC7c1TvoJdsYdHk"
+uri = "file://RTV3D_TEST_RECONCILIATION_AND_SCOPE.md"
+type = "text"
+title = "RTV-3D Test Reconciliation and Scope"
+description = "Clean release scope, approved RTV-2E reconciliation, full test gate, and additive-only schema evidence."
+
+[[outputs]]
+id = "rA35jT8oyIjyZ7k666KBV"
+uri = "file://RTV3D_CONTROLLED_DEPLOYMENT_REPORT.md"
+type = "text"
+title = "RTV-3D Controlled Deployment Report"
+description = "Production deployment identity, safety summary, and Task #920 readiness."
+
+[[outputs]]
+id = "atkxVeHKk8n8er8ekLm-i"
+uri = "file://RTV3D_RUNTIME_IDENTITY_AND_SAFETY.md"
+type = "text"
+title = "RTV-3D Runtime Identity and Safety"
+description = "Read-only production verification of identity, safety controls, portfolio parity, mappings, and Kite status."
+
+[[outputs]]
+id = "TT6n0oKZhRvEaCY1yw2iD"
+uri = "file://RTV3D_NEXT_NATURAL_SESSION_GATE.md"
+type = "text"
+title = "RTV-3D Next Natural Session Gate"
+description = "Required evidence and prohibitions for the next scheduled NSE-session validation."
