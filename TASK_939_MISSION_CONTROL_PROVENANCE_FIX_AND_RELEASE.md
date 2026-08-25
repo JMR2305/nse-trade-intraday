@@ -6,11 +6,10 @@
 
 ## Final verdict
 
-**PENDING USER-CONTROLLED PUBLISH AND POST-DEPLOYMENT VERIFICATION**
+A. PASS — PROVENANCE DISPLAY FIXED AND VERIFIED
 
-All local functional, type, build, browser, and source-scope gates pass. Replit
-publishing is user initiated, so no deployment was started from this task and
-the requested deployed-and-verified verdict cannot yet be honestly recorded.
+The approved completion commit was published and every required production
+check passed through read-only requests and a no-click browser audit.
 
 ## Exact binding trace
 
@@ -104,23 +103,21 @@ historical or scan provenance.
   orders were not enabled or modified.
 - Legacy manual scan `e1ded4dfba2e` was not changed or backfilled.
 
-## Controlled publish and post-deploy checklist
+## Controlled publish and post-deployment verification
 
-After the task completion commit is available, publish that exact commit through
-the user-controlled publishing flow. Then run read-only verification only:
+**Published commit:** `fa612a219c2ca2aa682e5af58b051e2da4425c16`
+**Published build ID:** `apexquant-fa612a219c2c`
+**Production URL:** `https://nse-trade-intraday.replit.app`
 
-1. Confirm UI/API build identity matches the approved commit-derived build ID.
-2. Confirm production `market_data_readiness` still reports the recorded
-   closed-market `ZERODHA_KITE` evidence, `YFINANCE` historical provider, and
-   `SCHEDULED` scan provenance.
-3. Confirm Mission Control renders the same values without a loading or
-   unavailable fallback after the health response settles.
-4. Confirm active universe `CUSTOM_LOW_PRICE_SECTOR`, 23 active symbols, and
-   23/23 mappings.
-5. Confirm paper mode, disabled automatic entries/bootstrap/controlled
-   execution/live orders, unchanged portfolio/ledger state, unchanged legacy
-   manual scan, and untouched Task #930 evidence.
-6. Confirm no scan or pre-open lifecycle ran as part of the verification.
-
-Only when all six checks pass may this report be updated to:
-**A. PASS — PROVENANCE DISPLAY FIXED AND VERIFIED**.
+| Required check | Result | Read-only production evidence |
+| --- | --- | --- |
+| Exact approved build published | PASS | `/api/health/details` reports the full approved commit and `apexquant-fa612a219c2c`. |
+| UI/API build identity | PASS | Mission Control renders `UI Build apexquant-fa612a219c2c`, `API Build apexquant-fa612a219c2c`, and `MATCH`. |
+| Authoritative health provenance | PASS | `/api/live-data/health-v2` returned `ZERODHA_KITE`, `2026-08-25T09:53:23Z`, `MARKET_CLOSED_LAST_KNOWN`, `YFINANCE`, and `SCHEDULED` under `market_data_readiness`. |
+| Rendered Mission Control provenance | PASS | After both health GETs settled, the five provenance cards rendered `ZERODHA_KITE`, the exact recorded timestamp, `MARKET CLOSED / LAST KNOWN`, `YFINANCE`, and `SCHEDULED`. No browser console or page errors occurred. |
+| Active universe and mappings | PASS | `CUSTOM_LOW_PRICE_SECTOR` remains active with 23 active symbols and 23/23 complete active mappings. |
+| Paper and execution safety | PASS | Phase 20 has automatic paper entries and bootstrap disabled; broker mode is `PAPER_TRADING`; live-assisted readiness is `NOT_READY`; daily broker orders are zero; controlled paper entry is disabled at the route boundary with `execution_allowed: false`. |
+| Portfolio and ledger | PASS | The Phase 20 ledger remains paper-mode with zero open positions and six closed trades, matching the prior release snapshot. |
+| Legacy manual scan | PASS | Production database read-only query confirms `e1ded4dfba2e` remains `MANUAL`, `SUCCESS`, with 23 requested and 23 received symbols. |
+| Task #930 / pre-open evidence | PASS | A read-only production database query found zero `preopen_sessions` updates after the deployed process started; no pre-open lifecycle was triggered. |
+| No validation mutation | PASS | The audit used GET requests, a production browser with no clicks, and read-only SQL only. Scan status stayed at scheduled scan `e4707672dda6`; no scan, retry, replay, broker, portfolio, universe, or settings mutation was sent. |
