@@ -70,6 +70,7 @@ artifacts/api-server/src/python/phase9_alerts.json
 artifacts/api-server/src/python/phase9_last_regime.json
 artifacts/api-server/src/python/phase9_last_sector.json
 artifacts/api-server/src/python/signals_cache.json
+artifacts/api-server/src/python/state.json
 
 # Auto-generated runtime exports/reports
 exports/
