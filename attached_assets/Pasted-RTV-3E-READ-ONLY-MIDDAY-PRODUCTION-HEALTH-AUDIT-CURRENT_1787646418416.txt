@@ -1,0 +1,342 @@
+RTV-3E — READ-ONLY MIDDAY PRODUCTION HEALTH AUDIT
+
+CURRENT APPROVED PRODUCTION:
+
+APPROVED_DEPLOY_COMMIT =
+9f83f6764e3861e351e6334070d4031a85818876
+
+EXPECTED_BUILD_ID =
+apexquant-9f83f6764e38
+
+GOAL:
+
+Perform a strictly read-only production health audit after RTV-3D deployment.
+
+This is NOT Task #920.
+Do NOT run Phase 5A again today.
+Do NOT trigger any lifecycle or scan.
+
+DO NOT:
+- trigger Phase 5A
+- trigger Phase 5B
+- trigger Phase 5C
+- trigger a market scan
+- retry or replay any pre-open batch
+- create simulated market data
+- enable automatic entries
+- enable bootstrap
+- enable live broker orders
+- place broker orders
+- modify settings
+- modify universe membership
+- modify capital
+- reset portfolio
+- modify ledger/history
+- manually login to Kite
+- refresh/replace credentials
+
+TASK 1 — PRODUCTION IDENTITY
+
+Read:
+
+/api/health/details
+
+Confirm:
+
+environment = production
+
+git_commit =
+9f83f6764e3861e351e6334070d4031a85818876
+
+build_id =
+apexquant-9f83f6764e38
+
+deployment_id = present
+runtime_timestamp = current
+
+If commit/build differs:
+report IDENTITY MISMATCH immediately.
+
+TASK 2 — SERVICE HEALTH
+
+Read-only verify:
+
+- API reachable
+- service_ready
+- data_ready
+- trading_data_ready
+- scheduler health
+- latest scheduler heartbeat
+- DB connectivity
+- major subsystem health
+
+Important:
+Do not interpret trading_data_ready=false as failure without considering
+current market/session timing and data freshness.
+
+TASK 3 — UNIVERSE AUTHORITY
+
+Confirm:
+
+active universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+active count = 23
+
+Verify exact active symbols:
+
+BANKBARODA
+BANKINDIA
+CANBK
+FEDERALBNK
+IDFCFIRSTB
+KTKBANK
+MAHABANK
+PNB
+UNIONBANK
+COALINDIA
+GAIL
+HUDCO
+IRCON
+IRFC
+MRPL
+NBCC
+NMDC
+NTPC
+PFC
+RECLTD
+RVNL
+SAIL
+WIPRO
+
+Report:
+- active count
+- inactive count
+- duplicate active symbols
+- unexpected active symbols
+
+Do not change membership.
+
+TASK 4 — KITE TOKEN / MAPPING HEALTH
+
+READ ONLY.
+
+Confirm:
+
+- credentials present
+- token stored
+- token status
+- token expired
+- connected
+- authenticated
+- login_required
+- mock mode
+
+Mappings:
+
+expected active = 23
+valid mappings = 23
+missing mappings = 0
+duplicate instrument tokens = 0
+
+Report any symbol whose:
+- Kite symbol
+- instrument token
+- trading symbol
+- exchange
+- cache date
+
+is missing.
+
+Do not refresh instruments unless this audit is explicitly changed later.
+
+TASK 5 — CURRENT MARKET-DATA HEALTH
+
+READ ONLY.
+
+For the active 23-symbol universe report:
+
+- quote source/provenance
+- fresh live quote count
+- stale count
+- fallback count
+- synthetic count
+- unavailable count
+- latest_quote_timestamp
+- quote age/freshness
+
+Do not generate or backfill quotes.
+
+Clearly distinguish:
+
+execution-grade current price
+vs
+historical OHLCV / research data.
+
+TASK 6 — PHASE 20 SAFETY SETTINGS
+
+Read:
+
+/api/phase20/settings
+/api/phase20/bootstrap-status
+/api/controlled-paper-entry/status
+/api/broker/status
+
+Require:
+
+auto_paper_entries = false
+entry confirmation = null / absent
+bootstrap = false
+automatic exits = true
+controlled execution = DISABLED
+execution_allowed = false
+live broker orders = disabled
+mode = PAPER_TRADING / research-only
+
+Any automatic-entry or broker-execution enablement:
+CRITICAL FAILURE.
+
+TASK 7 — PORTFOLIO / LEDGER PARITY
+
+Read:
+
+/api/portfolio
+/api/portfolio/snapshot
+
+Require canonical source:
+
+phase20_ledger
+
+Confirm:
+
+initial capital = ₹100,000.00
+cash = ₹99,721.26
+equity = ₹99,721.26
+realized P&L = -₹278.74
+unrealized P&L = ₹0.00
+open positions = 0
+EXIT_PENDING = 0
+
+Confirm both endpoints agree exactly.
+
+Confirm six historical CLOSED round-trip rows remain preserved.
+
+Report any new trade/order/position created today.
+
+Do not modify anything.
+
+TASK 8 — BROKER ORDER CHECK
+
+READ ONLY.
+
+Confirm:
+- broker orders today = 0
+- live broker execution disabled
+
+If any broker order exists:
+report symbol, timestamp, side, source, and status
+without modifying or cancelling it.
+
+TASK 9 — SCHEDULER / JOB AUDIT
+
+Inspect scheduler history since RTV-3D deployment.
+
+Report any naturally fired jobs.
+
+Classify origin:
+
+SCHEDULED
+API_TRIGGERED
+MANUAL
+UNKNOWN
+
+Confirm no unexpected:
+- Phase 5A retry
+- 5B/5C replay
+- manual scan
+- bootstrap
+- automatic entry
+- portfolio reset
+- universe refresh mutation
+
+occurred.
+
+TASK 10 — PRESERVED RTV-3 FAILURE EVIDENCE
+
+Confirm these historical identifiers still exist unchanged:
+
+session =
+preopen-2026-08-25-9b8340
+
+original failed batch =
+collection-6073abbd096c44e7b4e4b51a205696ba
+
+Do not mutate/replay them.
+
+If hashes are available, compare them with prior preserved hashes.
+
+TASK 11 — TASK #920 PROTECTION
+
+Confirm today's audit has NOT:
+
+- created a new Phase 5A certification batch
+- manually retried pre-open
+- simulated the next session
+- generated evidence that could be mistaken for Task #920
+
+Task #920 remains reserved for the next naturally scheduled NSE session.
+
+TASK 12 — OPTIONAL CURRENT UI OBSERVABILITY
+
+READ ONLY.
+
+Check Mission Control/API-visible status for:
+
+- UI/API build identity
+- universe count
+- Kite status
+- readiness
+- scan freshness
+- safety mode
+
+Report discrepancies only.
+
+Do not change UI/runtime code in this audit.
+
+FINAL OUTPUT:
+
+Create:
+
+RTV3E_MIDDAY_PRODUCTION_HEALTH_AUDIT.md
+
+Include:
+
+1. Production identity
+2. Service health
+3. Universe/mapping health
+4. Kite health
+5. Market-data freshness/provenance
+6. Safety settings
+7. Portfolio/ledger parity
+8. Broker order check
+9. Scheduler/job audit
+10. Preserved RTV-3 evidence
+11. Task #920 protection status
+12. Any anomalies
+
+FINAL VERDICT:
+
+A. HEALTHY — TASK #920 BASELINE PRESERVED
+B. IDENTITY MISMATCH
+C. SAFETY REGRESSION
+D. PORTFOLIO/LEDGER REGRESSION
+E. KITE/MAPPING ISSUE
+F. MARKET-DATA HEALTH ISSUE
+G. UNEXPECTED SCHEDULER ACTIVITY
+H. OTHER ANOMALY
+
+FINAL RULE:
+
+READ ONLY.
+
+Do not make any change while performing this audit.

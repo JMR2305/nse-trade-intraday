@@ -740,3 +740,10 @@ uri = "file://RTV3D_NEXT_NATURAL_SESSION_GATE.md"
 type = "text"
 title = "RTV-3D Next Natural Session Gate"
 description = "Required evidence and prohibitions for the next scheduled NSE-session validation."
+
+[[outputs]]
+id = "pyrlGkZxLLt_ruUwXFG3w"
+uri = "file://RTV3E_MIDDAY_PRODUCTION_HEALTH_AUDIT.md"
+type = "text"
+title = "RTV-3E Midday Production Health Audit"
+description = "Read-only production health audit covering identity, service health, custom-universe mappings, Kite, safety controls, portfolio parity, scheduler activity, and Task #920 protection."
