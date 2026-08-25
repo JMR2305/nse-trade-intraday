@@ -1145,12 +1145,15 @@ def main():
             result = get_report()
         elif command == "universe_custom_hydrate_instruments":
             # Reference-data-only hydration. It cannot change membership or
-            # selection fields and fails closed on missing/duplicate mappings.
+            # selection fields, fails closed on missing/duplicate mappings,
+            # and requires a separate explicit metadata-only approval.
             from custom_universe_store import hydrate_active_instrument_metadata
             from kite_instrument_cache import cache_status, get_cached_instruments
             cache = cache_status()
             result = hydrate_active_instrument_metadata(
-                get_cached_instruments(), cache.get("date")
+                get_cached_instruments(),
+                cache.get("date"),
+                approved="--approve-metadata-only-hydration" in sys.argv,
             )
 
         elif command == "pre_market_data_readiness":
@@ -3475,13 +3478,20 @@ def main():
             from kite_instrument_cache import refresh
             force = "--force" in sys.argv
             result = refresh(force=force)
-            if result.get("success"):
+            if result.get("success") and "--approve-metadata-only-hydration" in sys.argv:
                 from custom_universe_store import hydrate_active_instrument_metadata
                 from kite_instrument_cache import cache_status, get_cached_instruments
                 cache = cache_status()
                 result["custom_universe_hydration"] = hydrate_active_instrument_metadata(
-                    get_cached_instruments(), cache.get("date")
+                    get_cached_instruments(), cache.get("date"), approved=True
                 )
+            elif result.get("success"):
+                result["custom_universe_hydration"] = {
+                    "success": False,
+                    "skipped": True,
+                    "error": "metadata_hydration_approval_required",
+                    "confirmation_required": "HYDRATE_INSTRUMENT_METADATA_ONLY",
+                }
         elif command == "kite_instrument_cache_status":
             from kite_instrument_cache import cache_status
             result = {"success": True, **cache_status()}

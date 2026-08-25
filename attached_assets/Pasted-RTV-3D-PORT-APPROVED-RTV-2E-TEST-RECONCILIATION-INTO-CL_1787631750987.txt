@@ -1,0 +1,355 @@
+RTV-3D — PORT APPROVED RTV-2E TEST RECONCILIATION INTO CLEAN TASK #918 RELEASE
+
+Use:
+- RTV3C_CLEAN_RELEASE_SCOPE_REPORT.md
+- RTV3C_CONTROLLED_DEPLOYMENT_REPORT.md
+- RTV3C_NEXT_NATURAL_SESSION_GATE.md
+- RTV2E_TEST_RECONCILIATION_REPORT.md
+- RTV2E_FINAL_TEST_GATE.md
+- TASK_918_SUMMARY.md
+
+CURRENT CLEAN RELEASE BRANCH:
+
+release/task918-phase5a-coverage
+
+BASE:
+
+2e54e5e2f23f8ac5df86c9ec97aceeb3c8426832
+
+CURRENT STATUS:
+
+Task #918 source scope = PASS
+Task #918 runtime fix = present
+Deployment = blocked by one stale baseline test expectation
+
+BLOCKING TEST:
+
+test_daily_session_and_pipeline_e2e.py::
+TestOpenAlert::
+test_run_tick_alerts_even_when_auto_scan_disabled
+
+Observed calls:
+
+session_init_open_alert:2026-08-25
+system_heartbeat:2026-08-25:09:3
+
+This exact stale expectation was already reconciled and approved in RTV-2E.
+
+GOAL:
+
+Port ONLY the already-approved RTV-2E test assertion correction required to make
+the clean production-base test suite accurately reflect the unchanged runtime.
+
+Do not modify Task #918 runtime code to satisfy the test.
+
+Do not weaken coverage.
+
+Do not import unrelated RTV-2E runtime/evidence changes.
+
+TASK 1 — VERIFY RTV-2E PRECEDENT
+
+Inspect RTV2E_TEST_RECONCILIATION_REPORT.md and the corresponding approved test
+change.
+
+Confirm:
+
+- old assertion relied on total kv_claim_once call count
+- production heartbeat legitimately performs a separate claim
+- new assertion verifies the expected session-init alert key specifically
+- new assertion allows the distinct system-heartbeat claim
+- runtime behavior did not change
+- coverage became stronger, not weaker
+
+If this does not match the current failure:
+STOP.
+
+TASK 2 — IDENTIFY EXACT TEST DIFF
+
+Locate the exact RTV-2E change affecting:
+
+test_daily_session_and_pipeline_e2e.py
+
+Report:
+
+- changed lines
+- old assertion
+- new assertion
+- any fixture changes
+- runtime files changed by that reconciliation
+
+Required:
+
+runtime files changed = 0
+
+TASK 3 — PORT ONLY THE TEST FIX
+
+Apply only the approved test assertion/fixture change to:
+
+release/task918-phase5a-coverage
+
+Do not cherry-pick an entire mixed RTV-2E commit if it includes reports or
+unrelated files.
+
+The clean candidate may now contain:
+
+TASK #918:
+- 6 approved runtime files
+- 3 approved Task #918 tests
+
+PLUS:
+
+RTV-2E:
+- the minimal daily-session test assertion correction only
+
+No other runtime file may be added.
+
+TASK 4 — SOURCE-SCOPE RECHECK
+
+Compare:
+
+production base
+2e54e5e2f23f8ac5df86c9ec97aceeb3c8426832
+
+→ clean repaired candidate
+
+List every changed file.
+
+Classify:
+
+- Task #918 runtime
+- Task #918 tests
+- approved RTV-2E stale-test reconciliation
+- unrelated
+
+Require:
+
+unrelated runtime = 0
+unrelated test = 0
+
+Specifically verify there are still NO changes to:
+
+- Mission Control
+- dashboard build identity
+- build/deployment scripts
+- state.json
+- strategy
+- entry engine
+- broker execution
+- portfolio
+- ledger
+- universe membership
+- automatic-entry settings
+
+TASK 5 — RUN THE BLOCKING TEST FIRST
+
+Run:
+
+test_daily_session_and_pipeline_e2e.py::
+TestOpenAlert::
+test_run_tick_alerts_even_when_auto_scan_disabled
+
+Require PASS.
+
+Verify the test proves:
+
+1. session-init alert claim occurred
+2. correct date-specific alert key was used
+3. system heartbeat may coexist
+4. duplicate protection remains effective
+
+TASK 6 — FULL DAILY SESSION SUITE
+
+Run the complete daily-session/pipeline suite.
+
+Expected:
+27 passed
+0 failed
+
+If anything remains red:
+STOP.
+
+TASK 7 — FULL RTV-3C RELEASE GATE
+
+Now rerun ALL required suites on this exact clean branch:
+
+- Phase 5A engine/lifecycle/provider/scheduler/persistence/coverage
+- Phase 20 safety
+- Daily session and pipeline
+- Canonical portfolio
+- Readiness / overnight-entry safety
+- Scan history/status and custom universe
+- API build
+- API TypeScript
+- Workspace TypeScript
+- Python compilation
+
+Reference expectations:
+
+Phase 5A = 169 passed
+Phase 20 = 62 passed
+Daily session = 27 passed
+Canonical portfolio = expected full pass
+Readiness / overnight safety = 67 passed
+Scan/custom universe = 89 passed + 10 subtests
+
+No unexpected failures.
+
+Do not weaken tests.
+
+TASK 8 — TASK #918 FIX PRESENCE
+
+Reconfirm clean candidate still implements:
+
+1. durable active-universe resolution before provider selection
+2. exact requested-symbol propagation
+3. provider-cache isolation by normalized symbol set
+4. no legacy DEFAULT_WATCHLIST substitution
+5. COVERAGE_INCOMPLETE on partial collections
+6. full expected/returned/missing/duplicate/malformed/unexpected evidence
+7. complete coverage required for verified batch
+8. exact persisted-vs-expected identity check before freeze
+
+TASK 9 — SCHEMA SAFETY
+
+Run the production schema-diff check.
+
+Require:
+
+- no destructive SQL
+- no DROP
+- no TRUNCATE
+- no table recreation
+- no historical evidence rewrite
+
+If additive Task #918 fields are required, show exact SQL and classify them.
+
+TASK 10 — PRESERVE FAILED RTV-3 EVIDENCE
+
+Do not modify:
+
+session =
+preopen-2026-08-25-9b8340
+
+batch =
+collection-6073abbd096c44e7b4e4b51a205696ba
+
+These remain immutable evidence of the original 10-symbol failure.
+
+TASK 11 — CREATE APPROVED RELEASE COMMIT
+
+Only after Tasks 1–10 pass:
+
+commit the clean candidate.
+
+Report:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first 12 SHA chars>
+
+The approved release commit may contain ONLY:
+
+- Task #918 scoped runtime/test changes
+- minimal RTV-2E approved stale-test reconciliation
+
+TASK 12 — CONTROLLED PRODUCTION PUBLISH
+
+Publish only APPROVED_DEPLOY_COMMIT.
+
+Do not trigger:
+- Phase 5A
+- 5B
+- 5C
+- scans
+- entry jobs
+- broker actions
+
+TASK 13 — RUNTIME IDENTITY
+
+Immediately require:
+
+environment = production
+git_commit = APPROVED_DEPLOY_COMMIT
+build_id = EXPECTED_BUILD_ID
+deployment_id = present
+runtime_timestamp = current
+
+Any mismatch:
+STOP.
+
+TASK 14 — POST-DEPLOY SAFETY
+
+READ ONLY.
+
+Require:
+
+active universe = CUSTOM_LOW_PRICE_SECTOR
+active count = 23
+mappings = 23/23
+
+auto_paper_entries = false
+confirmation = null
+bootstrap = false
+automatic exits = true
+live broker orders = disabled
+
+open rows = 0
+EXIT_PENDING = 0
+six historical CLOSED rows preserved
+realized P&L = -278.74
+
+canonical portfolio parity preserved
+
+TASK 15 — KITE STATUS
+
+READ ONLY.
+
+Report:
+
+credentials_present
+token_status
+token_stored
+token_expired
+connected
+authenticated
+login_required
+
+Do not manually login during this deployment gate.
+
+TASK 16 — NEXT NATURAL SESSION
+
+Do NOT perform Task #920 today.
+
+Today's natural Phase 5A window has already passed.
+
+After successful deployment:
+STOP.
+
+Use RTV3A_NEXT_NATURAL_SESSION_GATE.md during the next naturally scheduled NSE
+session.
+
+TASK 17 — OUTPUT
+
+Create:
+
+1. RTV3D_TEST_RECONCILIATION_AND_SCOPE.md
+2. RTV3D_CONTROLLED_DEPLOYMENT_REPORT.md
+3. RTV3D_RUNTIME_IDENTITY_AND_SAFETY.md
+4. RTV3D_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL VERDICT:
+
+A. RTV-3D DEPLOYMENT PASS — TASK #920 READY
+B. STALE TEST RECONCILIATION FAILED
+C. CLEAN SOURCE SCOPE FAILED
+D. FULL TEST GATE FAILED
+E. SCHEMA FAILURE
+F. DEPLOYMENT IDENTITY FAILURE
+G. SAFETY REGRESSION
+H. KITE LOGIN REQUIRED
+
+FINAL RULE:
+
+Do not change production runtime behavior to satisfy the stale daily-session test.
+
+Port only the previously approved RTV-2E test correction, rerun the full release
+gate, and deploy only the clean Task #918 candidate.

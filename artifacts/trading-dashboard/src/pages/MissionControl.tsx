@@ -83,12 +83,29 @@ const WidgetFallback = ({ h = "h-40" }: { h?: string }) => (
 );
 
 const LABEL = "PAPER TRADING / RESEARCH ONLY";
-// APEXQUANT_BUILD_ID is injected at Vite build time via vite.config.ts define block
-// and set unconditionally in the build npm script so the platform always receives it.
-const FRONTEND_BUILD_ID = import.meta.env.VITE_BUILD_ID ?? "development";
+const PRODUCT_VERSION = (import.meta.env.VITE_PRODUCT_VERSION as string | undefined) ?? "v1.0.0";
+const UI_GIT_COMMIT = import.meta.env.VITE_UI_GIT_COMMIT as string | undefined;
+const FRONTEND_BUILD_ID = import.meta.env.VITE_UI_BUILD_ID as string | undefined;
 
-export function buildIdsMatch(uiBuildId: string, apiBuildId: string | null | undefined): boolean {
-  return Boolean(apiBuildId && apiBuildId === uiBuildId);
+export type BuildIdentityState =
+  | "loading"
+  | "missing-ui"
+  | "missing-api"
+  | "match"
+  | "mismatch";
+
+export function buildIdsMatch(uiBuildId: string | null | undefined, apiBuildId: string | null | undefined): boolean {
+  return Boolean(uiBuildId && apiBuildId && apiBuildId === uiBuildId);
+}
+
+export function getBuildIdentityState(
+  uiBuildId: string | null | undefined,
+  apiBuildId: string | null | undefined,
+): BuildIdentityState {
+  if (!uiBuildId?.trim() || uiBuildId === "production-unidentified") return "missing-ui";
+  if (apiBuildId === undefined) return "loading";
+  if (!apiBuildId?.trim() || apiBuildId === "production-unidentified") return "missing-api";
+  return buildIdsMatch(uiBuildId, apiBuildId) ? "match" : "mismatch";
 }
 
 function formatIstRefreshTime(timestamp: number): string {
@@ -101,25 +118,59 @@ function formatIstRefreshTime(timestamp: number): string {
   }).format(new Date(timestamp));
 }
 
-export function ScanBuildIdentity({ apiBuildId, lastRefreshedAt }: {
+export function ScanBuildIdentity({
+  apiBuildId,
+  lastRefreshedAt,
+  uiBuildId,
+  uiGitCommit,
+  productVersion,
+}: {
   apiBuildId: string | null | undefined;
   lastRefreshedAt: number;
+  uiBuildId?: string | null;
+  uiGitCommit?: string | null;
+  productVersion?: string;
 }) {
-  const apiLabel = apiBuildId ?? "loading";
-  const checked = apiBuildId != null;
-  const matches = buildIdsMatch(FRONTEND_BUILD_ID, apiBuildId);
+  const uiLabel = uiBuildId === undefined ? FRONTEND_BUILD_ID : uiBuildId;
+  const commitLabel = uiGitCommit === undefined ? UI_GIT_COMMIT : uiGitCommit;
+  const productLabel = productVersion ?? PRODUCT_VERSION;
+  const state = getBuildIdentityState(uiLabel, apiBuildId);
+  const statusLabel: Record<BuildIdentityState, string> = {
+    loading: "CHECKING",
+    "missing-ui": "UI IDENTITY UNAVAILABLE",
+    "missing-api": "API IDENTITY UNAVAILABLE",
+    match: "MATCH",
+    mismatch: "MISMATCH",
+  };
+  const statusClass: Record<BuildIdentityState, string> = {
+    loading: "text-muted-foreground",
+    "missing-ui": "text-amber-400",
+    "missing-api": "text-amber-400",
+    match: "text-emerald-400",
+    mismatch: "text-red-400",
+  };
+  const statusTitle: Record<BuildIdentityState, string> = {
+    loading: "Waiting for the API deployment identity",
+    "missing-ui": "The dashboard bundle has no source-derived UI identity; rebuild it from a captured commit",
+    "missing-api": "The API did not provide a source-derived deployment identity",
+    match: "UI and API deployment build IDs match exactly",
+    mismatch: "UI and API deployment build IDs differ; coordinate a deployment or investigate the served asset",
+  };
   return (
-    <span className="inline-flex flex-wrap items-center gap-1 text-[8px] font-mono text-muted-foreground" data-testid="mc-build-ids">
-      <span>UI {FRONTEND_BUILD_ID} · API {apiLabel}</span>
-      {checked && (
-        <span
-          className={matches ? "text-emerald-400" : "text-red-400"}
-          data-testid="mc-build-match"
-          title={matches ? "Browser and API build IDs match" : "Browser and API build IDs differ; refresh or investigate the deployment"}
-        >
-          · {matches ? "Builds match" : "Build mismatch"}
-        </span>
-      )}
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[8px] font-mono text-muted-foreground" data-testid="mc-build-ids">
+      <span data-testid="mc-product-version">Product Version {productLabel}</span>
+      <span data-testid="mc-ui-build" title={commitLabel ? `Source commit: ${commitLabel}` : undefined}>
+        UI Build {uiLabel ?? "unavailable"}
+      </span>
+      <span data-testid="mc-api-build">API Build {apiBuildId ?? "loading"}</span>
+      <span
+        className={statusClass[state]}
+        data-testid="mc-build-match"
+        title={statusTitle[state]}
+        role={state === "mismatch" || state === "missing-ui" || state === "missing-api" ? "alert" : undefined}
+      >
+        {statusLabel[state]}
+      </span>
       {lastRefreshedAt > 0 && (
         <span data-testid="mc-last-refreshed">· Last refreshed {formatIstRefreshTime(lastRefreshedAt)} IST</span>
       )}

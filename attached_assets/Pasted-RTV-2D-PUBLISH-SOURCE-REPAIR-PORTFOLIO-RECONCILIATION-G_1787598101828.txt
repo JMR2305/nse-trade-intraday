@@ -1,0 +1,270 @@
+RTV-2D — PUBLISH SOURCE REPAIR + PORTFOLIO RECONCILIATION GATE
+
+Use:
+- RTV2C_AUTO_ENTRY_ROOT_CAUSE.md
+- RTV2C_SAFETY_AUTHORITY_MAP.md
+- RTV2C_CONTROLLED_DEPLOYMENT_REPORT.md
+- RTV2C_RUNTIME_IDENTITY_AND_SAFETY.md
+- RTV2C_NEXT_NATURAL_SESSION_GATE.md
+- RTV2A_SUMMARY.md
+
+GOAL:
+Publish the verified RTV-2C source safety repair, but first reconcile the apparent
+portfolio cash inconsistency and prove the final deploy candidate is safe.
+
+CURRENT PRODUCTION:
+git_commit =
+393747a8102ee3fc8adaa36d60b6ed8db18bc4b8
+
+CURRENT PRODUCTION SAFETY SETTING:
+auto_paper_entries = false
+auto_paper_entries_confirmed_at = null
+bootstrap = false
+auto exits = true
+
+SOURCE REPAIR EXISTS BUT IS NOT YET PUBLISHED.
+
+DO NOT:
+- enable automatic entries
+- enable bootstrap
+- enable live broker orders
+- change universe
+- change strategy/thresholds
+- reset portfolio
+- modify historical ledger
+- trigger 5A/5B/5C
+- trigger scans
+- place broker orders
+
+TASK 1 — FINAL SOURCE SCOPE
+
+Record:
+- current branch
+- HEAD SHA
+- git status
+- all commits since production commit 393747a...
+- every changed runtime file
+
+Confirm the candidate includes:
+- auto_paper_entries default false
+- confirmation default null
+- daily initializer no longer enables entries
+- fail-closed durable-settings behavior
+- Phase 22 controlled activation delegation
+- RTV-2A Phase 5A persistence fixes
+- GET observation purity
+- scan origin metadata
+
+Flag unrelated trading changes.
+
+TASK 2 — PORTFOLIO CASH RECONCILIATION
+
+RTV-2C runtime report observed:
+- realised P&L = -278.74
+- six CLOSED rows
+- no open positions
+- portfolio cash = 100000
+
+Previous canonical baseline was:
+- initial capital = 100000
+- realised P&L = -278.74
+- cash/equity = 99721.26
+
+Determine the exact reason for the discrepancy.
+
+Read only:
+- /api/portfolio
+- /api/portfolio/snapshot
+- Phase20 ledger
+- canonical portfolio calculation
+- any cash/capital aliases
+
+Report separately:
+- initial_capital
+- cash
+- available_cash
+- equity
+- realised_pnl
+- unrealised_pnl
+- total_pnl
+- open_position_cost
+
+Require both portfolio endpoints to use the same canonical semantics.
+
+Do NOT reset or rewrite ledger history.
+
+TASK 3 — RAW LEDGER RECOMPUTE
+
+Independently recompute the six CLOSED rows.
+
+Require:
+realised P&L = -278.74
+
+If no open positions and no other capital adjustments exist, explain whether
+cash/equity should be 99721.26 or why a different number is correct.
+
+Do not guess.
+
+TASK 4 — AUTOMATIC ENTRY AUTHORITY RECHECK
+
+Confirm:
+- phase20_store PostgreSQL row is authoritative
+- JSON is default/warm cache only
+- daily initializer cannot enable entry
+- scheduler cannot enable entry
+- executor cannot enable entry
+- Phase 22 typed-confirmation path is the only activation authority
+- missing/malformed/unavailable durable state fails closed
+
+TASK 5 — PRODUCTION ACTIVATION HISTORY
+
+Confirm whether automatic entries were ever actually enabled in production,
+and whether any paper BUY was created after the last known safe session.
+
+Report:
+- earliest evidence of enabled state
+- latest evidence
+- any associated paper trade rows
+- whether source-only or runtime activation occurred
+
+Do not alter records.
+
+TASK 6 — TEST GATE
+
+Run:
+- Phase20 settings/exits tests
+- bootstrap tests
+- entry-admission tests
+- fail-closed settings tests
+- daily initialization tests
+- Phase22 activation tests
+- RTV-2A Phase5A/scan/readiness tests
+- GET observation purity tests
+- portfolio parity tests
+- ledger integrity tests
+- custom-universe tests
+- API build/typecheck
+
+No weakened tests.
+
+TASK 7 — SCHEMA SAFETY
+
+Require:
+- no destructive publish migration
+- no DROP
+- no TRUNCATE
+- no historical data rewrite
+
+Show exact schema diff.
+
+TASK 8 — APPROVED DEPLOY COMMIT
+
+After Tasks 1–7 pass:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first 12 SHA chars>
+
+TASK 9 — CONTROLLED PUBLISH
+
+Publish the approved source repair.
+
+Do not trigger scans or pre-open lifecycle.
+
+TASK 10 — RUNTIME IDENTITY
+
+Require production:
+
+environment = production
+git_commit = APPROVED_DEPLOY_COMMIT
+build_id = EXPECTED_BUILD_ID
+deployment_id = present
+runtime_timestamp = current
+
+Mismatch = STOP.
+
+TASK 11 — POST-DEPLOY SAFETY
+
+READ ONLY.
+
+Require:
+- auto_paper_entries = false
+- confirmation = null
+- bootstrap = false
+- auto exits = true
+- live broker orders disabled
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- mappings = 23/23
+- no open/EXIT_PENDING rows
+
+TASK 12 — POST-DEPLOY PORTFOLIO PARITY
+
+Require:
+
+/api/portfolio
+==
+/api/portfolio/snapshot
+
+for all canonical fields.
+
+Record exact:
+- initial capital
+- cash
+- equity
+- realised P&L
+- unrealised P&L
+- open positions
+
+Preserve the six historical CLOSED rows.
+
+TASK 13 — KITE CHECK
+
+Verify:
+- credentials present
+- token status
+- token stored
+- connected
+- authenticated
+- login required
+
+If manual login is required, report it.
+Do not create credentials automatically.
+
+TASK 14 — FINAL VERDICT
+
+Allowed:
+
+A. RTV-2D PASS — NEXT NATURAL SESSION UNLOCKED
+B. SOURCE SAFETY FAILURE
+C. PORTFOLIO RECONCILIATION FAILURE
+D. UNAUTHORIZED TRADE DETECTED
+E. TEST FAILURE
+F. SCHEMA FAILURE
+G. DEPLOYMENT IDENTITY FAILURE
+H. KITE LOGIN REQUIRED
+
+PASS requires:
+1. source repair deployed
+2. exact runtime identity
+3. automatic entries false
+4. confirmation null
+5. daily initializer cannot enable entries
+6. no unauthorized trades
+7. portfolio endpoints reconcile
+8. historical -278.74 P&L preserved
+9. universe 23 preserved
+10. bootstrap/live orders disabled
+11. RTV-2A fixes preserved
+
+OUTPUT:
+
+1. RTV2D_CONTROLLED_DEPLOYMENT_REPORT.md
+2. RTV2D_PORTFOLIO_RECONCILIATION.md
+3. RTV2D_RUNTIME_IDENTITY_AND_SAFETY.md
+4. RTV2D_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL RULE:
+
+Do not unlock natural-session certification until the repaired source is actually
+running in production and both the automatic-entry state and portfolio truth are
+reconciled.

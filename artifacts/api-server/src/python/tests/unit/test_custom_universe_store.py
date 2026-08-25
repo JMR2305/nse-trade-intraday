@@ -443,7 +443,7 @@ class TestInstrumentMetadataHydration(unittest.TestCase):
         with patch.object(custom_universe_store, "_db_available", return_value=True), \
              patch.object(custom_universe_store, "_connect", fake_connect):
             result = custom_universe_store.hydrate_active_instrument_metadata(
-                instruments, "2026-08-24"
+                instruments, "2026-08-24", approved=True
             )
 
         self.assertTrue(result["success"], result)
@@ -458,6 +458,105 @@ class TestInstrumentMetadataHydration(unittest.TestCase):
         self.assertIn("instrument_mapping_at", update_sql)
         self.assertNotIn("is_active = %s", update_sql)
         self.assertNotIn("sector = %s", update_sql)
+
+    def test_hydration_requires_separate_metadata_only_approval(self):
+        import custom_universe_store
+
+        result = custom_universe_store.hydrate_active_instrument_metadata(
+            [], "2026-08-24"
+        )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"], "metadata_hydration_approval_required")
+        self.assertEqual(
+            result["confirmation_required"],
+            custom_universe_store.METADATA_HYDRATION_CONFIRMATION,
+        )
+
+    def test_mapping_review_treats_today_as_fresh_and_yesterday_as_stale(self):
+        import datetime
+        import custom_universe_store
+
+        def row_with_cache_date(cache_date):
+            row = list(_sample_row("WIPRO", is_active=True))
+            row[3] = 12345
+            row[21] = cache_date
+            row[22] = datetime.datetime.combine(
+                cache_date,
+                datetime.time(12, 0),
+                tzinfo=datetime.timezone.utc,
+            )
+            return tuple(row)
+
+        with patch.object(
+            custom_universe_store,
+            "get_all_symbols",
+            return_value=[custom_universe_store._serialise(
+                row_with_cache_date(datetime.date.today())
+            )],
+        ):
+            fresh_status = custom_universe_store.get_status()
+
+        with patch.object(
+            custom_universe_store,
+            "get_all_symbols",
+            return_value=[custom_universe_store._serialise(
+                row_with_cache_date(datetime.date.today() - datetime.timedelta(days=1))
+            )],
+        ):
+            stale_status = custom_universe_store.get_status()
+
+        self.assertEqual(fresh_status["instrument_metadata"]["cache_age_days"], 0)
+        self.assertFalse(fresh_status["instrument_metadata"]["refresh_required"])
+        self.assertEqual(stale_status["instrument_metadata"]["cache_age_days"], 1)
+        self.assertTrue(stale_status["instrument_metadata"]["refresh_required"])
+
+    def test_mapping_review_does_not_mask_stale_or_malformed_active_rows(self):
+        import datetime
+        import custom_universe_store
+
+        def row_with_cache_date(symbol, cache_date):
+            row = list(_sample_row(symbol, is_active=True))
+            row[3] = 12345
+            row[21] = cache_date
+            row[22] = datetime.datetime.combine(
+                datetime.date.today(),
+                datetime.time(12, 0),
+                tzinfo=datetime.timezone.utc,
+            )
+            return custom_universe_store._serialise(tuple(row))
+
+        today_row = row_with_cache_date("WIPRO", datetime.date.today())
+        yesterday_row = row_with_cache_date(
+            "IRFC",
+            datetime.date.today() - datetime.timedelta(days=1),
+        )
+        malformed_row = row_with_cache_date("PNB", datetime.date.today())
+        malformed_row["instrument_cache_date"] = "not-a-date"
+
+        with patch.object(
+            custom_universe_store,
+            "get_all_symbols",
+            return_value=[today_row, yesterday_row],
+        ):
+            mixed_status = custom_universe_store.get_status()
+
+        with patch.object(
+            custom_universe_store,
+            "get_all_symbols",
+            return_value=[today_row, malformed_row],
+        ):
+            malformed_status = custom_universe_store.get_status()
+
+        mixed = mixed_status["instrument_metadata"]
+        self.assertEqual(mixed["newest_cache_age_days"], 0)
+        self.assertEqual(mixed["cache_age_days"], 1)
+        self.assertEqual(mixed["stale_mapping_count"], 1)
+        self.assertTrue(mixed["refresh_required"])
+
+        malformed = malformed_status["instrument_metadata"]
+        self.assertEqual(malformed["invalid_mapping_count"], 1)
+        self.assertTrue(malformed["refresh_required"])
 
     def test_serialised_rows_include_reference_metadata(self):
         import custom_universe_store
@@ -475,7 +574,7 @@ class TestInstrumentMetadataHydration(unittest.TestCase):
         with patch.object(custom_universe_store, "_db_available", return_value=True), \
              patch.object(custom_universe_store, "_connect", fake_connect):
             result = custom_universe_store.hydrate_active_instrument_metadata(
-                [], "2026-08-24"
+                [], "2026-08-24", approved=True
             )
 
         self.assertFalse(result["success"])

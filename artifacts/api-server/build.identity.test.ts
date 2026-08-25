@@ -5,33 +5,33 @@ import path from "node:path";
 import { resolveBuildIdentity } from "./build.mjs";
 
 describe("API build identity injection", () => {
-  it("uses an exact configured source commit and replaces the retired generic build label", () => {
+  it("uses an exact configured source commit and derives its build ID", () => {
     const commit = "a".repeat(40);
 
     expect(resolveBuildIdentity({
       APEXQUANT_GIT_COMMIT: commit,
-      APEXQUANT_BUILD_ID: "apexquant-v1.0.0",
     } as NodeJS.ProcessEnv)).toEqual({
       gitCommit: commit,
       buildId: "apexquant-aaaaaaaaaaaa",
     });
   });
 
-  it("replaces the retired Phase 0C label with a commit-derived build ID", () => {
+  it("rejects retired or generic configured deployment labels", () => {
     const commit = "c".repeat(40);
-
-    expect(resolveBuildIdentity({
-      APEXQUANT_GIT_COMMIT: commit,
-      APEXQUANT_BUILD_ID: "apexquant-phase0c-20260821",
-    } as NodeJS.ProcessEnv)).toEqual({
-      gitCommit: commit,
-      buildId: "apexquant-cccccccccccc",
-    });
+    for (const label of ["apexquant-v1.0.0", "apexquant-phase0c-20260821", "1"]) {
+      expect(() => resolveBuildIdentity({
+        APEXQUANT_GIT_COMMIT: commit,
+        APEXQUANT_BUILD_ID: label,
+      } as NodeJS.ProcessEnv)).toThrow("Invalid API build identity");
+    }
   });
 
-  it("fails closed when no exact source commit can be resolved", () => {
+  it("fails closed when no full source commit can be resolved", () => {
     expect(() => resolveBuildIdentity({
       APEXQUANT_GIT_COMMIT: "unknown",
+    } as NodeJS.ProcessEnv)).toThrow("Unable to resolve an exact source commit");
+    expect(() => resolveBuildIdentity({
+      APEXQUANT_GIT_COMMIT: "a".repeat(11),
     } as NodeJS.ProcessEnv)).toThrow("Unable to resolve an exact source commit");
   });
 

@@ -1,0 +1,6 @@
+phase,observation_status,observation_time_ist,service_ready,data_ready,session_fresh,trading_data_ready,active_universe_count,valid_token_count,missing_token_count,kite_count,fallback_count,stale_count,unavailable_count,synthetic_count,latest_scan_timestamp,latest_quote_timestamp,scan_origin,exact_blocker
+PRE_SESSION,OBSERVED,2026-08-25T00:52:01+05:30,true,true,true,false,23,23,0,23,0,0,0,0,2026-08-24T15:07:05+05:30,,SCHEDULED,"No current-session fresh quote timestamp; no natural-session transition observed"
+AFTER_PHASE_5A,NOT_OBSERVED,,,,,,,,,,,,,,,,,Session had not opened
+AFTER_5B_5C,NOT_OBSERVED,,,,,,,,,,,,,,,,,Session had not opened
+AFTER_SCHEDULED_SCAN,NOT_OBSERVED,,,,,,,,,,,,,,,,,Session had not opened
+POST_PHASE_5A,FAILURE_OBSERVED,2026-08-25T09:09:28+05:30,true,true,true,false,23,23,0,23,0,0,0,0,2026-08-24T15:07:05+05:30,,SCHEDULED,"Natural Phase 5A persisted 10/23; freeze and downstream readiness transition not allowed"

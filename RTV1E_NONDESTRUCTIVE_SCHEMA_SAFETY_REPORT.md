@@ -128,3 +128,33 @@ The previous destructive migration is not approved. Only the regenerated
 zero-statement schema plan is safe to approve. Any subsequent publishing or
 RTV-1E production verification must stop again if runtime identity does not
 match the approved source candidate.
+
+## Instrument mapping refresh review — 2026-08-25 (read-only)
+
+Production was queried with `SELECT` statements only. No cache refresh,
+metadata hydration, membership refresh, scan, or order action was run.
+
+| Check | Result |
+|---|---:|
+| Total custom-universe rows | 26 |
+| Active rows | 23 |
+| Inactive rows | 3 |
+| Active BANK / INFRA / IT | 9 / 13 / 1 |
+| Active rows with all instrument-reference fields | 23 / 23 |
+| Mapping exchange | NSE for all active rows |
+| Stored instrument cache date | 2026-08-23 for all active rows |
+| Stored mapping timestamp | 2026-08-23T22:07:53.315696Z for all active rows |
+
+The mappings are complete and their stored provenance is internally
+consistent. They are nevertheless two calendar days old, while the instrument
+cache has a one-day freshness policy. A metadata-only refresh is therefore
+appropriate **only after an operator gives a separate, explicit approval**.
+
+The approved control is intentionally separate from an instrument-cache
+refresh and requires both the universe admin credential and the exact
+confirmation `HYDRATE_INSTRUMENT_METADATA_ONLY`. It updates only
+`instrument_exchange`, `instrument_tradingsymbol`, `instrument_token`,
+`instrument_cache_date`, and `instrument_mapping_at` for existing active rows.
+It does not update membership, active status, sector, selection criteria, or
+the membership-history table. The 23-row active membership and 9 BANK / 13
+INFRA / 1 IT split are therefore preserved by the metadata-only operation.

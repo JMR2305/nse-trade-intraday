@@ -121,7 +121,7 @@
 - [OHLCV cold-start check](ohlcv-cold-start.md) — token-fenced expiring takeover (not kv_claim_once); ColdStartTestCase per-test save/restore avoids cross-file sys.modules contamination.
 - [Paper-capital admission concurrency](paper-capital-migration-concurrency.md) — migration, entry state, and final exposure sizing share one advisory gate; gate-time snapshots are not authoritative.
 - [Scheduled scan cache invalidation](scheduled-scan-cache-invalidation.md) — lifecycle events must invalidate status/history caches; no-store headers and browser cache busting cannot clear server TTL entries.
-- [Public build-ID labels](public-build-id-labels.md) — shared APEXQUANT_BUILD_ID bumped in 3 places together; missing prod value = production-unidentified, never development; verify published bundles by curling the hashed asset.
+- [Public build-ID labels](public-build-id-labels.md) — UI/API identities are commit-derived via source handoff; product version is separate and MATCH requires exact build equality.
 - [Custom universe historical membership](custom-universe-history.md) — mutable universe masters need append-only refresh snapshots for no-look-ahead backtests; current rows are never historical truth.
 - [EOD paper outcome audit](eod-paper-outcome-audit.md) — EOD requires an acknowledged ledger close or one deduped blocked outcome; retry audit writes only, never repeat a sell.
 - [Phase 0B post-cutoff entry root cause](phase0b-post-cutoff-root-cause.md) — exits clear gates before entries on the same _manage_paper() tick; deployed code lacked PAPER_ENTRY_CUTOFF guard; stale 14:49 snapshot used at 15:25 IST; server down during POST_CLOSE → EOD missed.
@@ -130,3 +130,5 @@
 - [Static architecture audit boundary](static-architecture-audit.md) — architecture inventories are source-derived; never treat table/state presence or route reachability as runtime-verified without live evidence.
 - [Trading-data readiness contract](trading-data-readiness.md) — never infer trading readiness from service health; require full token coverage plus fresh scan and per-quote provenance timestamps.
 - [Python-managed schema parity](python-managed-schema-parity.md) — durable columns belong in canonical CREATE TABLE, never production-only runtime ALTER paths.
+- [RTV-2D test harness](rtv2d-test-harness.md) — legacy Python scripts require source-dir CWD, isolated processes, and cleanup of generated local fixtures.
+- [Phase 5A universe coverage](phase5a-universe-coverage.md) — parity is insufficient; settings outages and incomplete exact symbol sets must fail closed.

@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 TABLE = "custom_universe_master"
 ALLOWED_UNIVERSE = "CUSTOM_LOW_PRICE_SECTOR"
+METADATA_HYDRATION_CONFIRMATION = "HYDRATE_INSTRUMENT_METADATA_ONLY"
 
 
 def _db_available() -> bool:
@@ -290,6 +291,8 @@ def get_active_symbol_metadata() -> Dict[str, Dict[str, Any]]:
 def hydrate_active_instrument_metadata(
     instruments: Optional[List[Dict[str, Any]]] = None,
     cache_date: Optional[str] = None,
+    *,
+    approved: bool = False,
 ) -> Dict[str, Any]:
     """Hydrate only instrument-reference metadata for the current active set.
 
@@ -297,8 +300,21 @@ def hydrate_active_instrument_metadata(
     selection or membership fields are included in the UPDATE statement.
     Every active symbol must resolve to exactly one NSE equity instrument with
     a positive token; otherwise the transaction is rejected and the exact
-    reason is returned.
+    reason is returned. This is deliberately an opt-in operation: a refreshed
+    Kite cache must not overwrite stored provenance without a separate,
+    explicit metadata-only approval.
     """
+    if not approved:
+        return {
+            "success": False,
+            "error": "metadata_hydration_approval_required",
+            "confirmation_required": METADATA_HYDRATION_CONFIRMATION,
+            "active_count": 0,
+            "mapped_count": 0,
+            "missing_symbols": [],
+            "duplicate_symbols": [],
+            "invalid_symbols": [],
+        }
     if not ensure_table():
         return {
             "success": False,
@@ -523,6 +539,47 @@ def get_status() -> Dict[str, Any]:
     kite_ltp_count = sum(
         1 for row in active if str(row.get("last_ltp_source") or "").startswith("kite")
     )
+    complete_mappings = [
+        row for row in active
+        if row.get("instrument_token") is not None
+        and row.get("instrument_exchange")
+        and row.get("instrument_tradingsymbol")
+        and row.get("instrument_cache_date")
+        and row.get("instrument_mapping_at")
+    ]
+    cache_dates: List[str] = []
+    cache_age_days: List[int] = []
+    invalid_mapping_count = 0
+    stale_mapping_count = 0
+    today = date.today()
+    for row in active:
+        if row not in complete_mappings:
+            invalid_mapping_count += 1
+            continue
+        try:
+            cache_date = date.fromisoformat(str(row["instrument_cache_date"])[:10])
+        except (TypeError, ValueError):
+            invalid_mapping_count += 1
+            continue
+        cache_dates.append(cache_date.isoformat())
+        age_days = (today - cache_date).days
+        cache_age_days.append(age_days)
+        # Kite's cache is fresh only when populated today; a future date is
+        # invalid provenance, and any older date is stale.
+        if cache_date != today:
+            stale_mapping_count += 1
+
+    cache_dates.sort()
+    mapping_timestamps = sorted({
+        str(row["instrument_mapping_at"])
+        for row in complete_mappings
+        if row.get("instrument_mapping_at")
+    })
+    oldest_cache_date = cache_dates[0] if cache_dates else None
+    newest_cache_date = cache_dates[-1] if cache_dates else None
+    oldest_cache_age_days = max(cache_age_days) if cache_age_days else None
+    newest_cache_age_days = min(cache_age_days) if cache_age_days else None
+    refresh_required = bool(invalid_mapping_count or stale_mapping_count)
     latest = max(
         (str(row.get("last_verified_at")) for row in rows if row.get("last_verified_at")),
         default=None,
@@ -554,6 +611,24 @@ def get_status() -> Dict[str, Any]:
         "kite_ltp": {
             "available_symbols": kite_ltp_count,
             "status": "AVAILABLE" if kite_ltp_count else "FALLBACK_OR_UNAVAILABLE",
+        },
+        "instrument_metadata": {
+            "active_count": len(active),
+            "complete_mapping_count": len(complete_mappings),
+            "oldest_cache_date": oldest_cache_date,
+            "newest_cache_date": newest_cache_date,
+            # Safety-facing age is the oldest valid active mapping, not the
+            # newest row that happened to be hydrated.
+            "cache_age_days": oldest_cache_age_days,
+            "newest_cache_age_days": newest_cache_age_days,
+            "oldest_mapping_at": mapping_timestamps[0] if mapping_timestamps else None,
+            "newest_mapping_at": mapping_timestamps[-1] if mapping_timestamps else None,
+            "invalid_mapping_count": invalid_mapping_count,
+            "stale_mapping_count": stale_mapping_count,
+            "refresh_required": refresh_required,
+            "provenance": "kite_instrument_cache",
+            "approval_required": True,
+            "confirmation_required": METADATA_HYDRATION_CONFIRMATION,
         },
         "asm_gsm": "unavailable_skip",
         "paper_trading_only": True,

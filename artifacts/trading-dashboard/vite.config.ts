@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
+import { resolveUiBuildIdentity } from "./buildIdentity.mjs";
 
 const rawPort = process.env.PORT;
 
@@ -26,22 +27,22 @@ if (!basePath) {
   );
 }
 
-// Keep a visible build marker in the browser bundle. Static production builds
-// receive APEXQUANT_BUILD_ID from the artifact build environment; it must be
-// baked into the Vite bundle because static assets have no runtime env access.
-// A missing production value remains visibly actionable instead of falsely
-// claiming that a published bundle is a development build.
-const buildId =
-  process.env.APEXQUANT_BUILD_ID ??
-  process.env.REPLIT_DEPLOYMENT ??
-  process.env.REPLIT_DEPLOYMENT_ID ??
-  process.env.BUILD_ID ??
-  (process.env.NODE_ENV === "production" ? "production-unidentified" : "development");
+// Static assets have no runtime environment access. Inject the source-derived
+// UI identity before deployment cleanup removes the Git checkout.
+const uiIdentity = resolveUiBuildIdentity(
+  process.env,
+  path.resolve(import.meta.dirname, "../.."),
+);
+// Product version is release metadata, deliberately separate from the
+// source-derived deployment identity above.
+const productVersion = process.env.APEXQUANT_PRODUCT_VERSION?.trim() || "v1.0.0";
 
 export default defineConfig({
   base: basePath,
   define: {
-    "import.meta.env.VITE_BUILD_ID": JSON.stringify(buildId),
+    "import.meta.env.VITE_UI_GIT_COMMIT": JSON.stringify(uiIdentity.ui_git_commit),
+    "import.meta.env.VITE_UI_BUILD_ID": JSON.stringify(uiIdentity.ui_build_id),
+    "import.meta.env.VITE_PRODUCT_VERSION": JSON.stringify(productVersion),
   },
   plugins: [
     react(),

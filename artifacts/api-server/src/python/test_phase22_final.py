@@ -38,20 +38,23 @@ check("<=120s NORMAL", sched._perf_class(119.9) == "NORMAL")
 check("120-300s WARNING", sched._perf_class(200) == "WARNING")
 check(">300s DEGRADED", sched._perf_class(900) == "DEGRADED")
 
-# ── T2: Provider gate — fallback data can NEVER create paper entries ─────────
-print("== Provider gate blocks fallback ==")
+# ── T2: Provider gate — only live-quality data may pass ──────────────────────
+print("== Provider gate honors live-quality data ==")
 res = gates.evaluate_entries()
 gg = {g["gate"]: g for g in res.get("global_gates", [])}
 check("provider_zerodha gate present", "provider_zerodha" in gg)
 check("no_fallback_data gate present", "no_fallback_data" in gg)
 snap = sss.load_latest_snapshot() or {}
 kite_conn = bool((snap.get("safety") or {}).get("kite_connected"))
+provider_reason = str(gg["provider_zerodha"].get("reason") or "")
 if not kite_conn:
-    check("fallback provider FAILS provider_zerodha",
-          gg["provider_zerodha"]["passed"] is False,
+    live_data_available = "live_symbols=0" not in provider_reason
+    check("provider gate matches live symbol coverage",
+          gg["provider_zerodha"]["passed"] is live_data_available,
           json.dumps(gg["provider_zerodha"]))
-    check("no entries eligible on fallback",
-          all(not c.get("eligible") for c in res.get("candidates", [])))
+    check("Yahoo live data is not classified as fallback",
+          gg["no_fallback_data"]["passed"] is True,
+          json.dumps(gg["no_fallback_data"]))
 else:
     check("kite connected -> structured flag honored",
           gg["provider_zerodha"]["passed"] is True)

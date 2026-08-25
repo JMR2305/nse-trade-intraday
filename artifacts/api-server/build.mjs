@@ -42,16 +42,25 @@ export function sourceGitCommit(env = process.env, root = projectRoot) {
 
 export function resolveBuildIdentity(env = process.env, root = projectRoot) {
   const gitCommit = sourceGitCommit(env, root);
-  if (!/^[0-9a-f]{7,64}$/i.test(gitCommit)) {
+  if (!/^[0-9a-f]{40}$/i.test(gitCommit)) {
     throw new Error(
       "Unable to resolve an exact source commit for the API build. " +
       "Set APEXQUANT_GIT_COMMIT (or provide an available Git checkout) before publishing."
     );
   }
   const configuredBuildId = env.APEXQUANT_BUILD_ID?.trim();
-  const buildId = configuredBuildId && !RETIRED_BUILD_IDS.has(configuredBuildId)
-    ? configuredBuildId
-    : `apexquant-${gitCommit.slice(0, 12)}`;
+  const derivedBuildId = `apexquant-${gitCommit.slice(0, 12)}`;
+  if (configuredBuildId && configuredBuildId !== derivedBuildId) {
+    const retired = RETIRED_BUILD_IDS.has(configuredBuildId);
+    throw new Error(
+      `Invalid API build identity "${configuredBuildId}". ` +
+      (retired
+        ? "The supplied label is retired; "
+        : "Generic or overridden labels are not allowed; ") +
+      `the API build must be derived as "${derivedBuildId}" from the source commit.`
+    );
+  }
+  const buildId = derivedBuildId;
   return { gitCommit, buildId };
 }
 

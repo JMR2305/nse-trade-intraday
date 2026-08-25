@@ -17,11 +17,12 @@ SOURCE_COMMIT="${APEXQUANT_GIT_COMMIT:-${REPLIT_GIT_COMMIT:-${GIT_COMMIT:-${SOUR
 if [ -z "$SOURCE_COMMIT" ]; then
   SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || true)"
 fi
-if ! [[ "$SOURCE_COMMIT" =~ ^[0-9a-fA-F]{7,64}$ ]]; then
-  echo "Unable to resolve an exact source commit for deployment." >&2
+if ! [[ "$SOURCE_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  echo "Unable to resolve a full 40-character source commit for deployment." >&2
   exit 1
 fi
 printf '%s\n' "$SOURCE_COMMIT" > .apexquant-source-commit
+export APEXQUANT_GIT_COMMIT="$SOURCE_COMMIT"
 echo "    Source commit: ${SOURCE_COMMIT:0:12}"
 
 echo ""

@@ -14,6 +14,7 @@ const ACTIVE_REQUIRED_FIELDS = [
   "price_max",
   "ohlcv_available",
 ] as const;
+const METADATA_HYDRATION_CONFIRMATION = "HYDRATE_INSTRUMENT_METADATA_ONLY";
 
 function validateActiveRows(rows: unknown[]): string | null {
   for (const [index, candidate] of rows.entries()) {
@@ -130,6 +131,30 @@ router.post("/universe/custom/upsert", wrap(async (req, res) => {
     "universe_custom_upsert",
     JSON.stringify({ rows }),
   ]));
+}));
+
+// A metadata refresh is separate from the cache refresh and from membership
+// maintenance. It is protected by the same admin credential as an upsert and
+// requires an exact confirmation so current provenance is never overwritten
+// implicitly.
+router.post("/universe/custom/hydrate-instruments", wrap(async (req, res) => {
+  const expectedToken = process.env.UNIVERSE_ADMIN_TOKEN;
+  const providedToken = req.headers["x-admin-token"];
+  if (!expectedToken || providedToken !== expectedToken) {
+    res.status(403).json({ success: false, error: "Forbidden: valid x-admin-token header required" });
+    return;
+  }
+  if (req.body?.confirmation !== METADATA_HYDRATION_CONFIRMATION) {
+    res.status(400).json({
+      success: false,
+      error: `confirmation must equal ${METADATA_HYDRATION_CONFIRMATION}`,
+    });
+    return;
+  }
+  res.json(await runPython([
+    "universe_custom_hydrate_instruments",
+    "--approve-metadata-only-hydration",
+  ], 60_000));
 }));
 
 router.get("/universe/custom/report", wrap(async (_req, res) => {

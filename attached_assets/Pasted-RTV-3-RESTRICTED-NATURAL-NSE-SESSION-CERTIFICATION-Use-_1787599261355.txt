@@ -1,0 +1,297 @@
+RTV-3 — RESTRICTED NATURAL NSE SESSION CERTIFICATION
+
+Use:
+- RTV2E_NEXT_NATURAL_SESSION_GATE.md
+- RTV2E_FINAL_TEST_GATE.md
+- RTV2D_RUNTIME_IDENTITY_AND_SAFETY.md
+- RTV2D_PORTFOLIO_RECONCILIATION.md
+- RTV2A_SUMMARY.md
+
+TARGET:
+PRODUCTION ONLY
+
+GOAL:
+Certify the repaired production system during one naturally scheduled NSE session.
+
+OBSERVATION ONLY.
+
+DO NOT:
+- enable automatic entries
+- enable bootstrap
+- place broker orders
+- manually trigger scans
+- manually trigger 5A/5B/5C
+- reset portfolio
+- modify ledger
+- change universe
+- change strategy or thresholds
+
+TASK 1 — PRE-SESSION BASELINE
+
+Record:
+- environment
+- git_commit
+- build_id
+- deployment_id
+- Kite auth/token state
+- active universe
+- active count
+- 23/23 token mappings
+- portfolio cash/equity
+- realized P&L
+- open positions
+- auto-entry state
+- bootstrap
+- auto exits
+- live broker order state
+
+Require:
+auto entries = false
+confirmation = null
+bootstrap = false
+auto exits = true
+live broker orders = disabled
+
+TASK 2 — PHASE 5A NATURAL SESSION
+
+Observe the naturally scheduled Phase 5A only.
+
+Require:
+- durable session created
+- durable phase state created
+- immutable collection_batch_id
+- provider_collected_count = 23
+- persisted_count = 23
+- same verified batch
+- failed_count recorded
+- timestamps/source persisted
+
+No manual retry.
+
+If provider count != persisted count:
+FAIL.
+
+TASK 3 — FREEZE GATE
+
+Observe freeze naturally.
+
+Require:
+- freeze only after durable 23/23 parity proof
+- frozen_collection_batch_id equals verified_collection_batch_id
+- exact snapshot IDs/symbols correspond to that batch
+- no data from earlier retry batches mixed in
+
+TASK 4 — DOWNSTREAM ORDERING
+
+Observe:
+collection
+→ freeze
+→ reconciliation
+→ enrichment
+
+Require every downstream phase to have durable predecessor evidence.
+
+No phase may advance on warm-cache/local-only state.
+
+TASK 5 — 5B / 5C
+
+Observe naturally scheduled 5B and 5C.
+
+Report:
+- session ID
+- execution timestamps
+- candidates
+- valid/rejected/skipped
+- lifecycle states
+- signals
+- advisory approvals
+
+Automatic entries remain disabled.
+
+No advisory approval may create a paper entry.
+
+TASK 6 — FIRST NATURAL CANONICAL SCAN
+
+Observe only scheduler-emitted scan evidence.
+
+Require:
+trigger_origin = SCHEDULED
+
+Capture:
+- scan ID
+- start/end timestamp
+- scheduler source
+- active universe
+- requested count
+- received count
+- exact symbols
+- errors
+
+Require:
+active universe = CUSTOM_LOW_PRICE_SECTOR
+requested = 23
+received = 23
+exact active symbol membership
+
+Do not use an API-triggered or manually triggered scan for certification.
+
+TASK 7 — LIVE QUOTE PROVENANCE
+
+For that scheduled scan require:
+- 23/23 Kite execution-grade quotes
+- fresh quote timestamps
+- zero stale execution prices
+- zero fallback-as-live
+- zero synthetic execution data
+- zero unavailable active symbols
+
+Separate current Kite quotes from historical OHLCV.
+
+TASK 8 — READINESS TRANSITION
+
+Record before and after the scheduled scan:
+
+- service_ready
+- data_ready
+- session_fresh
+- trading_data_ready
+- active_universe_count
+- valid_token_count
+- missing_token_count
+- Kite count
+- fallback count
+- stale count
+- unavailable count
+- synthetic count
+- latest scan timestamp
+- latest quote timestamp
+- scan origin
+
+trading_data_ready may become true only if every current-session gate passes.
+
+Otherwise keep false and record exact blocker.
+
+TASK 9 — OBSERVATION GET PURITY
+
+Repeat the approved read-only observation GETs.
+
+Prove they create:
+- no new scan
+- no new lifecycle phase
+- no trade
+- no broker order
+- no universe mutation
+- no portfolio mutation
+
+Compare scan IDs / phase IDs / ledger counts before and after.
+
+TASK 10 — AUTOMATIC ENTRY SAFETY
+
+At:
+- pre-session
+- after Phase 5A
+- after 5B/5C
+- after scheduled scan
+
+confirm:
+
+auto_paper_entries = false
+confirmation = null
+bootstrap = false
+auto exits = true
+live broker orders = disabled
+
+Any transition = CRITICAL FAILURE.
+
+TASK 11 — PAPER TRADE CHECK
+
+Confirm:
+- no new BUY caused by disabled automatic-entry path
+- no OPEN or EXIT_PENDING row appears unexpectedly
+
+Historical six CLOSED rows remain preserved.
+
+TASK 12 — PORTFOLIO / LEDGER PARITY
+
+Verify:
+
+/api/portfolio
+==
+/api/portfolio/snapshot
+
+Expected before authorized new paper activity:
+
+initial capital = 100000
+cash/equity = 99721.26
+realized P&L = -278.74
+unrealized P&L = 0
+open positions = 0
+
+Verify six historical CLOSED rows unchanged.
+
+TASK 13 — ERROR LOG REVIEW
+
+Inspect the certification window for:
+- Phase 5A persistence errors
+- provider/persisted count mismatch
+- lifecycle ordering errors
+- Kite errors
+- stale/fallback/synthetic price warnings
+- scan-origin errors
+- duplicate scheduled scans
+- DB failures
+- unexpected entry attempts
+- broker calls
+
+Do not clear logs.
+
+TASK 14 — FINAL VERDICT
+
+Allowed:
+
+A. RTV-3 NATURAL SESSION CERTIFIED
+B. PHASE 5A PERSISTENCE FAILURE
+C. LIFECYCLE ORDERING FAILURE
+D. SCHEDULED SCAN FAILURE
+E. LIVE DATA / KITE FAILURE
+F. READINESS FAILURE
+G. AUTO-ENTRY SAFETY FAILURE
+H. PORTFOLIO / LEDGER REGRESSION
+I. OBSERVATION ENDPOINT SIDE-EFFECT FAILURE
+J. SESSION INCOMPLETE
+
+PASS requires:
+
+1. durable Phase 5A session
+2. provider_collected_count = persisted_count = 23
+3. same immutable verified batch
+4. freeze after parity only
+5. durable downstream ordering
+6. 5B and 5C observed
+7. canonical scan origin = SCHEDULED
+8. scheduled scan uses exactly 23 current symbols
+9. 23/23 fresh Kite execution-grade quotes
+10. zero fallback-as-live
+11. zero synthetic execution data
+12. readiness transitions truthfully
+13. observation GETs remain pure
+14. auto entries remain false/unconfirmed
+15. bootstrap remains false
+16. live broker orders remain disabled
+17. no unauthorized paper trade
+18. portfolio/ledger parity preserved
+
+OUTPUT:
+
+1. RTV3_NATURAL_SESSION_CERTIFICATION.md
+2. RTV3_PREOPEN_BATCH_EVIDENCE.csv
+3. RTV3_SCHEDULED_SCAN_EVIDENCE.csv
+4. RTV3_KITE_LIVE_PROVENANCE.csv
+5. RTV3_READINESS_TRANSITION.csv
+6. RTV3_SAFETY_AND_LEDGER_RECONCILIATION.md
+
+FINAL RULE:
+
+If any evidence is missing, do not manually retry or trigger anything.
+
+Record the failure honestly and stop.

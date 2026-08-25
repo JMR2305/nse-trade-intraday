@@ -1,0 +1,175 @@
+MISSION CONTROL — FIX UI/API BUILD IDENTITY MISMATCH
+
+Current Mission Control shows:
+
+UI  apexquant-v1.0.0
+API apexquant-2e54e5e2f23f
+Build mismatch
+
+Production backend identity is expected to be:
+
+git_commit =
+2e54e5e2f23f8ac5df86c9ec97aceeb3c8426832
+
+build_id =
+apexquant-2e54e5e2f23f
+
+Goal:
+Determine why the frontend still reports the stale/static UI build ID
+`apexquant-v1.0.0` and make frontend identity derive from the same approved
+deployment source as the API.
+
+Do not change trading logic.
+Do not trigger scans.
+Do not change portfolio.
+Do not change universe.
+Do not modify safety settings.
+Do not place broker orders.
+
+TASK 1 — TRACE UI BUILD ID SOURCE
+
+Find exactly where Mission Control gets:
+
+apexquant-v1.0.0
+
+Search:
+- frontend environment variables
+- Vite build variables
+- package version
+- constants/config files
+- generated build metadata
+- deployment settings
+- Mission Control component
+- API response comparison logic
+
+Report:
+- source file
+- variable name
+- build-time/runtime source
+- whether hardcoded
+- whether cached
+
+TASK 2 — VERIFY API IDENTITY
+
+Read only:
+
+/api/health/details
+
+Confirm production API reports:
+
+environment = production
+git_commit = 2e54e5e2f23f8ac5df86c9ec97aceeb3c8426832
+build_id = apexquant-2e54e5e2f23f
+
+If API differs:
+STOP and report real backend mismatch.
+
+TASK 3 — DEFINE FRONTEND IDENTITY CONTRACT
+
+Frontend identity should expose:
+
+ui_git_commit
+ui_build_id
+
+Preferred:
+
+ui_git_commit =
+same source commit used for the deployed frontend bundle
+
+ui_build_id =
+apexquant-<first 12 chars of ui_git_commit>
+
+Do not use static:
+apexquant-v1.0.0
+
+for deployment identity.
+
+Product version can remain separately displayed if needed, e.g.:
+
+product_version = v1.0.0
+
+but do not compare product version with deployment build ID.
+
+TASK 4 — FIX MISSION CONTROL DISPLAY
+
+Mission Control should distinguish:
+
+Product Version:
+v1.0.0
+
+UI Build:
+apexquant-2e54e5e2f23f
+
+API Build:
+apexquant-2e54e5e2f23f
+
+Build Status:
+MATCH
+
+Do not label product semantic version as a deployment build.
+
+TASK 5 — BUILD ID INJECTION
+
+Ensure the frontend production build receives the exact source commit before
+.git cleanup/build packaging.
+
+Use the same commit-derived convention as the API.
+
+Add build-time validation:
+- commit available
+- build ID derived correctly
+- stale generic build labels rejected in production
+
+TASK 6 — CACHE CHECK
+
+Check whether the browser/service worker/CDN is serving an old frontend bundle.
+
+Verify:
+- service worker version
+- asset hashes
+- HTML cache
+- Replit deployment cache
+- browser PWA cache if used
+
+If the source is already correct but the client is stale:
+invalidate only the relevant frontend cache/build artifact.
+
+Do not modify backend runtime.
+
+TASK 7 — TESTS
+
+Add tests for:
+- UI build ID injection
+- UI/API exact match
+- semantic product version kept separate
+- mismatch shown only when deployment identities genuinely differ
+- missing UI identity fails visibly rather than silently
+
+TASK 8 — POST-DEPLOY VERIFY
+
+After the smallest safe frontend deployment, Mission Control must show:
+
+Product Version: v1.0.0
+UI Build: apexquant-2e54e5e2f23f
+API Build: apexquant-2e54e5e2f23f
+Build Status: MATCH
+
+If the frontend deploy legitimately creates a newer commit than the API,
+do not fake equality.
+
+Instead identify whether UI and API were built from different commits and
+decide whether a coordinated deployment is required.
+
+FINAL OUTPUT:
+
+MISSION_CONTROL_BUILD_IDENTITY_REPORT.md
+
+Include:
+- root cause
+- old UI identity source
+- corrected UI identity source
+- API identity
+- cache findings
+- files changed
+- test results
+- final UI/API build status

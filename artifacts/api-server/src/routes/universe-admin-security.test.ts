@@ -1,5 +1,5 @@
 /**
- * Admin route security tests — POST /universe/custom/upsert
+ * Admin route security tests — POST /universe/custom/upsert and metadata hydration
  *
  * Phase 1F requirement: The upsert route must be protected by UNIVERSE_ADMIN_TOKEN.
  * Verifies:
@@ -124,6 +124,13 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
   function upsertCalls() {
     return spawnMock.mock.calls.filter(
       (call) => Array.isArray(call[1]) && (call[1] as string[]).includes("universe_custom_upsert"),
+    );
+  }
+
+  function hydrationCalls() {
+    return spawnMock.mock.calls.filter(
+      (call) => Array.isArray(call[1])
+        && (call[1] as string[]).includes("universe_custom_hydrate_instruments"),
     );
   }
 
@@ -254,6 +261,46 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
       "active row 0 for WIPRO must include non-null: sector, company_name, yahoo_symbol, kite_symbol, price_min",
     );
     expect(upsertCalls()).toHaveLength(0);
+  });
+
+  it("blocks metadata hydration without an admin token", async () => {
+    const r = await request(server, {
+      method: "POST",
+      path: "/api/universe/custom/hydrate-instruments",
+      body: { confirmation: "HYDRATE_INSTRUMENT_METADATA_ONLY" },
+    });
+
+    expect(r.status).toBe(403);
+    expect(hydrationCalls()).toHaveLength(0);
+  });
+
+  it("requires an exact metadata-only confirmation before hydration", async () => {
+    const r = await request(server, {
+      method: "POST",
+      path: "/api/universe/custom/hydrate-instruments",
+      adminToken: VALID_TOKEN,
+      body: { confirmation: "refresh" },
+    });
+
+    expect(r.status).toBe(400);
+    expect((r.body as Record<string, unknown>)["error"]).toMatch(/confirmation/);
+    expect(hydrationCalls()).toHaveLength(0);
+  });
+
+  it("dispatches an explicitly approved metadata-only hydration", async () => {
+    const r = await request(server, {
+      method: "POST",
+      path: "/api/universe/custom/hydrate-instruments",
+      adminToken: VALID_TOKEN,
+      body: { confirmation: "HYDRATE_INSTRUMENT_METADATA_ONLY" },
+    });
+
+    expect(r.status).toBe(200);
+    expect(hydrationCalls()).toHaveLength(1);
+    expect(hydrationCalls()[0][1]).toEqual(expect.arrayContaining([
+      "universe_custom_hydrate_instruments",
+      "--approve-metadata-only-hydration",
+    ]));
   });
 });
 

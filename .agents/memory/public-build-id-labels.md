@@ -20,14 +20,21 @@ description: How Mission Control UI/API build identity works and how to verify a
 
 ## Static dashboard labeling
 
-- Dashboard release labels are build-time constants. To verify a published
-  static bundle, curl the served hashed asset and grep for the compiled constant
-  — do not trust a browser/tester run immediately after a publish because CDN
-  and browser caches can be stale.
-- A dashboard/API label mismatch is meaningful only after both artifacts are
-  rebuilt. API runtime reconciliation must additionally expose a non-secret
-  environment, build ID, commit, instance label, and runtime time; deployment
-  metadata alone cannot prove which source revision serves a route.
+- Production dashboard and API identities must be derived from a full
+  40-character source commit:
+  expose the full UI commit and derive the UI build ID as
+  `apexquant-<first-12-hex-sha>`. Product version is separate release metadata,
+  never a deployment identity. Mission Control only labels UI/API as MATCH for
+  exact build-ID equality; missing identity stays actionable.
+- **Why:** a retired semantic label was baked into the dashboard static asset,
+  obscuring whether the UI was built from the same source as the API.
+- **How to apply:** use the root source-commit handoff before `.git` cleanup,
+  reject missing/invalid or overriding production UI labels, and curl the
+  served hashed asset after publish. Do not trust an immediately opened browser
+  tab because static/CDN caches can be stale.
+- API runtime reconciliation must additionally expose a non-secret environment,
+  build ID, commit, instance label, and runtime time; deployment metadata alone
+  cannot prove which source revision serves a route.
 
 ## Deployed commit reconciliation
 

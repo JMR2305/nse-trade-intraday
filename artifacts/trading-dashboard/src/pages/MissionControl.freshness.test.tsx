@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import {
-  ScanBuildIdentity, ScanInfoChips, getScanPresentation, isScanStatusOlder, useMonotonicScanStatus,
+  ScanBuildIdentity, ScanInfoChips, getBuildIdentityState, getScanPresentation, isScanStatusOlder, useMonotonicScanStatus,
 } from "./MissionControl";
 import { cacheBustedPath } from "@/components/mission/Widget";
 
@@ -117,14 +117,50 @@ describe("Mission Control scan freshness contract", () => {
     );
   });
 
-  it("renders the IST refresh time and flags UI/API build mismatches", () => {
+  it("separates product version from exact UI/API deployment identity", () => {
     const { rerender } = render(
-      <ScanBuildIdentity apiBuildId="development" lastRefreshedAt={Date.UTC(2026, 7, 19, 13, 30, 0)} />,
+      <ScanBuildIdentity
+        apiBuildId="apexquant-aaaaaaaaaaaa"
+        uiBuildId="apexquant-aaaaaaaaaaaa"
+        uiGitCommit={"a".repeat(40)}
+        lastRefreshedAt={Date.UTC(2026, 7, 19, 13, 30, 0)}
+      />,
     );
-    expect(screen.getByTestId("mc-build-match").textContent).toContain("Builds match");
+    expect(screen.getByTestId("mc-product-version").textContent).toContain("Product Version v1.0.0");
+    expect(screen.getByTestId("mc-ui-build").textContent).toContain("UI Build apexquant-aaaaaaaaaaaa");
+    expect(screen.getByTestId("mc-api-build").textContent).toContain("API Build apexquant-aaaaaaaaaaaa");
+    expect(screen.getByTestId("mc-build-match").textContent).toContain("MATCH");
     expect(screen.getByTestId("mc-last-refreshed").textContent).toMatch(/Last refreshed .* IST/);
 
-    rerender(<ScanBuildIdentity apiBuildId="older-public-build" lastRefreshedAt={Date.UTC(2026, 7, 19, 13, 30, 0)} />);
-    expect(screen.getByTestId("mc-build-match").textContent).toContain("Build mismatch");
+    rerender(
+      <ScanBuildIdentity
+        apiBuildId="apexquant-bbbbbbbbbbbb"
+        uiBuildId="apexquant-aaaaaaaaaaaa"
+        lastRefreshedAt={Date.UTC(2026, 7, 19, 13, 30, 0)}
+      />,
+    );
+    expect(screen.getByTestId("mc-build-match").textContent).toContain("MISMATCH");
+    expect(screen.getByTestId("mc-build-match").getAttribute("title")).toContain("coordinate a deployment");
+  });
+
+  it("keeps missing UI identity visibly actionable", () => {
+    render(
+      <ScanBuildIdentity
+        apiBuildId="apexquant-aaaaaaaaaaaa"
+        uiBuildId={null}
+        lastRefreshedAt={0}
+      />,
+    );
+    expect(getBuildIdentityState(null, "apexquant-aaaaaaaaaaaa")).toBe("missing-ui");
+    expect(screen.getByTestId("mc-ui-build").textContent).toContain("unavailable");
+    expect(screen.getByTestId("mc-build-match").textContent).toContain("UI IDENTITY UNAVAILABLE");
+    expect(screen.getByTestId("mc-build-match").getAttribute("title")).toContain("rebuild");
+  });
+
+  it("does not call a missing API identity a match", () => {
+    expect(getBuildIdentityState("apexquant-aaaaaaaaaaaa", undefined)).toBe("loading");
+    expect(getBuildIdentityState("apexquant-aaaaaaaaaaaa", null)).toBe("missing-api");
+    expect(getBuildIdentityState("apexquant-aaaaaaaaaaaa", "apexquant-aaaaaaaaaaa0")).toBe("mismatch");
+    expect(getBuildIdentityState("apexquant-aaaaaaaaaaaa", "apexquant-aaaaaaaaaaaa")).toBe("match");
   });
 });

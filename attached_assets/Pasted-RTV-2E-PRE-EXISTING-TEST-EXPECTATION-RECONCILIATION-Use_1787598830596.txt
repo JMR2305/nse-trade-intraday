@@ -1,0 +1,170 @@
+RTV-2E — PRE-EXISTING TEST EXPECTATION RECONCILIATION
+
+Use:
+- RTV2D_CONTROLLED_DEPLOYMENT_REPORT.md
+- RTV2D_RUNTIME_IDENTITY_AND_SAFETY.md
+- RTV2D_PORTFOLIO_RECONCILIATION.md
+- RTV2D_NEXT_NATURAL_SESSION_GATE.md
+
+GOAL:
+Resolve the two remaining red tests without weakening safety behavior and without changing production runtime logic unless a real defect is proven.
+
+CURRENT PRODUCTION:
+git_commit =
+2e54e5e2f23f8ac5df86c9ec97aceeb3c8426832
+
+build_id =
+apexquant-2e54e5e2f23f
+
+CURRENT RUNTIME SAFETY:
+- auto entries false
+- confirmation null
+- bootstrap false
+- auto exits true
+- live broker orders disabled
+- custom universe 23
+- 23/23 Kite mappings
+- portfolio canonical parity
+- no open positions
+
+RED TEST 1:
+
+test_daily_session_and_pipeline_e2e.py::
+TestOpenAlert::
+test_run_tick_alerts_even_when_auto_scan_disabled
+
+Observed issue:
+test expects mocked kv_claim_once to have one call,
+but the existing production heartbeat also claims its own key.
+
+RED TEST 2:
+
+test_phase22_session.py::
+EnvTokenExpiryTests::
+test_env_token_without_timestamp_trusted
+
+Observed issue:
+test expects an environment-only token with no timestamp to be trusted,
+while the current credential resolver fails closed.
+
+TASK 1 — TEST 1 ROOT CAUSE
+
+Inspect:
+- test setup
+- heartbeat behavior
+- kv_claim_once call sites
+- expected alert claim
+- production behavior
+
+Determine whether:
+A. runtime is wrong
+B. test expectation is stale
+C. fixture is under-specified
+
+Do not remove the heartbeat or weaken duplicate protection unless a real runtime defect is proven.
+
+TASK 2 — TEST 1 SAFE FIX
+
+Preferred:
+make the test assert the intended alert claim specifically rather than total call count if multiple legitimate claims exist.
+
+For example:
+- verify the expected alert key was claimed
+- verify expected arguments
+- preserve heartbeat behavior
+
+Do not change production behavior merely to force call_count == 1.
+
+TASK 3 — TEST 2 ROOT CAUSE
+
+Inspect:
+- current credential authority
+- token timestamp requirements
+- Phase 22 session expectations
+- fail-closed security behavior
+
+Determine whether an environment-only token without timestamp should truly be accepted.
+
+Given current safety design, prefer fail-closed unless there is explicit approved product behavior requiring trust.
+
+TASK 4 — TEST 2 SAFE FIX
+
+If fail-closed resolver behavior is intentional and already approved:
+update the stale test expectation to assert rejection / invalid / login-required behavior.
+
+Do not weaken the resolver to trust unverifiable tokens just to satisfy the test.
+
+If runtime behavior is actually incorrect:
+document the security reason before changing it.
+
+TASK 5 — COVERAGE PRESERVATION
+
+For each test change report:
+- old assertion
+- new assertion
+- why coverage is not weakened
+- runtime behavior unchanged YES/NO
+
+Add any missing targeted test that proves:
+- heartbeat and alert claims can coexist safely
+- token without timestamp fails closed
+- valid timestamped token still works
+
+TASK 6 — FULL RTV-2D GATE RERUN
+
+Rerun all previously required suites, including:
+
+- Phase 20 settings/exits
+- execution fix
+- entry cutoff/admission
+- bootstrap
+- session restore
+- Phase 22 integration
+- Phase 5A validation
+- Phase 5A durability/read safety
+- scan history/origin
+- enriched scan status
+- portfolio contract
+- canonical portfolio truth
+- ledger integrity
+- custom-universe
+- restart/source/history/retention
+- API build
+- workspace TypeScript
+
+Require zero unexpected failures.
+
+TASK 7 — NO PRODUCTION CHANGE UNLESS REQUIRED
+
+If only tests/fixtures are corrected:
+do not publish runtime code.
+
+If runtime code must change:
+stop and create a new controlled deployment candidate.
+
+TASK 8 — FINAL VERDICT
+
+Allowed:
+
+A. RTV-2E PASS — FULL TEST GATE GREEN, NATURAL SESSION UNLOCKED
+B. TEST 1 REVEALS REAL RUNTIME DEFECT
+C. TEST 2 REVEALS REAL CREDENTIAL DEFECT
+D. COVERAGE WOULD BE WEAKENED
+E. FULL SUITE STILL RED
+
+PASS requires:
+1. both red tests reconciled
+2. no safety behavior weakened
+3. fail-closed credential behavior preserved if intentional
+4. heartbeat behavior preserved
+5. full RTV-2D test gate green
+
+OUTPUT:
+
+1. RTV2E_TEST_RECONCILIATION_REPORT.md
+2. RTV2E_FINAL_TEST_GATE.md
+3. RTV2E_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL RULE:
+
+Do not unlock the next natural NSE session certification until the complete test gate is green.

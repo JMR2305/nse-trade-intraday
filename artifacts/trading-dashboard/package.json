@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
-    "build": "APEXQUANT_BUILD_ID=apexquant-v1.0.0 vite build --config vite.config.ts",
+    "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -b ../../lib/api-client-react && tsc -p tsconfig.json --noEmit",
     "test": "PORT=9999 BASE_PATH=/trading-dashboard/ vitest run",
+    "test:build-identity": "node ./scripts/check-build-identity.mjs",
     "test:e2e": "PLAYWRIGHT_BROWSERS_PATH=/nix/store/12iaw5ng4xvxxffm381lgxlh1ysh0bl4-playwright-browsers playwright test"
   },
   "devDependencies": {

@@ -663,3 +663,45 @@ uri = "file://RTV2B_NEXT_NATURAL_SESSION_GATE.md"
 type = "text"
 title = "RTV-2B Next Natural-Session Gate"
 description = "Conditions required before natural-session certification can resume."
+
+[[outputs]]
+id = "3fRqnkUa8gMY1llQDJR9C"
+uri = "file://RTV3_NATURAL_SESSION_CERTIFICATION.md"
+type = "text"
+title = "RTV-3 Natural Session Certification"
+description = "Updated production-only certification record with final verdict B. PHASE 5A PERSISTENCE FAILURE."
+
+[[outputs]]
+id = "-dEAaT0rpypb3vpjci3Kh"
+uri = "file://RTV3_PREOPEN_BATCH_EVIDENCE.csv"
+type = "table"
+title = "RTV-3 Pre-open Batch Evidence"
+description = "Appended natural scheduler batch: provider and persisted counts were 10, below the required 23."
+
+[[outputs]]
+id = "H-YaZrAJdxlObNPqF0_oh"
+uri = "file://RTV3_SCHEDULED_SCAN_EVIDENCE.csv"
+type = "table"
+title = "RTV-3 Scheduled Scan Evidence"
+description = "Records that no current-session scan was accepted after the Phase 5A shortfall."
+
+[[outputs]]
+id = "fKHkwbxicl-M02_IVZxGu"
+uri = "file://RTV3_KITE_LIVE_PROVENANCE.csv"
+type = "table"
+title = "RTV-3 Kite Live Provenance"
+description = "Records current-session provenance as not evaluated after the Phase 5A stop condition."
+
+[[outputs]]
+id = "KDQsIT74p02ysPnT3qrCG"
+uri = "file://RTV3_READINESS_TRANSITION.csv"
+type = "table"
+title = "RTV-3 Readiness Transition"
+description = "Records the post-Phase 5A failure readiness state."
+
+[[outputs]]
+id = "eMaPszMLoTH4dxP-4Dubk"
+uri = "file://RTV3_SAFETY_AND_LEDGER_RECONCILIATION.md"
+type = "text"
+title = "RTV-3 Safety and Ledger Reconciliation"
+description = "Appended safety and canonical portfolio parity evidence at the Phase 5A failure checkpoint."

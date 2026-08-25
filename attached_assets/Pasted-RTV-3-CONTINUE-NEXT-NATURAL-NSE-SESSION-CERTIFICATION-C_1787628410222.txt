@@ -1,0 +1,281 @@
+RTV-3 — CONTINUE NEXT NATURAL NSE SESSION CERTIFICATION
+
+Continue the existing RTV-3 procedure.
+
+DO NOT restart RTV-3 from scratch.
+DO NOT replace the existing baseline evidence.
+Append the next natural-session evidence to the existing RTV-3 artifacts.
+
+CURRENT STATUS:
+J. SESSION INCOMPLETE
+
+Reason:
+The first RTV-3 checkpoint was captured at 00:52 IST before the NSE session started.
+
+The baseline is already verified.
+
+GOAL:
+Complete the missing natural-session evidence during the next naturally scheduled NSE session.
+
+OBSERVATION ONLY.
+
+DO NOT:
+- enable automatic entries
+- enable bootstrap
+- place broker orders
+- manually trigger scans
+- manually trigger 5A/5B/5C
+- reset portfolio
+- modify ledger
+- change universe
+- change strategy or thresholds
+
+PHASE 1 — PRE-SESSION RECONFIRMATION
+
+Before the natural Phase 5A window, reconfirm:
+
+- production runtime identity unchanged
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- mappings = 23/23
+- Kite token valid/stored/connected
+- auto_paper_entries = false
+- confirmation = null
+- bootstrap = false
+- auto exits = true
+- live broker orders = disabled
+- portfolio endpoints reconcile
+- cash/equity = 99721.26
+- realized P&L = -278.74
+- open positions = 0
+- six historical CLOSED rows intact
+
+If baseline changed unexpectedly:
+STOP.
+
+PHASE 2 — NATURAL PHASE 5A
+
+Observe only the scheduler-created current-session Phase 5A.
+
+Require:
+- durable current-day session ID
+- durable phase state
+- immutable collection_batch_id
+- provider_collected_count = 23
+- persisted_count = 23
+- same verified collection batch
+- failed_count recorded
+- source recorded
+- timestamps recorded
+
+If provider_collected_count != persisted_count:
+FAIL.
+
+Do not manually retry.
+
+PHASE 3 — FREEZE
+
+Observe natural freeze.
+
+Require:
+- verified_collection_batch_id present
+- frozen_collection_batch_id equals verified_collection_batch_id
+- freeze occurs only after successful durable 23/23 parity
+- frozen snapshot IDs/symbols belong only to the verified batch
+- retry batches are not mixed
+
+PHASE 4 — DURABLE LIFECYCLE ORDERING
+
+Observe:
+
+collection
+→ freeze
+→ reconciliation
+→ enrichment
+
+Require each downstream phase to have durable predecessor proof.
+
+Report actual timestamps and phase states.
+
+PHASE 5 — NATURAL 5B / 5C
+
+Observe the naturally scheduled 5B and 5C lifecycle.
+
+Report:
+- execution timestamps
+- candidates
+- valid
+- rejected
+- skipped
+- lifecycle states
+- generated signals
+- advisory approvals
+
+Automatic entries remain disabled.
+
+No advisory approval may create a paper entry.
+
+PHASE 6 — FIRST NATURAL SCHEDULED SCAN
+
+Use scheduler-emitted durable evidence only.
+
+Do not call an endpoint that can trigger a scan.
+
+Require:
+
+trigger_origin = SCHEDULED
+
+Capture:
+- scan ID
+- scheduled timestamp
+- start/end timestamps
+- universe
+- requested count
+- received count
+- exact symbol membership
+- errors
+
+Require:
+- universe = CUSTOM_LOW_PRICE_SECTOR
+- requested = 23
+- received = 23
+- exact membership equals current active universe
+
+PHASE 7 — CURRENT-SESSION KITE PROVENANCE
+
+For that scheduled scan verify all 23:
+
+- symbol
+- instrument token
+- current price
+- source/provider
+- quote timestamp
+- received timestamp
+- quote age
+- reliable
+- fallback
+- synthetic
+
+Require:
+- 23/23 Kite execution-grade current quotes
+- zero fallback-as-live
+- zero synthetic
+- zero stale execution-grade prices
+- zero unavailable symbols
+
+Do not reuse prior-session quote evidence.
+
+PHASE 8 — READINESS TRANSITION
+
+Capture readiness:
+
+BEFORE natural scheduled scan
+AFTER natural scheduled scan
+
+Fields:
+- service_ready
+- data_ready
+- session_fresh
+- trading_data_ready
+- active_universe_count
+- valid_token_count
+- missing_token_count
+- Kite count
+- stale count
+- fallback count
+- unavailable count
+- synthetic count
+- latest scan timestamp
+- latest quote timestamp
+- scan origin
+
+trading_data_ready may become true ONLY if every current-session readiness condition passes.
+
+Otherwise leave it false and report the exact blocker.
+
+PHASE 9 — OBSERVATION GET PURITY
+
+Repeat only the approved pure-read observation endpoints.
+
+Compare before/after:
+- scan IDs
+- lifecycle IDs/states
+- ledger row count
+- portfolio state
+- order count
+
+Require observation requests create:
+- no new scan
+- no lifecycle phase
+- no trade
+- no order
+- no portfolio mutation
+
+PHASE 10 — SAFETY THROUGHOUT
+
+Check at:
+- pre-session
+- post-5A
+- post-5B/5C
+- post-scheduled scan
+
+Require:
+auto_paper_entries = false
+confirmation = null
+bootstrap = false
+auto exits = true
+live broker orders = disabled
+
+Any change = CRITICAL FAILURE.
+
+PHASE 11 — LEDGER / PORTFOLIO FINAL CHECK
+
+Require:
+- no unauthorized BUY
+- no unexpected OPEN row
+- no unexpected EXIT_PENDING row
+- six historical CLOSED rows preserved
+
+Verify:
+
+/api/portfolio
+==
+/api/portfolio/snapshot
+
+Expected if no authorized activity:
+initial_capital = 100000
+cash/equity = 99721.26
+realized_pnl = -278.74
+unrealized_pnl = 0
+open_positions = 0
+
+PHASE 12 — FINAL VERDICT
+
+Allowed:
+
+A. RTV-3 NATURAL SESSION CERTIFIED
+B. PHASE 5A PERSISTENCE FAILURE
+C. LIFECYCLE ORDERING FAILURE
+D. SCHEDULED SCAN FAILURE
+E. LIVE DATA / KITE FAILURE
+F. READINESS FAILURE
+G. AUTO-ENTRY SAFETY FAILURE
+H. PORTFOLIO / LEDGER REGRESSION
+I. OBSERVATION ENDPOINT SIDE-EFFECT FAILURE
+J. SESSION INCOMPLETE
+
+PASS requires all original RTV-3 conditions.
+
+UPDATE THE EXISTING FILES:
+
+1. RTV3_NATURAL_SESSION_CERTIFICATION.md
+2. RTV3_PREOPEN_BATCH_EVIDENCE.csv
+3. RTV3_SCHEDULED_SCAN_EVIDENCE.csv
+4. RTV3_KITE_LIVE_PROVENANCE.csv
+5. RTV3_READINESS_TRANSITION.csv
+6. RTV3_SAFETY_AND_LEDGER_RECONCILIATION.md
+
+FINAL RULE:
+
+If any natural-session evidence is missing, do not manually retry or trigger anything.
+Record the exact failure and stop.

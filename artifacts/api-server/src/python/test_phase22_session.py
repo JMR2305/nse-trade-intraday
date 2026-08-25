@@ -128,11 +128,38 @@ class EnvTokenExpiryTests(unittest.TestCase):
         finally:
             kts.clear_process_hydrated_env()
 
-    def test_env_token_without_timestamp_trusted(self):
+    def test_env_token_without_timestamp_trusted_without_durable_authority(self):
         import kite_quote_provider as kqp
         env = {"ZERODHA_API_KEY": "k", "ZERODHA_ACCESS_TOKEN": "t"}
-        with mock.patch.dict(os.environ, env, clear=False):
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(kite_token_store, "_db_load",
+                               return_value=(False, None)):
             os.environ.pop("ZERODHA_TOKEN_TIMESTAMP", None)
+            self.assertFalse(kqp._env_token_expired())
+            _, token = kqp._resolve_creds()
+            self.assertEqual(token, "t")
+
+    def test_env_token_without_timestamp_fails_closed_with_durable_authority(self):
+        import kite_quote_provider as kqp
+        env = {"ZERODHA_API_KEY": "k", "ZERODHA_ACCESS_TOKEN": "t"}
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(kite_token_store, "_db_load",
+                               return_value=(True, None)):
+            os.environ.pop("ZERODHA_TOKEN_TIMESTAMP", None)
+            self.assertFalse(kqp._env_token_expired())
+            _, token = kqp._resolve_creds()
+            self.assertEqual(token, "")
+
+    def test_env_token_with_fresh_timestamp_trusted_without_durable_authority(self):
+        import kite_quote_provider as kqp
+        env = {
+            "ZERODHA_API_KEY": "k",
+            "ZERODHA_ACCESS_TOKEN": "t",
+            "ZERODHA_TOKEN_TIMESTAMP": _iso(datetime.now(timezone.utc)),
+        }
+        with mock.patch.dict(os.environ, env, clear=False), \
+             mock.patch.object(kite_token_store, "_db_load",
+                               return_value=(False, None)):
             self.assertFalse(kqp._env_token_expired())
             _, token = kqp._resolve_creds()
             self.assertEqual(token, "t")

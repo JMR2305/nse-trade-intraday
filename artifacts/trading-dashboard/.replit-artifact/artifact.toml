@@ -26,7 +26,6 @@ args = [ "pnpm", "--filter", "@workspace/trading-dashboard", "run", "build" ]
 
 [services.production.build.env]
 NODE_ENV = "production"
-APEXQUANT_BUILD_ID = "apexquant-v1.0.0"
 
 [[services.production.rewrites]]
 from = "/*"
