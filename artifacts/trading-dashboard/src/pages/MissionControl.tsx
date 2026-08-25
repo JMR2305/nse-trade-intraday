@@ -292,6 +292,50 @@ export interface PriceProvenanceSummary {
   scanProvenanceState: string;
 }
 
+const NOT_PROVEN = "UNAVAILABLE / NOT PROVEN";
+const LOADING_PROVENANCE = "LOADING CURRENT QUOTE PROVENANCE…";
+
+function normalizedEvidence(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase();
+  return normalized && normalized !== "UNAVAILABLE_NOT_PROVEN" ? normalized : null;
+}
+
+function recordedQuoteTimestamp(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const timestamp = value.trim();
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(timestamp)
+    || Number.isNaN(Date.parse(timestamp))
+  ) {
+    return null;
+  }
+  return timestamp;
+}
+
+function displayFreshness(value: unknown): string | null {
+  const freshness = normalizedEvidence(value);
+  if (!freshness) return null;
+  return freshness === "MARKET_CLOSED_LAST_KNOWN"
+    ? "MARKET CLOSED / LAST KNOWN"
+    : freshness;
+}
+
+export function loadingCurrentPriceProvenance(activeCount?: number): PriceProvenanceSummary {
+  return {
+    kiteConnection: LOADING_PROVENANCE,
+    currentPriceSource: LOADING_PROVENANCE,
+    activeUniverseCount: activeCount ?? null,
+    lastQuote: null,
+    freshness: LOADING_PROVENANCE,
+    historicalOhlcvProvider: LOADING_PROVENANCE,
+    fallbackCount: null,
+    syntheticCount: null,
+    unavailableCount: null,
+    scanProvenanceState: LOADING_PROVENANCE,
+  };
+}
+
 /**
  * Present current quote provenance from the canonical cached scan health.
  * Membership-refresh price fields are intentionally excluded: they are
@@ -303,78 +347,29 @@ export function summarizeCurrentPriceProvenance(
 ): PriceProvenanceSummary {
   if (!readiness) {
     return {
-      kiteConnection: "UNAVAILABLE / NOT PROVEN",
-      currentPriceSource: "UNAVAILABLE / NOT PROVEN",
+      kiteConnection: NOT_PROVEN,
+      currentPriceSource: NOT_PROVEN,
       activeUniverseCount: null,
       lastQuote: null,
-      freshness: "UNAVAILABLE / NOT PROVEN",
-      historicalOhlcvProvider: "UNAVAILABLE / NOT PROVEN",
+      freshness: NOT_PROVEN,
+      historicalOhlcvProvider: NOT_PROVEN,
       fallbackCount: null,
       syntheticCount: null,
       unavailableCount: null,
-      scanProvenanceState: "UNAVAILABLE / NOT PROVEN",
+      scanProvenanceState: NOT_PROVEN,
     };
   }
 
   const expected = Number(activeCount ?? readiness.active_universe_count ?? 0);
-  const kite = Number(readiness.symbols_on_kite ?? 0);
   const fallback = Number(readiness.symbols_fallback ?? 0);
-  const stale = Number(readiness.symbols_stale ?? 0);
   const unavailable = Number(readiness.symbols_unavailable ?? 0);
   const synthetic = Number(readiness.symbols_synthetic ?? 0);
-  const invalidKiteTimestamps = readiness.invalid_live_quote_timestamp_symbols?.length ?? 0;
-  const kiteTimestampsStale = readiness.kite_quote_timestamps_fresh === false
-    || invalidKiteTimestamps > 0;
-  const scanStale = readiness.market_timestamp_fresh === false;
-  const liveKiteVerified = readiness.kite_quote_timestamps_fresh === true
-    && readiness.market_timestamp_fresh === true
-    && invalidKiteTimestamps === 0;
-  const normalizedProvider = String(readiness.current_quote_provider ?? "").toUpperCase();
-  const providerLabel = normalizedProvider === "ZERODHA_KITE"
-    ? "Zerodha Kite"
-    : normalizedProvider === "YFINANCE"
-      ? "Yahoo Finance"
-      : normalizedProvider === "MIXED"
-        ? "Mixed: Zerodha Kite + Yahoo Finance"
-        : null;
-  let currentPriceSource = providerLabel ?? "No current quote source";
-  if (!providerLabel && kiteTimestampsStale) {
-    currentPriceSource = "Kite quote timestamps stale";
-  } else if (!providerLabel && scanStale) {
-    currentPriceSource = "Canonical scan stale";
-  } else if (!providerLabel && expected > 0 && kite === expected && liveKiteVerified) {
-    currentPriceSource = "Kite live LTP";
-  } else if (!providerLabel && expected > 0 && fallback === expected) {
-    currentPriceSource = "Yahoo Finance fallback";
-  } else if (!providerLabel && kite > 0 && fallback > 0 && liveKiteVerified) {
-    currentPriceSource = "Mixed: Kite live LTP + Yahoo Finance fallback";
-  } else if (!providerLabel && kite > 0 && liveKiteVerified) {
-    currentPriceSource = "Kite live LTP (partial coverage)";
-  } else if (!providerLabel && kite > 0) {
-    currentPriceSource = "Kite quote freshness unverified";
-  } else if (!providerLabel && fallback > 0) {
-    currentPriceSource = "Yahoo Finance fallback (partial coverage)";
-  }
-
-  const explicitFreshness = String(readiness.current_quote_freshness ?? "").toUpperCase();
-  let freshness = explicitFreshness === "MARKET_CLOSED_LAST_KNOWN"
-    ? "MARKET CLOSED / LAST KNOWN"
-    : explicitFreshness === "UNAVAILABLE_NOT_PROVEN"
-      ? "UNAVAILABLE / NOT PROVEN"
-      : explicitFreshness || "UNKNOWN";
-  if (!explicitFreshness) {
-    if (synthetic > 0) freshness = "SYNTHETIC";
-    else if (unavailable > 0) freshness = "UNAVAILABLE";
-    else if (stale > 0 || kiteTimestampsStale || scanStale) freshness = "STALE";
-    else if (fallback > 0) freshness = "FALLBACK";
-    else if (expected > 0 && kite === expected && liveKiteVerified) freshness = "LIVE";
-  }
-  const historicalProvider = String(readiness.historical_ohlcv_provider ?? "").toUpperCase();
-  const historicalOhlcvProvider = historicalProvider === "YFINANCE"
-    ? "Yahoo Finance"
-    : historicalProvider === "ZERODHA_KITE"
-      ? "Zerodha Kite"
-      : historicalProvider || "UNAVAILABLE / NOT PROVEN";
+  const currentQuoteProvider = normalizedEvidence(readiness.current_quote_provider);
+  const lastQuote = recordedQuoteTimestamp(readiness.current_quote_timestamp);
+  const freshness = displayFreshness(readiness.current_quote_freshness);
+  const hasRecordedCurrentQuote = Boolean(currentQuoteProvider && lastQuote && freshness);
+  const historicalOhlcvProvider = normalizedEvidence(readiness.historical_ohlcv_provider) ?? NOT_PROVEN;
+  const scanProvenanceState = normalizedEvidence(readiness.scan_provenance_state) ?? NOT_PROVEN;
 
   return {
     kiteConnection: readiness.kite_connected === true
@@ -382,15 +377,15 @@ export function summarizeCurrentPriceProvenance(
       : readiness.kite_connected === false
         ? "NOT CONNECTED"
         : "UNKNOWN",
-    currentPriceSource,
+    currentPriceSource: hasRecordedCurrentQuote ? (currentQuoteProvider ?? NOT_PROVEN) : NOT_PROVEN,
     activeUniverseCount: readiness.active_universe_count ?? expected,
-    lastQuote: readiness.current_quote_timestamp ?? readiness.latest_quote_timestamp ?? null,
-    freshness,
+    lastQuote: hasRecordedCurrentQuote ? lastQuote : null,
+    freshness: hasRecordedCurrentQuote ? (freshness ?? NOT_PROVEN) : NOT_PROVEN,
     historicalOhlcvProvider,
     fallbackCount: fallback,
     syntheticCount: synthetic,
     unavailableCount: unavailable,
-    scanProvenanceState: readiness.scan_provenance_state ?? "UNAVAILABLE / NOT PROVEN",
+    scanProvenanceState,
   };
 }
 /** Task 857: latest job summary (market or system). */
@@ -2623,10 +2618,12 @@ export function LowPriceUniverseCard({
   const excluded = symbols.filter((symbol) => !symbol.is_active);
   const band = status.price_filter ?? {};
   const metadata = status.instrument_metadata;
-  const provenance = summarizeCurrentPriceProvenance(
-    status.active_count,
-    marketDataHealthQ?.data?.market_data_readiness,
-  );
+  const provenance = !marketDataHealthQ?.data && marketDataHealthQ?.isLoading
+    ? loadingCurrentPriceProvenance(status.active_count)
+    : summarizeCurrentPriceProvenance(
+      status.active_count,
+      marketDataHealthQ?.data?.market_data_readiness,
+    );
   const confirmationRequired = metadata?.confirmation_required ?? METADATA_HYDRATION_CONFIRMATION;
   const canHydrateMetadata = Boolean(
     adminToken.trim() && metadataConfirmation.trim() === confirmationRequired,

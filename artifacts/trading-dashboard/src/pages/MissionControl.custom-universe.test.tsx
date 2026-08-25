@@ -31,6 +31,7 @@ function renderCard(
   activeUniverse = "CUSTOM_LOW_PRICE_SECTOR",
   marketDataReadiness?: Record<string, unknown>,
   statusPatch: Record<string, unknown> = {},
+  healthQueryState: { isLoading?: boolean } = {},
 ) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -48,7 +49,7 @@ function renderCard(
         marketDataHealthQ={{
           data: marketDataReadiness ? { market_data_readiness: marketDataReadiness } : undefined,
           dataUpdatedAt: Date.now(),
-          isLoading: false,
+          isLoading: healthQueryState.isLoading ?? false,
           isError: false,
         } as never}
       />
@@ -98,103 +99,119 @@ describe("LowPriceUniverseCard mapping freshness", () => {
 });
 
 describe("LowPriceUniverseCard current price provenance", () => {
-  it("separates connected Kite mappings from Yahoo current-price fallback", () => {
+  it("shows a recorded closed-market Kite quote from the health-v2 response", () => {
     renderCard("CUSTOM_LOW_PRICE_SECTOR", {
       kite_connected: true,
-      symbols_on_kite: 0,
-      symbols_fallback: 5,
-      symbols_stale: 0,
-      symbols_unavailable: 0,
-      symbols_synthetic: 0,
-    });
-
-    expect(screen.getByTestId("mc-custom-universe-kite-connection").textContent).toBe("CONNECTED");
-    expect(screen.getByTestId("mc-custom-universe-provenance-mappings").textContent).toBe("3 / 5");
-    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("Yahoo Finance fallback");
-    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("FALLBACK");
-    expect(screen.getByTestId("mc-custom-universe-fallback-count").textContent).toBe("5");
-    expect(screen.queryByText("Kite LTP")).toBeNull();
-  });
-
-  it("shows complete Kite mappings separately from a live Kite current-price source", () => {
-    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
-      kite_connected: true,
-      symbols_on_kite: 5,
-      symbols_fallback: 0,
-      symbols_stale: 0,
-      symbols_unavailable: 0,
-      symbols_synthetic: 0,
-      kite_quote_timestamps_fresh: true,
-      market_timestamp_fresh: true,
-    }, {
-      instrument_metadata: {
-        ...status.instrument_metadata,
-        complete_mapping_count: 5,
-        invalid_mapping_count: 0,
-        stale_mapping_count: 0,
-        refresh_required: false,
-      },
-    });
-
-    expect(screen.getByTestId("mc-custom-universe-kite-connection").textContent).toBe("CONNECTED");
-    expect(screen.getByTestId("mc-custom-universe-provenance-mappings").textContent).toBe("5 / 5");
-    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("Kite live LTP");
-    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("LIVE");
-    expect(screen.getByTestId("mc-custom-universe-fallback-count").textContent).toBe("0");
-  });
-
-  it("never presents expired Kite quotes as live LTP even with complete Kite coverage", () => {
-    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
-      kite_connected: true,
-      symbols_on_kite: 5,
-      symbols_fallback: 0,
-      symbols_stale: 0,
-      symbols_unavailable: 0,
-      symbols_synthetic: 0,
-      kite_quote_timestamps_fresh: false,
-      invalid_live_quote_timestamp_symbols: ["WIPRO"],
-      market_timestamp_fresh: false,
-    });
-
-    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("Kite quote timestamps stale");
-    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("STALE");
-    expect(screen.queryByText("Kite live LTP")).toBeNull();
-  });
-
-  it("renders explicit stale, unavailable, and synthetic outcomes without relabeling them as Kite", () => {
-    expect(summarizeCurrentPriceProvenance(5, {
-      kite_connected: true, symbols_on_kite: 5, symbols_fallback: 0, symbols_stale: 1,
-      symbols_unavailable: 0, symbols_synthetic: 0,
-    }).freshness).toBe("STALE");
-    expect(summarizeCurrentPriceProvenance(5, {
-      kite_connected: true, symbols_on_kite: 4, symbols_fallback: 0, symbols_stale: 0,
-      symbols_unavailable: 1, symbols_synthetic: 0,
-    }).freshness).toBe("UNAVAILABLE");
-    expect(summarizeCurrentPriceProvenance(5, {
-      kite_connected: true, symbols_on_kite: 5, symbols_fallback: 0, symbols_stale: 0,
-      symbols_unavailable: 0, symbols_synthetic: 1,
-    }).freshness).toBe("SYNTHETIC");
-  });
-
-  it("shows a closed market's recorded quote as last known and keeps historical OHLCV distinct", () => {
-    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
-      kite_connected: true,
-      symbols_on_kite: 0,
-      symbols_fallback: 5,
-      symbols_stale: 0,
-      symbols_unavailable: 0,
-      symbols_synthetic: 0,
-      current_quote_provider: "YFINANCE",
-      current_quote_timestamp: "2026-08-25T10:00:00Z",
+      current_quote_provider: "ZERODHA_KITE",
+      current_quote_timestamp: "2026-08-25T09:53:23Z",
       current_quote_freshness: "MARKET_CLOSED_LAST_KNOWN",
       historical_ohlcv_provider: "YFINANCE",
       scan_provenance_state: "SCHEDULED",
     });
 
-    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("Yahoo Finance");
+    expect(screen.getByTestId("mc-custom-universe-kite-connection").textContent).toBe("CONNECTED");
+    expect(screen.getByTestId("mc-custom-universe-provenance-mappings").textContent).toBe("3 / 5");
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("ZERODHA_KITE");
+    expect(screen.getByTestId("mc-custom-universe-last-quote").textContent).toBe("2026-08-25T09:53:23Z");
+    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("MARKET CLOSED / LAST KNOWN");
+    expect(screen.getByTestId("mc-custom-universe-historical-provider").textContent).toBe("YFINANCE");
+    expect(screen.getByTestId("mc-custom-universe-scan-provenance").textContent).toBe("SCHEDULED");
+  });
+
+  it("shows a recorded closed-market Yahoo quote without relabeling historical OHLCV", () => {
+    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
+      kite_connected: true,
+      current_quote_provider: "YFINANCE",
+      current_quote_timestamp: "2026-08-25T10:00:00Z",
+      current_quote_freshness: "MARKET_CLOSED_LAST_KNOWN",
+      historical_ohlcv_provider: "ZERODHA_KITE",
+      scan_provenance_state: "SCHEDULED",
+    });
+
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("YFINANCE");
     expect(screen.getByTestId("mc-custom-universe-last-quote").textContent).toBe("2026-08-25T10:00:00Z");
     expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("MARKET CLOSED / LAST KNOWN");
-    expect(screen.getByTestId("mc-custom-universe-historical-provider").textContent).toBe("Yahoo Finance");
+    expect(screen.getByTestId("mc-custom-universe-historical-provider").textContent).toBe("ZERODHA_KITE");
+    expect(screen.getByTestId("mc-custom-universe-scan-provenance").textContent).toBe("SCHEDULED");
+  });
+
+  it("uses the market-open provider and freshness reported by the API", () => {
+    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
+      kite_connected: true,
+      symbols_on_kite: 5,
+      symbols_fallback: 0,
+      current_quote_provider: "YFINANCE",
+      current_quote_timestamp: "2026-08-26T04:30:00Z",
+      current_quote_freshness: "LIVE",
+      historical_ohlcv_provider: "YFINANCE",
+      scan_provenance_state: "SCHEDULED",
+    });
+
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("YFINANCE");
+    expect(screen.getByTestId("mc-custom-universe-last-quote").textContent).toBe("2026-08-26T04:30:00Z");
+    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("LIVE");
+  });
+
+  it("does not infer a Kite quote source from Kite connection or coverage alone", () => {
+    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
+      kite_connected: true,
+      symbols_on_kite: 5,
+      symbols_fallback: 0,
+      kite_quote_timestamps_fresh: true,
+      market_timestamp_fresh: true,
+    });
+
+    expect(screen.getByTestId("mc-custom-universe-kite-connection").textContent).toBe("CONNECTED");
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("UNAVAILABLE / NOT PROVEN");
+    expect(screen.getByTestId("mc-custom-universe-last-quote").textContent).toBe("UNAVAILABLE / NOT PROVEN");
+    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("UNAVAILABLE / NOT PROVEN");
+  });
+
+  it("shows unavailable only when provider, timestamp, or freshness evidence is missing or malformed", () => {
+    const providerMissing = summarizeCurrentPriceProvenance(5, {
+      current_quote_timestamp: "2026-08-25T10:00:00Z",
+      current_quote_freshness: "MARKET_CLOSED_LAST_KNOWN",
+    });
+    const timestampMissing = summarizeCurrentPriceProvenance(5, {
+      current_quote_provider: "ZERODHA_KITE",
+      current_quote_freshness: "MARKET_CLOSED_LAST_KNOWN",
+    });
+    const malformedTimestamp = summarizeCurrentPriceProvenance(5, {
+      current_quote_provider: "ZERODHA_KITE",
+      current_quote_timestamp: "not-a-timestamp",
+      current_quote_freshness: "MARKET_CLOSED_LAST_KNOWN",
+    });
+    const trulyUnavailable = summarizeCurrentPriceProvenance(5, {
+      current_quote_provider: "UNAVAILABLE_NOT_PROVEN",
+      current_quote_timestamp: "2026-08-25T10:00:00Z",
+      current_quote_freshness: "UNAVAILABLE_NOT_PROVEN",
+    });
+
+    for (const provenance of [providerMissing, timestampMissing, malformedTimestamp, trulyUnavailable]) {
+      expect(provenance.currentPriceSource).toBe("UNAVAILABLE / NOT PROVEN");
+      expect(provenance.lastQuote).toBeNull();
+      expect(provenance.freshness).toBe("UNAVAILABLE / NOT PROVEN");
+    }
+  });
+
+  it("does not call the initial health request unavailable before it resolves", () => {
+    renderCard("CUSTOM_LOW_PRICE_SECTOR", undefined, {}, { isLoading: true });
+
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent)
+      .toBe("LOADING CURRENT QUOTE PROVENANCE…");
+    expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent)
+      .toBe("LOADING CURRENT QUOTE PROVENANCE…");
+  });
+
+  it("keeps explicit historical and scan provenance when current quote evidence is unavailable", () => {
+    renderCard("CUSTOM_LOW_PRICE_SECTOR", {
+      current_quote_provider: "UNAVAILABLE_NOT_PROVEN",
+      historical_ohlcv_provider: "YFINANCE",
+      scan_provenance_state: "SCHEDULED",
+    });
+
+    expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("UNAVAILABLE / NOT PROVEN");
+    expect(screen.getByTestId("mc-custom-universe-historical-provider").textContent).toBe("YFINANCE");
     expect(screen.getByTestId("mc-custom-universe-scan-provenance").textContent).toBe("SCHEDULED");
   });
 });
