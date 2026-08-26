@@ -768,3 +768,10 @@ uri = "file://TASK_935_FRONTEND_VALIDATION_AND_RELEASE_REPORT.md"
 type = "text"
 title = "Task #935 Frontend Validation and Release Report"
 description = "Completed validation results, the Vitest harness fix, the blocked release verdict, and next steps."
+
+[[outputs]]
+id = "OVPUVdMN9BEKNJ9LiWFe-"
+uri = "file://TASK_941_DETAILED_SUMMARY.md"
+type = "text"
+title = "Task 941 Detailed Summary"
+description = "Complete handoff covering the Phase 5A universe-accounting fixes, provenance rules, failure paths, validation evidence, safety boundaries, and next-session gate."
