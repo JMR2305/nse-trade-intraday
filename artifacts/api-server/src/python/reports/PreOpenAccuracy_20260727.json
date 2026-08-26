@@ -2,7 +2,7 @@
   "report_type": "DAILY_VALIDATION",
   "trading_date": "2026-07-27",
   "session_id": "test-session",
-  "generated_at": "2026-08-24T19:16:01Z",
+  "generated_at": "2026-08-26T04:48:33Z",
   "platform_mode": "PAPER TRADING / ADVISORY ONLY",
   "session_summary": {
     "total_candidates": 3,
@@ -72,7 +72,7 @@
   ],
   "candidate_outcomes": [
     {
-      "validation_id": "val-f3c3815af7d5",
+      "validation_id": "val-5b3f9e7131f7",
       "trading_date": "2026-07-27",
       "session_id": "test-session-001",
       "symbol": "RELIANCE",
@@ -113,11 +113,11 @@
       "prediction_result": "STRONG_CONTINUATION",
       "validation_status": "COMPLETE",
       "data_quality_status": "COMPLETE",
-      "created_at": "2026-08-24T19:16:01Z",
-      "updated_at": "2026-08-24T19:16:01Z"
+      "created_at": "2026-08-26T04:48:33Z",
+      "updated_at": "2026-08-26T04:48:33Z"
     },
     {
-      "validation_id": "val-30c8bf5a97ee",
+      "validation_id": "val-7b5eb0a5a879",
       "trading_date": "2026-07-27",
       "session_id": "test-session-001",
       "symbol": "TCS",
@@ -158,11 +158,11 @@
       "prediction_result": "STRONG_CONTINUATION",
       "validation_status": "COMPLETE",
       "data_quality_status": "COMPLETE",
-      "created_at": "2026-08-24T19:16:01Z",
-      "updated_at": "2026-08-24T19:16:01Z"
+      "created_at": "2026-08-26T04:48:33Z",
+      "updated_at": "2026-08-26T04:48:33Z"
     },
     {
-      "validation_id": "val-e44268a96318",
+      "validation_id": "val-ef458d833d40",
       "trading_date": "2026-07-27",
       "session_id": "test-session-001",
       "symbol": "HDFCBANK",
@@ -203,8 +203,8 @@
       "prediction_result": "STRONG_CONTINUATION",
       "validation_status": "COMPLETE",
       "data_quality_status": "COMPLETE",
-      "created_at": "2026-08-24T19:16:01Z",
-      "updated_at": "2026-08-24T19:16:01Z"
+      "created_at": "2026-08-26T04:48:33Z",
+      "updated_at": "2026-08-26T04:48:33Z"
     }
   ],
   "factor_analysis": [

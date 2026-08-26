@@ -4,6 +4,7 @@
 - [Manual scan market-hours gate](manual-scan-market-hours.md) — every full-scan entry point, including operator triggers, must require OPEN; execution gates alone are not enough.
 - [Dashboard scan GET side effect](dashboard-scan-get-side-effect.md) — observation GETs read durable snapshots only; no snapshot is explicit and scheduled origin remains authoritative.
 - [Pre-open durable lifecycle proof](preopen-durable-lifecycle-proof.md) — a Phase 5A phase is complete only with durable writes and same-batch provider/persisted-count parity.
+- [Phase 5A outcome accounting](phase5a-outcome-accounting.md) — complete live-snapshot parity needs immutable per-symbol outcomes; no-data evidence never certifies a partial batch.
 - [Phase 8 broker safety design](phase8-broker-safety.md) — credential masking, no-auto-execution guarantee, two-step confirm tokens, MockBrokerClient fallback.
 - [Phase 8 test pattern](phase8-tests.md) — all broker tests must stay unit-level with mocked clients; never hit a real broker in tests.
 - [Watchlist default fallback](watchlist-default.md) — watchlist.json may not exist; any reader must fall back to config.DEFAULT_WATCHLIST like main.py does, or features silently show empty.

@@ -222,6 +222,11 @@ class PreOpenScheduler:
                 or len(symbols) != int(persisted)
                 or len(expected_symbols) != int(expected)
                 or symbols != expected_symbols
+                or any(
+                    snapshot.get("is_stale") is not False
+                    or str(snapshot.get("source_status") or "").strip().upper() != "LIVE"
+                    for snapshot in snaps_raw
+                )
             ):
                 reason = (
                     "Freeze blocked: exact verified collection batch does not "
@@ -229,6 +234,46 @@ class PreOpenScheduler:
                     f"rows={len(snaps_raw)}, snapshots={len(snapshot_ids)}, "
                     f"symbols={len(symbols)}, expected_symbols={len(expected_symbols)}, "
                     f"persisted={persisted})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+
+            # Snapshot parity proves the real market-data rows. The separate
+            # outcome matrix proves every expected symbol was classified by this
+            # exact batch, so a provider omission can never disappear behind an
+            # aggregate count or a placeholder snapshot.
+            get_outcomes = getattr(db_mod, "get_collection_outcomes", None)
+            if not callable(get_outcomes):
+                reason = "Freeze blocked: durable collection outcome reader is unavailable."
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            outcomes = get_outcomes(self.session_id, str(collection_batch_id))
+            outcome_symbols = {
+                str(row.get("symbol") or "").strip().upper()
+                for row in outcomes
+                if str(row.get("symbol") or "").strip()
+            }
+            live_symbols = {
+                str(row.get("symbol") or "").strip().upper()
+                for row in outcomes
+                if str(row.get("outcome_status") or "").strip().upper()
+                == "LIVE_PREOPEN_DATA"
+            }
+            if (
+                len(outcomes) != int(expected)
+                or outcome_symbols != expected_symbols
+                or live_symbols != expected_symbols
+            ):
+                reason = (
+                    "Freeze blocked: exact collection outcomes are incomplete "
+                    f"or non-live (batch={collection_batch_id}, outcomes={len(outcomes)}, "
+                    f"expected={expected}, live={len(live_symbols)})."
                 )
                 db_mod.record_collection_failure(
                     self.session_id, "FREEZE_BLOCKED", reason,

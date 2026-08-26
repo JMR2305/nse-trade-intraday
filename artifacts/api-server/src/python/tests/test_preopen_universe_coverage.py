@@ -260,6 +260,175 @@ class TestCollectionContract(unittest.TestCase):
         self.assertEqual(coverage["unexpected_symbols"], ["UNEXPECTED_SERIALIZED_SYMBOL"])
 
 
+class TestExplicitCollectionOutcomes(unittest.TestCase):
+    def _evidence_provider(self, snapshots, outcomes, raw_count=0, scope="ALL"):
+        return types.SimpleNamespace(
+            health_check=lambda: {"status": "LIVE", "provider": "Fixture"},
+            fetch_collection_evidence=lambda: {
+                "snapshots": snapshots,
+                "outcomes": outcomes,
+                "provider_raw_count": raw_count,
+                "provider_scope": scope,
+            },
+            PROVIDER_LABEL="Fixture",
+        )
+
+    def test_partial_provider_result_has_one_explicit_outcome_per_expected_symbol(self):
+        import preopen_engine
+
+        expected = ["ALPHA", "BETA", "GAMMA"]
+        snapshots = [_Snapshot("ALPHA")]
+        provider = self._evidence_provider(
+            snapshots,
+            [
+                {
+                    "symbol": "ALPHA",
+                    "outcome_status": "LIVE_PREOPEN_DATA",
+                    "reason_code": "NSE_ROW_NORMALIZED",
+                    "provider_response_present": True,
+                    "normalization_result": "NORMALIZED",
+                },
+                {
+                    "symbol": "BETA",
+                    "outcome_status": "NO_PREOPEN_DATA",
+                    "reason_code": "SYMBOL_ABSENT_FROM_NSE_RESPONSE",
+                    "provider_response_present": False,
+                    "normalization_result": "NOT_ATTEMPTED",
+                },
+                {
+                    "symbol": "GAMMA",
+                    "outcome_status": "NO_PREOPEN_DATA",
+                    "reason_code": "SYMBOL_ABSENT_FROM_NSE_RESPONSE",
+                    "provider_response_present": False,
+                    "normalization_result": "NOT_ATTEMPTED",
+                },
+            ],
+            raw_count=50,
+        )
+        persisted = {
+            "success": False,
+            "provider_collected_count": 1,
+            "persisted_count": 1,
+            "failed_count": 2,
+            "expected_count": 3,
+            "persistence_status": "COVERAGE_INCOMPLETE",
+        }
+        with (
+            patch.object(preopen_engine, "_is_enabled", return_value=True),
+            patch.object(preopen_engine, "_ensure_session", return_value=True),
+            patch.object(preopen_engine, "_resolve_collection_symbols", return_value=expected),
+            patch.object(preopen_engine, "_get_provider", return_value=provider),
+            patch.object(preopen_engine, "enrich_universe", side_effect=lambda rows: rows),
+            patch.object(preopen_engine.db, "persist_collection", return_value=persisted) as store,
+        ):
+            result = preopen_engine.collect_snapshot("session-explicit-outcomes")
+
+        self.assertFalse(result["success"])
+        outcomes = store.call_args.kwargs["outcomes"]
+        self.assertEqual([outcome["symbol"] for outcome in outcomes], expected)
+        self.assertEqual(
+            [outcome["outcome_status"] for outcome in outcomes],
+            ["LIVE_PREOPEN_DATA", "NO_PREOPEN_DATA", "NO_PREOPEN_DATA"],
+        )
+        coverage = store.call_args.kwargs["coverage"]
+        self.assertEqual(coverage["provider_raw_count"], 50)
+        self.assertTrue(coverage["outcome_complete"])
+
+    def test_provider_unavailable_has_an_explicit_outcome_for_every_expected_symbol(self):
+        import preopen_engine
+
+        expected = ["ALPHA", "BETA"]
+        provider = types.SimpleNamespace(
+            health_check=lambda: {"status": "UNAVAILABLE", "provider": "Fixture"},
+            PROVIDER_LABEL="Fixture",
+        )
+        with (
+            patch.object(preopen_engine, "_is_enabled", return_value=True),
+            patch.object(preopen_engine, "_ensure_session", return_value=True),
+            patch.object(preopen_engine, "_resolve_collection_symbols", return_value=expected),
+            patch.object(preopen_engine, "_get_provider", return_value=provider),
+            patch.object(preopen_engine.db, "record_collection_failure",
+                         return_value=True) as record_failure,
+        ):
+            result = preopen_engine.collect_snapshot("session-provider-unavailable")
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status"], "PROVIDER_UNAVAILABLE")
+        outcomes = record_failure.call_args.kwargs["outcomes"]
+        self.assertEqual([outcome["symbol"] for outcome in outcomes], expected)
+        self.assertEqual(
+            {outcome["outcome_status"] for outcome in outcomes},
+            {"PROVIDER_UNAVAILABLE"},
+        )
+
+    def test_provider_health_exception_keeps_exact_batch_outcome_evidence(self):
+        import preopen_engine
+
+        expected = ["ALPHA", "BETA"]
+        provider = types.SimpleNamespace(
+            health_check=Mock(side_effect=RuntimeError("health probe failed")),
+            PROVIDER_LABEL="Fixture",
+        )
+        with (
+            patch.object(preopen_engine, "_is_enabled", return_value=True),
+            patch.object(preopen_engine, "_ensure_session", return_value=True),
+            patch.object(preopen_engine, "_resolve_collection_symbols", return_value=expected),
+            patch.object(preopen_engine, "_get_provider", return_value=provider),
+            patch.object(preopen_engine.db, "record_collection_failure",
+                         return_value=True) as record_failure,
+        ):
+            result = preopen_engine.collect_snapshot("session-health-exception")
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status"], "PROVIDER_UNAVAILABLE")
+        self.assertTrue(result["collection_batch_id"].startswith("collection-"))
+        kwargs = record_failure.call_args.kwargs
+        self.assertEqual(kwargs["collection_batch_id"], result["collection_batch_id"])
+        self.assertEqual([outcome["symbol"] for outcome in kwargs["outcomes"]], expected)
+        self.assertEqual(
+            {outcome["reason_code"] for outcome in kwargs["outcomes"]},
+            {"PROVIDER_INITIALIZATION_FAILED"},
+        )
+
+    def test_enrichment_exception_keeps_exact_batch_failure_matrix(self):
+        import preopen_engine
+
+        expected = ["ALPHA", "BETA"]
+        snapshots = [_Snapshot("ALPHA"), _Snapshot("BETA")]
+        provider = self._evidence_provider(
+            snapshots,
+            [{
+                "symbol": symbol,
+                "outcome_status": "LIVE_PREOPEN_DATA",
+                "reason_code": "NSE_ROW_NORMALIZED",
+                "provider_response_present": True,
+                "normalization_result": "NORMALIZED",
+            } for symbol in expected],
+            raw_count=2,
+        )
+        with (
+            patch.object(preopen_engine, "_is_enabled", return_value=True),
+            patch.object(preopen_engine, "_ensure_session", return_value=True),
+            patch.object(preopen_engine, "_resolve_collection_symbols", return_value=expected),
+            patch.object(preopen_engine, "_get_provider", return_value=provider),
+            patch.object(preopen_engine, "enrich_universe",
+                         side_effect=RuntimeError("enrichment failed")),
+            patch.object(preopen_engine.db, "record_collection_failure",
+                         return_value=True) as record_failure,
+        ):
+            result = preopen_engine.collect_snapshot("session-enrichment-exception")
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["status"], "COLLECTION_PROCESSING_FAILED")
+        kwargs = record_failure.call_args.kwargs
+        self.assertEqual(kwargs["collection_batch_id"], result["collection_batch_id"])
+        self.assertEqual([outcome["symbol"] for outcome in kwargs["outcomes"]], expected)
+        self.assertEqual(
+            {outcome["outcome_status"] for outcome in kwargs["outcomes"]},
+            {"COLLECTION_PROCESSING_FAILED"},
+        )
+
+
 class TestDurableCoverageGate(unittest.TestCase):
     def test_partial_10_of_23_batch_cannot_freeze(self):
         import preopen_scheduler
@@ -305,6 +474,102 @@ class TestDurableCoverageGate(unittest.TestCase):
                 {"snapshot_id": "snapshot-one", "symbol": "ONE"},
                 {"snapshot_id": "snapshot-three", "symbol": "THREE"},
             ],
+            record_collection_failure=Mock(return_value=True),
+        )
+        with patch.dict(sys.modules, {"preopen_db": database}):
+            result = scheduler._phase_09_15_freeze()
+
+        self.assertFalse(result)
+        self.assertEqual(scheduler.phase, "ERROR")
+        database.record_collection_failure.assert_called_once()
+
+    def test_freeze_requires_the_complete_explicit_outcome_matrix(self):
+        import preopen_scheduler
+
+        scheduler = preopen_scheduler.PreOpenScheduler(
+            session_id="session-missing-outcome", test_mode=True,
+        )
+        database = types.SimpleNamespace(
+            get_session=lambda _: {
+                "provider_collected_count": 2,
+                "persisted_count": 2,
+                "expected_count": 2,
+                "failed_count": 0,
+                "persistence_status": "MATCH",
+                "verified_collection_batch_id": "batch-1",
+                "collection_coverage": {"expected_symbols": ["ONE", "TWO"]},
+            },
+            get_session_snapshots=lambda *_: [
+                {"snapshot_id": "snapshot-one", "symbol": "ONE"},
+                {"snapshot_id": "snapshot-two", "symbol": "TWO"},
+            ],
+            get_collection_outcomes=lambda *_: [{
+                "symbol": "ONE", "outcome_status": "LIVE_PREOPEN_DATA",
+            }],
+            record_collection_failure=Mock(return_value=True),
+        )
+        with patch.dict(sys.modules, {"preopen_db": database}):
+            result = scheduler._phase_09_15_freeze()
+
+        self.assertFalse(result)
+        self.assertEqual(scheduler.phase, "ERROR")
+        database.record_collection_failure.assert_called_once()
+
+    def test_freeze_rejects_stale_rows_even_when_counts_and_outcomes_match(self):
+        import preopen_scheduler
+
+        scheduler = preopen_scheduler.PreOpenScheduler(
+            session_id="session-stale-row", test_mode=True,
+        )
+        database = types.SimpleNamespace(
+            get_session=lambda _: {
+                "provider_collected_count": 2,
+                "persisted_count": 2,
+                "expected_count": 2,
+                "failed_count": 0,
+                "persistence_status": "MATCH",
+                "verified_collection_batch_id": "batch-1",
+                "collection_coverage": {"expected_symbols": ["ONE", "TWO"]},
+            },
+            get_session_snapshots=lambda *_: [
+                {"snapshot_id": "snapshot-one", "symbol": "ONE", "is_stale": False},
+                {"snapshot_id": "snapshot-two", "symbol": "TWO", "is_stale": True},
+            ],
+            get_collection_outcomes=lambda *_: [
+                {"symbol": "ONE", "outcome_status": "LIVE_PREOPEN_DATA"},
+                {"symbol": "TWO", "outcome_status": "LIVE_PREOPEN_DATA"},
+            ],
+            record_collection_failure=Mock(return_value=True),
+        )
+        with patch.dict(sys.modules, {"preopen_db": database}):
+            result = scheduler._phase_09_15_freeze()
+
+        self.assertFalse(result)
+        self.assertEqual(scheduler.phase, "ERROR")
+        database.record_collection_failure.assert_called_once()
+
+    def test_freeze_rejects_rows_without_explicit_liveness_evidence(self):
+        import preopen_scheduler
+
+        scheduler = preopen_scheduler.PreOpenScheduler(
+            session_id="session-missing-liveness", test_mode=True,
+        )
+        database = types.SimpleNamespace(
+            get_session=lambda _: {
+                "provider_collected_count": 1,
+                "persisted_count": 1,
+                "expected_count": 1,
+                "failed_count": 0,
+                "persistence_status": "MATCH",
+                "verified_collection_batch_id": "batch-1",
+                "collection_coverage": {"expected_symbols": ["ONE"]},
+            },
+            get_session_snapshots=lambda *_: [{
+                "snapshot_id": "snapshot-one", "symbol": "ONE",
+            }],
+            get_collection_outcomes=lambda *_: [{
+                "symbol": "ONE", "outcome_status": "LIVE_PREOPEN_DATA",
+            }],
             record_collection_failure=Mock(return_value=True),
         )
         with patch.dict(sys.modules, {"preopen_db": database}):

@@ -1,8 +1,9 @@
 """
 nse_preopen_provider.py — Phase 5D: NSE Official Pre-Open Data Provider (Primary).
 
-Fetches real auction data from NSE's public API endpoint:
-  https://www.nseindia.com/api/market-data-pre-open?key=NIFTY
+ Fetches real auction data from NSE's public API endpoint. The default scope is
+ `ALL`, because Phase 5A can collect an operator-selected custom universe that
+ is not limited to NIFTY constituents.
 
 Provides:
   • Indicative Equilibrium Price (IEP)
@@ -35,9 +36,8 @@ from preopen_data_model import PreOpenSnapshot, ProviderState, now_ist_str
 
 _LABEL = "PAPER TRADING / ADVISORY ONLY"
 
-_NSE_MAIN      = "https://www.nseindia.com/"
-_NSE_API_NIFTY = "https://www.nseindia.com/api/market-data-pre-open?key=NIFTY"
-_NSE_API_FO    = "https://www.nseindia.com/api/market-data-pre-open?key=FO"
+_NSE_MAIN = "https://www.nseindia.com/"
+_NSE_PREOPEN_API = "https://www.nseindia.com/api/market-data-pre-open?key={key}"
 
 # Cookie session TTL — refresh every 4.5 minutes
 NSE_SESSION_TTL   = 270
@@ -63,6 +63,12 @@ _session_obj    = None
 _session_ts: float = 0.0
 _data_cache: Dict[str, Dict] = {}   # keyed by UPPER symbol
 _data_cache_ts: float = 0.0
+_data_cache_key: Optional[str] = None
+
+
+def _preopen_key() -> str:
+    """The custom-universe Phase 5A path must always query all NSE equities."""
+    return "ALL"
 
 
 def _get_session():
@@ -84,21 +90,27 @@ def _get_session():
     return s
 
 
-def _fetch_raw(force: bool = False) -> Optional[Dict[str, Dict]]:
+def _fetch_raw(force: bool = False, key: Optional[str] = None) -> Optional[Dict[str, Dict]]:
     """
-    Fetch NIFTY pre-open data from NSE.  Returns a dict keyed by UPPER symbol,
+    Fetch scoped NSE pre-open data. Returns a dict keyed by UPPER symbol,
     each value: {"meta": {...}, "detail": {...}}.
     Returns None on any network / parse failure.
     """
-    global _data_cache, _data_cache_ts
+    global _data_cache, _data_cache_ts, _data_cache_key
+    key = (key or _preopen_key()).upper()
     now = time.monotonic()
-    if not force and _data_cache and now - _data_cache_ts < NSE_DATA_TTL:
+    if (
+        not force
+        and _data_cache
+        and _data_cache_key == key
+        and now - _data_cache_ts < NSE_DATA_TTL
+    ):
         return _data_cache
 
     try:
         s = _get_session()
         s.headers.update(_NSE_API_HEADERS)
-        r = s.get(_NSE_API_NIFTY, timeout=NSE_TIMEOUT_S)
+        r = s.get(_NSE_PREOPEN_API.format(key=key), timeout=NSE_TIMEOUT_S)
         if r.status_code != 200:
             return None
         payload = r.json()
@@ -111,6 +123,7 @@ def _fetch_raw(force: bool = False) -> Optional[Dict[str, Dict]]:
                 by_sym[sym] = {"meta": meta, "detail": detail}
         _data_cache    = by_sym
         _data_cache_ts = now
+        _data_cache_key = key
         return by_sym
     except Exception:
         return None
@@ -130,6 +143,31 @@ def _safe_int(v: Any) -> Optional[int]:
         return int(v)
     except (TypeError, ValueError):
         return None
+
+
+def _nse_last_update_age_seconds(last_update_time: str,
+                                 now: Optional[Any] = None) -> int:
+    """Return NSE wall-clock update age; unknown timestamps fail closed."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    ist = ZoneInfo("Asia/Kolkata")
+    try:
+        updated_at = datetime.strptime(
+            str(last_update_time or "").strip(),
+            "%d-%b-%Y %H:%M:%S",
+        ).replace(tzinfo=ist)
+        current = now or datetime.now(ist)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=ist)
+        age_seconds = int((current.astimezone(ist) - updated_at).total_seconds())
+        # Provider time ahead of the collection clock cannot prove freshness.
+        # With no explicitly approved skew policy, treat it as stale.
+        return age_seconds if age_seconds >= 0 else 300
+    except Exception:
+        # A missing or unparseable provider timestamp is not evidence of a
+        # current auction row and therefore cannot satisfy the live-data gate.
+        return 300
 
 
 def _build_sector_map() -> Dict[str, str]:
@@ -183,10 +221,14 @@ class NSEPreOpenProvider:
             age = int(time.monotonic() - _data_cache_ts)
             return {
                 "status":      ProviderState.LIVE if age < 300 else ProviderState.STALE,
-                "message":     f"NSE Official — {len(data)} symbols, data age {age}s",
+                "message":     (
+                    f"NSE Official ({_preopen_key()}) — {len(data)} symbols, "
+                    f"data age {age}s"
+                ),
                 "latency_ms":  lat,
                 "provider":    self.PROVIDER_LABEL,
                 "symbol_count": len(data),
+                "provider_scope": _preopen_key(),
             }
         except Exception as exc:
             return {"status": ProviderState.UNAVAILABLE,
@@ -227,17 +269,9 @@ class NSEPreOpenProvider:
         if total_qty > 0:
             imbalance_pct = round((buy_qty - sell_qty) / total_qty * 100, 4)
 
-        # Data age — NSE provides lastUpdateTime e.g. "29-Jul-2026 09:07:35"
-        age_s = 60
-        last_upd = detail.get("lastUpdateTime") or ""
-        if last_upd:
-            try:
-                from datetime import datetime, timezone
-                dt  = datetime.strptime(last_upd, "%d-%b-%Y %H:%M:%S").replace(tzinfo=timezone.utc)
-                age_s = max(0, int((datetime.now(timezone.utc) - dt).total_seconds()))
-            except Exception:
-                pass
-
+        # NSE returns an IST wall-clock timestamp, not UTC. Unknown timestamps
+        # are stale so no caller can infer liveness from a missing field.
+        age_s = _nse_last_update_age_seconds(detail.get("lastUpdateTime") or "")
         state = ProviderState.LIVE if age_s < 300 else ProviderState.STALE
         sym   = symbol.upper()
 
@@ -266,7 +300,7 @@ class NSEPreOpenProvider:
             provider_label              = self.PROVIDER_LABEL,
             data_freshness_seconds      = age_s,
             source_status               = state,
-            is_stale                    = age_s > 300,
+            is_stale                    = age_s >= 300,
             validation_status           = "VALID",
             order_book_available        = buy_qty > 0 or sell_qty > 0,
         )
@@ -283,17 +317,86 @@ class NSEPreOpenProvider:
         return self._normalize(raw, symbol)
 
     def fetch_market_snapshot(self) -> List[PreOpenSnapshot]:
-        data = _fetch_raw()
+        return self.fetch_collection_evidence()["snapshots"]
+
+    def fetch_collection_evidence(self) -> Dict[str, Any]:
+        """Return real snapshots plus auditable outcomes for every request.
+
+        `PreOpenSnapshot` rows are emitted only for provider records that
+        normalize successfully. Missing or invalid provider rows are represented
+        as metadata outcomes, never as fabricated price rows.
+        """
+        scope = _preopen_key()
+        data = _fetch_raw(key=scope)
+        expected_symbols = [
+            str(symbol or "").strip().upper()
+            for symbol in self.symbols
+            if str(symbol or "").strip()
+        ]
         if not data:
-            return []
+            return {
+                "snapshots": [],
+                "outcomes": [{
+                    "symbol": symbol,
+                    "outcome_status": "NO_PREOPEN_DATA",
+                    "reason_code": "NSE_EMPTY_OR_UNAVAILABLE_RESPONSE",
+                    "provider_symbol": symbol,
+                    "provider_response_present": False,
+                    "normalization_result": "NOT_ATTEMPTED",
+                    "eligibility_status": "UNKNOWN",
+                    "provider_scope": scope,
+                } for symbol in expected_symbols],
+                "provider_raw_count": 0,
+                "provider_scope": scope,
+            }
+
         results = []
-        for sym in self.symbols:
-            raw = data.get(sym.upper())
-            if raw:
-                snap = self._normalize(raw, sym)
-                if snap:
-                    results.append(snap)
-        return results
+        outcomes = []
+        for symbol in expected_symbols:
+            raw = data.get(symbol)
+            if raw is None:
+                outcomes.append({
+                    "symbol": symbol,
+                    "outcome_status": "NO_PREOPEN_DATA",
+                    "reason_code": "SYMBOL_ABSENT_FROM_NSE_RESPONSE",
+                    "provider_symbol": symbol,
+                    "provider_response_present": False,
+                    "normalization_result": "NOT_ATTEMPTED",
+                    "eligibility_status": "UNKNOWN",
+                    "provider_scope": scope,
+                })
+                continue
+            snapshot = self._normalize(raw, symbol)
+            if snapshot is None:
+                outcomes.append({
+                    "symbol": symbol,
+                    "outcome_status": "NORMALIZATION_FAILED",
+                    "reason_code": "MISSING_OR_INVALID_PREVIOUS_CLOSE",
+                    "provider_symbol": symbol,
+                    "provider_response_present": True,
+                    "normalization_result": "REJECTED",
+                    "eligibility_status": "UNKNOWN",
+                    "provider_scope": scope,
+                })
+                continue
+            results.append(snapshot)
+            outcomes.append({
+                "symbol": symbol,
+                "outcome_status": "LIVE_PREOPEN_DATA",
+                "reason_code": "NSE_ROW_NORMALIZED",
+                "provider_symbol": symbol,
+                "provider_response_present": True,
+                "normalization_result": "NORMALIZED",
+                "eligibility_status": "UNKNOWN",
+                "snapshot_id": snapshot.snapshot_id,
+                "provider_scope": scope,
+            })
+        return {
+            "snapshots": results,
+            "outcomes": outcomes,
+            "provider_raw_count": len(data),
+            "provider_scope": scope,
+        }
 
     def validate_response(self, raw: Any) -> bool:
         if not isinstance(raw, dict):

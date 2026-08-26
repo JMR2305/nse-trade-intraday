@@ -154,6 +154,12 @@ class TestPreopenPersistenceFailures(unittest.TestCase):
                 "snapshot_id": "batch-2-SBIN",
                 "collection_batch_id": latest_batch,
                 "symbol": "SBIN",
+                "is_stale": False,
+                "source_status": "LIVE",
+            }]),
+            get_collection_outcomes=Mock(return_value=[{
+                "symbol": "SBIN",
+                "outcome_status": "LIVE_PREOPEN_DATA",
             }]),
             save_watchlist=Mock(),
             save_rankings=Mock(),
@@ -255,9 +261,27 @@ class TestPreopenPersistenceFailures(unittest.TestCase):
         with patch.object(db, "_with_db", side_effect=lambda callback, fallback=None: callback(connection)):
             result = db.persist_collection(
                 "session-1", "2026-08-24",
-                [{"snapshot_id": "batch-2-SBIN", "symbol": "SBIN"}],
+                [{
+                    "snapshot_id": "batch-2-SBIN",
+                    "symbol": "SBIN",
+                    "is_stale": False,
+                    "source_status": "LIVE",
+                }],
                 "LIVE", valid_count=1, stale_count=0,
                 collection_batch_id="batch-2",
+                coverage={
+                    "expected_count": 1,
+                    "expected_symbols": ["SBIN"],
+                    "normalized_count": 1,
+                    "provider_returned_count": 1,
+                },
+                outcomes=[{
+                    "symbol": "SBIN",
+                    "outcome_status": "LIVE_PREOPEN_DATA",
+                    "reason_code": "PERSISTENCE_CANDIDATE_READY",
+                    "provider_response_present": True,
+                    "normalization_result": "NORMALIZED",
+                }],
             )
 
         self.assertTrue(result["success"])
@@ -265,13 +289,201 @@ class TestPreopenPersistenceFailures(unittest.TestCase):
         insert_sql, insert_params = connection.cursor_instance.calls[0]
         self.assertIn("collection_batch_id", insert_sql)
         self.assertEqual(insert_params[2], "batch-2")
-        proof_sql, proof_params = connection.cursor_instance.calls[1]
+        outcome_sql, _outcome_params = connection.cursor_instance.calls[1]
+        self.assertIn("INSERT INTO preopen_collection_outcomes", outcome_sql)
+        proof_sql, proof_params = connection.cursor_instance.calls[2]
         self.assertIn("collection_batch_id = %s", proof_sql)
         self.assertEqual(proof_params[:2], ["session-1", "batch-2"])
-        session_sql, session_params = connection.cursor_instance.calls[2]
+        session_sql, session_params = connection.cursor_instance.calls[4]
         self.assertIn("verified_collection_batch_id", session_sql)
         self.assertIn("batch-2", session_params)
         self.assertTrue(connection.committed)
+
+    def test_collection_persists_one_outcome_for_every_expected_symbol(self):
+        import preopen_db as db
+
+        class Cursor:
+            def __init__(self):
+                self.calls = []
+                self.rowcount = 1
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def execute(self, sql, params=None):
+                self.calls.append((sql, params))
+
+            def fetchone(self):
+                return (2,)
+
+        class Connection:
+            def __init__(self):
+                self.cursor_instance = Cursor()
+                self.committed = False
+
+            def cursor(self):
+                return self.cursor_instance
+
+            def commit(self):
+                self.committed = True
+
+        connection = Connection()
+        outcomes = [{
+            "symbol": symbol,
+            "outcome_status": "LIVE_PREOPEN_DATA",
+            "reason_code": "PERSISTENCE_CANDIDATE_READY",
+            "provider_response_present": True,
+            "normalization_result": "NORMALIZED",
+        } for symbol in ("ALPHA", "BETA")]
+        coverage = {
+            "expected_count": 2,
+            "expected_symbols": ["ALPHA", "BETA"],
+            "provider_returned_count": 2,
+            "normalized_count": 2,
+            "missing_count": 0,
+            "duplicate_count": 0,
+            "malformed_count": 0,
+            "unusable_count": 0,
+            "provider_raw_count": 50,
+        }
+        with patch.object(
+            db, "_with_db", side_effect=lambda callback, fallback=None: callback(connection)
+        ):
+            result = db.persist_collection(
+                "session-outcomes", "2026-08-26",
+                [
+                    {
+                        "snapshot_id": "alpha-snapshot",
+                        "symbol": "ALPHA",
+                        "is_stale": False,
+                        "source_status": "LIVE",
+                    },
+                    {
+                        "snapshot_id": "beta-snapshot",
+                        "symbol": "BETA",
+                        "is_stale": False,
+                        "source_status": "LIVE",
+                    },
+                ],
+                "LIVE", valid_count=2, stale_count=0,
+                collection_batch_id="batch-outcomes",
+                coverage=coverage,
+                outcomes=outcomes,
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual(result["outcome_persisted_count"], 2)
+        self.assertTrue(result["outcome_complete"])
+        outcome_insert_sql = connection.cursor_instance.calls[2][0]
+        self.assertIn("INSERT INTO preopen_collection_outcomes", outcome_insert_sql)
+        self.assertTrue(connection.committed)
+
+    def test_collection_without_outcome_matrix_cannot_match(self):
+        import preopen_db as db
+
+        class Cursor:
+            def __init__(self):
+                self.calls = []
+                self.rowcount = 1
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def execute(self, sql, params=None):
+                self.calls.append((sql, params))
+
+            def fetchone(self):
+                return (1,)
+
+        class Connection:
+            def __init__(self):
+                self.cursor_instance = Cursor()
+
+            def cursor(self):
+                return self.cursor_instance
+
+            def commit(self):
+                pass
+
+        connection = Connection()
+        with patch.object(
+            db, "_with_db", side_effect=lambda callback, fallback=None: callback(connection)
+        ):
+            result = db.persist_collection(
+                "session-no-outcome", "2026-08-26",
+                [{"snapshot_id": "only-snapshot", "symbol": "ONLY"}],
+                "LIVE", valid_count=1, stale_count=0,
+                collection_batch_id="batch-no-outcome",
+                coverage={
+                    "expected_count": 1,
+                    "expected_symbols": ["ONLY"],
+                    "normalized_count": 1,
+                    "provider_returned_count": 1,
+                },
+                outcomes=None,
+            )
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["persistence_status"], "MISMATCH")
+        self.assertFalse(result["outcome_complete"])
+
+    def test_collection_without_explicit_liveness_cannot_match(self):
+        import preopen_db as db
+
+        class Cursor:
+            def __init__(self):
+                self.rowcount = 1
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def execute(self, _sql, _params=None):
+                pass
+
+            def fetchone(self):
+                return (1,)
+
+        class Connection:
+            def cursor(self):
+                return Cursor()
+
+            def commit(self):
+                pass
+
+        with patch.object(
+            db, "_with_db", side_effect=lambda callback, fallback=None: callback(Connection())
+        ):
+            result = db.persist_collection(
+                "session-missing-liveness", "2026-08-26",
+                [{"snapshot_id": "only-snapshot", "symbol": "ONLY"}],
+                "LIVE", valid_count=1, stale_count=0,
+                collection_batch_id="batch-missing-liveness",
+                coverage={
+                    "expected_count": 1,
+                    "expected_symbols": ["ONLY"],
+                    "normalized_count": 1,
+                    "provider_returned_count": 1,
+                },
+                outcomes=[{
+                    "symbol": "ONLY",
+                    "outcome_status": "LIVE_PREOPEN_DATA",
+                    "reason_code": "PERSISTENCE_CANDIDATE_READY",
+                    "provider_response_present": True,
+                    "normalization_result": "NORMALIZED",
+                }],
+            )
+
+        self.assertFalse(result["success"])
+        self.assertFalse(result["collection_coverage"]["live_coverage_complete"])
 
     def test_existing_snapshot_table_upgrades_batch_column_before_batch_index(self):
         import preopen_db as db
@@ -319,6 +531,45 @@ class TestPreopenPersistenceFailures(unittest.TestCase):
         )
         self.assertLess(upgrade_at, index_at)
         self.assertTrue(connection.committed)
+
+    def test_schema_includes_immutable_collection_outcomes(self):
+        import preopen_db as db
+
+        class Cursor:
+            def __init__(self):
+                self.statements = []
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def execute(self, sql, _params=None):
+                self.statements.append(" ".join(sql.split()))
+
+        class Connection:
+            def __init__(self):
+                self.cursor_instance = Cursor()
+
+            def cursor(self):
+                return self.cursor_instance
+
+            def commit(self):
+                pass
+
+        connection = Connection()
+        old_schema_ready = db._SCHEMA_READY
+        try:
+            db._SCHEMA_READY = False
+            db._ensure_schema(connection)
+        finally:
+            db._SCHEMA_READY = old_schema_ready
+
+        self.assertTrue(any(
+            "CREATE TABLE IF NOT EXISTS preopen_collection_outcomes" in statement
+            for statement in connection.cursor_instance.statements
+        ))
 
     def test_reconcile_cannot_advance_session_without_durable_freeze(self):
         import preopen_scheduler

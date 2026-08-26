@@ -1,9 +1,10 @@
 """
 preopen_db.py — Phase 5A Pre-Open Intelligence database layer.
 
-Creates and manages six isolated tables:
+ Creates and manages seven isolated tables:
   preopen_sessions, preopen_snapshots, preopen_rankings,
-  preopen_watchlists, preopen_provider_health, preopen_reconciliation
+ preopen_watchlists, preopen_provider_health, preopen_reconciliation,
+ preopen_collection_outcomes
 
 Additive only — never modifies existing tables.
 Falls back gracefully when DB is unavailable.
@@ -158,6 +159,32 @@ def _ensure_schema(conn) -> None:
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_preopen_snaps_session_batch
             ON preopen_snapshots (session_id, collection_batch_id)
+        """)
+
+        # One explicit non-price outcome for every requested symbol in an
+        # immutable provider batch. Snapshot rows remain reserved for real
+        # normalized market data and are never replaced by placeholder rows.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS preopen_collection_outcomes (
+                session_id                TEXT NOT NULL REFERENCES preopen_sessions(session_id),
+                collection_batch_id       TEXT NOT NULL,
+                symbol                    TEXT NOT NULL,
+                outcome_status            TEXT NOT NULL,
+                reason_code               TEXT NOT NULL,
+                provider_symbol           TEXT,
+                provider_response_present BOOLEAN NOT NULL DEFAULT FALSE,
+                normalization_result      TEXT,
+                eligibility_status        TEXT,
+                snapshot_id               TEXT,
+                provider_scope            TEXT,
+                provider_raw_count        INTEGER,
+                created_at                TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (session_id, collection_batch_id, symbol)
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_preopen_outcomes_session_batch
+            ON preopen_collection_outcomes (session_id, collection_batch_id)
         """)
 
         # preopen_rankings
@@ -473,6 +500,62 @@ def _insert_snapshot(cur, session_id: str, s: dict,
     ])
 
 
+def _normalise_symbol(value: Any) -> str:
+    return str(value or "").strip().upper()
+
+
+def _canonical_outcomes(outcomes: Optional[List[dict]],
+                        expected_symbols: List[str]) -> List[dict]:
+    """Validate one immutable outcome per expected symbol before storage."""
+    if outcomes is None:
+        return []
+    expected = {_normalise_symbol(symbol) for symbol in expected_symbols if _normalise_symbol(symbol)}
+    result = []
+    seen = set()
+    for outcome in outcomes:
+        if not isinstance(outcome, dict):
+            continue
+        symbol = _normalise_symbol(outcome.get("symbol"))
+        if not symbol or symbol not in expected or symbol in seen:
+            continue
+        status = str(outcome.get("outcome_status") or "").strip().upper()
+        reason = str(outcome.get("reason_code") or "").strip().upper()
+        if not status or not reason:
+            continue
+        seen.add(symbol)
+        result.append({
+            "symbol": symbol,
+            "outcome_status": status,
+            "reason_code": reason,
+            "provider_symbol": _normalise_symbol(outcome.get("provider_symbol")) or None,
+            "provider_response_present": bool(outcome.get("provider_response_present")),
+            "normalization_result": str(outcome.get("normalization_result") or "").strip().upper() or None,
+            "eligibility_status": str(outcome.get("eligibility_status") or "").strip().upper() or None,
+            "snapshot_id": str(outcome.get("snapshot_id") or "").strip() or None,
+            "provider_scope": str(outcome.get("provider_scope") or "").strip().upper() or None,
+        })
+    return result
+
+
+def _insert_collection_outcome(cur, session_id: str, collection_batch_id: str,
+                               outcome: dict, provider_raw_count: Optional[int]) -> None:
+    cur.execute("""
+        INSERT INTO preopen_collection_outcomes
+            (session_id, collection_batch_id, symbol, outcome_status, reason_code,
+             provider_symbol, provider_response_present, normalization_result,
+             eligibility_status, snapshot_id, provider_scope, provider_raw_count)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (session_id, collection_batch_id, symbol) DO NOTHING
+    """, [
+        session_id, collection_batch_id, outcome["symbol"], outcome["outcome_status"],
+        outcome["reason_code"], outcome.get("provider_symbol"),
+        outcome.get("provider_response_present", False),
+        outcome.get("normalization_result"), outcome.get("eligibility_status"),
+        outcome.get("snapshot_id"), outcome.get("provider_scope"),
+        provider_raw_count,
+    ])
+
+
 def save_snapshots(session_id: str, snapshots: List[dict]) -> bool:
     def to_db(conn):
         with conn.cursor() as cur:
@@ -487,7 +570,8 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
                        provider_status: str, valid_count: int,
                        stale_count: int, source: str = "SCHEDULED",
                        collection_batch_id: Optional[str] = None,
-                       coverage: Optional[dict] = None) -> dict:
+                        coverage: Optional[dict] = None,
+                        outcomes: Optional[List[dict]] = None) -> dict:
     """Atomically persist a provider batch and prove every supplied row exists.
 
     The returned counts describe *this exact provider batch*, not a previous
@@ -498,6 +582,11 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
     provider_count = len(snapshots)
     coverage = dict(coverage or {})
     expected_count = int(coverage.get("expected_count", provider_count) or 0)
+    expected_symbols = [
+        _normalise_symbol(symbol)
+        for symbol in coverage.get("expected_symbols") or []
+        if _normalise_symbol(symbol)
+    ]
     provider_returned_count = int(
         coverage.get("provider_returned_count", provider_count) or 0
     )
@@ -518,6 +607,34 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
         "malformed_count": malformed_count,
         "collection_batch_id": collection_batch_id,
     })
+    canonical_outcomes = _canonical_outcomes(outcomes, expected_symbols)
+    outcome_symbols = {outcome["symbol"] for outcome in canonical_outcomes}
+    outcomes_structurally_complete = (
+        expected_count > 0
+        and len(expected_symbols) == expected_count
+        and len(canonical_outcomes) == expected_count
+        and outcome_symbols == set(expected_symbols)
+    )
+    live_snapshot_count = sum(
+        1 for snapshot in snapshots
+        if (
+            snapshot.get("is_stale") is False
+            and str(snapshot.get("source_status") or "").strip().upper() == "LIVE"
+        )
+    )
+    live_coverage_complete = (
+        str(provider_status or "").strip().upper() == "LIVE"
+        and valid_count == expected_count
+        and stale_count == 0
+        and live_snapshot_count == expected_count
+    )
+    coverage.update({
+        "outcome_expected_count": expected_count,
+        "outcome_accounted_count": len(canonical_outcomes),
+        "outcome_complete": outcomes_structurally_complete,
+        "live_snapshot_count": live_snapshot_count,
+        "live_coverage_complete": live_coverage_complete,
+    })
     snapshot_ids = [str(s.get("snapshot_id") or "") for s in snapshots]
     started_at = _now()
 
@@ -525,6 +642,11 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
         with conn.cursor() as cur:
             for snapshot in snapshots:
                 _insert_snapshot(cur, session_id, snapshot, collection_batch_id)
+            for outcome in canonical_outcomes:
+                _insert_collection_outcome(
+                    cur, session_id, collection_batch_id, outcome,
+                    coverage.get("provider_raw_count"),
+                )
             if snapshot_ids:
                 cur.execute("""
                     SELECT COUNT(*) FROM preopen_snapshots
@@ -534,7 +656,13 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
                 persisted_count = int(cur.fetchone()[0] or 0)
             else:
                 persisted_count = 0
+            cur.execute("""
+                SELECT COUNT(*) FROM preopen_collection_outcomes
+                WHERE session_id = %s AND collection_batch_id = %s
+            """, [session_id, collection_batch_id])
+            persisted_outcome_count = int(cur.fetchone()[0] or 0)
             storage_match = persisted_count == provider_count
+            outcome_storage_match = persisted_outcome_count == len(canonical_outcomes)
             coverage_complete = (
                 expected_count > 0
                 and normalized_count == expected_count
@@ -543,11 +671,17 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
                 and duplicate_count == 0
                 and malformed_count == 0
                 and unusable_count == 0
+                and outcomes_structurally_complete
+                and outcome_storage_match
+                and live_coverage_complete
             )
             failed_count = max(0, expected_count - persisted_count) + unusable_count
-            if not storage_match:
+            if not storage_match or not outcome_storage_match:
                 persistence_status = "MISMATCH"
                 status = "PERSISTENCE_FAILED"
+            elif not outcomes_structurally_complete:
+                persistence_status = "OUTCOME_INCOMPLETE"
+                status = "PARTIAL_COVERAGE"
             elif not coverage_complete:
                 persistence_status = "COVERAGE_INCOMPLETE"
                 status = "PARTIAL_COVERAGE"
@@ -579,7 +713,7 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
                     retry_state = CASE WHEN %s = 'MATCH' THEN NULL ELSE 'RETRY_REQUIRED' END,
                     error = CASE
                         WHEN %s = 'MATCH' THEN NULL
-                        WHEN %s = 'COVERAGE_INCOMPLETE'
+                        WHEN %s IN ('COVERAGE_INCOMPLETE', 'OUTCOME_INCOMPLETE')
                             THEN 'Provider response did not cover the active pre-open universe'
                         ELSE 'Provider collection did not persist completely'
                     END,
@@ -606,6 +740,8 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
             "duplicate_count": duplicate_count,
             "malformed_count": malformed_count,
             "collection_coverage": coverage,
+            "outcome_persisted_count": persisted_outcome_count,
+            "outcome_complete": outcomes_structurally_complete and outcome_storage_match,
             "persistence_status": persistence_status,
             "collection_batch_id": collection_batch_id,
             "source": source,
@@ -623,6 +759,8 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
         "duplicate_count": duplicate_count,
         "malformed_count": malformed_count,
         "collection_coverage": coverage,
+        "outcome_persisted_count": None,
+        "outcome_complete": False,
         "persistence_status": "PERSISTENCE_UNAVAILABLE",
         "collection_batch_id": collection_batch_id,
         "source": source,
@@ -632,9 +770,40 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
 
 def record_collection_failure(session_id: str, status: str, error: str,
                               source: str = "SCHEDULED",
-                              coverage: Optional[dict] = None) -> bool:
+                               coverage: Optional[dict] = None,
+                               outcomes: Optional[List[dict]] = None,
+                               collection_batch_id: Optional[str] = None) -> bool:
     """Persist a retryable, explicit collection failure when the DB is reachable."""
     coverage = dict(coverage or {})
+    collection_batch_id = collection_batch_id or f"collection-{uuid.uuid4().hex}"
+    expected_symbols = [
+        _normalise_symbol(symbol)
+        for symbol in coverage.get("expected_symbols") or []
+        if _normalise_symbol(symbol)
+    ]
+    canonical_outcomes = _canonical_outcomes(outcomes, expected_symbols)
+    outcomes_supplied = outcomes is not None
+    outcome_symbols = {outcome["symbol"] for outcome in canonical_outcomes}
+    outcome_complete = (
+        outcomes_supplied
+        and len(expected_symbols) == int(coverage.get("expected_count", len(expected_symbols)) or 0)
+        and len(canonical_outcomes) == len(expected_symbols)
+        and outcome_symbols == set(expected_symbols)
+    )
+    if outcomes_supplied:
+        coverage.update({
+            "collection_batch_id": collection_batch_id,
+            "outcome_expected_count": len(expected_symbols),
+            "outcome_accounted_count": len(canonical_outcomes),
+            "outcome_complete": outcome_complete,
+            "outcome_status_counts": {
+                outcome["outcome_status"]: sum(
+                    1 for item in canonical_outcomes
+                    if item["outcome_status"] == outcome["outcome_status"]
+                )
+                for outcome in canonical_outcomes
+            },
+        })
     coverage_json = json.dumps(coverage) if coverage else None
 
     def _count(name: str):
@@ -642,6 +811,19 @@ def record_collection_failure(session_id: str, status: str, error: str,
 
     def to_db(conn):
         with conn.cursor() as cur:
+            for outcome in canonical_outcomes:
+                _insert_collection_outcome(
+                    cur, session_id, collection_batch_id, outcome,
+                    coverage.get("provider_raw_count"),
+                )
+            if outcomes_supplied:
+                cur.execute("""
+                    SELECT COUNT(*) FROM preopen_collection_outcomes
+                    WHERE session_id = %s AND collection_batch_id = %s
+                """, [session_id, collection_batch_id])
+                persisted_outcomes = int(cur.fetchone()[0] or 0)
+                if persisted_outcomes != len(canonical_outcomes):
+                    raise RuntimeError("Could not persist all pre-open collection outcomes")
             cur.execute("""
                 UPDATE preopen_sessions
                 SET status = %s, collection_completed_at = NOW(), collection_source = %s,
@@ -727,6 +909,33 @@ def get_session_snapshots(session_id: str, collection_batch_id: str) -> List[dic
                 FROM preopen_snapshots
                 WHERE session_id = %s AND collection_batch_id = %s
                 ORDER BY created_at ASC
+            """, [session_id, collection_batch_id])
+            cols = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+        result = []
+        for row in rows:
+            record = dict(zip(cols, row))
+            for key, value in record.items():
+                if isinstance(value, datetime):
+                    record[key] = value.isoformat()
+            result.append(record)
+        return result
+
+    return _with_db(from_db) or []
+
+
+def get_collection_outcomes(session_id: str, collection_batch_id: str) -> List[dict]:
+    """Return the immutable per-symbol outcome matrix for one exact batch."""
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT symbol, outcome_status, reason_code, provider_symbol,
+                       provider_response_present, normalization_result,
+                       eligibility_status, snapshot_id, provider_scope,
+                       provider_raw_count, created_at
+                FROM preopen_collection_outcomes
+                WHERE session_id = %s AND collection_batch_id = %s
+                ORDER BY symbol ASC
             """, [session_id, collection_batch_id])
             cols = [d[0] for d in cur.description]
             rows = cur.fetchall()

@@ -220,6 +220,49 @@ class TestNSEProviderFetchMarket(unittest.TestCase):
                     h = p.health_check()
         self.assertEqual(h["status"], "UNAVAILABLE")
 
+    def test_default_scope_is_all_for_custom_universe_coverage(self):
+        from nse_preopen_provider import _preopen_key
+
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(_preopen_key(), "ALL")
+        with patch.dict(os.environ, {"NSE_PREOPEN_KEY": "NIFTY"}):
+            self.assertEqual(_preopen_key(), "ALL")
+
+    def test_collection_evidence_distinguishes_absent_and_normalized_symbols(self):
+        by_sym = {"INFY": _make_nse_raw("INFY")}
+        with patch("nse_preopen_provider._fetch_raw", return_value=by_sym):
+            with patch("config.SECTOR_MAP", {}):
+                from nse_preopen_provider import NSEPreOpenProvider
+                evidence = NSEPreOpenProvider(["INFY", "MISSING"]).fetch_collection_evidence()
+
+        self.assertEqual(evidence["provider_scope"], "ALL")
+        self.assertEqual(evidence["provider_raw_count"], 1)
+        self.assertEqual([snapshot.symbol for snapshot in evidence["snapshots"]], ["INFY"])
+        outcomes = {outcome["symbol"]: outcome for outcome in evidence["outcomes"]}
+        self.assertEqual(outcomes["INFY"]["outcome_status"], "LIVE_PREOPEN_DATA")
+        self.assertEqual(outcomes["MISSING"]["outcome_status"], "NO_PREOPEN_DATA")
+        self.assertFalse(outcomes["MISSING"]["provider_response_present"])
+
+    def test_nse_timestamp_is_interpreted_as_ist_and_stale_at_five_minutes(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from nse_preopen_provider import _nse_last_update_age_seconds
+
+        now = datetime(2026, 7, 29, 9, 15, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:07:00", now),
+            480,
+        )
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:10:00", now),
+            300,
+        )
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:16:00", now),
+            300,
+        )
+        self.assertEqual(_nse_last_update_age_seconds("", now), 300)
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # KITE PROVIDER TESTS

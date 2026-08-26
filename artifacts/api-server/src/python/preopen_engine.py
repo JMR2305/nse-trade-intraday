@@ -97,6 +97,7 @@ def _resolve_collection_symbols() -> List[str]:
     """
     import config
 
+    expected_symbols: List[str] = []
     try:
         active_universe = config.get_active_intraday_universe_strict()
     except Exception:
@@ -222,6 +223,180 @@ def _merge_coverage(initial: dict, final: dict) -> dict:
         + merged["unexpected_count"]
     )
     return merged
+
+
+def _outcome_summary(outcomes: List[dict]) -> dict:
+    counts: Dict[str, int] = {}
+    for outcome in outcomes:
+        status = str(outcome.get("outcome_status") or "UNCLASSIFIED")
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def _coverage_with_outcomes(coverage: dict, outcomes: List[dict],
+                            provider_raw_count: Optional[int] = None,
+                            provider_scope: Optional[str] = None) -> dict:
+    """Attach auditable, non-price outcome evidence to collection coverage."""
+    result = dict(coverage)
+    expected = _normalise_symbols(result.get("expected_symbols") or [])
+    outcome_symbols = {
+        str(outcome.get("symbol") or "").strip().upper()
+        for outcome in outcomes
+        if str(outcome.get("symbol") or "").strip()
+    }
+    result["provider_raw_count"] = (
+        int(provider_raw_count)
+        if provider_raw_count is not None
+        else int(result.get("provider_returned_count") or 0)
+    )
+    result["provider_scope"] = provider_scope
+    result["outcome_accounted_count"] = len(outcome_symbols)
+    result["outcome_status_counts"] = _outcome_summary(outcomes)
+    result["outcome_complete"] = (
+        bool(expected)
+        and len(outcomes) == len(expected)
+        and outcome_symbols == set(expected)
+    )
+    return result
+
+
+def _generic_provider_outcomes(expected_symbols: List[str],
+                               snapshots: List[Any]) -> List[dict]:
+    """Provide honest outcomes for providers without a richer evidence API."""
+    present = {
+        str(getattr(snapshot, "symbol", "") or "").strip().upper(): snapshot
+        for snapshot in snapshots or []
+        if str(getattr(snapshot, "symbol", "") or "").strip()
+    }
+    outcomes = []
+    for symbol in _normalise_symbols(expected_symbols):
+        snapshot = present.get(symbol)
+        if snapshot is None:
+            outcomes.append({
+                "symbol": symbol,
+                "outcome_status": "NO_PREOPEN_DATA",
+                "reason_code": "SYMBOL_ABSENT_FROM_PROVIDER_RESULT",
+                "provider_symbol": symbol,
+                "provider_response_present": False,
+                "normalization_result": "NOT_OBSERVED",
+                "eligibility_status": "UNKNOWN",
+            })
+        else:
+            outcomes.append({
+                "symbol": symbol,
+                "outcome_status": "LIVE_PREOPEN_DATA",
+                "reason_code": "PROVIDER_SNAPSHOT_RETURNED",
+                "provider_symbol": symbol,
+                "provider_response_present": True,
+                "normalization_result": "NORMALIZED",
+                "eligibility_status": "UNKNOWN",
+                "snapshot_id": getattr(snapshot, "snapshot_id", None),
+            })
+    return outcomes
+
+
+def _failure_outcomes(expected_symbols: List[str], outcome_status: str,
+                      reason_code: str, provider_scope: Optional[str] = None) -> List[dict]:
+    """Record provider failure truth for every expected symbol without a price row."""
+    return [{
+        "symbol": symbol,
+        "outcome_status": outcome_status,
+        "reason_code": reason_code,
+        "provider_symbol": symbol,
+        "provider_response_present": False,
+        "normalization_result": "NOT_ATTEMPTED",
+        "eligibility_status": "UNKNOWN",
+        "provider_scope": provider_scope,
+    } for symbol in _normalise_symbols(expected_symbols)]
+
+
+def _fetch_provider_collection(provider: Any, expected_symbols: List[str]) -> tuple:
+    """Read provider snapshots plus optional raw-response diagnostics."""
+    evidence_fetcher = getattr(provider, "fetch_collection_evidence", None)
+    if callable(evidence_fetcher):
+        evidence = evidence_fetcher()
+        if not isinstance(evidence, dict):
+            raise RuntimeError("Provider collection evidence must be a dictionary")
+        snapshots = list(evidence.get("snapshots") or [])
+        outcomes = list(evidence.get("outcomes") or [])
+        return snapshots, outcomes, evidence.get("provider_raw_count"), evidence.get("provider_scope")
+
+    snapshots = list(provider.fetch_market_snapshot() or [])
+    return (
+        snapshots,
+        _generic_provider_outcomes(expected_symbols, snapshots),
+        len(snapshots),
+        None,
+    )
+
+
+def _finalise_collection_outcomes(expected_symbols: List[str], outcomes: List[dict],
+                                  persisted_rows: List[dict], coverage: dict) -> List[dict]:
+    """Keep one immutable, explainable outcome for every expected symbol."""
+    expected = _normalise_symbols(expected_symbols)
+    base_by_symbol = {
+        str(outcome.get("symbol") or "").strip().upper(): dict(outcome)
+        for outcome in outcomes or []
+        if isinstance(outcome, dict) and str(outcome.get("symbol") or "").strip()
+    }
+    persisted_by_symbol = {
+        str(row.get("symbol") or "").strip().upper(): row
+        for row in persisted_rows or []
+        if isinstance(row, dict) and str(row.get("symbol") or "").strip()
+    }
+    duplicate_symbols = {
+        str(symbol or "").strip().upper()
+        for symbol in coverage.get("duplicate_symbols") or []
+        if str(symbol or "").strip()
+    }
+    final = []
+    for symbol in expected:
+        row = persisted_by_symbol.get(symbol)
+        base = base_by_symbol.get(symbol, {})
+        if row is not None:
+            final.append({
+                **base,
+                "symbol": symbol,
+                "outcome_status": "LIVE_PREOPEN_DATA",
+                "reason_code": "PERSISTENCE_CANDIDATE_READY",
+                "provider_symbol": base.get("provider_symbol") or symbol,
+                "provider_response_present": bool(
+                    base.get("provider_response_present", True)
+                ),
+                "normalization_result": "NORMALIZED",
+                "eligibility_status": base.get("eligibility_status") or "UNKNOWN",
+                "snapshot_id": row.get("snapshot_id"),
+            })
+        elif symbol in duplicate_symbols:
+            final.append({
+                **base,
+                "symbol": symbol,
+                "outcome_status": "DUPLICATE_RESPONSE",
+                "reason_code": "DUPLICATE_SYMBOL_OR_SNAPSHOT_ID",
+                "provider_symbol": base.get("provider_symbol") or symbol,
+                "provider_response_present": bool(base.get("provider_response_present")),
+                "normalization_result": "REJECTED",
+                "eligibility_status": base.get("eligibility_status") or "UNKNOWN",
+                "snapshot_id": None,
+            })
+        elif base:
+            final.append({
+                **base,
+                "symbol": symbol,
+                "snapshot_id": None,
+            })
+        else:
+            final.append({
+                "symbol": symbol,
+                "outcome_status": "PROVIDER_OMITTED",
+                "reason_code": "NO_DURABLE_PROVIDER_OUTCOME",
+                "provider_symbol": symbol,
+                "provider_response_present": False,
+                "normalization_result": "NOT_OBSERVED",
+                "eligibility_status": "UNKNOWN",
+                "snapshot_id": None,
+            })
+    return final
 
 
 # ── Status ────────────────────────────────────────────────────────────────────
@@ -365,24 +540,125 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
                 "label": "PAPER / ADVISORY ONLY",
             }
 
-        provider = _get_provider(expected_symbols)
-        health = provider.health_check()
+        try:
+            provider = _get_provider(expected_symbols)
+            health = provider.health_check()
+        except Exception as exc:
+            coverage = {
+                "expected_count": len(expected_symbols),
+                "provider_returned_count": 0,
+                "normalized_count": 0,
+                "missing_count": len(expected_symbols),
+                "duplicate_count": 0,
+                "malformed_count": 0,
+                "unexpected_count": 0,
+                "expected_symbols": expected_symbols,
+                "normalized_symbols": [],
+                "missing_symbols": expected_symbols,
+                "duplicate_symbols": [],
+                "unexpected_symbols": [],
+                "unusable_count": 0,
+            }
+            outcomes = _failure_outcomes(
+                expected_symbols, "PROVIDER_UNAVAILABLE", "PROVIDER_INITIALIZATION_FAILED",
+            )
+            coverage = _coverage_with_outcomes(coverage, outcomes, 0, None)
+            db.record_collection_failure(
+                session_id, "PROVIDER_UNAVAILABLE", str(exc),
+                coverage=coverage,
+                outcomes=outcomes,
+                collection_batch_id=collection_batch_id,
+            )
+            return {
+                "success": False,
+                "status": "PROVIDER_UNAVAILABLE",
+                "session_id": session_id,
+                "collection_batch_id": collection_batch_id,
+                **coverage,
+                "error": str(exc),
+                "label": "PAPER / ADVISORY ONLY",
+            }
 
         # Provider unavailable — do not crash, mark module unavailable
         if health.get("status") == ProviderState.UNAVAILABLE:
+            coverage = {
+                "expected_count": len(expected_symbols),
+                "provider_returned_count": 0,
+                "normalized_count": 0,
+                "missing_count": len(expected_symbols),
+                "duplicate_count": 0,
+                "malformed_count": 0,
+                "unexpected_count": 0,
+                "expected_symbols": expected_symbols,
+                "normalized_symbols": [],
+                "missing_symbols": expected_symbols,
+                "duplicate_symbols": [],
+                "unexpected_symbols": [],
+                "unusable_count": 0,
+            }
+            outcomes = _failure_outcomes(
+                expected_symbols, "PROVIDER_UNAVAILABLE", "PROVIDER_HEALTH_UNAVAILABLE",
+                health.get("provider_scope"),
+            )
+            coverage = _coverage_with_outcomes(
+                coverage, outcomes, 0, health.get("provider_scope"),
+            )
             db.record_collection_failure(
                 session_id, "PROVIDER_UNAVAILABLE",
                 health.get("message", "Provider unavailable"),
+                coverage=coverage,
+                outcomes=outcomes,
+                collection_batch_id=collection_batch_id,
             )
             return {
                 "success": False,
                 "status": "PROVIDER_UNAVAILABLE",
                 "provider_health": health,
                 "session_id": session_id,
+                "collection_batch_id": collection_batch_id,
+                **coverage,
                 "label": "PAPER / ADVISORY ONLY",
             }
 
-        raw_snapshots = provider.fetch_market_snapshot()
+        try:
+            raw_snapshots, provider_outcomes, provider_raw_count, provider_scope = (
+                _fetch_provider_collection(provider, expected_symbols)
+            )
+        except Exception as exc:
+            coverage = {
+                "expected_count": len(expected_symbols),
+                "provider_returned_count": 0,
+                "normalized_count": 0,
+                "missing_count": len(expected_symbols),
+                "duplicate_count": 0,
+                "malformed_count": 0,
+                "unexpected_count": 0,
+                "expected_symbols": expected_symbols,
+                "normalized_symbols": [],
+                "missing_symbols": expected_symbols,
+                "duplicate_symbols": [],
+                "unexpected_symbols": [],
+                "unusable_count": 0,
+            }
+            outcomes = _failure_outcomes(
+                expected_symbols, "PROVIDER_UNAVAILABLE", "PROVIDER_FETCH_FAILED",
+            )
+            coverage = _coverage_with_outcomes(coverage, outcomes, 0, None)
+            db.record_collection_failure(
+                session_id, "PROVIDER_UNAVAILABLE", str(exc),
+                coverage=coverage,
+                outcomes=outcomes,
+                collection_batch_id=collection_batch_id,
+            )
+            return {
+                "success": False,
+                "status": "PROVIDER_UNAVAILABLE",
+                "session_id": session_id,
+                "collection_batch_id": collection_batch_id,
+                **coverage,
+                "error": str(exc),
+                "label": "PAPER / ADVISORY ONLY",
+            }
         if not raw_snapshots:
             coverage = {
                 "expected_count": len(expected_symbols),
@@ -399,10 +675,18 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
                 "unexpected_symbols": [],
                 "unusable_count": 0,
             }
+            outcomes = _finalise_collection_outcomes(
+                expected_symbols, provider_outcomes, [], coverage,
+            )
+            coverage = _coverage_with_outcomes(
+                coverage, outcomes, provider_raw_count, provider_scope,
+            )
             db.record_collection_failure(
                 session_id, "NO_DATA",
                 "Provider returned no pre-open snapshots",
                 coverage=coverage,
+                outcomes=outcomes,
+                collection_batch_id=collection_batch_id,
             )
             return {
                 "success": False,
@@ -431,6 +715,12 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
             provider_returned_count=coverage["provider_returned_count"],
         )
         coverage = _merge_coverage(coverage, final_coverage)
+        outcomes = _finalise_collection_outcomes(
+            expected_symbols, provider_outcomes, snaps_dicts, coverage,
+        )
+        coverage = _coverage_with_outcomes(
+            coverage, outcomes, provider_raw_count, provider_scope,
+        )
         valid = sum(1 for s in enriched if not s.is_stale)
         stale = sum(1 for s in enriched if s.is_stale)
         persisted = db.persist_collection(
@@ -443,6 +733,7 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
             source="SCHEDULED",
             collection_batch_id=collection_batch_id,
             coverage=coverage,
+            outcomes=outcomes,
         )
         if not persisted.get("success"):
             return {
@@ -477,6 +768,43 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
             "label": "PAPER / ADVISORY ONLY",
         }
     except Exception as e:
+        if expected_symbols:
+            coverage = {
+                "expected_count": len(expected_symbols),
+                "provider_returned_count": 0,
+                "normalized_count": 0,
+                "missing_count": len(expected_symbols),
+                "duplicate_count": 0,
+                "malformed_count": 0,
+                "unexpected_count": 0,
+                "expected_symbols": expected_symbols,
+                "normalized_symbols": [],
+                "missing_symbols": expected_symbols,
+                "duplicate_symbols": [],
+                "unexpected_symbols": [],
+                "unusable_count": 0,
+            }
+            outcomes = _failure_outcomes(
+                expected_symbols,
+                "COLLECTION_PROCESSING_FAILED",
+                "POST_RESOLUTION_COLLECTION_ERROR",
+            )
+            coverage = _coverage_with_outcomes(coverage, outcomes, 0, None)
+            db.record_collection_failure(
+                session_id, "ERROR", str(e),
+                coverage=coverage,
+                outcomes=outcomes,
+                collection_batch_id=collection_batch_id,
+            )
+            return {
+                "success": False,
+                "status": "COLLECTION_PROCESSING_FAILED",
+                "error": str(e),
+                "session_id": session_id,
+                "collection_batch_id": collection_batch_id,
+                **coverage,
+                "label": "PAPER / ADVISORY ONLY",
+            }
         db.record_collection_failure(session_id, "ERROR", str(e))
         return {"success": False, "error": str(e), "session_id": session_id}
 
