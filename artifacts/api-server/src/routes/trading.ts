@@ -1730,6 +1730,35 @@ router.get("/live-data/health-v2", async (_req, res) => {
   catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
 });
 
+// Durable market-data authority incidents are advisory, read-only evidence.
+// There is deliberately no browser mutation route and no external notification.
+router.get("/market-data/incidents/active", async (_req, res) => {
+  try { res.json(await runPython(["market_data_incident_active"])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+router.get("/market-data/incidents", async (req, res) => {
+  try {
+    const status = ["ACTIVE", "RECOVERED"].includes(String(req.query.status ?? "").toUpperCase())
+      ? String(req.query.status).toUpperCase() : "";
+    const severity = ["WARNING", "HIGH", "CRITICAL"].includes(String(req.query.severity ?? "").toUpperCase())
+      ? String(req.query.severity).toUpperCase() : "";
+    const rawLimit = Number.parseInt(String(req.query.limit ?? "100"), 10);
+    const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 500)) : 100;
+    res.json(await runPython(["market_data_incidents", status, severity, String(limit)]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+router.get("/market-data/incidents/:id", async (req, res) => {
+  const id = String(req.params.id ?? "");
+  if (!/^[a-f0-9]{16,64}$/i.test(id)) {
+    res.status(400).json({ success: false, error: "Invalid incident id" });
+    return;
+  }
+  try { res.json(await runPython(["market_data_incident_detail", id])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
 // POST /api/live-data/diagnostic-bundle — generate bundle, return JSON
 router.post("/live-data/diagnostic-bundle", async (_req, res) => {
   try { res.json(await runPython(["diagnostic_bundle"])); }

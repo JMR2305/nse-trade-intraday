@@ -122,6 +122,7 @@ import AIValidationV2Page          from "@/pages/AIValidationV2Page";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 import AILearningCenter            from "@/pages/AILearningCenter";
 import MissionControl              from "@/pages/MissionControl";
+import MarketDataIncidents         from "@/pages/MarketDataIncidents";
 import TradingQuality              from "@/pages/TradingQuality";
 import InstitutionalAnalytics      from "@/pages/InstitutionalAnalytics";
 import AdvisoryDashboard            from "@/pages/AdvisoryDashboard";
@@ -264,6 +265,7 @@ function Router() {
         <Route path="/validation-v2"              component={AIValidationV2Page} />
         <Route path="/ai-learning-center"         component={AILearningCenter} />
         <Route path="/mission-control"            component={MissionControl} />
+        <Route path="/market-data-incidents"      component={MarketDataIncidents} />
         <Route path="/trading-quality"            component={TradingQuality} />
         <Route path="/institutional-analytics"    component={InstitutionalAnalytics} />
         {isAdvisoryUiEnabled() && (

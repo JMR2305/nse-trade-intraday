@@ -84,6 +84,7 @@ export const ROUTE_FRESHNESS: Readonly<Record<string, RouteFreshnessConfig>> = {
   "/ai-learning-center": { variant: "historical", datasetLabel: "AI-learning dataset" },
   "/institutional-analytics": { variant: "historical", datasetLabel: "Institutional analytics dataset" },
   "/advisory": { variant: "historical", datasetLabel: "Advisory dataset" },
+  "/market-data-incidents": { variant: "historical", datasetLabel: "Market-data authority incident history" },
 };
 
 export function RouteFreshnessIndicator({ path }: { path: string }) {

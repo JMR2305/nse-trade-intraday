@@ -987,6 +987,34 @@ def main():
                 "kite_session": _session,
                 "label": "PAPER / LIVE DATA VALIDATION",
             }
+        elif command == "market_data_incidents":
+            from market_data_incidents import list_incidents
+            _status = str(args[1]).upper() if len(args) > 1 else ""
+            _severity = str(args[2]).upper() if len(args) > 2 else ""
+            _limit = int(args[3]) if len(args) > 3 else 100
+            result = {"success": True, **list_incidents(_status, _severity, _limit)}
+        elif command == "market_data_incident_active":
+            from market_data_incidents import classify_health, current_health, list_incidents
+            _active = list_incidents("ACTIVE", None, 1)
+            _health = current_health()
+            _classification = classify_health(_health)
+            result = {
+                "success": True, "incident": (_active.get("incidents") or [None])[0],
+                "storage_available": _active.get("storage_available", False),
+                # A null incident means only that no durable episode is open.
+                # This distinct state prevents UI consumers from treating a
+                # fresh deployment or missing scan evidence as verified health.
+                "authority_state": (
+                    "VERIFIED_HEALTHY"
+                    if not _classification["affected"]
+                    else "AWAITING_DURABLE_INCIDENT_EVIDENCE"
+                ),
+                "market_data_readiness": _health,
+                "read_only": True,
+            }
+        elif command == "market_data_incident_detail" and len(args) > 1:
+            from market_data_incidents import get_incident
+            result = {"success": True, **get_incident(args[1])}
         elif command == "diagnostic_bundle":
             from phase11_diagnostics import build_diagnostic_bundle
             result = {"success": True, "bundle": build_diagnostic_bundle()}

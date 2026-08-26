@@ -1116,6 +1116,16 @@ def run_live_scan(
             pass
     result.timings["db_write_s"] = round(time.monotonic() - t_persist0, 2)
 
+    # Durable advisory incident lifecycle.  This evaluates the exact persisted
+    # canonical scan through market_data_health; it never changes the scan,
+    # execution gates, provider policy, or any order path.
+    try:
+        from market_data_incidents import observe_scan_snapshot
+        result.timings["market_data_incident"] = observe_scan_snapshot(cache_data)
+    except Exception:
+        # Observability must not make a completed canonical scan fail.
+        result.timings["market_data_incident"] = {"action": "UNAVAILABLE"}
+
     _pe_emit("SCAN_COMPLETED", "SUPERVISOR", scan_id=scan_id, payload={
         "duration_s": duration_s, "universe_size": len(universe),
         "universe_mode": universe_mode, "sector_counts": sector_counts,

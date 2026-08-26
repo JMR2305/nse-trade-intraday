@@ -55,6 +55,7 @@ export const AGENTS: Agent[] = [
       { href: "/market",               label: "Market Overview",       icon: Globe2,   tags: ["nse", "index", "overview"] },
       { href: "/market-scanner",       label: "Market Scanner",        icon: Radar,    tags: ["scan", "live"] },
       { href: "/live-data-health",     label: "Live Data Health",      icon: Wifi,     tags: ["feed", "zerodha", "ohlc"] },
+      { href: "/market-data-incidents",label: "Authority Incidents",   icon: Radio,    tags: ["incidents", "fallback", "kite"] },
       { href: "/watchlist",            label: "Watchlist",             icon: Eye,      tags: ["watch"] },
       { href: "/preopen-intelligence", label: "Pre-Open Intelligence", icon: Sunrise,  tags: ["preopen", "ipo"] },
       { href: "/market-replay",        label: "Market Replay",         icon: Clock,    tags: ["replay", "history"] },

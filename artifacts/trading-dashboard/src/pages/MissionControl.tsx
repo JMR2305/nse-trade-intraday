@@ -37,6 +37,7 @@ import { Widget, useWidgetQuery, fmtINR, timeAgo, PnlText } from "@/components/m
 import { apiJson } from "@/lib/api";
 import { CommandBar } from "@/components/mission/CommandBar";
 import { MissionMapWidget, AlertCenterWidget } from "@/components/mission/IntelWidgets";
+import { KiteFallbackWidget } from "@/components/mission/KiteFallbackWidget";
 import { useLedgerToday } from "@/components/mission/SessionWidgets";
 import {
   useLayoutManager, SectionShell, CustomizeControls, type SectionDef,
@@ -3098,7 +3099,7 @@ export default function MissionControl() {
       </div>
     ),
     "intel-row": () => (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
         <Suspense fallback={<WidgetFallback />}>
           <AiHealthWidget />
         </Suspense>
@@ -3106,6 +3107,7 @@ export default function MissionControl() {
           <AiLearningWidget />
         </Suspense>
         <AlertCenterWidget />
+        <KiteFallbackWidget />
       </div>
     ),
     "ops-row": () => (
