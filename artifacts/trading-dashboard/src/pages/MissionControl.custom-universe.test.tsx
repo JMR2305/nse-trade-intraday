@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { describe, expect, it } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   LowPriceUniverseCard,
@@ -69,28 +69,19 @@ describe("LowPriceUniverseCard mapping freshness", () => {
     expect(screen.getByText(/does not update these mappings automatically/i)).toBeTruthy();
   });
 
-  it("keeps metadata hydration disabled until both administrator credential and exact confirmation are supplied", () => {
+  it("keeps Mission Control read-only and routes operators to version management without credential inputs", () => {
     renderCard();
 
-    const approve = screen.getByTestId("mc-approve-metadata-only-hydration") as HTMLButtonElement;
-    expect(approve.disabled).toBe(true);
-
-    fireEvent.change(screen.getByTestId("mc-custom-universe-admin-token"), {
-      target: { value: "operator-token" },
-    });
-    expect(approve.disabled).toBe(true);
-
-    fireEvent.change(screen.getByTestId("mc-custom-universe-metadata-confirmation"), {
-      target: { value: "HYDRATE_INSTRUMENT_METADATA_ONLY" },
-    });
-    expect(approve.disabled).toBe(false);
-    expect(screen.getByText(/does not refresh membership or choose symbols/i)).toBeTruthy();
+    expect(screen.getByTestId("link-manage-custom-universe").getAttribute("href")).toBe("/custom-universe-management");
+    expect(screen.getByTestId("mc-custom-universe-management-note").textContent).toMatch(/not available from Mission Control/i);
+    expect(screen.queryByTestId("mc-custom-universe-admin-token")).toBeNull();
+    expect(screen.queryByTestId("mc-approve-metadata-only-hydration")).toBeNull();
   });
 
   it("keeps mapping review visible while NIFTY 50 is active without exposing membership refresh controls", () => {
     renderCard("NIFTY_50");
 
-    expect(screen.getByTestId("mc-custom-universe-inactive-note").textContent).toMatch(/before switching modes/i);
+    expect(screen.getByTestId("mc-custom-universe-inactive-note").textContent).toMatch(/prepare any future revision/i);
     expect(screen.getByTestId("mc-custom-universe-mapping-status")).toBeTruthy();
     expect(screen.getByTestId("mc-custom-universe-current-price-source").textContent).toBe("UNAVAILABLE / NOT PROVEN");
     expect(screen.getByTestId("mc-custom-universe-price-freshness").textContent).toBe("UNAVAILABLE / NOT PROVEN");

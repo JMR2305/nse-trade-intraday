@@ -39,6 +39,7 @@ import { CommandBar } from "@/components/mission/CommandBar";
 import { MissionMapWidget, AlertCenterWidget } from "@/components/mission/IntelWidgets";
 import { KiteFallbackWidget } from "@/components/mission/KiteFallbackWidget";
 import { useLedgerToday } from "@/components/mission/SessionWidgets";
+import { useActiveUniverse, useRevisions } from "@/hooks/use-custom-universe-management";
 import {
   useLayoutManager, SectionShell, CustomizeControls, type SectionDef,
 } from "@/components/mission/LayoutManager";
@@ -2570,8 +2571,6 @@ export function EventStreamPanel({ streamEvents }: { streamEvents: PipelineStrea
   );
 }
 
-const METADATA_HYDRATION_CONFIRMATION = "HYDRATE_INSTRUMENT_METADATA_ONLY";
-
 export function LowPriceUniverseCard({
   statusQ,
   symbolsQ,
@@ -2581,36 +2580,8 @@ export function LowPriceUniverseCard({
   symbolsQ: UseQueryResult<CustomUniverseSymbolsResponse>;
   marketDataHealthQ?: UseQueryResult<LiveDataHealthResponse>;
 }) {
-  const queryClient = useQueryClient();
-  const [adminToken, setAdminToken] = useState("");
-  const [metadataConfirmation, setMetadataConfirmation] = useState("");
-  const refresh = useMutation({
-    mutationFn: () => apiJson("/universe/custom/refresh", { method: "POST" }, 180_000),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-status"] });
-      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-symbols"] });
-    },
-  });
-  const hydrateMetadata = useMutation({
-    mutationFn: (request: { token: string; confirmation: string }) => apiJson(
-      "/universe/custom/hydrate-instruments",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-token": request.token,
-        },
-        body: JSON.stringify({ confirmation: request.confirmation }),
-      },
-      60_000,
-    ),
-    onSuccess: () => {
-      setAdminToken("");
-      setMetadataConfirmation("");
-      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-status"] });
-      void queryClient.invalidateQueries({ queryKey: ["mc", "custom-universe-symbols"] });
-    },
-  });
+  const versionedActiveQ = useActiveUniverse();
+  const versionedRevisionsQ = useRevisions();
   const status = statusQ.data;
   if (!status) return null;
   const customModeActive = status.active_universe === "CUSTOM_LOW_PRICE_SECTOR";
@@ -2625,22 +2596,37 @@ export function LowPriceUniverseCard({
       status.active_count,
       marketDataHealthQ?.data?.market_data_readiness,
     );
-  const confirmationRequired = metadata?.confirmation_required ?? METADATA_HYDRATION_CONFIRMATION;
-  const canHydrateMetadata = Boolean(
-    adminToken.trim() && metadataConfirmation.trim() === confirmationRequired,
+  const nextRevision = versionedRevisionsQ.data?.revisions.find(
+    (revision) => revision.status === "DRAFT" || revision.status === "PENDING_ACTIVATION",
   );
 
   return (
     <Widget
-      title={customModeActive ? "Low Price Universe Builder" : "Custom Universe Mapping Review"}
+      title="Custom Universe Provenance"
       icon={PieChart}
       query={statusQ}
       refreshMs={15_000}
       testId="mc-low-price-universe"
-      headerExtra={<Badge variant="outline" className="text-[9px] border-teal-700/50 text-teal-300">PAPER ONLY</Badge>}
+      headerExtra={
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-[9px] border-teal-700/50 text-teal-300">PAPER ONLY</Badge>
+          <Link
+            href="/custom-universe-management"
+            className="rounded-md border border-teal-700/60 px-2 py-1 text-[9px] text-teal-300 hover:bg-teal-950/50"
+            data-testid="link-manage-custom-universe"
+          >
+            Manage revisions
+          </Link>
+        </div>
+      }
       skeletonClass="h-48"
     >
       <div className="space-y-3 text-[10px]">
+        <div className="grid grid-cols-1 gap-2 rounded-md border border-teal-800/40 bg-teal-950/10 p-2 md:grid-cols-3" data-testid="mc-universe-version-summary">
+          <div><p className="text-muted-foreground">Active revision</p><p className="font-semibold text-teal-300" data-testid="mc-active-universe-version">{versionedActiveQ.data?.active_revision ? `v${versionedActiveQ.data.active_revision.version} · ${versionedActiveQ.data.active_revision.enabled_symbol_count} enabled` : versionedActiveQ.isLoading ? "Loading…" : "Not available"}</p></div>
+          <div><p className="text-muted-foreground">Next revision</p><p className="font-semibold" data-testid="mc-next-universe-version">{nextRevision ? `v${nextRevision.version} · ${nextRevision.status}` : "No draft pending"}</p></div>
+          <div><p className="text-muted-foreground">Activation</p><p className="font-semibold" data-testid="mc-universe-activation-lock">{versionedActiveQ.data?.activation.locked ? "Server lock active" : "Server lock clear"}</p></div>
+        </div>
         {customModeActive ? (
           <>
             <div className="flex flex-wrap gap-2 items-center">
@@ -2649,23 +2635,11 @@ export function LowPriceUniverseCard({
               </Badge>
               <span className="text-muted-foreground">Price ₹{band.min ?? 20}–₹{band.max ?? 200}</span>
               <span className="text-muted-foreground">Sectors: {(status.sectors ?? ["IT", "INFRA", "BANK"]).join(" · ")}</span>
-              <button
-                type="button"
-                className="ml-auto inline-flex items-center gap-1 rounded-md border border-teal-700/60 px-2 py-1 text-[10px] text-teal-300 hover:bg-teal-950/50 disabled:opacity-50"
-                onClick={() => refresh.mutate()}
-                disabled={refresh.isPending}
-                data-testid="mc-refresh-low-price-universe"
-              >
-                <RefreshCw className={`h-3 w-3 ${refresh.isPending ? "animate-spin" : ""}`} />
-                {refresh.isPending ? "Refreshing membership…" : "Refresh membership"}
-              </button>
             </div>
-            {refresh.isError && <p className="text-red-400">Refresh failed: {(refresh.error as Error).message}</p>}
-            {refresh.isSuccess && <p className="text-emerald-400">Membership refresh completed. Stored instrument mappings were not changed.</p>}
           </>
         ) : (
           <p className="rounded-md border border-border/50 bg-muted/10 px-2 py-1.5 text-muted-foreground" data-testid="mc-custom-universe-inactive-note">
-            Custom universe is inactive. Review its mapping freshness here before switching modes or approving a metadata-only refresh.
+            Custom universe is inactive. Review read-only provenance here; prepare any future revision from Universe Management.
           </p>
         )}
 
@@ -2740,76 +2714,9 @@ export function LowPriceUniverseCard({
               </p>
             ) : null}
 
-            <form
-              className="border-t border-border/40 pt-2 space-y-1.5"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (canHydrateMetadata) {
-                  hydrateMetadata.mutate({
-                    token: adminToken.trim(),
-                    confirmation: metadataConfirmation.trim(),
-                  });
-                }
-              }}
-            >
-              <p className="font-medium text-foreground">Metadata-only approval</p>
-              <p className="text-muted-foreground leading-snug">
-                This does not refresh membership or choose symbols. It only hydrates NSE instrument metadata
-                for the existing active membership. Administrator credential and exact confirmation are required.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <label className="space-y-1">
-                  <span className="text-muted-foreground">Administrator credential</span>
-                  <input
-                    type="password"
-                    value={adminToken}
-                    onChange={(event) => setAdminToken(event.target.value)}
-                    placeholder="Enter admin token"
-                    autoComplete="off"
-                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-[10px] text-foreground placeholder:text-muted-foreground/50"
-                    data-testid="mc-custom-universe-admin-token"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="text-muted-foreground">
-                    Type <code className="font-mono text-teal-300">{confirmationRequired}</code>
-                  </span>
-                  <input
-                    type="text"
-                    value={metadataConfirmation}
-                    onChange={(event) => setMetadataConfirmation(event.target.value)}
-                    placeholder="Exact confirmation"
-                    autoComplete="off"
-                    className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-[10px] font-mono text-foreground placeholder:text-muted-foreground/50"
-                    data-testid="mc-custom-universe-metadata-confirmation"
-                  />
-                </label>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-1 rounded-md border border-amber-700/60 px-2 py-1 text-[10px] text-amber-300 hover:bg-amber-950/40 disabled:opacity-50"
-                  disabled={!canHydrateMetadata || hydrateMetadata.isPending}
-                  data-testid="mc-approve-metadata-only-hydration"
-                >
-                  <RefreshCw className={`h-3 w-3 ${hydrateMetadata.isPending ? "animate-spin" : ""}`} />
-                  {hydrateMetadata.isPending ? "Hydrating metadata…" : "Approve metadata-only refresh"}
-                </button>
-                <span className="text-muted-foreground">
-                  {metadata.approval_required === false ? "Approval not currently required." : "Approval required"}
-                </span>
-              </div>
-              {hydrateMetadata.isError && (
-                <p className="text-red-400" data-testid="mc-custom-universe-metadata-error">
-                  Metadata refresh failed: {(hydrateMetadata.error as Error).message}
-                </p>
-              )}
-              {hydrateMetadata.isSuccess && (
-                <p className="text-emerald-400" data-testid="mc-custom-universe-metadata-success">
-                  Metadata-only refresh completed. Review the updated mapping date and coverage above.
-                </p>
-              )}
-            </form>
+            <p className="border-t border-border/40 pt-2 text-muted-foreground" data-testid="mc-custom-universe-management-note">
+              Membership and mapping changes are not available from Mission Control. This panel remains read-only; use Universe Management to prepare a validated draft.
+            </p>
           </div>
         )}
 

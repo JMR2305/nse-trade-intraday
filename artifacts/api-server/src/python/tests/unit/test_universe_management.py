@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 from datetime import datetime
 
 
@@ -156,6 +157,65 @@ class TestInitialReleaseActivationLock(unittest.TestCase):
         effective_at = datetime.fromisoformat(_next_session_open())
         self.assertEqual((effective_at.hour, effective_at.minute), (3, 45))
         self.assertEqual(effective_at.tzinfo.utcoffset(effective_at).total_seconds(), 0)
+
+
+class TestDraftLifecycleGuard(unittest.TestCase):
+    def test_create_draft_refuses_when_another_draft_is_already_open(self):
+        import universe_management
+
+        class Cursor:
+            def __init__(self):
+                self.last_sql = ""
+                self.statements = []
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def execute(self, sql, _params=None):
+                self.last_sql = sql
+                self.statements.append(sql)
+
+            def fetchone(self):
+                if "status = 'DRAFT'" in self.last_sql:
+                    return (12,)
+                return None
+
+        class Connection:
+            def __init__(self, cursor):
+                self._cursor = cursor
+
+            def cursor(self):
+                return self._cursor
+
+        class ConnectionContext:
+            def __init__(self, connection):
+                self._connection = connection
+
+            def __enter__(self):
+                return self._connection
+
+            def __exit__(self, *_args):
+                return False
+
+        cursor = Cursor()
+        with (
+            patch.object(universe_management.versions, "_db_available", return_value=True),
+            patch.object(
+                universe_management.versions,
+                "_connect",
+                return_value=ConnectionContext(Connection(cursor)),
+            ),
+            patch.object(universe_management, "_ensure_management_schema"),
+        ):
+            result = universe_management.create_draft()
+
+        self.assertFalse(result["success"])
+        self.assertEqual(result["error"], "draft_already_open")
+        self.assertEqual(result["draft_version"], 12)
+        self.assertFalse(any("INSERT INTO trading_universes" in sql for sql in cursor.statements))
 
 
 if __name__ == "__main__":

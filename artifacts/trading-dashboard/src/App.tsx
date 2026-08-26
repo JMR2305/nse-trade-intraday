@@ -123,6 +123,7 @@ import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 import AILearningCenter            from "@/pages/AILearningCenter";
 import MissionControl              from "@/pages/MissionControl";
 import MarketDataIncidents         from "@/pages/MarketDataIncidents";
+import CustomUniverseManagement    from "@/pages/CustomUniverseManagement";
 import TradingQuality              from "@/pages/TradingQuality";
 import InstitutionalAnalytics      from "@/pages/InstitutionalAnalytics";
 import AdvisoryDashboard            from "@/pages/AdvisoryDashboard";
@@ -266,6 +267,7 @@ function Router() {
         <Route path="/ai-learning-center"         component={AILearningCenter} />
         <Route path="/mission-control"            component={MissionControl} />
         <Route path="/market-data-incidents"      component={MarketDataIncidents} />
+        <Route path="/custom-universe-management" component={CustomUniverseManagement} />
         <Route path="/trading-quality"            component={TradingQuality} />
         <Route path="/institutional-analytics"    component={InstitutionalAnalytics} />
         {isAdvisoryUiEnabled() && (

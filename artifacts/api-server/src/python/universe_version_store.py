@@ -126,6 +126,16 @@ def _ensure_schema(conn: Any) -> None:
             ON trading_universes (universe_key, status, effective_from)
             """
         )
+        # One editable draft is the authoritative workflow invariant. Edits
+        # create an immutable successor only after cancelling their predecessor,
+        # so concurrent UI/API callers cannot leave ambiguous open drafts.
+        cur.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_trading_universes_one_draft
+            ON trading_universes (universe_key)
+            WHERE status = 'DRAFT'
+            """
+        )
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS trading_universe_members (

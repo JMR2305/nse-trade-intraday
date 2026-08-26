@@ -522,6 +522,22 @@ def create_draft(
             _ensure_management_schema(conn)
             with conn.cursor() as cur:
                 cur.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", ("task947-draft",))
+                # The advisory lock serializes create/edit workflows; the
+                # partial unique index is the database backstop. Check within
+                # this transaction so callers receive a clear recoverable
+                # response rather than making the editable revision ambiguous.
+                cur.execute("""
+                    SELECT version FROM trading_universes
+                    WHERE universe_key = %s AND status = 'DRAFT'
+                    ORDER BY version DESC LIMIT 1 FOR UPDATE
+                """, (versions.CUSTOM_UNIVERSE_KEY,))
+                open_draft = cur.fetchone()
+                if open_draft:
+                    return {
+                        "success": False,
+                        "error": "draft_already_open",
+                        "draft_version": int(open_draft[0]),
+                    }
                 base = get_revision_view(version=base_version) if base_version is not None else None
                 if base_version is None:
                     cur.execute("""
@@ -675,6 +691,16 @@ def edit_draft(
                     return {"success": False, "error": "draft_only_edit"}
                 if expected_hash and current[1] != expected_hash:
                     return {"success": False, "error": "stale_revision", "current_hash": current[1]}
+                # Cancel first so the database's single-DRAFT constraint
+                # remains true throughout the successor transition. If the
+                # insert fails, this transaction rolls the cancellation back.
+                cur.execute("""
+                    UPDATE trading_universes
+                    SET status = 'CANCELLED'
+                    WHERE universe_key = %s AND version = %s AND status = 'DRAFT'
+                """, (versions.CUSTOM_UNIVERSE_KEY, version))
+                if cur.rowcount != 1:
+                    return {"success": False, "error": "draft_only_edit"}
                 next_version = _next_version(cur)
                 new_hash = versions.exact_set_hash([
                     item["symbol"] for item in members if item.get("enabled", True)
@@ -684,11 +710,6 @@ def edit_draft(
                     notes=f"Successor of v{version}", members=members,
                     exact_hash=new_hash,
                 )
-                cur.execute("""
-                    UPDATE trading_universes
-                    SET status = 'CANCELLED'
-                    WHERE universe_key = %s AND version = %s AND status = 'DRAFT'
-                """, (versions.CUSTOM_UNIVERSE_KEY, version))
                 action = {
                     "add": "SYMBOL_ADDED", "remove": "SYMBOL_REMOVED",
                     "restore": "SYMBOL_RESTORED", "update": "SYMBOL_ADDED",
