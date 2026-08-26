@@ -28,6 +28,123 @@ class TestPreopenCollectCounts(unittest.TestCase):
         self.assertEqual(result["persistence_status"], "MISMATCH")
 
 
+class TestCollectionBatchPresentationTruth(unittest.TestCase):
+    def test_empty_visible_coverage_is_not_certified_even_if_session_phase_is_frozen(self):
+        import preopen_engine
+
+        result = preopen_engine._collection_batch_status({
+            "session_id": "prior-session",
+            "trading_date": "2026-08-25",
+            "status": "FROZEN",
+            "valid_count": 10,
+            "expected_count": 10,
+            "persisted_count": 10,
+            "stale_count": 0,
+            "persistence_status": "MATCH",
+            "verified_collection_batch_id": "batch-1",
+            "frozen_collection_batch_id": "batch-1",
+            "collection_coverage": {
+                "outcome_complete": True,
+                "live_coverage_complete": True,
+            },
+        }, [], "2026-08-26")
+
+        self.assertEqual(result["session_phase"], "FROZEN")
+        self.assertFalse(result["certified"])
+        self.assertEqual(result["certification_status"], "NO_VALID_SYMBOLS")
+
+    def test_certification_requires_matching_pointers_and_complete_current_coverage(self):
+        import preopen_engine
+
+        result = preopen_engine._collection_batch_status({
+            "session_id": "current-session",
+            "trading_date": "2026-08-26",
+            "status": "FROZEN",
+            "valid_count": 2,
+            "expected_count": 2,
+            "persisted_count": 2,
+            "stale_count": 0,
+            "persistence_status": "MATCH",
+            "verified_collection_batch_id": "batch-2",
+            "frozen_collection_batch_id": "batch-2",
+            "collection_coverage": {
+                "outcome_complete": True,
+                "live_coverage_complete": True,
+            },
+        }, [
+            {
+                "is_stale": False,
+                "session_id": "current-session",
+                "collection_batch_id": "batch-2",
+            },
+            {
+                "is_stale": False,
+                "session_id": "current-session",
+                "collection_batch_id": "batch-2",
+            },
+        ], "2026-08-26")
+
+        self.assertTrue(result["certified"])
+        self.assertEqual(result["certification_status"], "CERTIFIED_FROZEN")
+
+    def test_later_equal_size_batch_is_not_certified_as_the_frozen_batch(self):
+        import preopen_engine
+
+        result = preopen_engine._collection_batch_status({
+            "session_id": "current-session",
+            "trading_date": "2026-08-26",
+            "status": "FROZEN",
+            "valid_count": 2,
+            "expected_count": 2,
+            "persisted_count": 2,
+            "stale_count": 0,
+            "persistence_status": "MATCH",
+            "verified_collection_batch_id": "frozen-batch",
+            "frozen_collection_batch_id": "frozen-batch",
+            "collection_coverage": {
+                "outcome_complete": True,
+                "live_coverage_complete": True,
+            },
+        }, [
+            {
+                "is_stale": False,
+                "session_id": "current-session",
+                "collection_batch_id": "later-unfrozen-batch",
+            },
+            {
+                "is_stale": False,
+                "session_id": "current-session",
+                "collection_batch_id": "later-unfrozen-batch",
+            },
+        ], "2026-08-26")
+
+        self.assertFalse(result["certified"])
+        self.assertEqual(result["certification_status"], "DISPLAYED_BATCH_MISMATCH")
+
+    def test_snapshot_reads_only_the_current_trading_date_session(self):
+        import preopen_engine
+        current_session = {"session_id": "current", "trading_date": "2026-08-26"}
+        database = types.SimpleNamespace(
+            get_latest_snapshots=Mock(return_value=[]),
+            get_session_for_trading_date=Mock(return_value=current_session),
+            get_latest_session=Mock(),
+        )
+        provider = types.SimpleNamespace(PROVIDER_LABEL="Fixture")
+        with (
+            patch.object(preopen_engine, "_is_enabled", return_value=True),
+            patch.object(preopen_engine, "_today_ist", return_value="2026-08-26"),
+            patch.object(preopen_engine, "_get_provider", return_value=provider),
+            patch.object(preopen_engine, "_resolve_collection_symbols", return_value=["ONE"]),
+            patch.object(preopen_engine, "db", database),
+        ):
+            result = preopen_engine.get_snapshot()
+
+        database.get_session_for_trading_date.assert_called_once_with("2026-08-26")
+        database.get_latest_session.assert_not_called()
+        self.assertEqual(result["session"], current_session)
+        self.assertFalse(result["collection_batch"]["certified"])
+
+
 class TestForwardOnlySessionWrites(unittest.TestCase):
     def test_5a_collection_cannot_regress_frozen_or_reconciled_statuses(self):
         from preopen_db import _forward_session_status

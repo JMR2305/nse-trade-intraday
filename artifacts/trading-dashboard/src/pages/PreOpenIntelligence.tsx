@@ -52,7 +52,25 @@ interface Snapshot {
 interface SnapshotResponse {
   success: boolean;
   trading_date: string;
-  session: { status?: string; provider_status?: string; provider_label?: string; frozen_at?: string } | null;
+  session: {
+    status?: string;
+    provider_status?: string;
+    provider_label?: string;
+    frozen_at?: string;
+    verified_collection_batch_id?: string | null;
+    frozen_collection_batch_id?: string | null;
+  } | null;
+  collection_batch?: {
+    certification_status: string;
+    certified: boolean;
+    reason: string;
+    session_phase: string;
+    verified_collection_batch_id?: string | null;
+    frozen_collection_batch_id?: string | null;
+    expected_count?: number;
+    persisted_count?: number;
+    visible_valid_count?: number;
+  };
   snapshots: Snapshot[];
   valid_count: number;
   stale_count: number;
@@ -723,6 +741,13 @@ export default function PreOpenIntelligence() {
 
   const session = data?.session;
   const snapshots = data?.snapshots ?? [];
+  const collectionBatch = data?.collection_batch;
+  const isCertifiedBatch = collectionBatch?.certified === true;
+  const sessionPhase = collectionBatch?.session_phase ?? session?.status ?? "No session";
+  const verifiedBatch = collectionBatch?.verified_collection_batch_id
+    ?? session?.verified_collection_batch_id;
+  const frozenBatch = collectionBatch?.frozen_collection_batch_id
+    ?? session?.frozen_collection_batch_id;
 
   // Disabled state
   if (data && "status" in data && (data as any).status === "DISABLED") {
@@ -785,7 +810,7 @@ export default function PreOpenIntelligence() {
       {/* Status summary bar */}
       <Card>
         <CardContent className="px-4 py-3">
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-4">
             <div>
               <div className="text-xs text-muted-foreground">Module Status</div>
               <div className="font-semibold text-sm mt-0.5">
@@ -821,13 +846,40 @@ export default function PreOpenIntelligence() {
               </div>
             </div>
             <div>
-              <div className="text-xs text-muted-foreground">Session</div>
+              <div className="text-xs text-muted-foreground">Session Phase</div>
               <div className="flex items-center gap-1 mt-0.5">
                 <Clock className="h-3 w-3 text-muted-foreground" />
-                <span className="text-xs">{session?.frozen_at ? "Frozen" : "Live"}</span>
+                <span className="text-xs" data-testid="preopen-session-phase">{sessionPhase}</span>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Collection Batch</div>
+              <div
+                className={cn(
+                  "text-xs font-semibold mt-0.5",
+                  isCertifiedBatch ? "text-emerald-600" : "text-amber-600",
+                )}
+                data-testid="preopen-collection-certification"
+              >
+                {isCertifiedBatch ? "Certified frozen batch" : "Not certified"}
               </div>
             </div>
           </div>
+          {!isLoading && !error && !isCertifiedBatch && (
+            <div
+              className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+              data-testid="preopen-collection-warning"
+              role="status"
+            >
+              <span className="font-semibold">Collection batch is not certified.</span>{" "}
+              {collectionBatch?.reason ?? "No durable verified and frozen batch proof is available."}
+              <span className="block mt-1 text-amber-800 dark:text-amber-300">
+                Verified batch: <span className="font-mono">{verifiedBatch ?? "none"}</span>
+                {" · "}
+                Frozen batch: <span className="font-mono">{frozenBatch ?? "none"}</span>
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -401,12 +401,120 @@ def _finalise_collection_outcomes(expected_symbols: List[str], outcomes: List[di
 
 # ── Status ────────────────────────────────────────────────────────────────────
 
+def _collection_batch_status(session: Optional[dict], snapshots: List[dict],
+                             trading_date: str) -> dict:
+    """Describe durable batch certification separately from the session phase.
+
+    A lifecycle phase such as ``FROZEN`` is scheduler progress, not proof that
+    the batch currently shown by the API is a certified immutable collection.
+    Keep that distinction in the read-only response so callers never need to
+    infer certification from ``frozen_at``.
+    """
+    session = session or {}
+    coverage = session.get("collection_coverage") or {}
+    if not isinstance(coverage, dict):
+        coverage = {}
+
+    def count(value: Any) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    expected_count = count(session.get("expected_count") or coverage.get("expected_count"))
+    persisted_count = count(session.get("persisted_count"))
+    durable_valid_count = count(session.get("valid_count"))
+    visible_valid_count = sum(1 for snapshot in snapshots if not snapshot.get("is_stale"))
+    verified_batch_id = session.get("verified_collection_batch_id")
+    frozen_batch_id = session.get("frozen_collection_batch_id")
+    displayed_batch_matches_frozen = bool(
+        snapshots
+        and session.get("session_id")
+        and frozen_batch_id
+        and all(
+            snapshot.get("session_id") == session.get("session_id")
+            and snapshot.get("collection_batch_id") == frozen_batch_id
+            for snapshot in snapshots
+        )
+    )
+    base = {
+        "session_id": session.get("session_id"),
+        "session_phase": session.get("status") or "NO_SESSION",
+        "session_trading_date": session.get("trading_date"),
+        "snapshot_trading_date": trading_date,
+        "verified_collection_batch_id": verified_batch_id,
+        "frozen_collection_batch_id": frozen_batch_id,
+        "expected_count": expected_count,
+        "persisted_count": persisted_count,
+        "durable_valid_count": durable_valid_count,
+        "visible_valid_count": visible_valid_count,
+        "displayed_batch_matches_frozen": displayed_batch_matches_frozen,
+        "certified": False,
+    }
+    if not session:
+        return {
+            **base,
+            "certification_status": "NO_DURABLE_SESSION",
+            "reason": "No durable pre-open session exists for the displayed trading date.",
+        }
+    if visible_valid_count == 0:
+        return {
+            **base,
+            "certification_status": "NO_VALID_SYMBOLS",
+            "reason": "No valid symbols are available for the displayed trading date.",
+        }
+    if not verified_batch_id:
+        return {
+            **base,
+            "certification_status": "NOT_VERIFIED",
+            "reason": "No durable verified collection batch is recorded.",
+        }
+    if not frozen_batch_id:
+        return {
+            **base,
+            "certification_status": "VERIFIED_NOT_FROZEN",
+            "reason": "The verified collection batch has not been durably frozen.",
+        }
+    if verified_batch_id != frozen_batch_id:
+        return {
+            **base,
+            "certification_status": "BATCH_POINTER_MISMATCH",
+            "reason": "The verified and frozen batch pointers do not match.",
+        }
+    if not displayed_batch_matches_frozen:
+        return {
+            **base,
+            "certification_status": "DISPLAYED_BATCH_MISMATCH",
+            "reason": "Displayed rows do not all belong to the durable frozen collection batch.",
+        }
+    if (
+        expected_count <= 0
+        or persisted_count != expected_count
+        or durable_valid_count != expected_count
+        or visible_valid_count != expected_count
+        or count(session.get("stale_count")) != 0
+        or session.get("persistence_status") != "MATCH"
+        or coverage.get("outcome_complete") is not True
+        or coverage.get("live_coverage_complete") is not True
+    ):
+        return {
+            **base,
+            "certification_status": "COVERAGE_UNPROVEN",
+            "reason": "Coverage proof is incomplete for the verified collection batch.",
+        }
+    return {
+        **base,
+        "certification_status": "CERTIFIED_FROZEN",
+        "certified": True,
+        "reason": "Verified and frozen batch pointers match complete durable coverage.",
+    }
+
+
 def get_status() -> dict:
     if not _is_enabled():
         return _disabled_response()
     try:
         from preopen_intelligence_tick import get_tick_status
-        session  = db.get_latest_session()
         symbols = _resolve_collection_symbols()
         if not symbols:
             raise RuntimeError("Active custom pre-open universe is unavailable or empty")
@@ -414,6 +522,7 @@ def get_status() -> dict:
         health   = provider.health_check()
         today    = _today_ist()
         snaps    = db.get_latest_snapshots(today)
+        session  = db.get_session_for_trading_date(today)
         ts       = get_tick_status()
         return {
             "status":           "ENABLED",
@@ -423,6 +532,7 @@ def get_status() -> dict:
             "provider_message": health.get("message", ""),
             "provider_label":   health.get("provider", getattr(provider, "PROVIDER_LABEL", "Unknown")),
             "session":          session,
+            "collection_batch": _collection_batch_status(session, snaps, today),
             "symbols_analysed": len(snaps),
             "valid_records":    sum(1 for s in snaps if not s.get("is_stale")),
             "stale_records":    sum(1 for s in snaps if s.get("is_stale")),
@@ -816,7 +926,10 @@ def get_snapshot() -> dict:
         return _disabled_response()
     today = _today_ist()
     snaps = db.get_latest_snapshots(today)
-    session = db.get_latest_session()
+    # The page displays today's rows. Never attach a historical phase to an
+    # empty current-day snapshot: that can make an old frozen lifecycle phase
+    # look like certification for the displayed batch.
+    session = db.get_session_for_trading_date(today)
     # Derive the active provider label from the stored snapshots (avoids an
     # extra provider health-check on every poll).  Falls back to the current
     # provider's label when no snapshots exist yet.
@@ -833,6 +946,7 @@ def get_snapshot() -> dict:
         "success": True,
         "trading_date": today,
         "session": session,
+        "collection_batch": _collection_batch_status(session, snaps, today),
         "snapshots": snaps,
         "count": len(snaps),
         "valid_count": sum(1 for s in snaps if not s.get("is_stale")),
