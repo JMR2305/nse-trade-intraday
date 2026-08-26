@@ -775,3 +775,31 @@ uri = "file://TASK_941_DETAILED_SUMMARY.md"
 type = "text"
 title = "Task 941 Detailed Summary"
 description = "Complete handoff covering the Phase 5A universe-accounting fixes, provenance rules, failure paths, validation evidence, safety boundaries, and next-session gate."
+
+[[outputs]]
+id = "5F-1DtBJfeMgzdkoAmm4O"
+uri = "file://TASK_944_POST_PUBLISH_RUNTIME_VERIFICATION.md"
+type = "text"
+title = "Task #944 Post-Publish Runtime Verification"
+description = "Read-only production identity, Task #941/#942 runtime, schema, safety, Kite, no-mutation, and final decision report."
+
+[[outputs]]
+id = "Uyy7SkLvj6YixCeUOQWWn"
+uri = "file://TASK_944_RUNTIME_IDENTITY_AND_SAFETY.md"
+type = "text"
+title = "Task #944 Runtime Identity and Safety"
+description = "Published production identity, additive schema, portfolio/ledger, execution, and live market-data safety baseline."
+
+[[outputs]]
+id = "C5f9G_kqJDWUxdTREL_pR"
+uri = "file://TASK_944_HISTORICAL_3_SYMBOL_RECONCILIATION.md"
+type = "text"
+title = "Task #944 Historical 3-Symbol Reconciliation"
+description = "Immutable August 26 production evidence and reconciliation of COALINDIA, NTPC, and WIPRO versus the stale GAIL narrative."
+
+[[outputs]]
+id = "XddOAouQDD9qVVXDaufwx"
+uri = "file://TASK_944_NEXT_NATURAL_SESSION_GATE.md"
+type = "text"
+title = "Task #944 Next Natural Session Gate"
+description = "Read-only criteria and preservation rules for the next naturally scheduled NSE pre-open certification."

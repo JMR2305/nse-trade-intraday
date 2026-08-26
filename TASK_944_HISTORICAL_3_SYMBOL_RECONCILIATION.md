@@ -42,6 +42,11 @@ COALINDIA, NTPC, WIPRO
 The matching persisted `preopen_snapshots` rows under the authoritative batch
 also contain exactly those three symbols.
 
+The deployed outcome-storage table is now present, but the read-only production
+query returns zero rows for it. That is expected: the table was not available
+when this failed historical collection ran, and no historical outcome backfill
+or rewrite was performed.
+
 ## Why earlier reports differed
 
 Two earlier static reports stated that the three persisted symbols were:

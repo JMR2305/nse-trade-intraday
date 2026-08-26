@@ -159,10 +159,11 @@ This SQL must be applied only by Replit's Publish flow. No direct production
 DDL, custom migration script, startup migration, or historical-row rewrite is
 approved.
 
-## Pre-publish verdict
+## Pre-publish verdict (historical checkpoint)
 
 **PRE-PUBLISH SOURCE/TEST/SCHEMA GATE: PASS**
 
-The source candidate is ready for controlled publication. The current
-production runtime remains on the earlier `fa612a21…` build and must not be
-called deployed-compliant until it reports the approved commit and build ID.
+This report records the source/test/schema state immediately before the
+controlled publish. The post-publish runtime result is recorded in
+`TASK_944_POST_PUBLISH_RUNTIME_VERIFICATION.md`; it supersedes the
+pre-publish identity statement above.

@@ -11,16 +11,16 @@ fabrication, or historical repair is permitted to satisfy this gate.
 
 ## Precondition: deployment identity
 
-Before the next natural session is assessed, production must report:
+The post-publish verification confirmed that production reports:
 
 ```text
-git_commit = 356da659ea636a1c39dc8a379bbb5947ce492ac7
-build_id   = apexquant-356da659ea63
+git_commit = 06ff8327ed35b4ab298f15e7b8f7cdef8ad02191
+build_id   = apexquant-06ff8327ed35
 environment = production
 ```
 
-The additive `preopen_collection_outcomes` table must also be present in the
-production schema.
+The additive `preopen_collection_outcomes` table and its required indexes are
+present in the production schema.
 
 ## Required natural scheduled evidence
 
@@ -93,7 +93,7 @@ That session remains partial, uncertified historical evidence.
 
 ## Final post-publish verdict rule
 
-After a successful controlled publish and read-only runtime identity
+After the completed controlled publish and read-only runtime identity
 verification:
 
 ```text

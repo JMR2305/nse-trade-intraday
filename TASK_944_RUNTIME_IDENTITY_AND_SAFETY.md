@@ -1,85 +1,126 @@
 # Task #944 — Runtime Identity and Safety
 
-## Pre-publish production identity
+## Published production identity
 
-The public deployment is healthy but is currently serving the source state
-published before Task #941/#942:
+Read-only `GET /api/health/details` verification returned:
 
-| Field | Current production value |
+| Field | Value |
 |---|---|
 | Environment | `production` |
-| Git commit | `fa612a219c2ca2aa682e5af58b051e2da4425c16` |
-| Build ID | `apexquant-fa612a219c2c` |
+| Git commit | `06ff8327ed35b4ab298f15e7b8f7cdef8ad02191` |
+| Build ID | `apexquant-06ff8327ed35` |
 | Deployment ID | `0d018179-abe0-42c2-a554-dbb19d11341f` |
-| Runtime identity endpoint | `/api/health/details` |
-| Deployment health | successful build, public autoscale deployment |
+| Runtime timestamp | `2026-08-26T09:58:02.346Z` |
+| Instance | `nse-trade-intraday.replit.app` |
 
-The approved source candidate is:
-
-```text
-APPROVED_DEPLOY_COMMIT = 356da659ea636a1c39dc8a379bbb5947ce492ac7
-EXPECTED_BUILD_ID      = apexquant-356da659ea63
-```
-
-Therefore the current pre-publish identity result is:
+The corresponding source identities are:
 
 ```text
-DEPLOYMENT_IDENTITY = NOT_YET_MATCHED
+CURRENT_WORKSPACE_HEAD = 74b55d239efc21e697f49ca9fc7fe86b3dc4dc93
+TASK_941_MERGE_COMMIT   = c38c2b3091f63c0862e07908a5a995df56d253c0
+TASK_942_MERGE_COMMIT   = ba3727403d45c8bdec6a25eebaf3236da859727c
+CURRENT_VISIBLE_GIT_COMMIT = 74b55d239efc21e697f49ca9fc7fe86b3dc4dc93
+DEPLOYED_SOURCE_COMMIT = 06ff8327ed35b4ab298f15e7b8f7cdef8ad02191
+DEPLOYED_BUILD_ID      = apexquant-06ff8327ed35
 ```
 
-This is expected before the controlled publish. It is a stop condition for
-claiming final deployment success, not a source, safety, or schema failure.
+`git merge-base --is-ancestor` proves both Task #941 and Task #942 merge
+commits are ancestors of the deployed source commit. The deployed commit is a
+documentation-only descendant of the runtime merge; it includes the required
+runtime files.
 
-## Production schema state
+## Production schema
 
-Production does not yet contain `preopen_collection_outcomes`; development
-does. The publish-time schema diff is additive only and is documented in
-`TASK_944_DEPLOYMENT_SCOPE_AND_TEST_REPORT.md`.
+Read-only production SQL confirms:
 
-The table must be created by the Publish flow alongside the approved source
-commit. No manual production DDL is permitted.
+- `preopen_collection_outcomes` exists;
+- all required columns exist, including the non-null
+  `session_id`, `collection_batch_id`, `symbol`, `outcome_status`, and
+  `reason_code` fields;
+- the nullable provider/normalization/evidence columns exist;
+- `preopen_collection_outcomes_pkey` uniquely indexes
+  `(session_id, collection_batch_id, symbol)`; and
+- `idx_preopen_outcomes_session_batch` indexes
+  `(session_id, collection_batch_id)`.
+
+The table currently contains zero rows. No historical outcome backfill was
+performed or required.
 
 ## Read-only production safety baseline
-
-The following values were obtained without invoking a collection, scan,
-execution, or setting mutation.
 
 | Safety/control | Result |
 |---|---|
 | Active universe | `CUSTOM_LOW_PRICE_SECTOR` |
 | Active universe count | 23 |
-| Mappings/token coverage | 23 of 23 / 100% |
+| Mapping/token coverage | 23/23 |
 | Automatic paper entries | `false` |
-| Automatic-entry confirmation timestamp | `null` |
-| Bootstrap paper mode | `false` |
+| Entry confirmation | `null` |
+| Bootstrap | `false` |
 | Automatic paper exits | `true` |
-| Paper mode | `true` |
-| Portfolio activation status | `DISABLED` |
+| Effective mode | `PAPER_TRADING_RESEARCH_ONLY` |
+| Portfolio source | `phase20_ledger` |
+| Portfolio status | `DISABLED` |
+| Controlled execution | disabled |
+| Effective `execution_allowed` | `false` |
+| Live broker orders | disabled (`live_order_placement_enabled=false`) |
 | Open positions | 0 |
-| `EXIT_PENDING` positions | 0 |
+| `EXIT_PENDING` | 0 |
 | Portfolio health | `HEALTHY` |
 | Unresolved portfolio discrepancies | 0 |
-| Live broker order calls in observed ledger evidence | `false` |
+
+The effective execution gate is closed by the combination of automatic entries
+disabled, portfolio status `DISABLED`, paper-only mode, and live order
+placement disabled. No setting was changed during verification.
 
 The canonical portfolio snapshot reports:
 
 ```text
-position_source = phase20_ledger
-open_position_count = 0
-equity_complete = true
-paper_mode = true
-status = DISABLED
+position_source      = phase20_ledger
+open_position_count  = 0
+equity_complete      = true
+paper_mode           = true
+status               = DISABLED
 ```
 
-The historical paper-trade ledger contains six `BUY` rows and six matching
-`SELL` rows, representing six closed historical paper trades. No open or
-exit-pending position is present.
+The production paper ledger contains six `BUY` rows and six matching `SELL`
+rows: six historical closed paper trades are preserved.
 
-## Pre-open historical safety baseline
+## Kite and market-data baseline
 
-The historical August 26 session remains:
+Dedicated read-only live Kite checks returned:
 
 ```text
+connected       = true
+token_status    = VALID
+token_expired   = false
+is_mock         = false
+provider        = Zerodha Kite Connect
+live_order_placement_enabled = false
+```
+
+The direct read-only LTP request returned all 23 configured symbols from
+Zerodha Kite. At the verification timestamp the market was open and the
+health payload reported:
+
+```text
+current_quote_freshness = LIVE
+current_quote_provider  = ZERODHA_KITE
+trading_data_ready      = true
+symbols_on_kite         = 23
+symbols_fallback       = 0
+symbols_stale           = 0
+symbols_synthetic       = 0
+symbols_unavailable     = 0
+missing_symbols         = []
+token_coverage_pct      = 100
+```
+
+## Historical safety baseline
+
+The August 26 session remains:
+
+```text
+session_id                = preopen-2026-08-26-ccb21a
 status                    = PARTIAL_COVERAGE
 expected_count            = 23
 persisted_count           = 3
@@ -87,19 +128,9 @@ verified_collection_batch = null
 frozen_collection_batch   = null
 ```
 
-It remains incomplete, uncertified evidence.
+It remains incomplete, uncertified historical evidence.
 
-## Required post-publish read-only identity checks
+## Verdict
 
-After the user publishes the approved source commit, verify:
-
-1. `environment = production`
-2. `git_commit = 356da659ea636a1c39dc8a379bbb5947ce492ac7`
-3. `build_id = apexquant-356da659ea63`
-4. `deployment_id` is non-empty
-5. `runtime_timestamp` is current for the new process
-6. `preopen_collection_outcomes` exists in production
-7. The source/runtime safety baseline above is unchanged
-8. The historical August 26 session remains incomplete and untouched
-
-Any identity mismatch is a stop condition.
+**PASS — published runtime identity, schema support, safety controls, Kite
+connectivity, and portfolio/ledger baseline verified read-only.**
