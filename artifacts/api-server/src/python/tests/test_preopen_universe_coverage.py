@@ -30,80 +30,42 @@ class _SerializedMismatchSnapshot(_Snapshot):
 
 class TestActiveUniverseResolution(unittest.TestCase):
     def test_custom_universe_returns_all_active_symbols_not_default_watchlist(self):
-        import config
         import preopen_engine
 
-        with (
-            patch.object(
-                config,
-                "get_active_intraday_universe_strict",
-                return_value=config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR,
-            ),
-            patch("custom_universe_store.get_active_symbols",
-                  return_value=["wipro", "pnb", "PNB", " irfc "]),
-        ):
+        with patch("runtime_universe.resolve_active_universe", return_value={
+            "enabled_symbols": ["WIPRO", "PNB", "IRFC"],
+        }):
             symbols = preopen_engine._resolve_collection_symbols()
 
         self.assertEqual(symbols, ["WIPRO", "PNB", "IRFC"])
 
     def test_custom_universe_does_not_fall_back_when_durable_membership_is_empty(self):
-        import config
         import preopen_engine
 
-        with (
-            patch.object(
-                config,
-                "get_active_intraday_universe_strict",
-                return_value=config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR,
-            ),
-            patch("custom_universe_store.get_active_symbols", return_value=[]),
-        ):
+        with patch("runtime_universe.resolve_active_universe",
+                   return_value={"enabled_symbols": []}):
             self.assertEqual(preopen_engine._resolve_collection_symbols(), [])
 
     def test_unreadable_durable_universe_never_falls_back_to_default_watchlist(self):
-        import config
         import preopen_engine
 
-        with (
-            patch.object(
-                config,
-                "get_active_intraday_universe_strict",
-                side_effect=RuntimeError("settings storage unavailable"),
-            ),
-            patch.dict("os.environ", {}, clear=True),
-        ):
+        with patch("runtime_universe.resolve_active_universe",
+                   side_effect=RuntimeError("storage unavailable")):
             self.assertEqual(preopen_engine._resolve_collection_symbols(), [])
 
     def test_default_watchlist_remains_available_when_durable_mode_is_non_custom(self):
-        import config
         import preopen_engine
 
-        with (
-            patch.object(
-                config,
-                "get_active_intraday_universe_strict",
-                return_value=config.UniverseMode.NIFTY_50,
-            ),
-            patch.object(config, "DEFAULT_WATCHLIST", ["SBIN", "TCS"]),
-        ):
+        with patch("runtime_universe.resolve_active_universe", return_value={
+            "enabled_symbols": ["SBIN", "TCS"],
+        }):
             self.assertEqual(preopen_engine._resolve_collection_symbols(), ["SBIN", "TCS"])
 
     def test_environment_default_never_overrides_durable_settings_outage(self):
-        import config
         import preopen_engine
 
-        with (
-            patch.object(
-                config,
-                "get_active_intraday_universe_strict",
-                side_effect=RuntimeError("settings storage unavailable"),
-            ),
-            patch.dict(
-                "os.environ",
-                {"ACTIVE_INTRADAY_UNIVERSE": "NIFTY_50"},
-                clear=True,
-            ),
-        ):
+        with patch("runtime_universe.resolve_active_universe",
+                   side_effect=RuntimeError("storage unavailable")):
             self.assertEqual(preopen_engine._resolve_collection_symbols(), [])
 
 

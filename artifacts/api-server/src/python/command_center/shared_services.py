@@ -721,6 +721,17 @@ def get_summary() -> dict:
 
     platform_score = _compute_platform_score(obs, ops, dq, sec, perf, deploy)
 
+    # Mission Control consumes the canonical scan's persisted identity rather
+    # than enumerating any local watchlist.  A missing identity is explicit so
+    # the UI cannot mistake old/fallback data for an active version.
+    try:
+        from scan_state_store import load_latest_meta
+        universe = (load_latest_meta() or {}).get("universe_context") or {
+            "status": "UNAVAILABLE"
+        }
+    except Exception:
+        universe = {"status": "UNAVAILABLE"}
+
     return {
         "available":      True,
         "advisory_only":  True,
@@ -733,6 +744,7 @@ def get_summary() -> dict:
         "platform_grade": platform_grade(platform_score),
         "platform_status":platform_status(platform_score),
         "scheduler_status":sched.get("status", "UNKNOWN"),
+        "universe": universe,
 
         # Section 1 — Market Overview
         "market": _build_market_section(overview),

@@ -1,15 +1,15 @@
 {
- "generated_at": "2026-08-13T19:35:48.033081+00:00",
+ "generated_at": "2026-08-26T22:11:57.607387+00:00",
  "readme": "PHASE 14 DIAGNOSTIC BUNDLE \u2014 README\nRESEARCH / PAPER LEARNING ONLY. No real broker orders. No secrets included.\n\nFiles/sections:\n- learning_dataset: canonical completed-trade learning rows. Each row carries\n  a no_look_ahead audit block (passed + issues). Entry features are entry-time\n  snapshots only.\n- evaluation_report: overall and grouped performance metrics with sample sizes\n  and reliability labels (INSUFFICIENT <30, LOW 30-49, MODERATE 50-99,\n  STRONG 100-249, HIGH 250+).\n- calibration_report: calibrator versions, methods, before/after Brier, ECE,\n  and log loss on out-of-sample data.\n- learning_adjustments: per-source bounded adjustments (\u00b15/source, \u00b110 total),\n  each with evidence, reliability, bounds, and reason.\n- model_registry: champion/challenger models, statuses, promotion requirements.\n- drift_report: drift indicators with severity and frozen-learning state.\n- audit_log: calibrator training, evaluations, adjustment changes, model\n  status changes, approvals, rollbacks, exports.\n- verification: Phase 14 verification summary (acceptance criteria evidence).\n\nField conventions: pnl values in INR; confidences 0-100; probabilities 0-1.\n",
  "verification": {
-  "generated_at": "2026-08-13T19:35:48.034989+00:00",
+  "generated_at": "2026-08-26T22:11:57.609426+00:00",
   "banner": "RESEARCH / PAPER LEARNING ONLY",
   "message": "Adaptive learning uses completed historical and paper trades. Findings may be unreliable with limited samples. No model, rule, or strategy is promoted automatically. Human approval is required.",
   "completed_learning_rows": 19,
   "rows_passing_no_look_ahead": 19,
   "no_look_ahead_audit_status": "PASS",
   "current_champion": "p13_champion_v1",
-  "active_calibrator": "cal_v45",
+  "active_calibrator": "cal_v46",
   "calibrator_method": "identity",
   "adjustment_sources_active": 0,
   "max_adjustment_observed": 0.0,
@@ -35,7 +35,7 @@
   "learning_frozen": {
    "frozen": false,
    "reason": "decision-time freeze test done",
-   "updated_at": "2026-08-13T19:35:48.014638+00:00"
+   "updated_at": "2026-08-26T22:11:57.533930+00:00"
   },
   "challenger_count": 0,
   "automatic_promotion_occurred": false,
@@ -43,7 +43,7 @@
   "sample_warning": "Sample size below 30 \u2014 all conclusions unreliable; adjustments disabled."
  },
  "learning_dataset": {
-  "generated_at": "2026-08-13T19:35:48.027571+00:00",
+  "generated_at": "2026-08-26T22:11:57.549380+00:00",
   "feature_version": "fv1",
   "model_version": "p14_m1",
   "total_rows": 19,
@@ -1347,7 +1347,7 @@
   ]
  },
  "evaluation_report": {
-  "generated_at": "2026-08-13T19:35:48.029383+00:00",
+  "generated_at": "2026-08-26T22:11:57.551255+00:00",
   "model_version": "p14_m1",
   "feature_version": "fv1",
   "completed_trades": 19,
@@ -1804,9 +1804,9 @@
   "note": "RESEARCH / PAPER LEARNING ONLY. Low-sample groups must not display strong conclusions."
  },
  "calibration_report": {
-  "active_version": "cal_v45",
+  "active_version": "cal_v46",
   "active_method": "identity",
-  "calibrator_count": 45,
+  "calibrator_count": 46,
   "completed_trades": 19,
   "warning": "Only 19 completed trades \u2014 calibration unreliable below 100.",
   "history": [
@@ -2782,6 +2782,28 @@
     "version": "cal_v45",
     "created_at": "2026-08-13T19:35:47.917223+00:00",
     "method": "identity",
+    "status": "ARCHIVED",
+    "train_samples": 0,
+    "test_samples": 8,
+    "metrics_before": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "metrics_after": {
+     "brier": 0.2437,
+     "ece": 0.4695,
+     "log_loss": 0.6729,
+     "n": 8
+    },
+    "reject_reason": null,
+    "warning": "Only 8 completed trades \u2014 calibration unreliable below 100."
+   },
+   {
+    "version": "cal_v46",
+    "created_at": "2026-08-26T22:11:57.474472+00:00",
+    "method": "identity",
     "status": "ACTIVE",
     "train_samples": 0,
     "test_samples": 8,
@@ -2804,11 +2826,11 @@
   "note": "RESEARCH / PAPER LEARNING ONLY."
  },
  "learning_adjustments": {
-  "generated_at": "2026-08-13T19:35:48.031490+00:00",
+  "generated_at": "2026-08-26T22:11:57.553739+00:00",
   "learning_frozen": {
    "frozen": false,
    "reason": "decision-time freeze test done",
-   "updated_at": "2026-08-13T19:35:48.014638+00:00"
+   "updated_at": "2026-08-26T22:11:57.533930+00:00"
   },
   "caps": {
    "per_source": 5.0,
@@ -2828,10 +2850,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030795+00:00",
+     "last_updated": "2026-08-26T22:11:57.553059+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "EMA Cross": {
@@ -2846,10 +2868,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030809+00:00",
+     "last_updated": "2026-08-26T22:11:57.553069+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "MACD Cross": {
@@ -2864,10 +2886,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030813+00:00",
+     "last_updated": "2026-08-26T22:11:57.553073+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "Trend Rider": {
@@ -2882,10 +2904,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030816+00:00",
+     "last_updated": "2026-08-26T22:11:57.553077+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     }
    },
@@ -2902,10 +2924,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030821+00:00",
+     "last_updated": "2026-08-26T22:11:57.553081+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "40-59": {
@@ -2920,10 +2942,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030824+00:00",
+     "last_updated": "2026-08-26T22:11:57.553084+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "60-79": {
@@ -2938,10 +2960,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030828+00:00",
+     "last_updated": "2026-08-26T22:11:57.553087+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "80-100": {
@@ -2956,10 +2978,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030831+00:00",
+     "last_updated": "2026-08-26T22:11:57.553090+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "UNKNOWN": {
@@ -2974,10 +2996,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030835+00:00",
+     "last_updated": "2026-08-26T22:11:57.553093+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     }
    },
@@ -2994,10 +3016,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030839+00:00",
+     "last_updated": "2026-08-26T22:11:57.553096+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "50-74": {
@@ -3012,10 +3034,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030842+00:00",
+     "last_updated": "2026-08-26T22:11:57.553099+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "UNKNOWN": {
@@ -3030,10 +3052,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030846+00:00",
+     "last_updated": "2026-08-26T22:11:57.553102+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     }
    },
@@ -3050,10 +3072,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030850+00:00",
+     "last_updated": "2026-08-26T22:11:57.553105+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "2-5d": {
@@ -3068,10 +3090,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030853+00:00",
+     "last_updated": "2026-08-26T22:11:57.553108+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     }
    },
@@ -3088,10 +3110,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030857+00:00",
+     "last_updated": "2026-08-26T22:11:57.553111+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "D": {
@@ -3106,10 +3128,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030861+00:00",
+     "last_updated": "2026-08-26T22:11:57.553114+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "UNKNOWN": {
@@ -3124,10 +3146,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.030864+00:00",
+     "last_updated": "2026-08-26T22:11:57.553117+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     }
    },
@@ -3144,10 +3166,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031346+00:00",
+     "last_updated": "2026-08-26T22:11:57.553566+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "EMA Cross|Bearish": {
@@ -3162,10 +3184,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031356+00:00",
+     "last_updated": "2026-08-26T22:11:57.553572+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "MACD Cross|Bearish": {
@@ -3180,10 +3202,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031360+00:00",
+     "last_updated": "2026-08-26T22:11:57.553575+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "Trend Rider|Bearish": {
@@ -3198,10 +3220,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031364+00:00",
+     "last_updated": "2026-08-26T22:11:57.553579+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     }
    },
@@ -3218,10 +3240,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031472+00:00",
+     "last_updated": "2026-08-26T22:11:57.553716+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "AI Scan|IT": {
@@ -3236,10 +3258,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031475+00:00",
+     "last_updated": "2026-08-26T22:11:57.553720+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "EMA Cross|ENERGY": {
@@ -3254,10 +3276,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031477+00:00",
+     "last_updated": "2026-08-26T22:11:57.553723+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "MACD Cross|ENERGY": {
@@ -3272,10 +3294,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031480+00:00",
+     "last_updated": "2026-08-26T22:11:57.553726+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "MACD Cross|METALS": {
@@ -3290,10 +3312,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031482+00:00",
+     "last_updated": "2026-08-26T22:11:57.553729+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "Trend Rider|BANKING": {
@@ -3308,10 +3330,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031484+00:00",
+     "last_updated": "2026-08-26T22:11:57.553732+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     },
     "Trend Rider|ENERGY": {
@@ -3326,10 +3348,10 @@
       "lower": -5.0,
       "upper": 5.0
      },
-     "last_updated": "2026-08-13T19:35:48.031487+00:00",
+     "last_updated": "2026-08-26T22:11:57.553736+00:00",
      "evidence_period": {
       "from": null,
-      "to": "2026-08-13T19:35:48.029383+00:00"
+      "to": "2026-08-26T22:11:57.551255+00:00"
      }
     }
    }
@@ -3373,7 +3395,7 @@
   "note": "RESEARCH / PAPER LEARNING ONLY \u2014 no automatic promotion; human approval mandatory."
  },
  "drift_report": {
-  "generated_at": "2026-08-13T19:35:48.032807+00:00",
+  "generated_at": "2026-08-26T22:11:57.607121+00:00",
   "sample_size": 19,
   "indicators": [
    {
@@ -3387,7 +3409,7 @@
   "learning_frozen": {
    "frozen": false,
    "reason": "decision-time freeze test done",
-   "updated_at": "2026-08-13T19:35:48.014638+00:00"
+   "updated_at": "2026-08-26T22:11:57.533930+00:00"
   },
   "recovery_criteria": "All indicators must fall below CRITICAL thresholds on the next drift computation.",
   "note": "Drift never disables existing safety controls."
@@ -6690,8 +6712,131 @@
    }
   },
   {
-   "id": "4f1a3b4da4",
-   "ts": "2026-08-13T19:35:47.922992+00:00",
+   "id": "b0f3af8509",
+   "ts": "2026-08-13T19:31:17.465310+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-13T19:31:17.463562+00:00"
+   }
+  },
+  {
+   "id": "8bc689dc14",
+   "ts": "2026-08-13T19:31:32.235696+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-13T19:31:32.235184+00:00"
+   }
+  },
+  {
+   "id": "a16f887f26",
+   "ts": "2026-08-24T19:06:13.891198+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-24T19:06:13.888409+00:00"
+   }
+  },
+  {
+   "id": "ea91f0b323",
+   "ts": "2026-08-24T19:06:14.230590+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-24T19:06:14.212657+00:00"
+   }
+  },
+  {
+   "id": "da354ca884",
+   "ts": "2026-08-24T19:06:52.207793+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-24T19:06:52.207151+00:00"
+   }
+  },
+  {
+   "id": "852634d275",
+   "ts": "2026-08-24T19:06:52.522519+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-24T19:06:52.505302+00:00"
+   }
+  },
+  {
+   "id": "5b0563b2c5",
+   "ts": "2026-08-24T19:07:06.667040+00:00",
+   "event_type": "phase22_paper_automation_disabled",
+   "actor": "dashboard_user",
+   "detail": {
+    "disabled_at": "2026-08-24T19:07:06.639213+00:00",
+    "by": "dashboard_user",
+    "reason": "test"
+   }
+  },
+  {
+   "id": "249a0bdd42",
+   "ts": "2026-08-24T19:15:41.194149+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-24T19:15:41.191426+00:00"
+   }
+  },
+  {
+   "id": "92e2bbdbac",
+   "ts": "2026-08-24T19:15:41.556634+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-24T19:15:41.539184+00:00"
+   }
+  },
+  {
+   "id": "8c96469960",
+   "ts": "2026-08-24T19:15:52.155532+00:00",
+   "event_type": "phase22_paper_automation_disabled",
+   "actor": "dashboard_user",
+   "detail": {
+    "disabled_at": "2026-08-24T19:15:52.129442+00:00",
+    "by": "dashboard_user",
+    "reason": "test"
+   }
+  },
+  {
+   "id": "95555bec7c",
+   "ts": "2026-08-24T19:16:26.174465+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-24T19:16:26.173689+00:00"
+   }
+  },
+  {
+   "id": "bae00df110",
+   "ts": "2026-08-24T19:16:26.485264+00:00",
+   "event_type": "phase22_readiness_probe",
+   "actor": "system",
+   "detail": {
+    "ts": "2026-08-24T19:16:26.484377+00:00"
+   }
+  },
+  {
+   "id": "817c0aa6e0",
+   "ts": "2026-08-24T19:16:34.847045+00:00",
+   "event_type": "phase22_paper_automation_disabled",
+   "actor": "dashboard_user",
+   "detail": {
+    "disabled_at": "2026-08-24T19:16:34.822151+00:00",
+    "by": "dashboard_user",
+    "reason": "test"
+   }
+  },
+  {
+   "id": "65d977bfed",
+   "ts": "2026-08-26T22:11:57.482726+00:00",
    "event_type": "challenger_created",
    "actor": "system",
    "detail": {
@@ -6699,8 +6844,8 @@
    }
   },
   {
-   "id": "d005d8fca6",
-   "ts": "2026-08-13T19:35:47.930961+00:00",
+   "id": "34573ee5e0",
+   "ts": "2026-08-26T22:11:57.489705+00:00",
    "event_type": "promotion_blocked",
    "actor": "tester",
    "detail": {
@@ -6712,8 +6857,8 @@
    }
   },
   {
-   "id": "3f3a0a16f3",
-   "ts": "2026-08-13T19:35:47.934341+00:00",
+   "id": "006d879717",
+   "ts": "2026-08-26T22:11:57.493587+00:00",
    "event_type": "model_rejected",
    "actor": "tester",
    "detail": {
@@ -6722,8 +6867,8 @@
    }
   },
   {
-   "id": "d55e53ab3b",
-   "ts": "2026-08-13T19:35:47.994670+00:00",
+   "id": "fc4460c6e0",
+   "ts": "2026-08-26T22:11:57.499458+00:00",
    "event_type": "model_rollback",
    "actor": "human",
    "detail": {
@@ -7915,6 +8060,33 @@
   {
    "id": "301b7f313b",
    "ts": "2026-08-13T19:35:47.997988+00:00",
+   "type": "model_rollback",
+   "severity": "WARNING",
+   "message": "Rolled back champion to p13_champion_v1 (research/paper mode).",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "5b0ce5429d",
+   "ts": "2026-08-26T22:11:57.485965+00:00",
+   "type": "challenger_ready",
+   "severity": "INFO",
+   "message": "Challenger p14_challenger_v1 created and ready for review.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "cacc8d95e1",
+   "ts": "2026-08-26T22:11:57.497193+00:00",
+   "type": "challenger_rejected",
+   "severity": "INFO",
+   "message": "Model p14_challenger_v1 rejected by tester.",
+   "informational_only": true,
+   "note": "Alerts never trigger trades."
+  },
+  {
+   "id": "a4b232f316",
+   "ts": "2026-08-26T22:11:57.502649+00:00",
    "type": "model_rollback",
    "severity": "WARNING",
    "message": "Rolled back champion to p13_champion_v1 (research/paper mode).",

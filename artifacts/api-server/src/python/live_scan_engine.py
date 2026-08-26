@@ -230,6 +230,7 @@ class Phase7ScanResult:
     universe_mode: str = "NIFTY_50"
     sector_counts: Dict[str, int] = field(default_factory=dict)
     trigger_origin: str = "UNKNOWN"
+    universe_context: Dict[str, Any] = field(default_factory=dict)
 
 
 def _bootstrap_ineligibility_reason(r: "Phase7Recommendation") -> str:
@@ -712,6 +713,7 @@ def run_live_scan(
     force: bool = False,
     heartbeat: Optional[Any] = None,
     trigger_origin: str = "UNKNOWN",
+    universe_context: Optional[Dict[str, Any]] = None,
 ) -> Phase7ScanResult:
     """
     Run a full Phase 7 canonical scan.
@@ -727,24 +729,17 @@ def run_live_scan(
     """
     scan_id = uuid.uuid4().hex[:12]
     snapshot_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    universe_mode = "NIFTY_50"
+    universe_mode = "UNAVAILABLE"
     custom_metadata: Dict[str, Dict[str, Any]] = {}
     if symbols is None:
-        try:
-            from config import get_active_intraday_universe, UniverseMode
-            if get_active_intraday_universe() == UniverseMode.CUSTOM_LOW_PRICE_SECTOR:
-                from custom_universe_store import (
-                    get_active_symbol_metadata, get_active_symbols,
-                )
-                universe = get_active_symbols()
-                custom_metadata = get_active_symbol_metadata()
-                universe_mode = UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value
-            else:
-                universe = list(NIFTY_50)
-        except Exception:
-            universe = list(NIFTY_50)
+        from runtime_universe import resolve_active_universe
+        universe_context = universe_context or resolve_active_universe()
+        universe = list(universe_context["enabled_symbols"])
+        universe_mode = str(universe_context["universe_key"])
     else:
-        # Caller-provided universes are intentional and must not be replaced.
+        # Explicit callers are test/replay tools, never canonical runtime
+        # authority. Mark them clearly rather than pretending they were a
+        # configured active universe.
         universe = list(symbols)
         universe_mode = "EXPLICIT"
     universe = sorted({str(symbol).upper() for symbol in universe if symbol})
@@ -981,6 +976,7 @@ def run_live_scan(
     summary = {
         "scan_id": scan_id, "snapshot_ts": snapshot_ts,
         "universe_size": len(universe), "universe_mode": universe_mode,
+        "universe": universe_context or {},
         "sector_counts": sector_counts, "symbols_analysed": len(recs),
         "symbols_with_errors": sum(1 for r in recs if r.error),
         "strong_buy_count": strong_buy, "buy_count": buy,
@@ -1060,6 +1056,7 @@ def run_live_scan(
     for i, r in enumerate(recs, start=1):
         d = asdict(r)
         d["rank"] = i
+        d["universe_context"] = dict(universe_context or {})
         rec_dicts.append(d)
 
     # Stage timing breakdown (seconds). "analysis" covers indicator
@@ -1093,6 +1090,7 @@ def run_live_scan(
         universe_mode=universe_mode,
         sector_counts=sector_counts,
         trigger_origin=trigger_origin,
+        universe_context=universe_context or {},
     )
 
     # ── Persist cache (Phase 19B: durable shared store + local warm cache) ───
@@ -1133,6 +1131,7 @@ def run_live_scan(
         "ignore_count": ignore, "paper_eligible_count": paper_elig,
         "symbols_with_errors": summary["symbols_with_errors"],
         "timings": timings,
+        "universe": (universe_context or {}),
     })
     # Retention: keep the event table bounded under continuous operation.
     try:
@@ -1209,6 +1208,24 @@ def get_or_run_scan(
     _scan_lock_busy=True instead of polling — the tick records
     SKIPPED_ACTIVE_SCAN rather than inflating its own duration.
     """
+    runtime_context: Optional[Dict[str, Any]] = None
+    if symbols is None:
+        # Resolve before trusting any cache. A previous session's scan, or a
+        # scan from a different immutable version with the same symbol count,
+        # cannot become authority for this session.
+        from runtime_universe import resolve_active_universe
+        runtime_context = resolve_active_universe()
+    def _same_runtime_universe(snapshot: Optional[Dict[str, Any]]) -> bool:
+        if symbols is not None:
+            return True
+        context = (snapshot or {}).get("universe_context") or {}
+        return (
+            context.get("natural_session") == runtime_context.get("natural_session")
+            and
+            context.get("universe_id") == runtime_context.get("universe_id")
+            and context.get("version") == runtime_context.get("version")
+            and context.get("exact_set_hash") == runtime_context.get("exact_set_hash")
+        )
     if not force:
         cached = load_cached_scan()
         if cached:
@@ -1216,7 +1233,8 @@ def get_or_run_scan(
                 snap_ts = cached.get("snapshot_ts", "")
                 snap_dt = datetime.fromisoformat(snap_ts.replace("Z", "+00:00"))
                 age = (datetime.now(timezone.utc) - snap_dt).total_seconds()
-                if age < max_age_s:
+                same_universe = _same_runtime_universe(cached)
+                if age < max_age_s and same_universe:
                     cached["_from_cache"] = True
                     cached["_cache_age_s"] = round(age, 1)
                     return cached
@@ -1237,7 +1255,7 @@ def get_or_run_scan(
     if acquire_scan_lock is None:
         result = run_live_scan(
             symbols=symbols, capital=capital, force=force,
-            trigger_origin=trigger_origin,
+            trigger_origin=trigger_origin, universe_context=runtime_context,
         )
         d = asdict(result)
         d["_from_cache"] = False
@@ -1252,29 +1270,33 @@ def get_or_run_scan(
     if not acquired:
         if not wait_for_lock:
             # Scheduler path: never poll — report busy immediately.
-            if prev:
+            if prev and _same_runtime_universe(prev):
                 prev["_from_cache"] = True
                 prev["_scan_lock_busy"] = True
                 return prev
             return {"_scan_lock_busy": True, "_from_cache": True,
-                    "scan_id": None, "snapshot_ts": None}
+                    "scan_id": None, "snapshot_ts": None,
+                    "universe_unavailable": True}
         # Another instance is scanning. Poll for its result instead of
         # duplicating work; fall back to the previous snapshot on timeout.
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
             time.sleep(3)
             latest = load_cached_scan()
-            if latest and latest.get("scan_id") != prev_scan_id:
+            if (latest and latest.get("scan_id") != prev_scan_id
+                    and _same_runtime_universe(latest)):
                 latest["_from_cache"] = True
                 latest["_joined_inflight_scan"] = True
                 latest["_lock_wait_s"] = round(time.monotonic() - t_lock0, 2)
                 return latest
-        if prev:
+        if prev and _same_runtime_universe(prev):
             prev["_from_cache"] = True
             prev["_scan_lock_busy"] = True
             prev["_lock_wait_s"] = round(time.monotonic() - t_lock0, 2)
             return prev
-        raise RuntimeError("Scan lock busy and no previous snapshot available")
+        raise RuntimeError(
+            "Scan lock busy and no snapshot matches the pinned runtime universe"
+        )
     lock_wait_s = round(time.monotonic() - t_lock0, 2)
 
     def _beat() -> None:
@@ -1286,7 +1308,7 @@ def get_or_run_scan(
     try:
         result = run_live_scan(
             symbols=symbols, capital=capital, force=force, heartbeat=_beat,
-            trigger_origin=trigger_origin,
+            trigger_origin=trigger_origin, universe_context=runtime_context,
         )
     except Exception as exc:
         # Failed scan must NEVER overwrite the last successful snapshot —

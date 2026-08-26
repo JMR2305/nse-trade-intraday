@@ -27,6 +27,7 @@ from typing import Any, Dict, Generator, Iterable, List, Mapping, Optional, Sequ
 logger = logging.getLogger(__name__)
 
 CUSTOM_UNIVERSE_KEY = "CUSTOM_LOW_PRICE_SECTOR"
+NIFTY_UNIVERSE_KEY = "NIFTY_50"
 DISPLAY_NAME = "Custom Low-Price IT / Infra / Bank"
 REVISION_STATUSES = (
     "DRAFT",
@@ -205,6 +206,199 @@ def _ensure_schema(conn: Any) -> None:
             CREATE INDEX IF NOT EXISTS idx_trading_universe_audit_lookup
             ON trading_universe_audit_events (universe_key, occurred_at DESC)
             """
+        )
+        # Session pins are runtime provenance records over immutable revisions;
+        # keep their bootstrap beside the revision authority rather than an
+        # unrelated Phase 20 feature schema.
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS runtime_universe_session_pins (
+                natural_session TEXT PRIMARY KEY,
+                universe_key TEXT NOT NULL,
+                universe_id BIGINT NOT NULL,
+                universe_version INTEGER NOT NULL,
+                universe_symbols JSONB NOT NULL,
+                universe_symbol_count INTEGER NOT NULL,
+                universe_set_hash TEXT NOT NULL,
+                effective_from TIMESTAMPTZ,
+                pinned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        # Preserve the original append-only guard setup for callers that only
+        # bootstrap the version store (without resolving a runtime universe).
+        cur.execute(
+            """
+            CREATE OR REPLACE FUNCTION task946_reject_history_mutation()
+            RETURNS trigger AS $$
+            BEGIN
+                RAISE EXCEPTION 'Task 946 history is append-only: % on % is forbidden',
+                    TG_OP, TG_TABLE_NAME;
+            END;
+            $$ LANGUAGE plpgsql
+            """
+        )
+        cur.execute(
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_trigger
+                    WHERE tgname = 'trg_task946_audit_immutable'
+                ) THEN
+                    CREATE TRIGGER trg_task946_audit_immutable
+                    BEFORE UPDATE OR DELETE ON trading_universe_audit_events
+                    FOR EACH ROW EXECUTE FUNCTION task946_reject_history_mutation();
+                END IF;
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_trigger
+                    WHERE tgname = 'trg_task946_member_history_guard'
+                ) THEN
+                    -- The draft-only INSERT/UPDATE/DELETE member guard is
+                    -- installed below under trg_task946_member_guard.
+                    CREATE TRIGGER trg_task946_member_history_guard
+                    BEFORE UPDATE OR DELETE ON trading_universe_members
+                    FOR EACH ROW EXECUTE FUNCTION task946_reject_history_mutation();
+                END IF;
+            END
+            $$
+            """
+        )
+    conn.commit()
+
+
+def ensure_builtin_nifty_baseline(conn: Any) -> None:
+    """Create the immutable NIFTY baseline once for the supported default.
+
+    This is a schema-era baseline migration, not a runtime list fallback:
+    after it is written every reader resolves the exact durable revision and
+    its persisted member rows. Custom mode continues to require its approved
+    imported baseline and therefore remains fail-closed when unavailable.
+    """
+    from config import NIFTY_50, SECTOR_MAP
+
+    symbols = normalize_symbols(NIFTY_50)
+    symbol_hash = exact_set_hash(symbols)
+    sector_by_symbol = {
+        symbol: sector
+        for sector, members in SECTOR_MAP.items()
+        for symbol in members
+    }
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT id, version, exact_set_hash, enabled_symbol_count
+            FROM trading_universes
+            WHERE universe_key = %s AND status = 'ACTIVE'
+            ORDER BY version DESC
+            """,
+            (NIFTY_UNIVERSE_KEY,),
+        )
+        active = cur.fetchall()
+        if active:
+            # Existing authority, including a human-approved later version, is
+            # never changed by the baseline bootstrap.
+            return
+        cur.execute(
+            "SELECT version FROM trading_universes WHERE universe_key = %s",
+            (NIFTY_UNIVERSE_KEY,),
+        )
+        if cur.fetchone():
+            raise RuntimeError(
+                "NIFTY_50 has revisions but no active immutable authority"
+            )
+        cur.execute(
+            """
+            INSERT INTO trading_universe_sources (
+                source_type, source_reference, source_set_hash, imported_by,
+                metadata
+            ) VALUES (
+                'BUILTIN_BASELINE', 'config:NIFTY_50', %s,
+                'TASK_948_NIFTY_BASELINE',
+                %s::jsonb
+            )
+            ON CONFLICT (source_type, source_reference, source_set_hash)
+            DO UPDATE SET source_set_hash = EXCLUDED.source_set_hash
+            RETURNING id
+            """,
+            (symbol_hash, json.dumps({"symbol_count": len(symbols)})),
+        )
+        source_id = cur.fetchone()[0]
+        cur.execute(
+            """
+            INSERT INTO trading_universes (
+                universe_key, display_name, version, status, effective_from,
+                created_by, approved_at, approved_by, notes, exact_set_hash,
+                enabled_symbol_count, source_id
+            ) VALUES (
+                %s, 'NIFTY 50 baseline', 1, 'DRAFT',
+                NULL, 'TASK_948_NIFTY_BASELINE',
+                NULL, NULL,
+                'Immutable built-in NIFTY baseline imported for runtime authority.',
+                %s, %s, %s
+            )
+            RETURNING id
+            """,
+            (NIFTY_UNIVERSE_KEY, symbol_hash, len(symbols), source_id),
+        )
+        universe_id = cur.fetchone()[0]
+        cur.executemany(
+            """
+            INSERT INTO trading_universe_members (
+                universe_id, symbol, exchange, sector, mapping_status, enabled,
+                added_by, notes
+            ) VALUES (%s, %s, 'NSE', %s, 'UNVERIFIED', TRUE,
+                      'TASK_948_NIFTY_BASELINE', 'Built-in NIFTY baseline member')
+            """,
+            [
+                (universe_id, symbol, sector_by_symbol.get(symbol, "OTHER"))
+                for symbol in symbols
+            ],
+        )
+        # Existing Task 946 DB protection permits members only on DRAFT
+        # revisions. Verify the persisted exact set before atomically
+        # promoting this baseline to the active authority.
+        cur.execute(
+            """
+            SELECT symbol FROM trading_universe_members
+            WHERE universe_id = %s AND enabled = TRUE
+            ORDER BY symbol
+            """,
+            (universe_id,),
+        )
+        persisted_symbols = [row[0] for row in cur.fetchall()]
+        if (
+            persisted_symbols != symbols
+            or exact_set_hash(persisted_symbols) != symbol_hash
+        ):
+            raise RuntimeError(
+                "NIFTY_50 baseline exact-set verification failed before activation"
+            )
+        cur.execute(
+            """
+            UPDATE trading_universes
+            SET status = 'ACTIVE',
+                effective_from = '1970-01-01T00:00:00Z',
+                approved_at = NOW(),
+                approved_by = 'TASK_948_NIFTY_BASELINE'
+            WHERE id = %s AND status = 'DRAFT'
+            """,
+            (universe_id,),
+        )
+        if cur.rowcount != 1:
+            raise RuntimeError("NIFTY_50 baseline activation transition failed")
+        cur.execute(
+            """
+            INSERT INTO trading_universe_audit_events (
+                actor, action, universe_key, new_version, notes, correlation_id,
+                approval_state
+            ) VALUES (
+                'TASK_948_NIFTY_BASELINE', 'BASELINE_IMPORTED', %s, 1,
+                'Built-in NIFTY baseline established for durable runtime authority.',
+                %s, 'APPROVED'
+            )
+            """,
+            (NIFTY_UNIVERSE_KEY, f"task-948-nifty-{symbol_hash[:16]}"),
         )
         # Database-level immutability is required because omitting a Python
         # update helper does not protect history from another SQL client.
@@ -678,14 +872,22 @@ def get_revision(
                         SELECT {', '.join(_REVISION_COLUMNS)}
                         FROM trading_universes
                         WHERE universe_key = %s
+                          AND status = 'ACTIVE'
                           AND effective_from IS NOT NULL
                           AND effective_from <= %s
                           AND (effective_until IS NULL OR effective_until > %s)
                         ORDER BY effective_from DESC, version DESC
-                        LIMIT 1
+                        LIMIT 2
                         """,
                         (universe_key, effective_at, effective_at),
                     )
+                    rows = cur.fetchall()
+                    # Two effective rows at one server time are ambiguous
+                    # authority.  Returning either would silently rewrite
+                    # history, so all runtime consumers must fail closed.
+                    if len(rows) != 1:
+                        return None
+                    return _revision_dict(rows[0])
                 else:
                     cur.execute(
                         f"""

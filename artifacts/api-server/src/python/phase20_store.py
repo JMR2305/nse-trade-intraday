@@ -257,6 +257,24 @@ def _ensure_schema(conn) -> None:
             )
             """
         )
+        # Runtime membership is pinned once per natural IST session.  The
+        # version tables remain the source of truth; this table only records
+        # which already-immutable revision the running session used.
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS runtime_universe_session_pins (
+                natural_session TEXT PRIMARY KEY,
+                universe_key TEXT NOT NULL,
+                universe_id BIGINT NOT NULL,
+                universe_version INTEGER NOT NULL,
+                universe_symbols JSONB NOT NULL,
+                universe_symbol_count INTEGER NOT NULL,
+                universe_set_hash TEXT NOT NULL,
+                effective_from TIMESTAMPTZ,
+                pinned_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
         # Phase 22 production-visibility columns (idempotent).
         for col, typ in (("owner", "TEXT"), ("last_trigger", "TEXT"),
                          ("last_error", "TEXT"), ("heartbeat_at", "TIMESTAMPTZ"),
@@ -901,7 +919,11 @@ def record_scan_run(run: Dict[str, Any]) -> None:
         "error": (str(run.get("error"))[:500] if run.get("error") else None),
         "timings": run.get("timings") or None,
         "perf": run.get("perf") or None,
-        "details": sanitize_scan_details(run.get("details")),
+        "details": sanitize_scan_details({
+            **(run.get("details") or {}),
+            **({"universe_context": run.get("universe_context")}
+               if run.get("universe_context") else {}),
+        }),
         "created_at": _iso(_now()),
     }
 

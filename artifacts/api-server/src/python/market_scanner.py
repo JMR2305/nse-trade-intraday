@@ -429,22 +429,14 @@ def run_market_scan(
 
     Paper trading only — no real orders are placed.
     """
-    universe_mode = "NIFTY_50"
+    universe_mode = "UNAVAILABLE"
+    universe_context: dict = {}
     custom_metadata: dict[str, dict] = {}
     if symbols is None:
-        try:
-            from config import get_active_intraday_universe, UniverseMode
-            if get_active_intraday_universe() == UniverseMode.CUSTOM_LOW_PRICE_SECTOR:
-                from custom_universe_store import (
-                    get_active_symbol_metadata, get_active_symbols,
-                )
-                universe = get_active_symbols()
-                custom_metadata = get_active_symbol_metadata()
-                universe_mode = UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value
-            else:
-                universe = list(NIFTY_50)
-        except Exception:
-            universe = list(NIFTY_50)
+        from runtime_universe import resolve_active_universe
+        universe_context = resolve_active_universe()
+        universe = list(universe_context["enabled_symbols"])
+        universe_mode = str(universe_context["universe_key"])
     else:
         universe = list(symbols)
         universe_mode = "EXPLICIT"
@@ -566,6 +558,7 @@ def run_market_scan(
     )
     result["learning"] = learning_meta  # type: ignore[typeddict-unknown-key]
     result["universe_mode"] = universe_mode  # type: ignore[typeddict-unknown-key]
+    result["universe_context"] = universe_context  # type: ignore[typeddict-unknown-key]
     result["sector_counts"] = {
         sector["sector"]: sector["stock_count"] for sector in sectors
     }  # type: ignore[typeddict-unknown-key]

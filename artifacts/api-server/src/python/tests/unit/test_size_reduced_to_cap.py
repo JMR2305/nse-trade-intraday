@@ -260,6 +260,14 @@ class TestExecutorCapWiring(unittest.TestCase):
             "strategy_id": "strategy_ema_crossover",
             "strategy_name": "EMA Crossover",
             "sector": "PHARMA",
+            "universe_context": {
+                "natural_session": "2026-08-26",
+                "universe_key": "NIFTY_50",
+                "universe_id": 42,
+                "version": 7,
+                "symbol_count": 1,
+                "exact_set_hash": "fixture-hash",
+            },
             "sizing": {
                 "quantity": orig_qty,
                 "entry_price": price,

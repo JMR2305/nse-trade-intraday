@@ -75,6 +75,7 @@ def _ensure_schema(conn) -> None:
                 trigger_origin TEXT NOT NULL DEFAULT 'UNKNOWN',
                 missing_symbols JSONB,
                 stale_symbols JSONB,
+                universe_context JSONB,
                 error TEXT,
                 snapshot JSONB,
                 updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -83,7 +84,8 @@ def _ensure_schema(conn) -> None:
         )
         cur.execute("""
             ALTER TABLE scan_state
-                ADD COLUMN IF NOT EXISTS trigger_origin TEXT NOT NULL DEFAULT 'UNKNOWN'
+                ADD COLUMN IF NOT EXISTS trigger_origin TEXT NOT NULL DEFAULT 'UNKNOWN',
+                ADD COLUMN IF NOT EXISTS universe_context JSONB
         """)
         cur.execute(
             """
@@ -127,9 +129,9 @@ def save_successful_scan(snapshot: Dict[str, Any]) -> None:
                     id, scan_id, status, started_at, completed_at, snapshot_ts,
                     provider, symbols_requested, symbols_received, symbols_missing,
                     symbols_stale, trigger_origin, missing_symbols, stale_symbols, error, snapshot,
-                    updated_at
+                    universe_context, updated_at
                 ) VALUES (
-                    1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s, NOW()
+                    1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s, %s, NOW()
                 )
                 ON CONFLICT (id) DO UPDATE SET
                     scan_id = EXCLUDED.scan_id,
@@ -145,6 +147,7 @@ def save_successful_scan(snapshot: Dict[str, Any]) -> None:
                     trigger_origin = EXCLUDED.trigger_origin,
                     missing_symbols = EXCLUDED.missing_symbols,
                     stale_symbols = EXCLUDED.stale_symbols,
+                    universe_context = EXCLUDED.universe_context,
                     error = NULL,
                     snapshot = EXCLUDED.snapshot,
                     updated_at = NOW()
@@ -158,6 +161,7 @@ def save_successful_scan(snapshot: Dict[str, Any]) -> None:
                     json.dumps(meta["missing_symbols"]),
                     json.dumps(meta["stale_symbols"]),
                     json.dumps(snapshot, default=str),
+                    json.dumps(meta.get("universe_context") or {}),
                 ),
             )
         conn.commit()
@@ -236,7 +240,7 @@ def load_latest_meta() -> Optional[Dict[str, Any]]:
                         SELECT scan_id, status, started_at, completed_at,
                                 snapshot_ts, provider, symbols_requested,
                                 symbols_received, symbols_missing, symbols_stale, trigger_origin,
-                                missing_symbols, stale_symbols, error, updated_at
+                       missing_symbols, stale_symbols, error, universe_context, updated_at
                         FROM scan_state WHERE id = 1
                         """
                     )
@@ -253,7 +257,8 @@ def load_latest_meta() -> Optional[Dict[str, Any]]:
                         "trigger_origin": row[10] or "UNKNOWN",
                         "missing_symbols": row[11] or [],
                         "stale_symbols": row[12] or [],
-                        "error": row[13], "updated_at": _ts(row[14]),
+                        "error": row[13], "universe_context": row[14] or {},
+                        "updated_at": _ts(row[15]),
                     }
             finally:
                 conn.close()
@@ -397,6 +402,7 @@ def _meta_from_snapshot(snapshot: Dict[str, Any], status: str,
         "missing_symbols": list(health.get("unavailable_symbols") or []),
         "stale_symbols": list(health.get("stale_symbols") or []),
         "trigger_origin": str(snapshot.get("trigger_origin") or "UNKNOWN").upper(),
+        "universe_context": dict(snapshot.get("universe_context") or {}),
         "error": error,
     }
 

@@ -110,6 +110,15 @@ def _make_snapshot(
     return {
         "scan_id": "test-scan-001",
         "snapshot_ts": _fresh_timestamp(),
+        "universe_context": {
+            "natural_session": "2026-08-26",
+            "universe_key": "CUSTOM_LOW_PRICE_SECTOR",
+            "universe_id": 42,
+            "version": 7,
+            "enabled_symbols": ["DRREDDY"],
+            "symbol_count": 1,
+            "exact_set_hash": "fixture-hash",
+        },
         "safety": {
             "kite_ltp_session_verified": kite_session_verified,
             "kite_ltp_overlay_enabled": kite_ltp_overlay_enabled,
@@ -238,6 +247,7 @@ class TestBootstrapPermitsWatchCandidates:
             else (ca.args[4] if len(ca.args) > 4 else None)
         )
         assert trigger_source == "BOOTSTRAP_AUTO"
+        assert ca.args[0]["universe_context"]["exact_set_hash"] == "fixture-hash"
 
     def test_fill_model_overridden_to_bootstrap_paper(self):
         """Settings passed to create_paper_entry must have fill_model=bootstrap_paper."""

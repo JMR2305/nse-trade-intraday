@@ -70,6 +70,7 @@ def _ensure_schema(conn) -> None:
                 frozen_at      TIMESTAMPTZ,
                 reconciled_at  TIMESTAMPTZ,
                 error          TEXT,
+                universe_context JSONB,
                 created_at     TIMESTAMPTZ DEFAULT NOW(),
                 updated_at     TIMESTAMPTZ DEFAULT NOW()
             )
@@ -96,7 +97,8 @@ def _ensure_schema(conn) -> None:
                 ADD COLUMN IF NOT EXISTS verified_collection_batch_id TEXT,
                 ADD COLUMN IF NOT EXISTS frozen_collection_batch_id TEXT,
                 ADD COLUMN IF NOT EXISTS retry_state TEXT,
-                ADD COLUMN IF NOT EXISTS phase_state JSONB NOT NULL DEFAULT '{}'::jsonb
+                ADD COLUMN IF NOT EXISTS phase_state JSONB NOT NULL DEFAULT '{}'::jsonb,
+                ADD COLUMN IF NOT EXISTS universe_context JSONB
         """)
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_preopen_sessions_date
@@ -308,8 +310,9 @@ def upsert_session(session: dict) -> bool:
                 INSERT INTO preopen_sessions
                     (session_id, trading_date, status, symbol_count, valid_count,
                      stale_count, provider_status, verified_collection_batch_id,
-                     frozen_collection_batch_id, frozen_at, reconciled_at, error, updated_at)
-                VALUES (%s,%s,COALESCE(%s, 'INITIALISING'),%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                     frozen_collection_batch_id, frozen_at, reconciled_at, error,
+                     universe_context, updated_at)
+                VALUES (%s,%s,COALESCE(%s, 'INITIALISING'),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,NOW())
                 ON CONFLICT (session_id) DO UPDATE SET
                     -- Lifecycle is forward-only.  A late collection/init
                     -- write may still refresh counts, but can never reopen a
@@ -343,6 +346,9 @@ def upsert_session(session: dict) -> bool:
                     frozen_at=COALESCE(EXCLUDED.frozen_at, preopen_sessions.frozen_at),
                     reconciled_at=COALESCE(EXCLUDED.reconciled_at, preopen_sessions.reconciled_at),
                     error=COALESCE(EXCLUDED.error, preopen_sessions.error),
+                    universe_context=COALESCE(
+                        preopen_sessions.universe_context, EXCLUDED.universe_context
+                    ),
                     updated_at=NOW()
             """, [
                 session.get("session_id"), session.get("trading_date"),
@@ -354,6 +360,8 @@ def upsert_session(session: dict) -> bool:
                 session.get("frozen_collection_batch_id"),
                 session.get("frozen_at"), session.get("reconciled_at"),
                 session.get("error"),
+                json.dumps(session.get("universe_context"))
+                if session.get("universe_context") else None,
             ])
         conn.commit()
         return True
@@ -374,7 +382,7 @@ def get_session(session_id: str) -> Optional[dict]:
                        collection_completed_at, collection_source, persistence_status,
                         retry_state, phase_state, verified_collection_batch_id,
                         frozen_collection_batch_id, frozen_at, reconciled_at, error,
-                       created_at, updated_at
+                       universe_context, created_at, updated_at
                 FROM preopen_sessions WHERE session_id = %s
             """, [session_id])
             row = cur.fetchone()
@@ -389,7 +397,7 @@ def get_session(session_id: str) -> Optional[dict]:
                     "collection_completed_at","collection_source","persistence_status",
                     "retry_state","phase_state","verified_collection_batch_id",
                     "frozen_collection_batch_id","frozen_at","reconciled_at","error",
-                    "created_at","updated_at"]
+                    "universe_context","created_at","updated_at"]
             return {k: (v.isoformat() if isinstance(v, datetime) else v)
                     for k, v in zip(cols, row)}
     return _with_db(from_db)
@@ -571,7 +579,8 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
                        stale_count: int, source: str = "SCHEDULED",
                        collection_batch_id: Optional[str] = None,
                         coverage: Optional[dict] = None,
-                        outcomes: Optional[List[dict]] = None) -> dict:
+                        outcomes: Optional[List[dict]] = None,
+                        universe_context: Optional[dict] = None) -> dict:
     """Atomically persist a provider batch and prove every supplied row exists.
 
     The returned counts describe *this exact provider batch*, not a previous
@@ -581,6 +590,16 @@ def persist_collection(session_id: str, trading_date: str, snapshots: List[dict]
     collection_batch_id = collection_batch_id or f"collection-{uuid.uuid4().hex}"
     provider_count = len(snapshots)
     coverage = dict(coverage or {})
+    if universe_context:
+        coverage["universe"] = {
+            "natural_session": universe_context.get("natural_session"),
+            "universe_key": universe_context.get("universe_key"),
+            "universe_id": universe_context.get("universe_id"),
+            "universe_version": universe_context.get("version"),
+            "universe_symbols": list(universe_context.get("enabled_symbols") or []),
+            "universe_symbol_count": universe_context.get("symbol_count"),
+            "universe_set_hash": universe_context.get("exact_set_hash"),
+        }
     expected_count = int(coverage.get("expected_count", provider_count) or 0)
     expected_symbols = [
         _normalise_symbol(symbol)

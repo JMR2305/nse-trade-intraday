@@ -110,6 +110,14 @@ def _candidate(**overrides):
         "quote_reliable": True,
         "indicator_source": "yfinance_daily_bars",
         "ohlcv_source": "yfinance_daily_bars",
+        "universe_context": {
+            "natural_session": "2026-08-26",
+            "universe_key": "NIFTY_50",
+            "universe_id": 42,
+            "version": 7,
+            "symbol_count": 1,
+            "exact_set_hash": "fixture-hash",
+        },
         "gates": [
             {"gate": name, "passed": True, "reason": "ok"}
             for name in PASS_GATES

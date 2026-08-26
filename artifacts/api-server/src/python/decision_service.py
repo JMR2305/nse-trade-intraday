@@ -802,6 +802,29 @@ def get_trade_decisions() -> dict:
     trades: list = state.get("trades", []) or []
 
     scan = run_market_scan(capital=cash)
+    universe_context = dict(scan.get("universe_context") or {})
+    active_symbols = {
+        str(item.get("stock") or "").upper() for item in scan.get("items") or []
+    }
+    # A symbol removed from a future universe revision cannot be a new-entry
+    # candidate, but its already-open position must stay visible to exit
+    # management until it closes.  Scan it as a supplemental, explicitly
+    # management-only row; never merge it into the active universe envelope.
+    removed_open_symbols = {
+        str(symbol).upper() for symbol in positions
+        if str(symbol).upper() not in active_symbols
+    }
+    supplemental_items = []
+    if removed_open_symbols:
+        from market_scanner import scan_stock
+        for symbol in sorted(removed_open_symbols):
+            try:
+                item = scan_stock(symbol, capital=cash)
+            except Exception as exc:
+                item = {"stock": symbol, "error": str(exc), "price": 0.0}
+            item["removed_from_active_universe"] = True
+            item["universe_context"] = {"status": "POSITION_CONTEXT_RETAINED"}
+            supplemental_items.append(item)
 
     try:
         from adaptive_learning import current_market_regime
@@ -849,7 +872,19 @@ def get_trade_decisions() -> dict:
     decisions = [_decide(it, positions, trades, regime_strength,
                          model_weights=model_weights,
                          model_version=model_version)
-                 for it in scan["items"]]
+                 for it in [*scan["items"], *supplemental_items]]
+    for decision in decisions:
+        if str(decision.get("stock") or "").upper() in removed_open_symbols:
+            if decision.get("recommendation") != "EXIT":
+                decision["recommendation"] = "WATCH"
+                decision["reason"] = (
+                    "Position management only — symbol is no longer eligible "
+                    "for new entries"
+                )
+            decision["position_management_only"] = True
+    for decision in decisions:
+        # Inherit scan provenance rather than resolving a second mutable list.
+        decision["universe_context"] = universe_context
 
     decisions.sort(key=lambda d: (_ORDER.get(d["recommendation"], 9),
                                   -d["final_confidence"]))
@@ -863,6 +898,7 @@ def get_trade_decisions() -> dict:
         "market_regime": regime_now,
         "model_version": model_version,
         "universe_size": len(decisions),
+        "universe_context": universe_context,
         "strong_buy_count": counts["STRONG_BUY"],
         "buy_count": counts["BUY"],
         "watch_count": counts["WATCH"],

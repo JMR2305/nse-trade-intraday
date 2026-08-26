@@ -51,51 +51,11 @@ def _parse_ts(value: Any) -> Optional[datetime]:
         return None
 
 
-def _expected_universe() -> Tuple[str, List[str]]:
-    """Return the authoritative active universe and its symbols.
-
-    The static NIFTY list is the source of truth for the default mode. Custom
-    mode is deliberately resolved from durable settings and the custom master;
-    an empty or unreadable custom master must never be treated as zero expected
-    symbols, because that would make an empty scan look healthy.
-
-    A database-free NIFTY configuration is supported for local/test runs. Once
-    a database is configured, settings read failures remain fail-closed.
-    """
-    import config
-
-    try:
-        mode = config.get_active_intraday_universe_strict()
-    except Exception:
-        if os.environ.get("DATABASE_URL") or (
-            config.ACTIVE_INTRADAY_UNIVERSE
-            == config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR
-        ):
-            raise
-        mode = config.ACTIVE_INTRADAY_UNIVERSE
-
-    if mode == config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR:
-        from custom_universe_store import get_active_symbols
-
-        symbols = sorted({
-            str(symbol).strip().upper()
-            for symbol in get_active_symbols()
-            if str(symbol).strip()
-        })
-        if not symbols:
-            raise RuntimeError(
-                "Durable custom active universe is unavailable or empty"
-            )
-        return mode.value, symbols
-
-    symbols = sorted({
-        str(symbol).strip().upper()
-        for symbol in config.NIFTY_50
-        if str(symbol).strip()
-    })
-    if not symbols:
-        raise RuntimeError("Configured NIFTY 50 universe is empty")
-    return mode.value, symbols
+def _expected_universe() -> Tuple[str, List[str], Dict[str, Any]]:
+    """Resolve the same pinned durable version as collection and scanning."""
+    from runtime_universe import resolve_active_universe
+    context = resolve_active_universe()
+    return context["universe_key"], list(context["enabled_symbols"]), context
 
 
 def coverage_probe() -> Dict[str, Any]:
@@ -126,7 +86,7 @@ def coverage_probe() -> Dict[str, Any]:
     result["session_start_ist"] = session_start.isoformat()
 
     try:
-        active_universe, expected_symbols = _expected_universe()
+        active_universe, expected_symbols, universe_context = _expected_universe()
         expected_count = len(expected_symbols)
         result.update({
             "active_universe": active_universe,
@@ -134,6 +94,7 @@ def coverage_probe() -> Dict[str, Any]:
             # Keep the established field name for dashboard/scheduler
             # consumers, but make it reflect the selected universe.
             "min_symbols_expected": expected_count,
+            "universe": universe_context,
         })
     except Exception as exc:
         result.update({
@@ -178,6 +139,18 @@ def coverage_probe() -> Dict[str, Any]:
         "snapshot_ts": meta.get("snapshot_ts"),
         "scan_fresh_for_session": scan_fresh,
     })
+    meta_universe = meta.get("universe_context") or meta.get("universe") or {}
+    expected_hash = universe_context.get("exact_set_hash")
+    expected_version = universe_context.get("version")
+    if (meta_universe.get("exact_set_hash", meta_universe.get("universe_set_hash")) != expected_hash
+            or meta_universe.get("version", meta_universe.get("universe_version")) != expected_version):
+        result.update({
+            "success": False,
+            "ok": not in_session,
+            "warning": "Latest scan was produced by a different pinned universe version",
+            "universe_mismatch": True,
+        })
+        return result
 
     # Coverage is judged against the active expected universe, never the
     # scan's own requested count. This prevents a reduced custom scan from

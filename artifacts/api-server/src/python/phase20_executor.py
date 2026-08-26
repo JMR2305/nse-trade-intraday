@@ -800,6 +800,7 @@ def _build_row(trade_id: str, scan_id: Optional[str], snapshot_ts: Optional[str]
         "exit_ts": None, "exit_price": None, "exit_rule": None,
         "exit_scan_id": None, "realized_pnl": None,
         "evidence": {
+            "universe": candidate.get("universe_context") or {},
             "gates": candidate.get("gates"),
             "failed_gates": candidate.get("failed_gates"),
             "sizing": sizing,
@@ -831,6 +832,17 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
                 "reason": f"Gates failed: {candidate.get('failed_gates')}"}
 
     sym = str(candidate["symbol"]).upper()
+    # An entry inherits the exact pinned identity from the canonical scan that
+    # produced it. It must not re-resolve a mutable runtime list.
+    universe_context = dict(candidate.get("universe_context") or {})
+    required_universe_fields = (
+        "natural_session", "universe_key", "universe_id", "version",
+        "exact_set_hash", "symbol_count",
+    )
+    if any(universe_context.get(field) in (None, "") for field in required_universe_fields):
+        return {"created": False, "symbol": sym,
+                "reason": "Pinned universe provenance is unavailable for this scan"}
+    candidate = {**candidate, "universe_context": universe_context}
     sizing = candidate.get("sizing") or {}
     qty = int(sizing.get("quantity") or 0)
     signal_price = float(sizing.get("entry_price") or 0)   # yfinance daily close
@@ -1954,6 +1966,14 @@ def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
             "kite_ltp":                 float(best.get("kite_ltp") or 0),
             "sizing":                   sizing,
             "failed_gates":             [],
+            # Bootstrap is still an automatic paper entry from this exact
+            # canonical snapshot; retain its immutable identity rather than
+            # asking create_paper_entry to discover a newer cache.
+            "universe_context": dict(
+                best.get("universe_context")
+                or snapshot.get("universe_context")
+                or {}
+            ),
         }
 
         # Emit approval event BEFORE creation for atomicity audit trail

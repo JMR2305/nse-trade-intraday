@@ -70,6 +70,22 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
         "snapshot_consistency", consistency_pass,
         f"Durable meta scan_id={meta.get('scan_id')} vs snapshot "
         f"scan_id={ctx.get('scan_id')}"))
+    universe_context = dict(meta.get("universe_context") or {})
+    required_universe_fields = (
+        "natural_session", "universe_key", "universe_id", "version",
+        "exact_set_hash", "symbol_count",
+    )
+    universe_complete = all(
+        universe_context.get(field) not in (None, "")
+        for field in required_universe_fields
+    )
+    global_gates.append(_gate(
+        "pinned_universe_provenance",
+        universe_complete,
+        ("Pinned universe provenance is complete"
+         if universe_complete else
+         "Pinned universe provenance is unavailable or incomplete — entries blocked"),
+    ))
     # Structured provider flags from the canonical snapshot (authoritative),
     # with the string label as a defensive second check. Auto paper entries
     # may run ONLY on the intended Zerodha-connected provider — a Yahoo-only
@@ -484,6 +500,9 @@ def evaluate_entries(candidate_symbols: Optional[List[str]] = None) -> Dict[str,
             "yfinance_last_close": rec.get("yfinance_last_close"),
             "reason_not_live_ltp": rec.get("reason_not_live_ltp"),
             "latest_price_time_ist": rec.get("latest_price_time_ist"),
+            # Preserve the exact scan envelope through gate evaluation; entry
+            # execution must never reconstruct this from a newer cache.
+            "universe_context": dict(rec.get("universe_context") or {}),
             "allocation_context": {
                 "total_capital": total_value,
                 "cash": cash,

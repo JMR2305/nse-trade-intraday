@@ -89,29 +89,22 @@ def _normalise_symbols(symbols) -> List[str]:
 
 
 def _resolve_collection_symbols() -> List[str]:
-    """Resolve the authoritative symbol set for this Phase 5A collection.
+    """Compatibility projection of the pinned runtime universe.
 
-    The custom universe is durable operator configuration, not a display
-    watchlist. An empty or unavailable custom universe must fail closed rather
-    than falling back to the legacy ten-symbol default.
+    Collection code should call ``_resolve_collection_universe`` once and keep
+    that returned context.  This list-only helper remains for older read-only
+    callers and never falls back to a watchlist or mutable master.
     """
-    import config
-
-    expected_symbols: List[str] = []
     try:
-        active_universe = config.get_active_intraday_universe_strict()
+        return list(_resolve_collection_universe()["enabled_symbols"])
     except Exception:
-        # Environment values are only initial defaults; they cannot prove that
-        # an operator has not durably selected the custom universe. Therefore a
-        # settings read outage is indeterminate and must fail closed.
         return []
-    if active_universe == config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR:
-        from custom_universe_store import get_active_symbols
-        try:
-            return _normalise_symbols(get_active_symbols())
-        except Exception:
-            return []
-    return _normalise_symbols(config.DEFAULT_WATCHLIST)
+
+
+def _resolve_collection_universe() -> Dict[str, Any]:
+    """Resolve exactly one immutable version for this server-side session."""
+    from runtime_universe import resolve_active_universe
+    return resolve_active_universe()
 
 
 def _coverage_for_serialized_rows(rows, expected_symbols: List[str],
@@ -584,13 +577,15 @@ def get_health() -> dict:
 
 # ── Snapshot collection ───────────────────────────────────────────────────────
 
-def _ensure_session(trading_date: str, session_id: str) -> bool:
+def _ensure_session(trading_date: str, session_id: str,
+                    universe_context: Optional[dict] = None) -> bool:
     """Create/refresh the durable session and report whether that write landed."""
     return bool(db.upsert_session({
         "session_id": session_id,
         "trading_date": trading_date,
         "status": "COLLECTING",
         "provider_status": ProviderState.LIVE,
+        "universe_context": universe_context,
     }))
 
 
@@ -605,7 +600,65 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
     today = _today_ist()
     session_id = session_id or f"preopen-{today}-{uuid.uuid4().hex[:8]}"
     collection_batch_id = f"collection-{uuid.uuid4().hex}"
-    if not _ensure_session(today, session_id):
+    universe_context: Optional[dict] = None
+    try:
+        universe_context = _resolve_collection_universe()
+        # Preserve the deliberately narrow DB-free fixture/replay injection
+        # seam. In production this helper resolves the same session pin, so a
+        # differing list can only be an explicit caller substitution.
+        injected_symbols = _resolve_collection_symbols()
+        if not injected_symbols:
+            raise RuntimeError("Runtime universe projection is empty")
+        if (
+            _normalise_symbols(injected_symbols)
+            != _normalise_symbols(universe_context["enabled_symbols"])
+        ):
+            from universe_version_store import exact_set_hash
+            explicit_symbols = _normalise_symbols(injected_symbols)
+            universe_context = {
+                "natural_session": today,
+                "universe_key": "EXPLICIT_TEST_OVERRIDE",
+                "universe_id": 0,
+                "version": 0,
+                "enabled_symbols": explicit_symbols,
+                "symbol_count": len(explicit_symbols),
+                "exact_set_hash": exact_set_hash(explicit_symbols),
+            }
+    except Exception as exc:
+        # ``_resolve_collection_symbols`` is the intentionally narrow
+        # injection seam retained by the DB-free collection fixtures. Its
+        # normal implementation calls the same resolver above, so this does
+        # not create a production fallback to a watchlist or static list.
+        injected_symbols = _resolve_collection_symbols()
+        if not injected_symbols:
+            coverage = {
+                "expected_count": 0,
+                "expected_symbols": [],
+                "universe": {"status": "UNAVAILABLE"},
+            }
+            db.record_collection_failure(
+                session_id, "UNIVERSE_UNAVAILABLE", str(exc),
+                coverage=coverage, collection_batch_id=collection_batch_id,
+            )
+            return {
+                "success": False,
+                "status": "UNIVERSE_UNAVAILABLE",
+                "session_id": session_id,
+                "collection_batch_id": collection_batch_id,
+                "error": str(exc),
+                "label": "PAPER / ADVISORY ONLY",
+            }
+        from universe_version_store import exact_set_hash
+        universe_context = {
+            "natural_session": today,
+            "universe_key": "EXPLICIT_TEST_OVERRIDE",
+            "universe_id": 0,
+            "version": 0,
+            "enabled_symbols": _normalise_symbols(injected_symbols),
+            "symbol_count": len(_normalise_symbols(injected_symbols)),
+            "exact_set_hash": exact_set_hash(_normalise_symbols(injected_symbols)),
+        }
+    if not _ensure_session(today, session_id, universe_context):
         return {
             "success": False,
             "status": "PERSISTENCE_UNAVAILABLE",
@@ -618,7 +671,7 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
         }
 
     try:
-        expected_symbols = _resolve_collection_symbols()
+        expected_symbols = list(universe_context["enabled_symbols"])
         if not expected_symbols:
             coverage = {
                 "expected_count": 0,
@@ -634,6 +687,7 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
                 "duplicate_symbols": [],
                 "unexpected_symbols": [],
                 "unusable_count": 0,
+                "universe": __import__("runtime_universe").provenance(universe_context),
             }
             db.record_collection_failure(
                 session_id,
@@ -668,6 +722,7 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
                 "duplicate_symbols": [],
                 "unexpected_symbols": [],
                 "unusable_count": 0,
+                "universe": __import__("runtime_universe").provenance(universe_context),
             }
             outcomes = _failure_outcomes(
                 expected_symbols, "PROVIDER_UNAVAILABLE", "PROVIDER_INITIALIZATION_FAILED",
@@ -844,6 +899,7 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
             collection_batch_id=collection_batch_id,
             coverage=coverage,
             outcomes=outcomes,
+            universe_context=universe_context,
         )
         if not persisted.get("success"):
             return {
