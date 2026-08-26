@@ -1,15 +1,15 @@
 /**
- * Admin route security tests — POST /universe/custom/upsert and metadata hydration
+ * Retired legacy-universe mutation route tests.
  *
- * Phase 1F requirement: The upsert route must be protected by UNIVERSE_ADMIN_TOKEN.
+ * Task 947 requirement: old active-master write paths are retired and cannot
+ * be revived by presenting an administrator credential to browser code.
  * Verifies:
- *   1. Upsert without token → 403
- *   2. Upsert with wrong token → 403
- *   3. Upsert with correct token → success (Python mocked)
+ *   1. Upsert with no, wrong, or correct token → 410
+ *   2. Hydration with any confirmation/token → 410
  *   4. GET /universe/custom/status remains public (no token needed)
  *   5. GET /universe/custom/symbols remains public (no token needed)
  *   6. No broker order API is reachable from this route (static code assertion)
- *   7. Fail-closed: 403 when UNIVERSE_ADMIN_TOKEN env var is unset
+ *   7. No retired mutation dispatches Python or a broker operation.
  */
 
 import {
@@ -84,7 +84,7 @@ async function request(
 
 // ── Suite 1: token gate ───────────────────────────────────────────────────────
 
-describe("Admin route security — POST /api/universe/custom/upsert", () => {
+describe("Retired universe mutation routes", () => {
   let server: Server;
   const VALID_TOKEN = "test-admin-token-phase1f";
   const VALID_ACTIVE_ROW = {
@@ -134,57 +134,53 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
     );
   }
 
-  // ── Test 1: missing token → 403 ─────────────────────────────────────────────
+  // ── Test 1: no token cannot revive a legacy route ───────────────────────────
 
-  it("returns 403 when x-admin-token header is missing", async () => {
+  it("returns 410 when x-admin-token header is missing", async () => {
     const r = await request(server, {
       method: "POST",
       path: "/api/universe/custom/upsert",
       // adminToken intentionally omitted
       body: { rows: [{ symbol: "WIPRO", is_active: true }] },
     });
-    expect(r.status).toBe(403);
+    expect(r.status).toBe(410);
     const body = r.body as Record<string, unknown>;
     expect(body["success"]).toBe(false);
-    expect((body["error"] as string).toLowerCase()).toMatch(/forbidden/);
+    expect(body["error"]).toBe("retired_universe_mutation_route");
     // universe_custom_upsert command was never dispatched to Python
     expect(upsertCalls()).toHaveLength(0);
   });
 
-  // ── Test 2: wrong token → 403 ───────────────────────────────────────────────
+  // ── Test 2: wrong token cannot revive a legacy route ────────────────────────
 
-  it("returns 403 when x-admin-token contains a wrong value", async () => {
+  it("returns 410 when x-admin-token contains a wrong value", async () => {
     const r = await request(server, {
       method: "POST",
       path: "/api/universe/custom/upsert",
       adminToken: "wrong-token-attacker",
       body: { rows: [{ symbol: "WIPRO", is_active: true }] },
     });
-    expect(r.status).toBe(403);
+    expect(r.status).toBe(410);
     const body = r.body as Record<string, unknown>;
     expect(body["success"]).toBe(false);
-    expect((body["error"] as string).toLowerCase()).toMatch(/forbidden/);
+    expect(body["error"]).toBe("retired_universe_mutation_route");
     // universe_custom_upsert was never dispatched — no upsert reached the database
     expect(upsertCalls()).toHaveLength(0);
   });
 
-  // ── Test 3: correct token → success ─────────────────────────────────────────
+  // ── Test 3: a formerly valid token cannot mutate the master ─────────────────
 
-  it("succeeds when correct x-admin-token is provided", async () => {
+  it("returns 410 even when a formerly valid x-admin-token is provided", async () => {
     const r = await request(server, {
       method: "POST",
       path: "/api/universe/custom/upsert",
       adminToken: VALID_TOKEN,
       body: { rows: [VALID_ACTIVE_ROW] },
     });
-    expect(r.status).toBe(200);
+    expect(r.status).toBe(410);
     const body = r.body as Record<string, unknown>;
-    expect(body["success"]).toBe(true);
-    // Python was invoked
-    expect(spawnMock).toHaveBeenCalledOnce();
-    // Verify it called the upsert command, not any broker command
-    const args = spawnMock.mock.calls[0] as [string, string[]];
-    expect(args[1]).toContain("universe_custom_upsert");
+    expect(body["error"]).toBe("retired_universe_mutation_route");
+    expect(upsertCalls()).toHaveLength(0);
   });
 
   // ── Test 4: GET status is public ────────────────────────────────────────────
@@ -211,9 +207,9 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
     expect(r.status).toBe(200);
   });
 
-  // ── Test 6: no broker order API reachable from upsert ───────────────────────
+  // ── Test 6: retired route cannot dispatch any Python operation ──────────────
 
-  it("dispatches only universe_custom_upsert command — no broker commands", async () => {
+  it("dispatches no legacy upsert or broker command", async () => {
     await request(server, {
       method: "POST",
       path: "/api/universe/custom/upsert",
@@ -221,13 +217,9 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
       body: { rows: [VALID_ACTIVE_ROW] },
     });
 
-    // Filter to calls that contain universe_custom_upsert (ignore app-startup spawn calls)
+    // Filter to the legacy command (ignore app-startup spawn calls).
     const calls = upsertCalls();
-    expect(calls).toHaveLength(1);
-
-    // Verify the command dispatched is exactly universe_custom_upsert
-    const dispatchedCmd = (calls[0][1] as string[])[1];
-    expect(dispatchedCmd).toBe("universe_custom_upsert");
+    expect(calls).toHaveLength(0);
 
     const BROKER_COMMANDS = [
       "place_order", "kite_order", "execute_buy", "execute_sell",
@@ -239,7 +231,7 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
     }
   });
 
-  it("returns 400 and does not dispatch a partial active WIPRO overwrite", async () => {
+  it("returns 410 and does not dispatch a partial active WIPRO overwrite", async () => {
     const r = await request(server, {
       method: "POST",
       path: "/api/universe/custom/upsert",
@@ -254,27 +246,25 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
         }],
       },
     });
-    expect(r.status).toBe(400);
+    expect(r.status).toBe(410);
     const body = r.body as Record<string, unknown>;
     expect(body["success"]).toBe(false);
-    expect(body["error"]).toEqual(
-      "active row 0 for WIPRO must include non-null: sector, company_name, yahoo_symbol, kite_symbol, price_min",
-    );
+    expect(body["error"]).toBe("retired_universe_mutation_route");
     expect(upsertCalls()).toHaveLength(0);
   });
 
-  it("blocks metadata hydration without an admin token", async () => {
+  it("retires metadata hydration without inspecting an admin token", async () => {
     const r = await request(server, {
       method: "POST",
       path: "/api/universe/custom/hydrate-instruments",
       body: { confirmation: "HYDRATE_INSTRUMENT_METADATA_ONLY" },
     });
 
-    expect(r.status).toBe(403);
+    expect(r.status).toBe(410);
     expect(hydrationCalls()).toHaveLength(0);
   });
 
-  it("requires an exact metadata-only confirmation before hydration", async () => {
+  it("retires metadata hydration before considering its confirmation", async () => {
     const r = await request(server, {
       method: "POST",
       path: "/api/universe/custom/hydrate-instruments",
@@ -282,12 +272,12 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
       body: { confirmation: "refresh" },
     });
 
-    expect(r.status).toBe(400);
-    expect((r.body as Record<string, unknown>)["error"]).toMatch(/confirmation/);
+    expect(r.status).toBe(410);
+    expect((r.body as Record<string, unknown>)["error"]).toBe("retired_universe_mutation_route");
     expect(hydrationCalls()).toHaveLength(0);
   });
 
-  it("dispatches an explicitly approved metadata-only hydration", async () => {
+  it("never dispatches even an explicitly approved legacy hydration", async () => {
     const r = await request(server, {
       method: "POST",
       path: "/api/universe/custom/hydrate-instruments",
@@ -295,18 +285,14 @@ describe("Admin route security — POST /api/universe/custom/upsert", () => {
       body: { confirmation: "HYDRATE_INSTRUMENT_METADATA_ONLY" },
     });
 
-    expect(r.status).toBe(200);
-    expect(hydrationCalls()).toHaveLength(1);
-    expect(hydrationCalls()[0][1]).toEqual(expect.arrayContaining([
-      "universe_custom_hydrate_instruments",
-      "--approve-metadata-only-hydration",
-    ]));
+    expect(r.status).toBe(410);
+    expect(hydrationCalls()).toHaveLength(0);
   });
 });
 
 // ── Suite 2: fail-closed when env var is unset ────────────────────────────────
 
-describe("Admin route fail-closed — upsert blocked when UNIVERSE_ADMIN_TOKEN not set", () => {
+describe("Retired route ignores removed UNIVERSE_ADMIN_TOKEN capability", () => {
   let server: Server;
 
   beforeAll(async () => {
@@ -322,7 +308,7 @@ describe("Admin route fail-closed — upsert blocked when UNIVERSE_ADMIN_TOKEN n
     server?.close();
   });
 
-  it("returns 403 for any token value when UNIVERSE_ADMIN_TOKEN is not set (fail-closed)", async () => {
+  it("returns 410 for any token value when UNIVERSE_ADMIN_TOKEN is not set", async () => {
     const r = await request(server, {
       method: "POST",
       path: "/api/universe/custom/upsert",
@@ -339,8 +325,7 @@ describe("Admin route fail-closed — upsert blocked when UNIVERSE_ADMIN_TOKEN n
         ohlcv_available: true,
       }] },
     });
-    // No env var → always 403 regardless of what the caller sends
-    expect(r.status).toBe(403);
+    expect(r.status).toBe(410);
     expect((r.body as Record<string, unknown>)["success"]).toBe(false);
     // universe_custom_upsert was never dispatched to Python
     const upsertCallsFailClosed = spawnMock.mock.calls.filter(

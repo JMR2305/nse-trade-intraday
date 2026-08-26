@@ -3735,6 +3735,15 @@ router.put("/phase20/settings", async (req, res) => {
       res.status(400).json({ error: "Provide { patch: {...}, confirmation_text? }" });
       return;
     }
+    if (Object.prototype.hasOwnProperty.call(patch, "active_intraday_universe")) {
+      res.status(410).json({
+        success: false,
+        error: "retired_universe_mutation_route",
+        replacement: "/api/universe/v1",
+        message: "The active universe can only change through the certified versioned universe workflow.",
+      });
+      return;
+    }
     const payload = {
       patch,
       confirmation_text: (body as Record<string, unknown>)["confirmation_text"] ?? null,
@@ -3745,9 +3754,6 @@ router.put("/phase20/settings", async (req, res) => {
     if (result && result["success"] === false) {
       res.status(400).json(result);
       return;
-    }
-    if (Object.prototype.hasOwnProperty.call(patch, "active_intraday_universe")) {
-      invalidateCoverageCache();
     }
     res.json(result);
   } catch (err: unknown) {

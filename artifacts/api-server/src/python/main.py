@@ -1232,6 +1232,88 @@ def main():
                 int(payload["right_version"]),
                 universe_key=payload.get("universe_key", "CUSTOM_LOW_PRICE_SECTOR"),
             )
+        elif command == "universe_management_schema":
+            from universe_management import ensure_schema
+            result = {"success": ensure_schema()}
+        elif command == "universe_management_active":
+            from universe_management import active_view
+            result = active_view()
+        elif command == "universe_management_revisions":
+            from universe_management import list_revisions
+            result = list_revisions()
+        elif command == "universe_management_revision":
+            from universe_management import get_revision_view, latest_validation
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            version = int(payload["version"]) if payload.get("version") is not None else None
+            revision = get_revision_view(version=version, revision_id=payload.get("revision_id"))
+            if revision:
+                revision["latest_validation"] = latest_validation(revision["version"])
+            result = {"success": bool(revision), "revision": revision}
+        elif command == "universe_management_diff":
+            from universe_management import diff_versions
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = diff_versions(int(payload["left_version"]), int(payload["right_version"]))
+        elif command == "universe_management_mapping":
+            from universe_management import mapping_coverage
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = mapping_coverage(int(payload["version"]))
+        elif command == "universe_management_audit":
+            from universe_management import audit_history
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            limit = int(payload.get("limit", 200))
+            result = audit_history(limit)
+        elif command == "universe_management_draft":
+            from universe_management import create_draft
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = create_draft(
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+                base_version=payload.get("base_version"),
+                notes=payload.get("notes"),
+            )
+        elif command == "universe_management_edit":
+            from universe_management import edit_draft
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = edit_draft(
+                version=int(payload["version"]),
+                operation=payload.get("operation"),
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+                expected_hash=payload.get("expected_hash"),
+                member=payload.get("member"),
+                symbol=payload.get("symbol"),
+                metadata=payload.get("metadata"),
+            )
+        elif command == "universe_management_validate":
+            from universe_management import validate_draft
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = validate_draft(
+                version=int(payload["version"]),
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+            )
+        elif command == "universe_management_activation_request":
+            from universe_management import request_activation
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            version = int(payload["version"])
+            result = request_activation(
+                version=version,
+                confirmation=str(payload.get("confirmation") or ""),
+                expected_confirmation=f"ACTIVATE {version}",
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+            )
+        elif command == "universe_management_activate":
+            from universe_management import activate
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            version = int(payload["version"])
+            result = activate(
+                version=version,
+                confirmation=str(payload.get("confirmation") or ""),
+                expected_confirmation=f"ACTIVATE {version}",
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+            )
 
         elif command == "pre_market_data_readiness":
             # Run pre-market data readiness check and return verdict.

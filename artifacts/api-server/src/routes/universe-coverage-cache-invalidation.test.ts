@@ -1,10 +1,10 @@
 /**
- * Route-level coverage freshness test for POST /api/universe/active.
+ * Route-level legacy-mutation safety test.
  *
  * The scanner-coverage endpoint has a 30-second server-side cache. This test
- * verifies that changing the active universe clears that cache so the first
- * following coverage poll cannot report the previous universe's expected
- * count.
+ * verifies that deprecated direct active-universe mutations do not clear the
+ * cache or alter the live setting. Only the locked versioned workflow may
+ * ever schedule a future revision.
  */
 
 import {
@@ -42,7 +42,7 @@ function spawnCmd(callArgs: unknown[]): string {
   return ((callArgs[1] as string[])[1]) ?? "";
 }
 
-describe("active universe route invalidates scanner coverage cache", () => {
+describe("retired active-universe routes leave scanner coverage unchanged", () => {
   let server: Server;
   let port: number;
   let activeUniverse = "NIFTY_50";
@@ -113,7 +113,7 @@ describe("active universe route invalidates scanner coverage cache", () => {
     mockSpawn.mockClear();
   });
 
-  it("does not serve the previous universe after a successful active-universe switch", async () => {
+  it("rejects the legacy active-universe switch without invalidating coverage", async () => {
     const initial = await request("/api/live-data/coverage");
     expect(initial.status).toBe(200);
     expect(initial.body).toMatchObject({
@@ -127,24 +127,24 @@ describe("active universe route invalidates scanner coverage cache", () => {
       method: "POST",
       body: { active_intraday_universe: "CUSTOM_LOW_PRICE_SECTOR" },
     });
-    expect(update.status).toBe(200);
+    expect(update.status).toBe(410);
     expect(update.body).toMatchObject({
-      success: true,
-      settings: { active_intraday_universe: "CUSTOM_LOW_PRICE_SECTOR" },
+      success: false,
+      error: "retired_universe_mutation_route",
     });
 
     const afterSwitch = await request("/api/live-data/coverage");
     expect(afterSwitch.status).toBe(200);
     expect(afterSwitch.body).toMatchObject({
-      active_universe: "CUSTOM_LOW_PRICE_SECTOR",
-      min_symbols_expected: 2,
-      coverage: 2,
+      active_universe: "NIFTY_50",
+      min_symbols_expected: 50,
+      coverage: 50,
     });
     expect(mockSpawn.mock.calls.filter((call) => spawnCmd(call) === "scanner_coverage"))
-      .toHaveLength(2);
+      .toHaveLength(1);
   });
 
-  it("does not serve the previous universe after the general settings route changes it", async () => {
+  it("rejects generic settings attempts to change the active universe", async () => {
     const initial = await request("/api/live-data/coverage");
     expect(initial.status).toBe(200);
     expect(initial.body).toMatchObject({
@@ -158,20 +158,20 @@ describe("active universe route invalidates scanner coverage cache", () => {
         patch: { active_intraday_universe: "CUSTOM_LOW_PRICE_SECTOR" },
       },
     });
-    expect(update.status).toBe(200);
+    expect(update.status).toBe(410);
     expect(update.body).toMatchObject({
-      success: true,
-      settings: { active_intraday_universe: "CUSTOM_LOW_PRICE_SECTOR" },
+      success: false,
+      error: "retired_universe_mutation_route",
     });
 
     const afterSwitch = await request("/api/live-data/coverage");
     expect(afterSwitch.status).toBe(200);
     expect(afterSwitch.body).toMatchObject({
-      active_universe: "CUSTOM_LOW_PRICE_SECTOR",
-      min_symbols_expected: 2,
-      coverage: 2,
+      active_universe: "NIFTY_50",
+      min_symbols_expected: 50,
+      coverage: 50,
     });
     expect(mockSpawn.mock.calls.filter((call) => spawnCmd(call) === "scanner_coverage"))
-      .toHaveLength(2);
+      .toHaveLength(1);
   });
 });
