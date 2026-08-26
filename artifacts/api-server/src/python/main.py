@@ -1209,6 +1209,29 @@ def main():
                 cache.get("date"),
                 approved="--approve-metadata-only-hydration" in sys.argv,
             )
+        elif command == "universe_version_schema":
+            from universe_version_store import ensure_schema
+            result = {"success": ensure_schema()}
+        elif command == "universe_version_seed":
+            from universe_version_store import seed_baseline
+            result = seed_baseline()
+        elif command == "universe_version_resolve":
+            from universe_version_store import resolve_enabled_symbols
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = resolve_enabled_symbols(
+                universe_key=payload.get("universe_key", "CUSTOM_LOW_PRICE_SECTOR"),
+                version=payload.get("version"),
+                revision_id=payload.get("revision_id"),
+                effective_at=payload.get("effective_at"),
+            )
+        elif command == "universe_version_diff":
+            from universe_version_store import compare_revisions
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = compare_revisions(
+                int(payload["left_version"]),
+                int(payload["right_version"]),
+                universe_key=payload.get("universe_key", "CUSTOM_LOW_PRICE_SECTOR"),
+            )
 
         elif command == "pre_market_data_readiness":
             # Run pre-market data readiness check and return verdict.
