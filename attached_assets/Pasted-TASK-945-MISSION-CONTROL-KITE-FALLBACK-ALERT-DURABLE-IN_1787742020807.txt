@@ -1,0 +1,450 @@
+TASK #945 — MISSION CONTROL KITE FALLBACK ALERT + DURABLE INCIDENT HISTORY
+
+GOAL:
+
+Add an in-app Mission Control alert whenever execution-grade current-price
+authority falls away from ZERODHA_KITE, and persist every fallback episode for
+future audit/reference.
+
+NO EXTERNAL NOTIFICATIONS.
+
+Do NOT add:
+- Telegram
+- email
+- SMS
+- Slack
+- mobile push
+- webhook notification providers
+
+SCOPE:
+
+1. Mission Control live alert banner
+2. Durable fallback incident history
+3. Recovery tracking
+4. Deduplication / incident lifecycle
+5. Read-only incident history UI
+6. Fail-closed execution/readiness semantics preserved
+
+IMPORTANT SAFETY:
+
+Do NOT:
+- change trading strategy
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- change active universe
+- change portfolio/capital
+- change provider fallback policy
+- treat Yahoo/NSE as execution-grade equivalent to Kite
+- trigger scans manually for testing in production
+
+==================================================
+1. DEFINE FALLBACK EVENT
+==================================================
+
+For CURRENT PRICE / execution-grade quote authority:
+
+NORMAL:
+current_quote_provider = ZERODHA_KITE
+
+FALLBACK / DEGRADED:
+current_quote_provider != ZERODHA_KITE
+
+Examples:
+YFINANCE
+NSE
+CACHE
+STALE
+UNAVAILABLE
+SYNTHETIC
+UNKNOWN
+
+Historical OHLCV provider is separate.
+
+YFINANCE as historical_ohlcv_provider must NOT trigger this alert.
+
+==================================================
+2. INCIDENT SEVERITY
+==================================================
+
+Use:
+
+WARNING
+- 1 or a small subset of symbols affected
+- current data still partially available
+
+HIGH
+- fallback affects multiple symbols
+- persists beyond one normal scan cycle
+- readiness degraded
+
+CRITICAL
+- most/all active symbols affected
+- provider unavailable
+- stale/synthetic/unavailable execution-grade data
+- trading_data_ready becomes false
+
+Severity rules must be deterministic and configurable.
+
+==================================================
+3. DURABLE INCIDENT TABLE
+==================================================
+
+Create additive PostgreSQL storage, for example:
+
+market_data_fallback_incidents
+
+Required fields:
+
+id
+incident_key
+status
+severity
+
+first_detected_at
+last_detected_at
+recovered_at
+
+expected_provider
+actual_provider
+
+affected_symbol_count
+active_symbol_count
+affected_symbols
+
+first_scan_id
+latest_scan_id
+
+first_quote_timestamp
+latest_quote_timestamp
+quote_age_seconds
+
+fallback_reason
+readiness_state
+execution_blocked
+
+detection_count
+
+created_at
+updated_at
+
+Optional JSONB:
+details
+
+STATUS:
+
+ACTIVE
+RECOVERED
+
+No destructive migration.
+
+No historical backfill unless explicitly requested later.
+
+==================================================
+4. INCIDENT DEDUPLICATION
+==================================================
+
+Do not create a new row every scan.
+
+For the same continuous fallback episode:
+
+update:
+last_detected_at
+latest_scan_id
+affected_symbols
+actual_provider
+quote age
+severity
+detection_count
+
+Keep the same incident ID.
+
+Create a new incident only after:
+
+previous incident = RECOVERED
+
+and a new fallback begins.
+
+==================================================
+5. RECOVERY RULE
+==================================================
+
+Recovery requires authoritative current-price health to return to:
+
+current_quote_provider = ZERODHA_KITE
+
+and required current quote coverage/freshness is healthy.
+
+On recovery:
+
+status = RECOVERED
+recovered_at = timestamp
+
+Record total duration.
+
+Do not delete the incident.
+
+==================================================
+6. MISSION CONTROL LIVE BANNER
+==================================================
+
+At top of Mission Control show an alert when incident is ACTIVE.
+
+Example:
+
+HIGH — MARKET DATA FALLBACK
+
+Kite current-price authority lost for 7/23 symbols.
+
+Actual provider:
+YFINANCE
+
+First detected:
+10:42:15 IST
+
+Last detected:
+10:47:37 IST
+
+Latest scan:
+<scan id>
+
+Trading readiness:
+BLOCKED / DEGRADED
+
+Execution:
+BLOCKED
+
+Affected symbols:
+[...]
+
+Buttons/links allowed:
+
+VIEW DETAILS
+VIEW INCIDENT HISTORY
+
+No mutation controls.
+
+==================================================
+7. NORMAL STATE
+==================================================
+
+When no active incident:
+
+Mission Control should show compact status:
+
+MARKET DATA AUTHORITY
+ZERODHA_KITE
+23/23
+HEALTHY
+
+Do not display a warning banner.
+
+==================================================
+8. RECOVERY DISPLAY
+==================================================
+
+After an incident recovers:
+
+Mission Control may show a temporary informational state:
+
+RECOVERED — KITE RESTORED
+
+Include:
+recovered_at
+duration
+affected symbol count
+
+Then return to normal healthy display.
+
+The durable incident remains in history permanently.
+
+==================================================
+9. INCIDENT HISTORY UI
+==================================================
+
+Add a read-only section/page accessible from Mission Control:
+
+MARKET DATA INCIDENT HISTORY
+
+Columns:
+
+Date
+Start
+Recovered
+Duration
+Severity
+Expected Provider
+Actual Provider
+Affected Symbols
+Affected Count
+Scan ID
+Readiness Impact
+Execution Blocked
+Status
+
+Support:
+- date filter
+- status filter
+- severity filter
+- provider filter
+
+Clicking an incident opens full details.
+
+==================================================
+10. SYMBOL-LEVEL DETAILS
+==================================================
+
+For each incident retain enough information to determine:
+
+symbol
+expected provider
+actual provider
+quote timestamp
+quote age
+fallback reason
+first detected
+last detected
+
+If the data is unavailable:
+store UNKNOWN
+
+Do not fabricate provenance.
+
+==================================================
+11. READINESS / EXECUTION SAFETY
+==================================================
+
+Preserve current safety semantics.
+
+If execution-grade current-price authority is not acceptable:
+
+automatic entry eligibility must remain blocked.
+
+Do NOT enable any entry mechanism.
+
+Mission Control must clearly display:
+
+EXECUTION BLOCKED
+
+when applicable.
+
+==================================================
+12. API
+==================================================
+
+Add read-only endpoints such as:
+
+GET /api/market-data/incidents/active
+
+GET /api/market-data/incidents
+
+GET /api/market-data/incidents/:id
+
+No public mutation endpoint required.
+
+Incident creation/update should happen internally from authoritative market-data
+health evaluation.
+
+==================================================
+13. DATA SOURCE AUTHORITY
+==================================================
+
+Incident detection must use the same authoritative current-price provenance used
+by:
+
+/api/live-data/health-v2
+
+Do not infer fallback merely from:
+- Kite connection status
+- historical OHLCV provider
+- UI labels
+- stale client cache
+
+Use server-side authoritative provenance.
+
+==================================================
+14. TESTS
+==================================================
+
+Add tests for:
+
+- healthy Kite 23/23 -> no incident
+- one-symbol fallback -> incident created
+- multi-symbol fallback
+- Yahoo current-price fallback
+- NSE current-price fallback
+- stale data
+- synthetic data
+- unavailable data
+- historical YFINANCE only -> NO incident
+- repeated scan same fallback -> same incident
+- severity escalation
+- recovery
+- second fallback after recovery -> new incident
+- Mission Control active banner
+- Mission Control healthy state
+- incident history rendering
+- no trading-setting mutation
+- execution remains blocked where required
+
+==================================================
+15. DEPLOYMENT SAFETY
+==================================================
+
+Run:
+
+backend tests
+market-data tests
+Mission Control tests
+dashboard full suite
+TypeScript
+Python compilation
+production build
+
+Require zero unexpected failures.
+
+Deploy only after all gates pass.
+
+==================================================
+16. POST-DEPLOY READ-ONLY VERIFICATION
+==================================================
+
+Do NOT create a fake fallback in production.
+
+Read-only verify:
+
+- API routes available
+- incident table exists
+- current healthy state renders correctly
+- current provider remains ZERODHA_KITE if that is authoritative
+- no fake incident created
+- no automatic entries enabled
+- no broker-order path enabled
+
+==================================================
+17. OUTPUT
+
+Create:
+
+TASK_945_KITE_FALLBACK_ALERT_IMPLEMENTATION.md
+TASK_945_INCIDENT_SCHEMA.md
+TASK_945_TEST_REPORT.md
+TASK_945_DEPLOYMENT_VERIFICATION.md
+
+FINAL VERDICT:
+
+A. PASS — MISSION CONTROL FALLBACK ALERT + HISTORY ACTIVE
+B. BACKEND INCIDENT TRACKING FAILURE
+C. UI ALERT FAILURE
+D. DEDUPLICATION/RECOVERY FAILURE
+E. SAFETY REGRESSION
+F. TEST/DEPLOYMENT FAILURE
+
+FINAL RULE:
+
+Alert only in Mission Control.
+
+Persist every genuine fallback episode for future reference.
+
+Do not send external notifications.
