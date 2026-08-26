@@ -1,0 +1,397 @@
+POST-OPEN SESSION HEALTH AUDIT — PAPER TRADING ONLY
+
+CURRENT TIME:
+After NSE market open.
+
+IMPORTANT:
+
+The natural pre-market / Phase 5A certification window has already passed.
+
+DO NOT:
+- manually run Phase 5A
+- manually run Phase 5B
+- manually run Phase 5C
+- retry/replay/backfill pre-open
+- simulate pre-open data
+- trigger a manual market scan
+- alter Task #930 evidence
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- place broker orders
+- modify portfolio/ledger/universe/settings
+
+THIS IS READ-ONLY.
+
+GOAL:
+
+Determine whether today's live NSE session is operating correctly after market
+open and preserve evidence for the next natural Phase 5A certification.
+
+This audit DOES NOT certify Task #930.
+
+==================================================
+1. PRODUCTION IDENTITY
+==================================================
+
+Read production identity.
+
+Report:
+
+environment
+git_commit
+build_id
+deployment_id
+runtime_timestamp
+
+Confirm UI/API build identity MATCH.
+
+If Task #939 was deployed since the last verified build:
+record the exact new production commit/build.
+
+==================================================
+2. KITE SESSION HEALTH
+==================================================
+
+READ ONLY.
+
+Confirm:
+
+credentials_present
+token_stored
+token_valid
+token_expired
+connected
+authenticated
+daily_login_required
+mock_mode
+
+Require:
+
+connected/authenticated = true
+token valid
+mock mode = false
+
+Do not manually login or refresh the token.
+
+==================================================
+3. ACTIVE UNIVERSE / MAPPINGS
+==================================================
+
+Require:
+
+active universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+active count = 23
+
+mapping completeness = 23/23
+missing mappings = 0
+duplicate tokens = 0
+unexpected active symbols = 0
+
+Report mapping-cache age separately.
+
+Do not refresh mappings during this audit.
+
+==================================================
+4. CURRENT MARKET-DATA HEALTH
+==================================================
+
+For the exact 23-symbol universe report:
+
+expected symbols
+requested symbols
+successful symbols
+fresh quote count
+stale count
+fallback count
+synthetic count
+unavailable count
+
+Require expected denominator = 23.
+
+Do not accept any legacy 50-symbol readiness requirement.
+
+Report:
+
+current_quote_provider
+latest_quote_timestamp
+quote age
+historical_ohlcv_provider
+scan provenance
+
+Clearly distinguish:
+
+CURRENT PRICE
+from
+HISTORICAL OHLCV
+
+==================================================
+5. TASK #939 PROVENANCE DISPLAY CHECK
+==================================================
+
+Compare:
+
+/api/live-data/health-v2
+
+against the rendered Mission Control provenance card.
+
+If API says, for example:
+
+current_quote_provider = ZERODHA_KITE
+quote timestamp = valid
+freshness = LIVE / current-session state
+historical OHLCV = YFINANCE
+scan provenance = SCHEDULED
+
+Mission Control must display the same truth.
+
+Report:
+
+PASS
+or
+DISPLAY MISMATCH
+
+Do not fix anything during this audit.
+
+==================================================
+6. NATURAL SCHEDULED SCAN CHECK
+==================================================
+
+Inspect today's scan history.
+
+Identify the latest current-session canonical scan.
+
+Require:
+
+origin = SCHEDULED
+
+active universe = CUSTOM_LOW_PRICE_SECTOR
+
+requested = 23
+received = 23
+
+Report:
+
+scan_id
+started_at
+completed_at
+origin
+symbol count
+quote provenance
+freshness
+
+Do not use MANUAL scans for certification.
+
+==================================================
+7. SCHEDULER HEALTH
+==================================================
+
+Confirm:
+
+scheduler state
+heartbeat freshness
+last scheduled trigger
+missed runs
+last error
+active scan lock
+stuck jobs
+
+List all jobs fired naturally since market open.
+
+Classify each:
+
+SCHEDULED
+MANUAL
+API_TRIGGERED
+INTERNAL_DIAGNOSTIC
+UNKNOWN
+
+Flag unexpected MANUAL activity.
+
+==================================================
+8. SAFETY SETTINGS
+==================================================
+
+Require:
+
+automatic paper entries = false
+entry confirmation = null
+bootstrap = false
+automatic exits = true
+controlled execution = DISABLED
+execution_allowed = false
+live broker orders = false
+execution mode = PAPER_TRADING
+
+Any unexpected enabled execution path:
+
+CRITICAL FAILURE.
+
+==================================================
+9. PAPER PORTFOLIO / LEDGER
+==================================================
+
+Read:
+
+/api/portfolio
+/api/portfolio/snapshot
+Phase20 ledger/positions
+
+Report current:
+
+initial capital
+cash
+equity
+realized P&L
+unrealized P&L
+open positions
+EXIT_PENDING
+closed trades
+
+Compare both portfolio endpoints.
+
+Explain any difference from the previous preserved baseline.
+
+Do not reset or modify anything.
+
+==================================================
+10. BUY / SELL / SIGNAL ACTIVITY TODAY
+==================================================
+
+Report separately:
+
+BUY signals generated
+SELL signals generated
+WATCH candidates
+AVOID/rejected candidates
+paper entry attempts
+paper entries executed
+paper exits executed
+broker orders
+
+For every actual paper trade, if any, report:
+
+symbol
+side
+timestamp
+source
+scan_id
+strategy/setup
+entry price
+exit price if closed
+P&L
+approval/execution authority
+
+IMPORTANT:
+
+Signals/recommendations are NOT trades.
+
+Clearly distinguish:
+
+SIGNAL
+vs
+PAPER ORDER
+vs
+LIVE BROKER ORDER.
+
+==================================================
+11. MANUAL-SCAN AUDIT
+==================================================
+
+Check whether any MANUAL_SCAN occurred today.
+
+For future provenance-enabled rows report:
+
+actor
+trigger_source
+endpoint
+request_id
+correlation_id
+approval_status
+
+Any legacy row may remain UNKNOWN_LEGACY.
+
+Do not modify history.
+
+==================================================
+12. PHASE 5A / TASK #930 STATUS
+==================================================
+
+Check today's pre-open durable state READ ONLY.
+
+Do not retry it.
+
+Report whether a new naturally scheduled Phase 5A record exists today.
+
+If today's natural collection did NOT produce:
+
+expected_count = 23
+provider_collected_count = 23
+persisted_count = 23
+missing = 0
+duplicate = 0
+malformed = 0
+unexpected = 0
+failed = 0
+persistence_status = MATCH
+
+then state:
+
+TASK #930 NOT CERTIFIED TODAY
+
+Do NOT attempt corrective collection.
+
+==================================================
+13. NEXT NATURAL SESSION
+==================================================
+
+If Task #930 is not naturally certified today:
+
+prepare the next natural-session gate.
+
+Required future proof:
+
+expected_count = 23
+provider_collected_count = 23
+persisted_count = 23
+normalized set = exact active 23
+missing = 0
+duplicate = 0
+malformed = 0
+unexpected = 0
+failed = 0
+persistence_status = MATCH
+origin = SCHEDULED
+
+verified batch must exist before freeze
+freeze must consume that same verified batch
+downstream phases must remain naturally scheduled
+
+==================================================
+14. FINAL VERDICT
+==================================================
+
+Return exactly one:
+
+A. LIVE SESSION HEALTHY — TASK #930 STILL AWAITS NEXT NATURAL PRE-OPEN
+B. MARKET-DATA ISSUE
+C. KITE/MAPPING ISSUE
+D. SCHEDULER ISSUE
+E. SAFETY REGRESSION
+F. PORTFOLIO/LEDGER ISSUE
+G. UNEXPECTED TRADING ACTIVITY
+H. OBSERVABILITY DISPLAY ISSUE
+I. OTHER ANOMALY
+
+Create:
+
+POST_OPEN_SESSION_HEALTH_AUDIT_2026_08_26.md
+
+FINAL RULE:
+
+Do not attempt to recreate the missed pre-market certification.
+
+Observe today's live session only.
