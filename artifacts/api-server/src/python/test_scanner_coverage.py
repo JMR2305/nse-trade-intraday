@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import sys
 import os
+import hashlib
 import unittest
 from datetime import datetime, timedelta
 from unittest.mock import patch
@@ -55,14 +56,48 @@ def _meta(received: int, requested: int = MIN_SYMBOLS_EXPECTED, ts: str = MONDAY
     }
 
 
+def _universe_context(key: str, symbols: list[str], version: int = 1):
+    """Build the immutable pin written alongside a canonical scan."""
+    enabled_symbols = sorted(symbols)
+    exact_set_hash = hashlib.sha256(
+        "\n".join(enabled_symbols).encode("utf-8")
+    ).hexdigest()
+    return {
+        "universe_key": key,
+        "enabled_symbols": enabled_symbols,
+        "exact_set_hash": exact_set_hash,
+        "version": version,
+    }
+
+
+def _meta_for_universe(meta, context):
+    """Attach the scan's pin without mutating a shared fixture."""
+    if meta is None:
+        return None
+    result = dict(meta)
+    result["universe_context"] = {
+        "exact_set_hash": context["exact_set_hash"],
+        "version": context["version"],
+    }
+    return result
+
+
 def _probe(state: str, now: datetime, meta):
+    context = _universe_context(
+        config.UniverseMode.NIFTY_50.value,
+        list(config.NIFTY_50),
+    )
     with patch.object(market_hours, "market_status",
                       return_value={"state": state}), \
          patch.object(market_hours, "now_ist", return_value=now), \
-         patch.object(config, "get_active_intraday_universe_strict",
-                      return_value=config.UniverseMode.NIFTY_50), \
+         patch("scanner_coverage._expected_universe",
+               return_value=(
+                   config.UniverseMode.NIFTY_50.value,
+                   context["enabled_symbols"],
+                   context,
+               )), \
          patch.object(scan_state_store, "load_latest_meta",
-                      return_value=meta):
+                      return_value=_meta_for_universe(meta, context)):
         return coverage_probe()
 
 
@@ -108,22 +143,27 @@ class TestScannerCoverage(unittest.TestCase):
     def test_custom_universe_full_coverage_is_healthy_at_its_active_size(self):
         """A healthy 23-symbol custom scan is not compared with NIFTY 50."""
         custom_symbols = [f"CUSTOM{i}" for i in range(23)]
+        context = _universe_context(
+            config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value,
+            custom_symbols,
+        )
         with patch.object(market_hours, "market_status",
                           return_value={"state": "OPEN"}), \
              patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
-             patch.object(
-                 config,
-                 "get_active_intraday_universe_strict",
-                 return_value=config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR,
-             ), \
              patch(
-                 "custom_universe_store.get_active_symbols",
-                 return_value=custom_symbols,
+                 "scanner_coverage._expected_universe",
+                 return_value=(
+                     config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value,
+                     context["enabled_symbols"],
+                     context,
+                 ),
              ), \
              patch.object(
                  scan_state_store,
                  "load_latest_meta",
-                 return_value=_meta(23, requested=23),
+                 return_value=_meta_for_universe(
+                     _meta(23, requested=23), context
+                 ),
              ):
             r = coverage_probe()
 
@@ -135,22 +175,27 @@ class TestScannerCoverage(unittest.TestCase):
 
     def test_custom_universe_partial_coverage_still_fails_closed(self):
         custom_symbols = [f"CUSTOM{i}" for i in range(23)]
+        context = _universe_context(
+            config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value,
+            custom_symbols,
+        )
         with patch.object(market_hours, "market_status",
                           return_value={"state": "OPEN"}), \
              patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
-             patch.object(
-                 config,
-                 "get_active_intraday_universe_strict",
-                 return_value=config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR,
-             ), \
              patch(
-                 "custom_universe_store.get_active_symbols",
-                 return_value=custom_symbols,
+                 "scanner_coverage._expected_universe",
+                 return_value=(
+                     config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value,
+                     context["enabled_symbols"],
+                     context,
+                 ),
              ), \
              patch.object(
                  scan_state_store,
                  "load_latest_meta",
-                 return_value=_meta(22, requested=22, missing=["CUSTOM22"]),
+                 return_value=_meta_for_universe(
+                     _meta(22, requested=22, missing=["CUSTOM22"]), context
+                 ),
              ):
             r = coverage_probe()
 

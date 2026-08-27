@@ -237,7 +237,15 @@ class TestGates(unittest.TestCase):
                    return_value={"state": market_state}), \
              patch("scan_state_store.load_latest_meta",
                    return_value={"scan_id": ctx.get("scan_id"),
-                                 "provider": provider}), \
+                                  "provider": provider,
+                                  "universe_context": {
+                                      "natural_session": "2026-08-27",
+                                      "universe_key": "NIFTY_50",
+                                      "universe_id": "test-nifty-50",
+                                      "version": 1,
+                                      "exact_set_hash": "test-universe-hash",
+                                      "symbol_count": 50,
+                                  }}), \
              patch("scan_state_store.load_latest_snapshot",
                    return_value={"scan_id": ctx.get("scan_id"),
                                  "safety": {
