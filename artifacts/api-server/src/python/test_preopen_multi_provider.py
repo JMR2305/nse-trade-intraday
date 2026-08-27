@@ -263,6 +263,27 @@ class TestNSEProviderFetchMarket(unittest.TestCase):
         )
         self.assertEqual(_nse_last_update_age_seconds("", now), 300)
 
+    def test_static_auction_timestamp_crosses_stale_boundary_before_freeze(self):
+        """A real static matching-phase timestamp is still stale if collected late."""
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from nse_preopen_provider import _nse_last_update_age_seconds
+
+        before_boundary = datetime(
+            2026, 7, 29, 9, 11, 59, tzinfo=ZoneInfo("Asia/Kolkata"),
+        )
+        at_boundary = datetime(
+            2026, 7, 29, 9, 12, 0, tzinfo=ZoneInfo("Asia/Kolkata"),
+        )
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:07:00", before_boundary),
+            299,
+        )
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:07:00", at_boundary),
+            300,
+        )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # KITE PROVIDER TESTS

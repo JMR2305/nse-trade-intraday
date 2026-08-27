@@ -10,7 +10,7 @@ Node scheduler needs zero time-of-day awareness for Phase 5A.
 Phase windows (IST):
   08:43–08:51  →  INIT             (once)   provider health, DB, prev-close, calendar
   08:53–09:00  →  READINESS        (once)   confirm provider is not UNAVAILABLE
-  09:00–09:15  →  COLLECT          (every tick — one snapshot per minute)
+   09:00–09:12  →  COLLECT          (every tick — one snapshot per minute)
   09:15–09:18  →  FREEZE           (once)   rank watchlist, generate signals
   09:18–09:23  →  RECONCILE        (once)   indicative vs actual price delta (09:20 prices)
   09:28–09:35  →  RECONCILE_0930   (once)   patch price_at_0930 on existing records
@@ -52,7 +52,13 @@ _STATE_FILE  = os.path.join(
 _PHASES = [
     ("init",            (8, 43), (8, 51),  True),
     ("readiness",       (8, 53), (9,  0),  True),
-    ("collect",         (9,  0), (9, 15),  False),
+    # NSE order collection closes at a system-selected point between 09:07
+    # and 09:08.  The 09:08–09:12 interval is the approved final-proof
+    # window: accepted rows are fresh at ingestion, then frozen unchanged at
+    # 09:15.  Do not collect during the matching/transition interval, where
+    # a correctly static final auction timestamp can exceed the real-time
+    # freshness limit and overwrite the last verified batch.
+    ("collect",         (9,  0), (9, 12),  False),
     ("freeze",          (9, 15), (9, 18),  True),
     ("reconcile",       (9, 18), (9, 23),  True),
     ("reconcile_0930",  (9, 28), (9, 35),  True),   # post-open enrichment: patch price_at_0930
@@ -218,10 +224,10 @@ def _run_readiness(trading_date: str) -> dict:
 
 
 def _run_collect(session_id: str) -> dict:
-    """09:00–09:15 — single snapshot pass. Called on every tick."""
+    """09:00–09:12 — one naturally scheduled snapshot pass."""
     try:
         import preopen_engine as eng
-        result = eng.collect_snapshot(session_id=session_id)
+        result = eng.collect_snapshot(session_id=session_id, source="SCHEDULED")
         # The engine returns collection proof from the same transaction that
         # wrote snapshots. Never infer success from a later, aggregate session
         # row: an earlier batch could otherwise mask a failed current batch.

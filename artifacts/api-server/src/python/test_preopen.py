@@ -354,6 +354,20 @@ class TestFeatureFlagDisabled(unittest.TestCase):
         os.environ["PREOPEN_INTELLIGENCE_ENABLED"] = "true"
         importlib.reload(preopen_engine)
 
+    def test_manual_refresh_cannot_claim_scheduled_origin(self):
+        import preopen_engine
+
+        with (
+            unittest.mock.patch.object(preopen_engine, "_is_enabled", return_value=True),
+            unittest.mock.patch.object(preopen_engine, "_today_ist", return_value="2026-07-28"),
+            unittest.mock.patch.object(
+                preopen_engine, "collect_snapshot", return_value={"success": True},
+            ) as collect,
+        ):
+            preopen_engine.refresh()
+
+        self.assertEqual(collect.call_args.kwargs["source"], "MANUAL")
+
 
 class TestPostOpenReconciliation(unittest.TestCase):
     """Scenario 18: post-open reconciliation"""

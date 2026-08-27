@@ -589,14 +589,23 @@ def _ensure_session(trading_date: str, session_id: str,
     }))
 
 
-def collect_snapshot(session_id: Optional[str] = None) -> dict:
+def collect_snapshot(session_id: Optional[str] = None,
+                     source: str = "MANUAL") -> dict:
     """
     Collect one pre-open snapshot across the watchlist.
     Safe to call repeatedly; each call stores a new batch of snapshots.
+
+    Only the scheduler may label a collection SCHEDULED.  Direct and refresh
+    calls remain durable evidence, but cannot become a 09:15 certificate.
     """
     if not _is_enabled():
         return _disabled_response()
 
+    collection_source = (
+        "SCHEDULED"
+        if str(source or "").strip().upper() == "SCHEDULED"
+        else "MANUAL"
+    )
     today = _today_ist()
     session_id = session_id or f"preopen-{today}-{uuid.uuid4().hex[:8]}"
     collection_batch_id = f"collection-{uuid.uuid4().hex}"
@@ -895,7 +904,7 @@ def collect_snapshot(session_id: Optional[str] = None) -> dict:
             provider_status=health.get("status", ProviderState.DELAYED),
             valid_count=valid,
             stale_count=stale,
-            source="SCHEDULED",
+            source=collection_source,
             collection_batch_id=collection_batch_id,
             coverage=coverage,
             outcomes=outcomes,
@@ -1133,7 +1142,7 @@ def refresh() -> dict:
         return _disabled_response()
     today = _today_ist()
     session_id = f"preopen-{today}-manual-{uuid.uuid4().hex[:6]}"
-    return collect_snapshot(session_id=session_id)
+    return collect_snapshot(session_id=session_id, source="MANUAL")
 
 
 # ── Signal hints (Trade Decisions integration) ────────────────────────────────

@@ -52,6 +52,9 @@ class TestPhaseWindowDetection(unittest.TestCase):
     def test_collect_window_mid(self):
         self.assertEqual(self._phase(9, 7), "collect")
 
+    def test_collect_window_stops_before_matching_interval(self):
+        self.assertIsNone(self._phase(9, 12))
+
     def test_collect_window_end(self):
         self.assertEqual(self._phase(9, 15), "freeze")
 
@@ -210,6 +213,21 @@ class TestCollectPhase(unittest.TestCase):
             r = t.run_tick()
         self.assertTrue(r["ran"])
         self.assertEqual(r["phase"], "collect")
+
+    def test_tick_collection_is_explicitly_marked_scheduled(self):
+        import preopen_intelligence_tick as t
+        engine = types.SimpleNamespace(collect_snapshot=mock.Mock(return_value={
+            "success": True,
+            "provider_collected_count": 1,
+            "persisted_count": 1,
+            "persistence_status": "MATCH",
+        }))
+        with mock.patch.dict(sys.modules, {"preopen_engine": engine}):
+            t._run_collect("session-scheduled")
+
+        engine.collect_snapshot.assert_called_once_with(
+            session_id="session-scheduled", source="SCHEDULED",
+        )
 
 
 class TestFreezePhase(unittest.TestCase):

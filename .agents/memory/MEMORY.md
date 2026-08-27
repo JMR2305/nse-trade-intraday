@@ -137,3 +137,4 @@
 - [Observability provenance](observability-provenance.md) — keep current quotes, historical OHLCV, scan origin, and manual audit evidence distinct; never fabricate legacy evidence.
 - [Versioned universe baseline imports](universe-versioning-baseline.md) — lock and exact-set-verify imports; preserve descriptive legacy gaps without fabricating membership.
 - [Runtime universe session pinning](runtime-universe-session-pinning.md) — pin one version/hash at 09:00 IST; never swap membership or fall back during a session.
+- [Pre-open final-proof window](preopen-final-proof-window.md) — freeze only a naturally scheduled, exact, live-at-ingestion batch from 09:08–09:12 IST; never overwrite it during matching.

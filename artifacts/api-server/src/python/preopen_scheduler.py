@@ -5,8 +5,7 @@ Cadence:
   08:45 — initialise, validate provider + DB, load prev-close refs
   08:55 — readiness check
   09:00–09:08 — snapshots every 30s
-  09:08–09:12 — snapshots every 15s (where supported)
-  09:12–09:15 — final capture
+   09:08–09:12 — snapshots every 15s (where supported); approved final-proof window
   09:15 — freeze + generate watchlists
   09:20 — reconcile indicative vs actual prices
 
@@ -66,6 +65,55 @@ def _collection_interval_seconds() -> int:
     if (9, 0) <= t < (9, 8):
         return 30    # main collection phase
     return 60        # early or final capture
+
+
+_FINAL_COLLECTION_START_MINUTE = 9 * 60 + 8
+_FINAL_COLLECTION_END_MINUTE = 9 * 60 + 12
+
+
+def _approved_final_collection(session: Optional[dict],
+                               now: Optional[datetime] = None) -> tuple[bool, str]:
+    """Require a naturally captured, fresh-at-ingestion final-proof batch.
+
+    The provider timestamp is evaluated when a row is collected.  At 09:15 the
+    exchange may already be in matching/transition and no longer emit a newer
+    auction timestamp, so elapsed wall-clock age alone cannot invalidate an
+    otherwise exact batch captured in the approved 09:08–09:12 proof window.
+    Missing, malformed, future, out-of-day, manual, or older evidence cannot
+    pass this authority gate.
+    """
+    session = session or {}
+    if str(session.get("collection_source") or "").strip().upper() != "SCHEDULED":
+        return False, "Freeze blocked: verified batch was not naturally scheduled."
+
+    raw_completed_at = session.get("collection_completed_at")
+    if not raw_completed_at:
+        return False, "Freeze blocked: verified batch has no durable collection completion time."
+    try:
+        value = str(raw_completed_at).strip().replace("Z", "+00:00")
+        completed_at = datetime.fromisoformat(value)
+        if completed_at.tzinfo is None:
+            raise ValueError("naive collection timestamp")
+        completed_ist = completed_at.astimezone(_IST)
+    except (TypeError, ValueError):
+        return False, "Freeze blocked: verified batch has an invalid completion time."
+
+    freeze_now = now or _now_ist()
+    if completed_ist > freeze_now:
+        return False, "Freeze blocked: verified batch completion time is in the future."
+    if (
+        completed_ist.date() != freeze_now.date()
+        or completed_ist.strftime("%Y-%m-%d") != str(session.get("trading_date") or "")
+    ):
+        return False, "Freeze blocked: verified batch was not captured on this trading date."
+
+    minute = completed_ist.hour * 60 + completed_ist.minute
+    if not _FINAL_COLLECTION_START_MINUTE <= minute < _FINAL_COLLECTION_END_MINUTE:
+        return False, (
+            "Freeze blocked: verified batch was not captured in the approved "
+            "09:08–09:12 IST final-proof window."
+        )
+    return True, ""
 
 
 # ── Phase states ──────────────────────────────────────────────────────────────
@@ -155,7 +203,7 @@ class PreOpenScheduler:
         """Single snapshot collection pass."""
         try:
             import preopen_engine as engine
-            return engine.collect_snapshot(session_id=self.session_id)
+            return engine.collect_snapshot(session_id=self.session_id, source="MANUAL")
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -198,6 +246,16 @@ class PreOpenScheduler:
                 self._emit(SchedulerPhase.ERROR, {"error": reason})
                 return False
 
+            approved, authority_reason = _approved_final_collection(
+                session, now=_now_ist(),
+            )
+            if not approved:
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", authority_reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": authority_reason})
+                return False
+
             snaps_raw = db_mod.get_session_snapshots(
                 self.session_id, str(collection_batch_id),
             )
@@ -223,6 +281,9 @@ class PreOpenScheduler:
                 or len(expected_symbols) != int(expected)
                 or symbols != expected_symbols
                 or any(
+                    str(snapshot.get("collection_batch_id") or "")
+                    != str(collection_batch_id)
+                    or
                     snapshot.get("is_stale") is not False
                     or str(snapshot.get("source_status") or "").strip().upper() != "LIVE"
                     for snapshot in snaps_raw

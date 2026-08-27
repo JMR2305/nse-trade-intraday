@@ -4,7 +4,11 @@ from __future__ import annotations
 import sys
 import types
 import unittest
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
+
+
+_IST = timezone(timedelta(hours=5, minutes=30))
 
 
 class TestPreopenCollectCounts(unittest.TestCase):
@@ -265,6 +269,9 @@ class TestPreopenPersistenceFailures(unittest.TestCase):
                 "failed_count": 0,
                 "persistence_status": "MATCH",
                 "verified_collection_batch_id": latest_batch,
+                "collection_source": "SCHEDULED",
+                "collection_completed_at": "2026-07-28T03:41:30Z",
+                "trading_date": "2026-07-28",
                 "collection_coverage": {"expected_symbols": ["SBIN"]},
             },
             get_session_snapshots=Mock(return_value=[{
@@ -290,7 +297,10 @@ class TestPreopenPersistenceFailures(unittest.TestCase):
             "preopen_engine": types.SimpleNamespace(),
             "preopen_watchlist": watchlist,
             "preopen_data_model": data_model,
-        }):
+        }), patch(
+            "preopen_scheduler._now_ist",
+            return_value=datetime(2026, 7, 28, 9, 15, tzinfo=_IST),
+        ):
             result = scheduler._phase_09_15_freeze()
 
         self.assertTrue(result, scheduler._log)
@@ -300,6 +310,129 @@ class TestPreopenPersistenceFailures(unittest.TestCase):
             database.upsert_session.call_args[0][0]["frozen_collection_batch_id"],
             latest_batch,
         )
+
+    def test_freeze_authority_rejects_manual_invalid_future_and_arbitrary_old_batches(self):
+        import preopen_scheduler
+
+        now = datetime(2026, 7, 28, 9, 15, tzinfo=_IST)
+        base = {
+            "collection_source": "SCHEDULED",
+            "collection_completed_at": "2026-07-28T03:41:00Z",
+            "trading_date": "2026-07-28",
+        }
+        self.assertTrue(preopen_scheduler._approved_final_collection(base, now)[0])
+
+        cases = [
+            ({"collection_source": "MANUAL"}, "naturally scheduled"),
+            ({"collection_completed_at": "not-a-timestamp"}, "invalid completion"),
+            ({"collection_completed_at": "2026-07-28T04:00:00Z"}, "in the future"),
+            ({"collection_completed_at": "2026-07-28T03:37:59Z"}, "09:08–09:12"),
+            ({"collection_completed_at": "2026-07-28T03:42:00Z"}, "09:08–09:12"),
+            ({"trading_date": "2026-07-27"}, "this trading date"),
+        ]
+        for overrides, expected_text in cases:
+            candidate = {**base, **overrides}
+            approved, reason = preopen_scheduler._approved_final_collection(candidate, now)
+            self.assertFalse(approved, candidate)
+            self.assertIn(expected_text, reason)
+
+    def test_freeze_accepts_exact_fresh_23_symbol_scheduled_batch(self):
+        import preopen_scheduler
+
+        class Snapshot:
+            def __init__(self, **values):
+                self._values = values
+                self.opportunity_score = 0.0
+                self.is_stale = False
+
+            def to_dict(self):
+                return self._values
+
+        symbols = [f"SYM{i:02d}" for i in range(23)]
+        batch_id = "approved-final-batch"
+        snapshots = [{
+            "snapshot_id": f"{batch_id}-{symbol}",
+            "collection_batch_id": batch_id,
+            "symbol": symbol,
+            "is_stale": False,
+            "source_status": "LIVE",
+        } for symbol in symbols]
+        database = types.SimpleNamespace(
+            get_session=lambda _: {
+                "provider_collected_count": 23,
+                "persisted_count": 23,
+                "expected_count": 23,
+                "failed_count": 0,
+                "persistence_status": "MATCH",
+                "verified_collection_batch_id": batch_id,
+                "collection_source": "SCHEDULED",
+                "collection_completed_at": "2026-07-28T03:41:30Z",
+                "trading_date": "2026-07-28",
+                "collection_coverage": {"expected_symbols": symbols},
+            },
+            get_session_snapshots=Mock(return_value=snapshots),
+            get_collection_outcomes=Mock(return_value=[{
+                "symbol": symbol, "outcome_status": "LIVE_PREOPEN_DATA",
+            } for symbol in symbols]),
+            save_watchlist=Mock(),
+            save_rankings=Mock(),
+            upsert_session=Mock(return_value=True),
+            record_collection_failure=Mock(return_value=True),
+        )
+        with patch.dict(sys.modules, {
+            "preopen_db": database,
+            "preopen_engine": types.SimpleNamespace(),
+            "preopen_watchlist": types.SimpleNamespace(
+                generate_watchlists=lambda _: {"watch": []},
+            ),
+            "preopen_data_model": types.SimpleNamespace(PreOpenSnapshot=Snapshot),
+        }), patch(
+            "preopen_scheduler._now_ist",
+            return_value=datetime(2026, 7, 28, 9, 15, tzinfo=_IST),
+        ):
+            result = preopen_scheduler.PreOpenScheduler(
+                session_id="session-23", test_mode=True,
+            )._phase_09_15_freeze()
+
+        self.assertTrue(result)
+        database.record_collection_failure.assert_not_called()
+
+    def test_freeze_rejects_rows_returned_from_a_different_batch(self):
+        import preopen_scheduler
+
+        batch_id = "approved-final-batch"
+        database = types.SimpleNamespace(
+            get_session=lambda _: {
+                "provider_collected_count": 1,
+                "persisted_count": 1,
+                "expected_count": 1,
+                "failed_count": 0,
+                "persistence_status": "MATCH",
+                "verified_collection_batch_id": batch_id,
+                "collection_source": "SCHEDULED",
+                "collection_completed_at": "2026-07-28T03:41:30Z",
+                "trading_date": "2026-07-28",
+                "collection_coverage": {"expected_symbols": ["SBIN"]},
+            },
+            get_session_snapshots=Mock(return_value=[{
+                "snapshot_id": "wrong-batch-SBIN",
+                "collection_batch_id": "wrong-batch",
+                "symbol": "SBIN",
+                "is_stale": False,
+                "source_status": "LIVE",
+            }]),
+            record_collection_failure=Mock(return_value=True),
+        )
+        with patch.dict(sys.modules, {"preopen_db": database}), patch(
+            "preopen_scheduler._now_ist",
+            return_value=datetime(2026, 7, 28, 9, 15, tzinfo=_IST),
+        ):
+            result = preopen_scheduler.PreOpenScheduler(
+                session_id="session-wrong-batch", test_mode=True,
+            )._phase_09_15_freeze()
+
+        self.assertFalse(result)
+        database.record_collection_failure.assert_called_once()
 
     def test_batch_snapshot_reader_filters_by_session_and_batch(self):
         import preopen_db as db
