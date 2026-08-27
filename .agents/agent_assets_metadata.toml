@@ -803,3 +803,38 @@ uri = "file://TASK_944_NEXT_NATURAL_SESSION_GATE.md"
 type = "text"
 title = "Task #944 Next Natural Session Gate"
 description = "Read-only criteria and preservation rules for the next naturally scheduled NSE pre-open certification."
+
+[[outputs]]
+id = "iExoLmFakt90KuWvZAR5r"
+uri = "file://TASK_930_2026_08_27_NATURAL_PREOPEN_CERTIFICATION.md"
+type = "text"
+title = "Task #930 natural pre-open certification"
+description = "Read-only production certification record with the fail-closed Phase 5A coverage verdict."
+
+[[outputs]]
+id = "FN4ugIZQ-X_an3Gi8ROk5"
+uri = "file://TASK_930_2026_08_27_SYMBOL_OUTCOME_MATRIX.csv"
+type = "table"
+title = "Task #930 symbol outcome matrix"
+description = "All 23 expected universe symbols and their final observed pre-open eligibility evidence."
+
+[[outputs]]
+id = "uA4THSBHlDbZRMFqC8jAd"
+uri = "file://TASK_930_2026_08_27_BATCH_AND_FREEZE_EVIDENCE.md"
+type = "text"
+title = "Task #930 batch and freeze evidence"
+description = "Scheduled collection and withheld-freeze proof for the failed natural session."
+
+[[outputs]]
+id = "asc-jQ0FQxR5PJdyOD0aV"
+uri = "file://TASK_930_2026_08_27_DATA_AUTHORITY_INCIDENT_CHECK.md"
+type = "text"
+title = "Task #930 data authority check"
+description = "Read-only data-authority findings and the parts not reached after the stop rule."
+
+[[outputs]]
+id = "NdQkiAx5v4Cx-ryBATMW6"
+uri = "file://TASK_930_2026_08_27_SAFETY_AND_PORTFOLIO_CHECK.md"
+type = "text"
+title = "Task #930 safety and portfolio check"
+description = "Paper-only safety and ledger-consistency evidence for the observation window."
