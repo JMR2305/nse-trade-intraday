@@ -1,0 +1,467 @@
+TASK #960 — RESTORE DURABLE CUSTOM UNIVERSE AUTHORITY
+EXACT 23-SYMBOL BASELINE MIGRATION — NO TRADING CHANGES
+
+CURRENT PRODUCTION ISSUE:
+
+Production clean release is deployed at:
+
+git_commit =
+68f18b078fe9de37da175480d40d4d42ae727830
+
+Current blocking state:
+
+configured universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+expected symbols =
+23
+
+versioned revisions =
+0
+
+active revision =
+null
+
+scanner coverage =
+revision_not_found
+
+pre-open status =
+UNIVERSE_UNAVAILABLE
+
+/api/health/ready:
+scanner_coverage_ok = false
+
+Historical/current cached 23-symbol snapshots are NOT authoritative.
+
+GOAL:
+
+Restore one durable, authoritative, versioned ACTIVE universe for the exact
+existing approved 23-symbol CUSTOM_LOW_PRICE_SECTOR baseline.
+
+This is a migration/reconciliation task only.
+
+DO NOT:
+- change universe membership
+- add symbols
+- remove symbols
+- change sectors
+- change strategy
+- change readiness thresholds
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- trigger scans
+- trigger Phase 5A/5B/5C
+- replay/backfill pre-open sessions
+- modify portfolio/ledger/capital
+- fall back to hard-coded lists
+- use historical health snapshots as authority
+
+==================================================
+1. AUDIT CURRENT UNIVERSE AUTHORITY
+==================================================
+
+Before writing anything, determine exactly why:
+
+versioned revisions = 0
+
+Identify:
+
+- versioned universe tables
+- migration state
+- baseline-import logic
+- activation logic
+- current configured universe key
+- current 23-symbol source used before versioning
+- any existing draft/revision rows
+- whether migration code exists but never executed
+- whether Task #946 schema deployed without baseline data migration
+
+Report:
+
+ROOT_CAUSE =
+<exact cause>
+
+==================================================
+2. PROVE THE EXISTING APPROVED 23-SYMBOL SET
+==================================================
+
+Build the candidate migration set from the last authoritative production
+configuration used before versioned authority became mandatory.
+
+The expected exact set is:
+
+BANKBARODA
+BANKINDIA
+CANBK
+FEDERALBNK
+IDFCFIRSTB
+KTKBANK
+MAHABANK
+PNB
+UNIONBANK
+COALINDIA
+GAIL
+HUDCO
+IRCON
+IRFC
+MRPL
+NBCC
+NMDC
+NTPC
+PFC
+RECLTD
+RVNL
+SAIL
+WIPRO
+
+Require:
+
+count = 23
+
+No additions.
+No removals.
+No substitutions.
+
+Compute and report:
+
+EXACT_SET_HASH
+
+==================================================
+3. KITE MAPPING VALIDATION
+==================================================
+
+Before migration require:
+
+23/23 valid Kite mappings
+
+For every symbol validate:
+
+symbol
+exchange
+segment
+instrument_token
+mapping_status
+
+Require:
+
+missing mappings = 0
+duplicate tokens = 0
+invalid symbols = 0
+unsupported instruments = 0
+
+If mapping completeness != 23/23:
+
+STOP.
+
+Do not create active revision.
+
+==================================================
+4. CREATE BASELINE VERSION
+==================================================
+
+If and only if the exact 23-symbol set and mappings are proven:
+
+create the initial durable versioned universe.
+
+Example:
+
+universe_key =
+CUSTOM_LOW_PRICE_SECTOR
+
+version =
+V1
+
+status =
+ACTIVE
+
+membership count =
+23
+
+This version must exactly reproduce the previous approved production baseline.
+
+Do not create a new strategy/universe concept.
+
+This is a migration of existing authority into the new versioned storage.
+
+==================================================
+5. MIGRATION AUDIT RECORD
+==================================================
+
+Record immutable audit event:
+
+action =
+BASELINE_MIGRATION
+
+Include:
+
+source authority
+destination version
+exact symbol count
+exact set hash
+timestamp
+actor/system identity
+mapping completeness
+previous configured universe key
+reason =
+MIGRATE_EXISTING_PRODUCTION_BASELINE_TO_VERSIONED_AUTHORITY
+
+Do not fabricate historical versions.
+
+==================================================
+6. ATOMIC ACTIVATION
+==================================================
+
+Activate the baseline version atomically.
+
+After activation require:
+
+active revision != null
+
+active universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+active count =
+23
+
+exact active set =
+approved 23-symbol set
+
+No session or scan may observe an intermediate empty universe.
+
+==================================================
+7. AUTHORITATIVE READ API
+==================================================
+
+READ ONLY after migration.
+
+Verify:
+
+GET /api/universe/active
+
+or equivalent returns:
+
+universe_key
+version
+status = ACTIVE
+symbol_count = 23
+exact symbol list
+mapping coverage = 23/23
+exact set hash
+
+No fallback source may be required.
+
+==================================================
+8. SCANNER COVERAGE
+==================================================
+
+Verify scanner authority resolves from the ACTIVE version.
+
+Require:
+
+revision_not_found = false
+
+scanner_coverage_ok = true
+
+expected denominator = 23
+
+No hard-coded 23 or 50 denominator in scanner logic.
+
+==================================================
+9. PRE-OPEN AUTHORITY
+==================================================
+
+READ ONLY.
+
+Verify pre-open status no longer reports:
+
+UNIVERSE_UNAVAILABLE
+
+It should resolve the same active revision and exact 23-symbol universe.
+
+Do NOT trigger Phase 5A.
+
+==================================================
+10. RUNTIME CONSISTENCY
+==================================================
+
+Confirm all these consumers resolve the same active universe version:
+
+- Phase 5A
+- canonical scanner
+- readiness
+- Mission Control
+- market-data coverage
+- strategy context
+- future execution eligibility
+
+Report:
+
+UNIVERSE_VERSION_ID
+UNIVERSE_VERSION
+EXACT_SET_HASH
+
+for each consumer where exposed.
+
+==================================================
+11. SESSION SAFETY
+==================================================
+
+Because this change occurs after today's pre-open certification window:
+
+do NOT attempt to certify today's session.
+
+The repaired versioned authority becomes the baseline for the NEXT natural
+session.
+
+Do not replay today's failed/unavailable lifecycle.
+
+==================================================
+12. OPEN POSITION SAFETY
+==================================================
+
+Confirm:
+
+open positions = 0
+EXIT_PENDING = 0
+
+If any position exists unexpectedly:
+STOP before universe activation and inspect.
+
+==================================================
+13. SAFETY BASELINE
+==================================================
+
+Require after migration:
+
+automatic paper entries = false
+entry confirmation = null
+bootstrap = false
+automatic exits = true
+controlled execution = disabled
+execution_allowed = false
+live broker orders = disabled
+broker mode = PAPER_TRADING
+
+portfolio source = phase20_ledger
+
+No safety setting may change.
+
+==================================================
+14. TESTS
+==================================================
+
+Add/run tests for:
+
+- empty versioned authority fails closed
+- exact 23-symbol baseline migration
+- active revision created
+- exact-set equality preserved
+- mapping completeness 23/23
+- scanner resolves active revision
+- pre-open resolves active revision
+- readiness denominator = active revision count
+- no fallback to historical snapshot
+- no fallback to hard-coded list
+- no mid-session partial activation
+- audit event persisted
+- duplicate migration is idempotent/safe
+- migration cannot overwrite an existing valid ACTIVE revision
+- no trading settings changed
+
+Run:
+
+universe/versioning tests
+scanner coverage tests
+Phase 5A tests
+readiness tests
+Kite mapping tests
+market-data tests
+Phase20 safety tests
+portfolio/ledger tests
+API tests
+dashboard tests
+TypeScript
+Python compilation
+production build
+
+Require zero unexpected failures.
+
+==================================================
+15. PRODUCTION VERIFICATION
+==================================================
+
+After migration/deployment, READ ONLY verify:
+
+active universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+active revision =
+present
+
+active count =
+23
+
+exact set =
+approved 23
+
+mapping coverage =
+23/23
+
+scanner_coverage_ok =
+true
+
+pre-open universe status =
+AVAILABLE / READY equivalent
+
+/api/health/ready =
+no revision_not_found failure
+
+Do not trigger scan or Phase 5A.
+
+==================================================
+16. DO NOT MODIFY HISTORICAL EVIDENCE
+==================================================
+
+Preserve all prior Task #930 failed sessions.
+
+Do not:
+retry
+replay
+backfill
+relabel
+attach the new revision retroactively
+
+Historical sessions keep their original evidence.
+
+==================================================
+17. OUTPUT
+==================================================
+
+Create:
+
+TASK_960_UNIVERSE_AUTHORITY_ROOT_CAUSE.md
+TASK_960_BASELINE_23_SYMBOL_RECONCILIATION.md
+TASK_960_VERSIONED_UNIVERSE_MIGRATION_REPORT.md
+TASK_960_TEST_AND_SAFETY_REPORT.md
+TASK_960_PRODUCTION_AUTHORITY_VERIFICATION.md
+TASK_960_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL VERDICT:
+
+A. PASS — DURABLE 23-SYMBOL VERSIONED AUTHORITY RESTORED
+B. BASELINE SET NOT PROVEN
+C. KITE MAPPING FAILURE
+D. MIGRATION FAILURE
+E. ACTIVE REVISION FAILURE
+F. SCANNER/PREOPEN AUTHORITY FAILURE
+G. TEST FAILURE
+H. SAFETY REGRESSION
+
+FINAL RULE:
+
+Do not solve revision_not_found by bypassing versioned authority.
+
+Create exactly one durable authoritative version representing the existing
+approved 23-symbol production baseline.
