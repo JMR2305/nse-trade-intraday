@@ -12,6 +12,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { PYTHON_BIN, PYTHON_DIR } from "../lib/python-env";
 import { requireApiKey } from "../lib/auth";
+import { invalidateCoverageCache } from "./trading";
 
 const router: IRouter = Router();
 const api = Router();
@@ -266,7 +267,15 @@ api.post("/revisions/:version/activation-request", (req, res) => {
 api.post("/revisions/:version/activate", (req, res) => {
   const version = requireVersion(req, res);
   if (version === null) return;
-  return command(req, res, "universe_management_activate", activationPayload(req, version), 60_000);
+  return command(req, res, "universe_management_activate", activationPayload(req, version), 60_000)
+    .then(() => {
+      // A successful activation changes scanner_coverage's expected symbol
+      // set. Drop both the cached value and any pre-activation in-flight read
+      // so a late response cannot become the next coverage result.
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        invalidateCoverageCache();
+      }
+    });
 });
 
 // Reads and writes in this contract are all operator-only, including reads.

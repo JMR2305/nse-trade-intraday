@@ -18,6 +18,7 @@ import {
 } from "vitest";
 import type { Server } from "node:http";
 import { EventEmitter } from "node:events";
+import { createSession } from "../lib/session";
 
 const mockSpawn = vi.fn();
 vi.mock("node:child_process", () => ({ spawn: mockSpawn }));
@@ -38,25 +39,49 @@ function makePyProc(jsonData: unknown) {
   return proc;
 }
 
+function makeHeldPyProc(jsonData: unknown) {
+  const proc = Object.assign(new EventEmitter(), {
+    stdout: new EventEmitter(),
+    stderr: new EventEmitter(),
+    kill: vi.fn(),
+  });
+  return {
+    proc,
+    release: () => {
+      (proc.stdout as EventEmitter).emit(
+        "data",
+        Buffer.from(JSON.stringify(jsonData)),
+      );
+      proc.emit("close", 0);
+    },
+  };
+}
+
 function spawnCmd(callArgs: unknown[]): string {
   return ((callArgs[1] as string[])[1]) ?? "";
 }
 
-describe("retired active-universe routes leave scanner coverage unchanged", () => {
+describe("scanner coverage cache around versioned universe changes", () => {
   let server: Server;
   let port: number;
   let activeUniverse = "NIFTY_50";
   let invalidateCoverageCache: () => void;
+  let holdCoverage = false;
+  let releaseHeldCoverage: (() => void) | null = null;
 
   async function request(
     path: string,
-    options: { method?: string; body?: unknown } = {},
+    options: { method?: string; body?: unknown; session?: boolean } = {},
   ): Promise<{ status: number; body: unknown }> {
+    const headers: Record<string, string> = options.body === undefined
+      ? {}
+      : { "Content-Type": "application/json" };
+    if (options.session) {
+      headers.Cookie = `__session=${createSession()}`;
+    }
     const response = await fetch(`http://127.0.0.1:${port}${path}`, {
       method: options.method ?? "GET",
-      headers: options.body === undefined
-        ? undefined
-        : { "Content-Type": "application/json" },
+      headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
     });
     return {
@@ -69,14 +94,24 @@ describe("retired active-universe routes leave scanner coverage unchanged", () =
     mockSpawn.mockImplementation((_bin: string, spawnArgs: string[]) => {
       const command = spawnArgs[1] ?? "";
       if (command === "scanner_coverage") {
-        const custom = activeUniverse === "CUSTOM_LOW_PRICE_SECTOR";
-        return makePyProc({
+        // Capture the universe at subprocess start. The test must prove this
+        // delayed, old-world response cannot become the next cached value.
+        const universeAtStart = activeUniverse;
+        const custom = universeAtStart === "CUSTOM_LOW_PRICE_SECTOR";
+        const payload = {
           success: true,
           ok: true,
-          active_universe: activeUniverse,
+          active_universe: universeAtStart,
           min_symbols_expected: custom ? 2 : 50,
           coverage: custom ? 2 : 50,
-        });
+        };
+        if (holdCoverage) {
+          holdCoverage = false;
+          const held = makeHeldPyProc(payload);
+          releaseHeldCoverage = held.release;
+          return held.proc;
+        }
+        return makePyProc(payload);
       }
       if (command === "phase20_settings_update") {
         const payload = JSON.parse(spawnArgs[2] ?? "{}") as {
@@ -86,6 +121,13 @@ describe("retired active-universe routes leave scanner coverage unchanged", () =
         return makePyProc({
           success: true,
           settings: { active_intraday_universe: activeUniverse },
+        });
+      }
+      if (command === "universe_management_activate") {
+        activeUniverse = "CUSTOM_LOW_PRICE_SECTOR";
+        return makePyProc({
+          success: true,
+          active_revision: { version: 2, status: "ACTIVE" },
         });
       }
       return makePyProc({});
@@ -109,6 +151,8 @@ describe("retired active-universe routes leave scanner coverage unchanged", () =
 
   beforeEach(() => {
     activeUniverse = "NIFTY_50";
+    holdCoverage = false;
+    releaseHeldCoverage = null;
     invalidateCoverageCache();
     mockSpawn.mockClear();
   });
@@ -173,5 +217,45 @@ describe("retired active-universe routes leave scanner coverage unchanged", () =
     });
     expect(mockSpawn.mock.calls.filter((call) => spawnCmd(call) === "scanner_coverage"))
       .toHaveLength(1);
+  });
+
+  it("does not let a delayed pre-activation coverage poll overwrite the newly active universe", async () => {
+    holdCoverage = true;
+    const delayedOldCoverage = request("/api/live-data/coverage");
+
+    await vi.waitFor(() => {
+      expect(mockSpawn.mock.calls.filter((call) => spawnCmd(call) === "scanner_coverage"))
+        .toHaveLength(1);
+    });
+
+    const activation = await request("/api/universe/v1/revisions/2/activate", {
+      method: "POST",
+      session: true,
+      body: { confirmation: "ACTIVATE 2" },
+    });
+    expect(activation.status).toBe(200);
+    expect(activation.body).toMatchObject({
+      active_revision: { version: 2, status: "ACTIVE" },
+    });
+
+    expect(releaseHeldCoverage).not.toBeNull();
+    releaseHeldCoverage?.();
+
+    const oldResponse = await delayedOldCoverage;
+    expect(oldResponse.status).toBe(200);
+    expect(oldResponse.body).toMatchObject({
+      active_universe: "NIFTY_50",
+      min_symbols_expected: 50,
+    });
+
+    const nextCoverage = await request("/api/live-data/coverage");
+    expect(nextCoverage.status).toBe(200);
+    expect(nextCoverage.body).toMatchObject({
+      active_universe: "CUSTOM_LOW_PRICE_SECTOR",
+      min_symbols_expected: 2,
+      coverage: 2,
+    });
+    expect(mockSpawn.mock.calls.filter((call) => spawnCmd(call) === "scanner_coverage"))
+      .toHaveLength(2);
   });
 });
