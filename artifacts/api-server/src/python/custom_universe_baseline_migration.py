@@ -498,7 +498,7 @@ def execute(
                     json.dumps({
                         "reason": REASON, "symbol_count": 23,
                         "mapping_count": 23,
-                    }),
+                    }, default=str),
                 ))
                 source_id = int(cur.fetchone()[0])
                 cur.execute("""
@@ -531,7 +531,7 @@ def execute(
                         ) VALUES (%s, %s, %s, %s)
                     """, (
                         revision_id, member["symbol"],
-                        json.dumps(member["metadata"]), actor,
+                        json.dumps(member["metadata"], default=str), actor,
                     ))
                 cur.execute("""
                     SELECT symbol, instrument_token, mapping_status
@@ -559,7 +559,7 @@ def execute(
                     ) VALUES (%s, 'VALIDATION_PASS', %s, %s, %s)
                 """, (
                     revision_id, actor, correlation_id,
-                    json.dumps(validation_evidence),
+                    json.dumps(validation_evidence, default=str),
                 ))
                 cur.execute("""
                     UPDATE trading_universes
@@ -596,7 +596,7 @@ def execute(
                     actor, versions.CUSTOM_UNIVERSE_KEY, revision_id,
                     APPROVED_SET_HASH,
                     evidence["safety"]["active_intraday_universe"],
-                    REASON, correlation_id, json.dumps(audit_evidence),
+                    REASON, correlation_id, json.dumps(audit_evidence, default=str),
                 ))
                 occurred_at = cur.fetchone()[0]
                 cur.execute("SELECT data FROM phase20_settings WHERE id = 1")

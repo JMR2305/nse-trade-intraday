@@ -6,6 +6,7 @@ import datetime as dt
 import inspect
 import unittest
 from contextlib import contextmanager
+from decimal import Decimal
 from unittest.mock import patch
 
 import custom_universe_baseline_migration as migration
@@ -21,8 +22,8 @@ def source_rows():
             "kite_symbol": symbol,
             "instrument_token": index + 1000,
             "instrument_exchange": "NSE",
-            "price_min": 1,
-            "price_max": 1000,
+            "price_min": Decimal("1.25"),
+            "price_max": Decimal("1000.00"),
             "ohlcv_available": True,
             "is_active": True,
         }
