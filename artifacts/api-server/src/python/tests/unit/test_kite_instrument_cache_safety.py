@@ -101,6 +101,71 @@ class KiteInstrumentCacheSafetyTests(unittest.TestCase):
         self.assertIn("parse_failures_present", result["validation"]["errors"])
         self.assertEqual(saved, [])
 
+    def test_empty_provider_metadata_rows_are_bounded_and_ignored(self):
+        candidate = _complete_candidate(cache.MIN_TOTAL_INSTRUMENTS + 1)
+        candidate[-1] = {
+            "tradingsymbol": "",
+            "instrument_token": None,
+            "exchange": "NSE",
+            "segment": "NSE",
+        }
+        result, saved = self._refresh(candidate)
+        self.assertTrue(result["success"])
+        self.assertEqual(saved[0]["ignored_provider_rows"], 1)
+
+    def test_excessive_empty_provider_metadata_rows_fail(self):
+        candidate = _complete_candidate()
+        for row in candidate[:101]:
+            row.clear()
+            row.update({
+                "tradingsymbol": "",
+                "instrument_token": None,
+                "exchange": "NSE",
+                "segment": "NSE",
+            })
+        result, saved = self._refresh(candidate)
+        self.assertFalse(result["success"])
+        self.assertIn("too_many_ignored_provider_rows", result["validation"]["errors"])
+        self.assertEqual(saved, [])
+
+    def test_blank_symbol_with_missing_provider_token_key_fails(self):
+        candidate = _complete_candidate()
+        candidate[0] = {
+            "tradingsymbol": "",
+            "exchange": "NSE",
+            "segment": "NSE",
+        }
+        result, saved = self._refresh(candidate)
+        self.assertFalse(result["success"])
+        self.assertIn("parse_failures_present", result["validation"]["errors"])
+        self.assertEqual(saved, [])
+
+    def test_blank_symbol_with_zero_provider_token_fails(self):
+        candidate = _complete_candidate()
+        candidate[0] = {
+            "tradingsymbol": "",
+            "instrument_token": 0,
+            "exchange": "NSE",
+            "segment": "NSE",
+        }
+        result, saved = self._refresh(candidate)
+        self.assertFalse(result["success"])
+        self.assertIn("parse_failures_present", result["validation"]["errors"])
+        self.assertEqual(saved, [])
+
+    def test_symbol_with_empty_provider_token_fails(self):
+        candidate = _complete_candidate()
+        candidate[0] = {
+            "tradingsymbol": "BROKEN",
+            "instrument_token": None,
+            "exchange": "NSE",
+            "segment": "NSE",
+        }
+        result, saved = self._refresh(candidate)
+        self.assertFalse(result["success"])
+        self.assertIn("parse_failures_present", result["validation"]["errors"])
+        self.assertEqual(saved, [])
+
     def test_duplicate_tokens_fail_promotion(self):
         candidate = _complete_candidate()
         candidate[1]["token"] = candidate[0]["token"]

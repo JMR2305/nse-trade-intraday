@@ -51,6 +51,7 @@ MAX_SEARCH_RESULTS = 20
 MIN_TOTAL_INSTRUMENTS = 5_000
 MIN_NSE_EQ_INSTRUMENTS = 1_000
 MIN_PREVIOUS_COUNT_RATIO = 0.90
+MAX_IGNORABLE_PROVIDER_ROWS_RATIO = 0.02
 _IST = ZoneInfo("Asia/Kolkata")
 
 
@@ -204,6 +205,7 @@ def validate_candidate(
     duplicate_symbols: List[str] = []
     nse_count = 0
     nse_eq_count = 0
+    ignored_provider_rows = 0
 
     for raw in raw_instruments:
         if not isinstance(raw, dict):
@@ -211,6 +213,19 @@ def validate_candidate(
             continue
         row = _normalise_instrument(raw)
         symbol = row["symbol"]
+        # Kite's dump can contain provider metadata rows without a tradable
+        # identity. They are not part of the symbol/token authority. Ignore
+        # only an explicitly provider-shaped row with both identity fields
+        # empty; malformed identified rows still fail closed below.
+        explicit_empty_provider_identity = (
+            "tradingsymbol" in raw
+            and "instrument_token" in raw
+            and raw["tradingsymbol"] in ("", None)
+            and raw["instrument_token"] is None
+        )
+        if not symbol and explicit_empty_provider_identity:
+            ignored_provider_rows += 1
+            continue
         try:
             token = int(row.get("token") or 0)
         except (TypeError, ValueError):
@@ -262,6 +277,8 @@ def validate_candidate(
         errors.append("duplicate_tokens_present")
     if duplicate_symbols:
         errors.append("duplicate_symbols_present")
+    if raw_instruments and ignored_provider_rows / len(raw_instruments) > MAX_IGNORABLE_PROVIDER_ROWS_RATIO:
+        errors.append("too_many_ignored_provider_rows")
 
     return {
         "complete": not errors,
@@ -271,6 +288,7 @@ def validate_candidate(
         "nse_count": nse_count,
         "nse_eq_count": nse_eq_count,
         "parse_failures": parse_failures,
+        "ignored_provider_rows": ignored_provider_rows,
         "duplicate_token_count": len(set(duplicate_tokens)),
         "duplicate_symbol_count": len(set(duplicate_symbols)),
         "unsupported_instrument_count": unsupported,
@@ -566,6 +584,7 @@ def refresh(force: bool = False) -> Dict[str, Any]:
                 "nse_count": validation["nse_count"],
                 "nse_eq_count": validation["nse_eq_count"],
                 "parse_failures": validation["parse_failures"],
+                "ignored_provider_rows": validation["ignored_provider_rows"],
                 "duplicate_token_count": validation["duplicate_token_count"],
                 "duplicate_symbol_count": validation["duplicate_symbol_count"],
                 "unsupported_instrument_count": validation["unsupported_instrument_count"],
@@ -683,6 +702,7 @@ def cache_status() -> Dict[str, Any]:
         "nse_count": cache.get("nse_count"),
         "nse_eq_count": cache.get("nse_eq_count"),
         "parse_failures": cache.get("parse_failures"),
+        "ignored_provider_rows": cache.get("ignored_provider_rows"),
         "duplicate_token_count": cache.get("duplicate_token_count"),
         "duplicate_symbol_count": cache.get("duplicate_symbol_count"),
         "exact_set_hash": cache.get("exact_set_hash"),
