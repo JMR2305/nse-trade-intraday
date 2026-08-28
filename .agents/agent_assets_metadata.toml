@@ -838,3 +838,10 @@ uri = "file://TASK_930_2026_08_27_SAFETY_AND_PORTFOLIO_CHECK.md"
 type = "text"
 title = "Task #930 safety and portfolio check"
 description = "Paper-only safety and ledger-consistency evidence for the observation window."
+
+[[outputs]]
+id = "GrVxrc47Ctefn-okoPZwn"
+uri = "file://TASK_960_RECENT_IMPLEMENTATION_AND_OUTCOME.md"
+type = "text"
+title = "Task 960 Recent Implementation and Outcome"
+description = "Summary of the guarded custom-universe authority implementation, validation results, safety protections, and production status."
