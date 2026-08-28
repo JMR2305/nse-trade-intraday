@@ -52,6 +52,7 @@ MIN_TOTAL_INSTRUMENTS = 5_000
 MIN_NSE_EQ_INSTRUMENTS = 1_000
 MIN_PREVIOUS_COUNT_RATIO = 0.90
 MAX_IGNORABLE_PROVIDER_ROWS_RATIO = 0.02
+VALID_NSE_REFERENCE_SEGMENTS = {"NSE", "NSE-CM", "NSE_EQ", "INDICES"}
 _IST = ZoneInfo("Asia/Kolkata")
 
 
@@ -233,7 +234,12 @@ def validate_candidate(
         exchange = str(row.get("exchange") or "").upper()
         segment = str(row.get("segment") or "").upper()
         instrument_type = str(row.get("instrument_type") or "").upper()
-        if not symbol or token <= 0 or exchange != "NSE" or not segment.startswith("NSE"):
+        if (
+            not symbol
+            or token <= 0
+            or exchange != "NSE"
+            or segment not in VALID_NSE_REFERENCE_SEGMENTS
+        ):
             parse_failures += 1
             continue
         row["token"] = token

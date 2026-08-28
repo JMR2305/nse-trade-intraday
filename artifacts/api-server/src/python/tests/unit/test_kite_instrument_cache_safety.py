@@ -69,6 +69,14 @@ class KiteInstrumentCacheSafetyTests(unittest.TestCase):
         self.assertEqual(len(saved), 1)
         self.assertTrue(saved[0]["complete"])
 
+    def test_nse_index_reference_rows_are_accepted_in_full_master(self):
+        candidate = _complete_candidate()
+        candidate[-1]["segment"] = "INDICES"
+        candidate[-1]["instrument_type"] = "EQ"
+        result, saved = self._refresh(candidate)
+        self.assertTrue(result["success"])
+        self.assertEqual(saved[0]["nse_count"], cache.MIN_TOTAL_INSTRUMENTS)
+
     def test_one_row_fetch_preserves_last_known_good(self):
         result, saved = self._refresh(_complete_candidate(1))
         self.assertFalse(result["success"])
