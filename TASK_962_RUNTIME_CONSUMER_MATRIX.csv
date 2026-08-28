@@ -1,0 +1,12 @@
+consumer,universe_key,revision_id,version,expected_count,set_hash,status,evidence
+canonical_scanner,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,BLOCKED,"No durable revision; no scan triggered"
+scanner_readiness,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,BLOCKED,"Task 961 active authority returned revision_not_found"
+phase5a,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,NOT_RUN,"Manual Phase 5A prohibited and not invoked"
+preopen_scheduler,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,BLOCKED,"No durable revision; no pre-open run triggered"
+market_data_coverage,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,BLOCKED,"Kite authentication missing and cache contains one stale row"
+mission_control,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,BLOCKED,"Release identity valid; versioned authority absent"
+strategy_context,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,NOT_VERIFIED,"Post-migration verification not reached"
+advisory_multi_bot,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,NOT_VERIFIED,"Post-migration verification not reached"
+signal_generation,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,NOT_VERIFIED,"Post-migration verification not reached"
+future_paper_entry_eligibility,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,BLOCKED_SAFE,"Automatic entries remain disabled"
+future_broker_execution_eligibility,CUSTOM_LOW_PRICE_SECTOR,,,23,22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016,BLOCKED_SAFE,"Live broker orders remain disabled"
