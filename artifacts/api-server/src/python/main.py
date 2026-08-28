@@ -1257,6 +1257,17 @@ def main():
             from universe_management import mapping_coverage
             payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
             result = mapping_coverage(int(payload["version"]))
+        elif command == "universe_baseline_migration_readiness":
+            from custom_universe_baseline_migration import readiness
+            result = readiness()
+        elif command == "universe_baseline_migration_execute":
+            from custom_universe_baseline_migration import execute
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = execute(
+                confirmation=str(payload.get("confirmation") or ""),
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+            )
         elif command == "universe_management_audit":
             from universe_management import audit_history
             payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}

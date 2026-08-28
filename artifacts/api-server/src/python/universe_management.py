@@ -120,6 +120,7 @@ def validate_members(
     *,
     instrument_cache_fresh: Optional[bool] = None,
     require_persisted_binding: bool = False,
+    required_metadata: Sequence[str] = _REQUIRED_METADATA,
 ) -> Dict[str, Any]:
     """Validate a complete enabled member set without mutating anything."""
     errors: List[Dict[str, Any]] = []
@@ -153,7 +154,7 @@ def validate_members(
 
         metadata = member["metadata"]
         missing = [
-            field for field in _REQUIRED_METADATA
+            field for field in required_metadata
             if metadata.get(field) is None
             or (isinstance(metadata.get(field), str) and not metadata[field].strip())
         ]
@@ -215,6 +216,8 @@ def validate_members(
         if len(errors) == candidate_error_count:
             mapping_bindings[symbol] = {
                 "exchange": instrument["exchange"],
+                "segment": instrument["segment"],
+                "instrument_type": instrument["instrument_type"],
                 "instrument_token": instrument["token"],
                 "mapping_status": "MAPPED",
                 "kite_symbol": kite_name,
@@ -423,9 +426,18 @@ def list_revisions() -> Dict[str, Any]:
 
 def active_view() -> Dict[str, Any]:
     revision = get_revision_view()
+    coverage = (
+        mapping_coverage(int(revision["version"]))
+        if revision and revision.get("version") is not None
+        else {
+            "success": False, "total": 0, "mapped": 0, "percent": 0.0,
+            "complete": False, "error": "revision_not_found",
+        }
+    )
     return {
         "success": True,
         "active_revision": revision,
+        "mapping_coverage": coverage,
         "activation": {
             "locked": ACTIVATION_LOCKED,
             "lock_reason": ACTIVATION_LOCK_REASON if ACTIVATION_LOCKED else None,

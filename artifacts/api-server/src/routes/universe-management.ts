@@ -93,6 +93,7 @@ function failureStatus(result: JsonRecord): number {
     case "draft_only_edit":
     case "draft_only_activation":
     case "duplicate_symbol":
+    case "conflicting_revision":
       return 409;
     case "activation_locked":
       return 423;
@@ -101,6 +102,7 @@ function failureStatus(result: JsonRecord): number {
     case "symbol_not_found":
       return 404;
     case "db_unavailable":
+    case "schema_unavailable":
       return 503;
     default:
       return 422;
@@ -153,6 +155,22 @@ api.get("/audit", (req, res) => {
   const raw = Number(req.query.limit ?? 200);
   const limit = Number.isInteger(raw) ? Math.max(1, Math.min(raw, 500)) : 200;
   return command(req, res, "universe_management_audit", { limit });
+});
+
+api.get("/baseline-migration", (req, res) =>
+  command(req, res, "universe_baseline_migration_readiness", undefined, 60_000));
+
+api.post("/baseline-migration", (req, res) => {
+  const body = bodyRecord(req);
+  return command(req, res, "universe_baseline_migration_execute", {
+    confirmation: typeof body.confirmation === "string" ? body.confirmation : "",
+    actor: "authenticated_operator",
+    correlation_id: requestId(req),
+  }, 60_000).then(() => {
+    if (res.statusCode >= 200 && res.statusCode < 300) {
+      invalidateCoverageCache();
+    }
+  });
 });
 
 api.get("/revisions/:version", (req, res) => {

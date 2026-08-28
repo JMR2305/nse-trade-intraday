@@ -99,6 +99,48 @@ describe("universe management v1 contract", () => {
     });
   });
 
+  it("exposes a read-only authenticated baseline migration readiness check", async () => {
+    spawnMock.mockClear();
+    spawnMock.mockImplementation(() => processFor({
+      success: true,
+      ready: true,
+      expected_symbol_count: 23,
+    }));
+    const response = await request(
+      server,
+      "/api/universe/v1/baseline-migration",
+      { session: true },
+    );
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ ready: true, expected_symbol_count: 23 });
+    expect((spawnMock.mock.calls[0][1] as string[]))
+      .toContain("universe_baseline_migration_readiness");
+  });
+
+  it("dispatches baseline migration only from an authenticated exact-confirmation surface", async () => {
+    spawnMock.mockClear();
+    spawnMock.mockImplementation(() => processFor({
+      success: false,
+      error: "typed_confirmation_mismatch",
+    }));
+    const denied = await request(
+      server,
+      "/api/universe/v1/baseline-migration",
+      { method: "POST", body: { confirmation: "MIGRATE" } },
+    );
+    expect(denied.status).toBe(401);
+    expect(spawnMock).not.toHaveBeenCalled();
+
+    const response = await request(
+      server,
+      "/api/universe/v1/baseline-migration",
+      { method: "POST", session: true, body: { confirmation: "MIGRATE" } },
+    );
+    expect(response.status).toBe(400);
+    expect((spawnMock.mock.calls[0][1] as string[]))
+      .toContain("universe_baseline_migration_execute");
+  });
+
   it("retired direct member mutation cannot dispatch an admin-token bypass", async () => {
     spawnMock.mockClear();
     const response = await request(
