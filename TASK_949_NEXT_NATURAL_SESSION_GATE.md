@@ -2,22 +2,25 @@
 
 ## Current status
 
-The clean release is ready for controlled publish, but no deployment has been performed by release preparation.
+The clean release was published and its exact runtime identity was confirmed.
 
 The 28 August 2026 session must not be used as certification evidence.
+
+The next natural session is **not ready** because production has no active versioned universe revision. Scanner coverage fails with `revision_not_found`, and pre-open fails closed with `UNIVERSE_UNAVAILABLE`.
 
 ## Mandatory entry gate
 
 Before any future natural pre-open certification:
 
-1. Publish only `68f18b078fe9de37da175480d40d4d42ae727830`.
-2. Confirm production reports `apexquant-68f18b078fe9`.
-3. Confirm the deployment ID is present.
-4. Confirm the Task 947 timing/freeze source and Task 938 cache-race source are present.
-5. Confirm the active custom universe remains 23 symbols with 23/23 mappings.
-6. Confirm automatic entries and bootstrap remain false.
-7. Confirm controlled execution and live broker orders remain disabled.
-8. Confirm portfolio and ledger state are unchanged.
+1. Keep production on commit `68f18b078fe9de37da175480d40d4d42ae727830` / build `apexquant-68f18b078fe9`.
+2. Restore the intended immutable versioned universe only through a separately reviewed and approved remediation.
+3. Confirm the versioned universe API returns one active revision.
+4. Confirm the active custom universe contains exactly 23 symbols with 23/23 mappings.
+5. Confirm scanner coverage resolves the same exact set without `revision_not_found`.
+6. Confirm pre-open no longer reports `UNIVERSE_UNAVAILABLE`.
+7. Reconfirm automatic entries and bootstrap remain false.
+8. Reconfirm controlled execution and live broker orders remain disabled.
+9. Reconfirm portfolio and ledger state are unchanged.
 
 If any check fails, stop. Do not collect, scan, freeze, trade, alter settings, or modify the universe.
 
@@ -33,6 +36,6 @@ If any check fails, stop. Do not collect, scan, freeze, trade, alter settings, o
 
 ## Verdict state
 
-PRE-PUBLISH PASS — clean release and test gates are complete.
+`F. SAFETY REGRESSION`
 
-Final verdict `A. PASS — CLEAN RELEASE DEPLOYED, NEXT NATURAL SESSION READY` is permitted only after the post-publish read-only identity and safety checks pass. Identity failure maps to verdict E; any safety-state regression maps to verdict F.
+Release identity passed, but the authoritative universe and pre-open readiness gates failed. Verdict A is prohibited until a later read-only verification confirms the remediated active revision, exact 23/23 coverage, and all unchanged execution-safety controls.

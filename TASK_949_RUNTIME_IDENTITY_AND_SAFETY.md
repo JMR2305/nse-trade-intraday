@@ -51,18 +51,40 @@ Release preparation did not:
 
 ## Post-publish read-only verification
 
-This section remains a gate, not pre-deployment evidence. After the user publishes the approved commit, read-only checks must confirm:
+Performed against `https://nse-trade-intraday.replit.app` on 28 August 2026.
 
-- `environment = production`;
-- `git_commit = 68f18b078fe9de37da175480d40d4d42ae727830`;
-- `build_id = apexquant-68f18b078fe9`;
-- `deployment_id` is present;
-- active universe is `CUSTOM_LOW_PRICE_SECTOR`;
-- active count is 23 and mappings are 23/23;
-- automatic entries are false;
-- bootstrap is false;
-- controlled execution is disabled;
-- live broker orders are disabled;
-- portfolio and ledger are unchanged.
+### Passed
 
-No natural-session certification may start until this identity and safety gate passes.
+- `environment = production`
+- `git_commit = 68f18b078fe9de37da175480d40d4d42ae727830`
+- `build_id = apexquant-68f18b078fe9`
+- `deployment_id = 0d018179-abe0-42c2-a554-dbb19d11341f`
+- Task 947 source is present because the deployed commit is the exact approved tree.
+- Task 938 source is present because the deployed commit is the exact approved tree.
+- `auto_paper_entries = false`
+- `auto_paper_entries_confirmed_at = null`
+- `bootstrap_paper_enabled = false`
+- controlled paper entry returns `DISABLED`, `dry_run_only = true`, and `execution_allowed = false`
+- broker execution mode is `PAPER_TRADING`
+- broker readiness is `NOT_READY` for real execution
+- Kite reports `live_order_placement_enabled = false`
+- portfolio reports `paper_mode = true`, `status = DISABLED`, and source `phase20_ledger`
+- two read-only portfolio observations were financially identical: no open positions, cash/equity ₹99,721.26, realised P&L -₹278.74
+
+The public health field `automatic_paper_entry_allowed = true` describes the market-hours window, not the durable auto-entry setting. The authoritative Phase 20 setting and portfolio health both report automatic paper entries disabled.
+
+### Failed
+
+- The durable setting names `CUSTOM_LOW_PRICE_SECTOR`, but the versioned universe API reports zero revisions and `active_revision = null`.
+- Scanner coverage returns `success = false`, `coverage = null`, and `revision_not_found`.
+- `/api/health/ready` reports `scanner_coverage_ok = false`.
+- Pre-open status is `ERROR`; pre-open health is `UNIVERSE_UNAVAILABLE`.
+- Therefore active count and mapping coverage cannot be certified as 23/23 from the authoritative current universe store.
+
+The public health details still show the prior 23-symbol scan snapshot and 100% token coverage, but that historical snapshot is not current universe authority and cannot satisfy this gate.
+
+## Final verdict
+
+`F. SAFETY REGRESSION`
+
+Identity and execution controls pass, but the production universe authority is unavailable. No natural-session certification may start until a separate, explicitly approved remediation restores and verifies the immutable versioned universe without triggering scans or trading.
