@@ -108,23 +108,29 @@ class TestScannerCoverage(unittest.TestCase):
         r = _probe("OPEN", MONDAY_10AM, _meta(50, ts=FRIDAY_SCAN_TS))
         self.assertFalse(r["ok"])
         self.assertFalse(r["scan_fresh_for_session"])
+        self.assertEqual(
+            r["readiness_state"], "stale_or_different_pinned_revision"
+        )
         self.assertIn("previous session", r["warning"])
 
     def test_no_scan_at_all_during_open_is_flagged(self):
         r = _probe("OPEN", MONDAY_10AM, None)
         self.assertFalse(r["ok"])
+        self.assertEqual(r["readiness_state"], "no_current_version_scan")
         self.assertIn("No completed scan", r["warning"])
 
     def test_fresh_full_coverage_is_healthy(self):
         r = _probe("OPEN", MONDAY_10AM, _meta(MIN_SYMBOLS_EXPECTED))
         self.assertTrue(r["ok"])
         self.assertTrue(r["scan_fresh_for_session"])
+        self.assertEqual(r["readiness_state"], "healthy_current_scan")
         self.assertIsNone(r["warning"])
 
     def test_fresh_low_coverage_is_flagged_with_missing_symbols(self):
         r = _probe("OPEN", MONDAY_10AM,
                    _meta(MIN_SYMBOLS_EXPECTED - 2, missing=["WIPRO", "TMPV"]))
         self.assertFalse(r["ok"])
+        self.assertEqual(r["readiness_state"], "incomplete_current_scan")
         self.assertIn(f"{MIN_SYMBOLS_EXPECTED - 2}/", r["warning"])
         self.assertIn("WIPRO", r["warning"])
 
@@ -139,6 +145,70 @@ class TestScannerCoverage(unittest.TestCase):
         r = _probe("OPEN", MONDAY_10AM, _meta(48, requested=48))
         self.assertFalse(r["ok"])
         self.assertIn(f"48/{MIN_SYMBOLS_EXPECTED}", r["warning"])
+
+    def test_durable_authority_failure_has_explicit_readiness_state(self):
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch("scanner_coverage._expected_universe",
+                   side_effect=RuntimeError("authority unavailable")):
+            r = coverage_probe()
+
+        self.assertFalse(r["success"])
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["readiness_state"], "durable_authority_unavailable")
+
+    def test_scan_metadata_failure_is_not_reported_as_no_scan(self):
+        context = _universe_context(
+            config.UniverseMode.NIFTY_50.value,
+            list(config.NIFTY_50),
+        )
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch("scanner_coverage._expected_universe",
+                   return_value=(
+                       config.UniverseMode.NIFTY_50.value,
+                       context["enabled_symbols"],
+                       context,
+                   )), \
+             patch.object(scan_state_store, "load_latest_meta",
+                          side_effect=RuntimeError("metadata store unavailable")):
+            r = coverage_probe()
+
+        self.assertFalse(r["success"])
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["readiness_state"], "scan_metadata_unavailable")
+        self.assertIn("metadata", r["warning"].lower())
+
+    def test_different_pinned_revision_has_explicit_readiness_state(self):
+        context = _universe_context(
+            config.UniverseMode.NIFTY_50.value,
+            list(config.NIFTY_50),
+        )
+        different_context = dict(context)
+        different_context["version"] = context["version"] + 1
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch("scanner_coverage._expected_universe",
+                   return_value=(
+                       config.UniverseMode.NIFTY_50.value,
+                       context["enabled_symbols"],
+                       context,
+                   )), \
+             patch.object(scan_state_store, "load_latest_meta",
+                          return_value=_meta_for_universe(
+                              _meta(MIN_SYMBOLS_EXPECTED), different_context
+                          )):
+            r = coverage_probe()
+
+        self.assertFalse(r["success"])
+        self.assertFalse(r["ok"])
+        self.assertTrue(r["universe_mismatch"])
+        self.assertEqual(
+            r["readiness_state"], "stale_or_different_pinned_revision"
+        )
 
     def test_custom_universe_full_coverage_is_healthy_at_its_active_size(self):
         """A healthy 23-symbol custom scan is not compared with NIFTY 50."""

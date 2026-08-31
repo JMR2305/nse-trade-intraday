@@ -37,7 +37,9 @@ def _resolved():
     }
 
 
-def test_existing_session_pin_wins_over_a_later_configuration_change():
+@pytest.mark.parametrize("ist_time", [(8, 59, 59), (9, 0, 0), (9, 0, 1)])
+def test_existing_session_pin_wins_over_a_later_configuration_change(ist_time):
+    """At and around 09:00 IST, an existing session pin remains authoritative."""
     import runtime_universe as runtime
     import universe_version_store as versions
 
@@ -57,14 +59,15 @@ def test_existing_session_pin_wins_over_a_later_configuration_change():
                      side_effect=AssertionError("existing pin must be used")),
     ):
         got = runtime.resolve_active_universe(
-            datetime(2026, 8, 26, 8, 0, tzinfo=timezone.utc)
+            datetime(2026, 8, 26, *ist_time, tzinfo=runtime._IST)
         )
 
     assert got["version"] == 7
     assert got["enabled_symbols"] == ["IRFC", "WIPRO"]
 
 
-def test_first_session_resolution_uses_session_open_not_current_time():
+@pytest.mark.parametrize("ist_time", [(8, 59, 59), (9, 0, 0), (9, 0, 1)])
+def test_first_session_resolution_uses_session_open_not_current_time(ist_time):
     import runtime_universe as runtime
     import universe_version_store as versions
 
@@ -86,7 +89,7 @@ def test_first_session_resolution_uses_session_open_not_current_time():
                      return_value=_resolved()) as resolve,
     ):
         runtime.resolve_active_universe(
-            datetime(2026, 8, 26, 10, 30, tzinfo=timezone.utc)
+            datetime(2026, 8, 26, *ist_time, tzinfo=runtime._IST)
         )
 
     assert resolve.call_args.kwargs["effective_at"] == datetime(

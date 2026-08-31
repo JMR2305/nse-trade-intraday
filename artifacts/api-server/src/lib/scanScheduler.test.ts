@@ -349,6 +349,57 @@ describe("scheduled scan lifecycle events", () => {
   });
 });
 
+describe("scheduled scan lane isolation", () => {
+  it("keeps advisory and alert lanes running once while a scheduled scan remains open across two ticks", async () => {
+    const heldScheduledScan = makeProc();
+    const heldAdvisories = new Map<string, FakeProc>();
+    mockSpawn.mockImplementation((_bin: string, args: string[]) => {
+      const command = args[1];
+      if (command === "scheduled_scan_tick") return heldScheduledScan;
+      if (
+        command === "preopen_intelligence_tick"
+        || command === "preopen_validation_tick"
+        || command === "signal_validation_tick"
+        || command === "alert_queue_process"
+      ) {
+        const proc = makeProc();
+        heldAdvisories.set(command, proc);
+        return proc;
+      }
+      return makeAutoProc({});
+    });
+
+    startScanScheduler();
+    await flushAsync(); // cold-start check settles, so the scan lane is open.
+
+    await _runTickForTests();
+    await _runTickForTests(); // scan is still held open from the first tick.
+    await flushAsync();
+
+    const commands = capturedCommands();
+    expect(commands.filter((command) => command === "scheduled_scan_tick")).toHaveLength(1);
+    for (const command of [
+      "preopen_intelligence_tick",
+      "preopen_validation_tick",
+      "signal_validation_tick",
+      "alert_queue_process",
+    ]) {
+      // Each independent lane starts despite the hung scan, but the second
+      // tick cannot create a duplicate child for its still-running command.
+      expect(commands.filter((captured) => captured === command)).toHaveLength(1);
+    }
+    expect(mockPublish).toHaveBeenCalledWith(
+      "scan.started",
+      expect.objectContaining({ source: "scheduler" }),
+    );
+
+    // Avoid leaving deliberately held EventEmitter children in this test.
+    resolveProc(heldScheduledScan, { ran_scan: false, reason: "NOT_DUE" });
+    for (const proc of heldAdvisories.values()) resolveProc(proc, { ran: false });
+    await flushAsync();
+  });
+});
+
 // ── _resetColdStartCheckForTests isolation ────────────────────────────────────
 
 describe("_resetColdStartCheckForTests — state isolation", () => {

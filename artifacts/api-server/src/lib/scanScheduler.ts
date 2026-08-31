@@ -23,6 +23,11 @@ import { eventBus } from "./events";
 // Paper trading / research only — no live orders anywhere.
 
 const TICK_INTERVAL_MIN = 1;
+// A scan can legitimately take 7–22 minutes when the cold cache fallback is
+// needed, and scheduled_scan_tick also owns paper position management. Never
+// terminate or overlap that transactional child from Node. Report a prolonged
+// run promptly while retaining the lane until the child actually exits.
+const SCHEDULED_SCAN_SLOW_MS = 5 * 60 * 1000;
 
 function runPython(args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -58,7 +63,11 @@ function runPython(args: string[]): Promise<unknown> {
 }
 
 let timer: NodeJS.Timeout | null = null;
-let tickInFlight = false;
+// The scan is single-flight, independently from the per-minute advisory
+// lanes. A stuck scan therefore cannot suppress time-sensitive advisory work.
+let scheduledScanInFlight = false;
+const advisoryCommandsInFlight = new Set<string>();
+let pushDeliveryInFlight = false;
 
 // ── Cold-start OHLCV readiness barrier ────────────────────────────────────────
 // Prevents scheduled_scan_tick from firing while the cold-start cache check
@@ -80,7 +89,9 @@ let _tick: (() => Promise<void>) | null = null;
 /** @internal — reset all mutable state; call before each test. */
 export function _resetColdStartCheckForTests(): void {
   _ohlcvColdStartPending = false;
-  tickInFlight = false;
+  scheduledScanInFlight = false;
+  advisoryCommandsInFlight.clear();
+  pushDeliveryInFlight = false;
   _tick = null;
   if (timer) { clearInterval(timer); timer = null; }
 }
@@ -89,6 +100,23 @@ export function _resetColdStartCheckForTests(): void {
 export async function _runTickForTests(): Promise<void> {
   if (!_tick) throw new Error("startScanScheduler() not called — _tick is null");
   return _tick();
+}
+
+/**
+ * Run each advisory command at most once at a time.  Their own time-gating is
+ * in Python, so a slow invocation must not cause a second process for the same
+ * command on the next minute's tick.
+ */
+function runAdvisoryPython(
+  command: string,
+  onResult: (result: unknown) => void,
+  onError: (error: unknown) => void,
+): void {
+  if (advisoryCommandsInFlight.has(command)) return;
+  advisoryCommandsInFlight.add(command);
+  void runPython([command]).then(onResult).catch(onError).finally(() => {
+    advisoryCommandsInFlight.delete(command);
+  });
 }
 
 export function startScanScheduler(): void {
@@ -105,28 +133,27 @@ export function startScanScheduler(): void {
   const intervalMs = TICK_INTERVAL_MIN * 60 * 1000;
 
   _tick = async (): Promise<void> => {
-    if (tickInFlight) return; // never stack ticks in this process
-    tickInFlight = true;
-    try {
-      // ── OHLCV readiness gate ───────────────────────────────────────────────
-      // Block the market scan until the cold-start cache check (and any
-      // triggered backfill) has completed.  The gate only affects the main
-      // scan; per-minute advisory ticks below (pre-open intelligence, signal
-      // validation, push delivery) still run normally so they don't miss
-      // their IST-gated windows during a long backfill.
-      if (_ohlcvColdStartPending) {
-        logger.info(
-          "Scheduled scan deferred — cold-start OHLCV cache check in progress",
+    // ── OHLCV readiness gate ─────────────────────────────────────────────────
+    // This gate applies only to the scan lane. Advisory lanes below continue
+    // while a cache backfill or a scheduled scan is in progress.
+    if (_ohlcvColdStartPending) {
+      logger.info("Scheduled scan deferred — cold-start OHLCV cache check in progress");
+    } else if (!scheduledScanInFlight) {
+      scheduledScanInFlight = true;
+      eventBus.publish("scan.started", { source: "scheduler", ts: new Date().toISOString() });
+      const slowWatchdog = setTimeout(() => {
+        logger.warn(
+          { elapsedMs: SCHEDULED_SCAN_SLOW_MS },
+          "Scheduled scan still running; advisory lanes remain active",
         );
-        // Skip the scan but proceed to the per-minute advisory ticks below.
-      } else {
-        // Clear status/history cache before this due attempt. The route layer
-        // also handles the completion/busy/failure event below, making every
-        // scheduler outcome visible to the next poll.
-        eventBus.publish("scan.started", { source: "scheduler", ts: new Date().toISOString() });
-        const result = (await runPython([
-          "scheduled_scan_tick",
-        ])) as Record<string, unknown>;
+        eventBus.publish("scan.slow", {
+          source: "scheduler",
+          elapsed_ms: SCHEDULED_SCAN_SLOW_MS,
+        });
+      }, SCHEDULED_SCAN_SLOW_MS);
+      slowWatchdog.unref();
+      void runPython(["scheduled_scan_tick"]).then((raw) => {
+        const result = raw as Record<string, unknown>;
         if (result?.["ran_scan"]) {
           eventBus.publish("scan.completed", {
             source: "scheduler",
@@ -150,17 +177,17 @@ export function startScanScheduler(): void {
             { source: "scheduler", reason },
           );
         }
-      }
-    } catch (err) {
-      // Failed scheduled scan: last successful snapshot is preserved by design.
-      logger.warn({ err: err instanceof Error ? err.message : String(err) },
-        "Scheduled scan tick failed (previous snapshot preserved)");
-      eventBus.publish("scan.failed", {
-        source: "scheduler",
-        error: err instanceof Error ? err.message : String(err),
+      }).catch((err: unknown) => {
+        logger.warn({ err: err instanceof Error ? err.message : String(err) },
+          "Scheduled scan tick failed (previous snapshot preserved)");
+        eventBus.publish("scan.failed", {
+          source: "scheduler",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }).finally(() => {
+        clearTimeout(slowWatchdog);
+        scheduledScanInFlight = false;
       });
-    } finally {
-      tickInFlight = false;
     }
 
     // Phase 5A — Pre-Open Intelligence tick.
@@ -169,7 +196,7 @@ export function startScanScheduler(): void {
     // No-ops outside phase windows and on non-trading days.
     // Provider failure is caught and returned as DEGRADED/UNAVAILABLE — never crashes.
     // Paper / advisory only — no orders.
-    runPython(["preopen_intelligence_tick"]).then((r) => {
+    runAdvisoryPython("preopen_intelligence_tick", (r) => {
       const res = r as Record<string, unknown>;
       if (res?.["ran"]) {
         logger.info(
@@ -179,7 +206,7 @@ export function startScanScheduler(): void {
           "Pre-Open Intelligence phase executed",
         );
       }
-    }).catch((err: unknown) => {
+    }, (err: unknown) => {
       logger.warn({ err: err instanceof Error ? err.message : String(err) },
         "Pre-Open Intelligence tick failed (non-fatal)");
     });
@@ -188,7 +215,7 @@ export function startScanScheduler(): void {
     // Runs on every minute; the Python side owns all IST time-gating and
     // checkpoint deduplication. No-ops outside checkpoint windows and on
     // non-trading days. Paper / advisory only — no orders.
-    runPython(["preopen_validation_tick"]).then((r) => {
+    runAdvisoryPython("preopen_validation_tick", (r) => {
       const res = r as Record<string, unknown>;
       if (res?.["ran"]) {
         logger.info(
@@ -197,7 +224,7 @@ export function startScanScheduler(): void {
           "Pre-Open Validation checkpoint collected",
         );
       }
-    }).catch((err: unknown) => {
+    }, (err: unknown) => {
       logger.warn({ err: err instanceof Error ? err.message : String(err) },
         "Pre-Open Validation tick failed (non-fatal)");
     });
@@ -207,7 +234,7 @@ export function startScanScheduler(): void {
     // No-ops outside checkpoint windows and on non-trading days.
     // SIGNAL_VALIDATION_ENABLED=false → Python returns DISABLED immediately.
     // Paper / advisory only — no orders, no strategy modification.
-    runPython(["signal_validation_tick"]).then((r) => {
+    runAdvisoryPython("signal_validation_tick", (r) => {
       const res = r as Record<string, unknown>;
       if (res?.["ran"]) {
         logger.info(
@@ -216,7 +243,7 @@ export function startScanScheduler(): void {
           "Signal Validation phase executed",
         );
       }
-    }).catch((err: unknown) => {
+    }, (err: unknown) => {
       logger.warn({ err: err instanceof Error ? err.message : String(err) },
         "Signal Validation tick failed (non-fatal)");
     });
@@ -224,11 +251,14 @@ export function startScanScheduler(): void {
     // Priority 4 (#41): drain the durable alert delivery queue every tick
     // (retries for push + email survive restarts and provider outages).
     // Runs even when no scan is due; never blocks or fails the tick.
-    processPushDeliveryQueue().catch((err: unknown) => {
-      logger.warn({ err: err instanceof Error ? err.message : String(err) },
-        "Push delivery queue processing failed");
-    });
-    runPython(["alert_queue_process"]).catch((err: unknown) => {
+    if (!pushDeliveryInFlight) {
+      pushDeliveryInFlight = true;
+      void processPushDeliveryQueue().catch((err: unknown) => {
+        logger.warn({ err: err instanceof Error ? err.message : String(err) },
+          "Push delivery queue processing failed");
+      }).finally(() => { pushDeliveryInFlight = false; });
+    }
+    runAdvisoryPython("alert_queue_process", () => {}, (err: unknown) => {
       logger.warn({ err: err instanceof Error ? err.message : String(err) },
         "Email alert queue processing failed");
     });

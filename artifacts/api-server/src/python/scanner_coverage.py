@@ -37,6 +37,19 @@ from typing import Any, Dict, List, Optional, Tuple
 # Session states where full, session-fresh coverage is required.
 IN_SESSION_STATES = {"OPEN", "PRE_OPEN"}
 
+# A stable, machine-readable explanation of whether the scanner can establish
+# readiness against the immutable universe authority.  This is deliberately
+# independent of ``ok``: outside market hours the established coverage policy
+# remains permissive even when the latest scan is stale or incomplete.
+READINESS_DURABLE_AUTHORITY_UNAVAILABLE = "durable_authority_unavailable"
+READINESS_SCAN_METADATA_UNAVAILABLE = "scan_metadata_unavailable"
+READINESS_NO_CURRENT_VERSION_SCAN = "no_current_version_scan"
+READINESS_STALE_OR_DIFFERENT_PINNED_REVISION = (
+    "stale_or_different_pinned_revision"
+)
+READINESS_INCOMPLETE_CURRENT_SCAN = "incomplete_current_scan"
+READINESS_HEALTHY_CURRENT_SCAN = "healthy_current_scan"
+
 
 def _parse_ts(value: Any) -> Optional[datetime]:
     """Parse an ISO timestamp (naive values assumed UTC). None on failure."""
@@ -77,6 +90,7 @@ def coverage_probe() -> Dict[str, Any]:
     except Exception as exc:
         result.update({"success": False, "ok": False, "in_session": False,
                        "market_state": "UNKNOWN",
+                       "readiness_state": "market_state_unavailable",
                        "warning": f"Market state unavailable: {exc}"})
         return result
 
@@ -101,6 +115,7 @@ def coverage_probe() -> Dict[str, Any]:
             "success": False,
             "ok": not in_session,
             "coverage": None,
+            "readiness_state": READINESS_DURABLE_AUTHORITY_UNAVAILABLE,
             "warning": (
                 f"Active universe unavailable: {exc}"
                 if in_session else None
@@ -112,7 +127,8 @@ def coverage_probe() -> Dict[str, Any]:
         import scan_state_store
         meta = scan_state_store.load_latest_meta()
     except Exception as exc:
-        result.update({"ok": not in_session, "coverage": None,
+        result.update({"success": False, "ok": not in_session, "coverage": None,
+                       "readiness_state": READINESS_SCAN_METADATA_UNAVAILABLE,
                        "warning": (f"Scan metadata unavailable: {exc}"
                                    if in_session else None)})
         return result
@@ -121,6 +137,7 @@ def coverage_probe() -> Dict[str, Any]:
         result.update({
             "ok": not in_session,
             "coverage": None,
+            "readiness_state": READINESS_NO_CURRENT_VERSION_SCAN,
             "warning": ("No completed scan found during market hours — "
                         "scanner may not be running") if in_session else None,
         })
@@ -147,6 +164,7 @@ def coverage_probe() -> Dict[str, Any]:
         result.update({
             "success": False,
             "ok": not in_session,
+            "readiness_state": READINESS_STALE_OR_DIFFERENT_PINNED_REVISION,
             "warning": "Latest scan was produced by a different pinned universe version",
             "universe_mismatch": True,
         })
@@ -160,6 +178,13 @@ def coverage_probe() -> Dict[str, Any]:
     if not in_session:
         result["ok"] = True
         result["warning"] = None
+        result["readiness_state"] = (
+            READINESS_INCOMPLETE_CURRENT_SCAN
+            if low else (
+                READINESS_HEALTHY_CURRENT_SCAN
+                if scan_fresh else READINESS_STALE_OR_DIFFERENT_PINNED_REVISION
+            )
+        )
         if low:
             result["note"] = (
                 f"Coverage {received}/{expected_count} outside market "
@@ -170,6 +195,7 @@ def coverage_probe() -> Dict[str, Any]:
     # In session: recovery must be CONFIRMED by a scan from today's session.
     if not scan_fresh:
         result["ok"] = False
+        result["readiness_state"] = READINESS_STALE_OR_DIFFERENT_PINNED_REVISION
         age = f" (last scan: {meta.get('completed_at') or meta.get('snapshot_ts') or 'unknown'})"
         result["warning"] = (
             f"No scan completed in today's session{age} — coverage "
@@ -180,6 +206,7 @@ def coverage_probe() -> Dict[str, Any]:
 
     if low:
         result["ok"] = False
+        result["readiness_state"] = READINESS_INCOMPLETE_CURRENT_SCAN
         miss = f" (missing: {', '.join(missing)})" if missing else ""
         # On Monday (first session after a weekend/holiday) the missing symbols
         # may be a lingering weekend data gap.  On any other weekday they are
@@ -197,4 +224,5 @@ def coverage_probe() -> Dict[str, Any]:
 
     result["ok"] = True
     result["warning"] = None
+    result["readiness_state"] = READINESS_HEALTHY_CURRENT_SCAN
     return result
