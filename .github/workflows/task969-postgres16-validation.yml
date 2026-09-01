@@ -36,11 +36,52 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify exact branch and tree
+      -      - name: Verify exact Task 967 candidate ancestry
+        shell: bash
         run: |
-          echo "HEAD=$(git rev-parse HEAD)"
-          echo "TREE=$(git rev-parse HEAD^{tree})"
-          test "$(git rev-parse HEAD^{tree})" = "c0653b1d0f26a9869bc86d70240cd96a2e54128c"
+          set -euo pipefail
+
+          EXPECTED_TREE="c0653b1d0f26a9869bc86d70240cd96a2e54128c"
+
+          echo "Current validation HEAD: $(git rev-parse HEAD)"
+          echo "Looking for reviewed Task 967 tree: $EXPECTED_TREE"
+
+          CANDIDATE_COMMIT=""
+
+          while read -r commit; do
+            tree="$(git rev-parse "${commit}^{tree}")"
+            if [ "$tree" = "$EXPECTED_TREE" ]; then
+              CANDIDATE_COMMIT="$commit"
+              break
+            fi
+          done < <(git rev-list HEAD)
+
+          if [ -z "$CANDIDATE_COMMIT" ]; then
+            echo "ERROR: reviewed Task 967 tree not found in branch ancestry"
+            exit 1
+          fi
+
+          echo "Task 967 candidate commit: $CANDIDATE_COMMIT"
+          echo "Task 967 candidate tree: $(git rev-parse "${CANDIDATE_COMMIT}^{tree}")"
+
+          test "$(git rev-parse "${CANDIDATE_COMMIT}^{tree}")" = "$EXPECTED_TREE"
+
+          echo "Files added/changed after reviewed Task 967 candidate:"
+          git diff --name-only "$CANDIDATE_COMMIT"..HEAD
+
+          UNEXPECTED="$(
+            git diff --name-only "$CANDIDATE_COMMIT"..HEAD |
+            grep -v -E '^(\.github/workflows/task969-postgres16-validation\.yml|scripts/task969_postgres_validation\.py)$' || true
+          )"
+
+          if [ -n "$UNEXPECTED" ]; then
+            echo "ERROR: unexpected files differ from reviewed Task 967 candidate:"
+            echo "$UNEXPECTED"
+            exit 1
+          fi
+
+          echo "PASS: exact reviewed Task 967 tree is present in ancestry"
+          echo "PASS: only Task 969 validation infrastructure differs from candidate"
 
       - name: Setup Node
         uses: actions/setup-node@v4
