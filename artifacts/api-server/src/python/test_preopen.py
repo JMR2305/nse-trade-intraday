@@ -12,6 +12,7 @@ PAPER TRADING / ADVISORY ONLY.
 import sys
 import os
 import unittest
+import unittest.mock
 from decimal import Decimal
 
 # Ensure the python dir is on the path

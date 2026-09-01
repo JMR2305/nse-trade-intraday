@@ -14,7 +14,8 @@
     "baseline": "node ./scripts/safe-migrate.mjs baseline",
     "backup": "node ./scripts/safe-migrate.mjs backup",
     "verify-backup": "node ./scripts/safe-migrate.mjs verify-backup",
-    "test-safe-migrate": "node ./scripts/test-safe-migrate.mjs"
+    "test-safe-migrate": "node ./scripts/test-safe-migrate.mjs",
+    "test-guard": "node --test ./scripts/test-guard-adversarial.mjs"
   },
   "dependencies": {
     "drizzle-orm": "catalog:",

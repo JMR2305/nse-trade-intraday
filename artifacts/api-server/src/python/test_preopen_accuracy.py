@@ -343,11 +343,12 @@ class TestScheduler0930Phase(unittest.TestCase):
         import preopen_scheduler
         sch = preopen_scheduler.PreOpenScheduler(session_id="test-run-once", test_mode=True)
         with (
+            patch.object(preopen_scheduler, "_is_enabled", return_value=True),
             patch.object(sch, "_phase_08_45_init", return_value=True),
             patch.object(sch, "_phase_08_55_readiness", return_value=True),
             patch.object(sch, "_collect_one", return_value={"success": True}),
-            patch.object(sch, "_phase_09_15_freeze"),
-            patch.object(sch, "_phase_09_20_reconcile"),
+            patch.object(sch, "_phase_09_15_freeze", return_value=True),
+            patch.object(sch, "_phase_09_20_reconcile", return_value=True),
             patch.object(sch, "_phase_09_30_post_open_reconcile") as mock_0930,
         ):
             sch.run_once()

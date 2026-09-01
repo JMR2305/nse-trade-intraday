@@ -1,0 +1,203 @@
+{
+  "comment": "Immutable fingerprints of reviewed additive declarations at ce193ed. Changes require code review. Never regenerated during migration execution.",
+  "statements": [
+    {
+      "source": "0000_initial_baseline.sql",
+      "statement": 1,
+      "sha256": "dad0bf4ff514e1efacb0b99e55e5587747a024da0a2ff74223dec924a9e227ca"
+    },
+    {
+      "source": "0000_initial_baseline.sql",
+      "statement": 2,
+      "sha256": "30a15c8bd1ab0fd75b8a8b45ab886fcef6a29e2e3fb05b8eec94a08a361e040a"
+    },
+    {
+      "source": "0000_initial_baseline.sql",
+      "statement": 3,
+      "sha256": "ccc640cbac0c7a73259295c85e8cf0e552a9fad02031d5dbddc07623568d7e76"
+    },
+    {
+      "source": "0000_initial_baseline.sql",
+      "statement": 4,
+      "sha256": "2b26833c7a06dc7078f34abcb34b6f99af5b03ff658ce4d51b983f9e80a2cbd3"
+    },
+    {
+      "source": "0000_initial_baseline.sql",
+      "statement": 5,
+      "sha256": "dd8263cf970d1e6bd62db2e688969e53d6529f9faf4f9aa53dd7b048d2c7da18"
+    },
+    {
+      "source": "0001_alert_deliveries.sql",
+      "statement": 1,
+      "sha256": "385605d1270b5ac7bddcce0b79cbb4e59f2b000f6e8ce03d330a2f6a054ae156"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 1,
+      "sha256": "2cf6b95b49f036313079f6342f9d3a044c91b7a8ef76a0921f59c297841b3b96"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 2,
+      "sha256": "23410567d04bf6abef0df9d73808dc7ba673ae4d0635618b3fcba3818540d51c"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 3,
+      "sha256": "d685611266973d8e5bffc6ce044162c435a20d806e1e79decc2d15ce3d493154"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 4,
+      "sha256": "c00616e8f58b6a3628c16b44a3b297aa58a2829c898b3760d50329a66148f1ee"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 5,
+      "sha256": "86cc0eaac80a1f94d41dbc0394ee4cc2bc42da62009fb4693eeb9c4f621e741f"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 6,
+      "sha256": "beadf72019aae8ba5204bf52f6719ae984d62d0cbd9e88a0ff888470d03ebeed"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 7,
+      "sha256": "e55079605f3fa9bdc559f5b708c504cfa58b36da207774f46ea95ce3590931a4"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 8,
+      "sha256": "200fae443c28f58cae39e754795adc1eb48c194002a79a59c6c964207215f8a8"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 9,
+      "sha256": "818da87c7883510108e2df029c00378085a758c47dd14e4d73fde46b9b3ff4c7"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 10,
+      "sha256": "e7963f2a1634057211b2ece60064d50eb9486c1b879ad07feddec71746f5a4a0"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 11,
+      "sha256": "6ea3ae376e6a7cc8e2878c7df281f33c6c76119ce4248b7393a65f0e593c5a91"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 12,
+      "sha256": "314808ef536981061bad9dcc1bdb7ae8524c36a1d4292eb4987c0ccb9d871ce1"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 13,
+      "sha256": "e8899f70e7cdaa61e39b240cf46037f373f2eec50a0bedb43d6b8ae5766e4bf7"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 14,
+      "sha256": "ca76fe185dc9e4a43f6959f5b63bfad96416ac5debed04536120ec831cf918f0"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 15,
+      "sha256": "4e78bd976ef7aa8c94d7e4e47cc9b36842c960551eb6b8d2e7a197e2fbad493a"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 15,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "e74213215956204b689ef28bf4940305fa095f85472ffa4c3a0145ac107ae324"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 15,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "493d265f82047794152a6640c668c5f3a8d343a5244101f89f6011c595421813"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 15,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "a9f9eda7d7e7ede8b677c7d716a756c044c62518818fb3267758faa7b866c3f0"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 16,
+      "sha256": "a142dc9bc53f9c0b56d1339ac5d24d8f44b964015153a5a01d2bd4046ecb1374"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 16,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "3733898a879c69cf4a7e51621f30f30fb88af69e47d0056328e33fb8a0bca70b"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 16,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "3fd838c1b97476d2a7f7d7985a4e85c7b3af282bb1caad9d4a4f40d5640f2d2f"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 16,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "894b9fc686a9cf0d152b5a249cb1504198ec2d85e85de556e0b7464095a31339"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 16,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "c30f153f08c27cc680ad84c9badf62c55087baf8cdc53162ed0fd4b82c9b9b02"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 16,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "714408a64a0a9aa2f0c550ea4f43a700c4509b11c74176d2896340025ab2f471"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 17,
+      "sha256": "59353bf027ae35dc63b7574089aa6b96471e635bc2e456938084d5cb0cbf3846"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 17,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "ef82a09f957b54fb2d082f1ca9a4744c343a568a54108d53abe2d8bbcab94976"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 17,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "c1938f4769dde73c858da2e1af38dcabfd6104d708be6fa72c46c51a6bf150a5"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 17,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "939cbb4aecb1249d2a8d60bd05869522ac4110d7145fe1c43035df5eb69c02b5"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 18,
+      "sha256": "a760a14fcde3f1e8626910fb98b3a7918bf9d446727079de28b2a4ea9d6f4c8f"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 18,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "43f5cc8352f516ad9be02a89e8c00fa69442d8dcfa1b9b6ac66730d80d555dd0"
+    },
+    {
+      "source": "0002_universe_authority_schema_parity.sql",
+      "statement": 18,
+      "description": "Exact reviewed function/trigger declaration",
+      "sha256": "ac814c9119e4a59787118078a1401151302fcd9b5e0e92d7ae74836d5db27ca9"
+    }
+  ]
+}

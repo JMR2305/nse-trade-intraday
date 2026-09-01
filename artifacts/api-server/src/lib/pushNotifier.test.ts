@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { alertDeliveriesTable, db, pool, pushSubscriptionsTable, signalsCacheTable } from "@workspace/db";
-import { eq, like } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import {
   dispatchSignalPushNotifications,
   dispatchHealthAlertPushNotifications,
@@ -11,8 +11,24 @@ import {
 } from "./pushNotifier";
 import { ensureAlertDeliveriesTable } from "./alertQueue";
 
+// This suite must never borrow a developer or production DATABASE_URL.
+vi.mock("@workspace/db", async () => {
+  const raw = process.env.TASK967_TEST_DATABASE_URL;
+  if (!raw) throw new Error("Disposable PostgreSQL required: set TASK967_TEST_DATABASE_URL");
+  const url = new URL(raw);
+  if (!["postgres:", "postgresql:"].includes(url.protocol) || url.search || url.hash ||
+      !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) ||
+      !/^\/task967_disposable(?:_[a-z0-9_]+)?$/.test(url.pathname)) {
+    throw new Error("Only an explicitly named local task967_disposable database is accepted");
+  }
+  const [{ default: pg }, { drizzle }, schema] = await Promise.all([
+    import("pg"), import("drizzle-orm/node-postgres"), import("@workspace/db/schema"),
+  ]);
+  const isolatedPool = new pg.Pool({ connectionString: raw, max: 1 });
+  return { ...schema, pool: isolatedPool, db: drizzle(isolatedPool, { schema }) };
+});
+
 const TEST_TOKEN_PREFIX = "ExponentPushToken[vitest-push-";
-const TEST_TOKEN_LIKE = "ExponentPushToken[vitest-push-%";
 const SIGNALS_KEY = "signals";
 
 function testToken(n: number): string {
@@ -39,16 +55,6 @@ function mockFetchOk(): FetchMock {
   vi.stubGlobal("fetch", mock);
   return mock;
 }
-
-interface BackedUpSub {
-  token: string;
-  minConfidence: number;
-  enabled: boolean;
-  lastNotifiedKey: string | null;
-}
-
-let originalSubs: BackedUpSub[] = [];
-let originalSignalsRow: { payload: unknown; updatedAt: Date | null } | null = null;
 
 async function setSignalsSnapshot(payload: unknown, updatedAt: Date): Promise<void> {
   await db
@@ -81,57 +87,35 @@ async function getSub(token: string) {
   return row;
 }
 
-async function clearTestState(): Promise<void> {
-  // Remove every subscription so tests fully control who gets notified,
-  // and clear queued deliveries for test tokens (Priority 4 durable queue).
-  await db.delete(pushSubscriptionsTable);
-  await db
-    .delete(alertDeliveriesTable)
-    .where(like(alertDeliveriesTable.destination, TEST_TOKEN_LIKE));
-}
+let templateSchema: string;
+let schemaSequence = 0;
+const suiteId = `task967_push_${process.pid}_${Date.now()}`;
 
 beforeAll(async () => {
+  templateSchema = `${suiteId}_template`;
+  await pool.query(`CREATE SCHEMA "${templateSchema}"`);
+  await pool.query(`SET search_path TO "${templateSchema}"`);
   await ensurePushSubscriptionsTable();
   await ensureAlertDeliveriesTable();
-  // Back up real dev data so tests leave the database untouched.
-  originalSubs = (await db.select().from(pushSubscriptionsTable)).map((s) => ({
-    token: s.token,
-    minConfidence: s.minConfidence,
-    enabled: s.enabled,
-    lastNotifiedKey: s.lastNotifiedKey,
-  }));
-  const [row] = await db
-    .select()
-    .from(signalsCacheTable)
-    .where(eq(signalsCacheTable.key, SIGNALS_KEY));
-  originalSignalsRow = row ? { payload: row.payload, updatedAt: row.updatedAt } : null;
+  await pool.query(`CREATE TABLE signals_cache (
+    key text PRIMARY KEY, payload jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now()
+  )`);
 });
 
 beforeEach(async () => {
-  await clearTestState();
+  // New empty schema per test: no DELETE/TRUNCATE cleanup or shared dev data.
+  const schema = `${suiteId}_${++schemaSequence}`;
+  await pool.query(`CREATE SCHEMA "${schema}"`);
+  for (const table of ["push_subscriptions", "alert_deliveries", "signals_cache"]) {
+    await pool.query(`CREATE TABLE "${schema}"."${table}"
+      (LIKE "${templateSchema}"."${table}" INCLUDING ALL)`);
+  }
+  await pool.query(`SET search_path TO "${schema}"`);
 });
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
-
-afterAll(async () => {
-  // Restore original state.
-  await db.delete(pushSubscriptionsTable);
-  await db.delete(pushSubscriptionsTable).where(like(pushSubscriptionsTable.token, TEST_TOKEN_LIKE));
-  for (const s of originalSubs) {
-    await db.insert(pushSubscriptionsTable).values(s);
-  }
-  if (originalSignalsRow) {
-    await setSignalsSnapshot(
-      originalSignalsRow.payload,
-      originalSignalsRow.updatedAt ?? new Date(),
-    );
-  } else {
-    await db.delete(signalsCacheTable).where(eq(signalsCacheTable.key, SIGNALS_KEY));
-  }
-  await pool.end();
-});
+afterEach(() => { vi.unstubAllGlobals(); });
+afterAll(async () => { await pool.end(); });
 
 describe("dispatchSignalPushNotifications", () => {
   it("does nothing when there are no enabled subscriptions", async () => {

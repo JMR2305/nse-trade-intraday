@@ -25,11 +25,20 @@ from unittest.mock import patch
 
 import phase20_store as store
 from phase20_store import DEFAULT_SETTINGS
+from universe_version_store import exact_set_hash
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 # ── Shared gate-evaluation harness (same pattern as test_phase20.TestGates) ──
+
+def _universe_context():
+    return {
+        "natural_session": "2026-08-31", "universe_key": "TEST_ONLY",
+        "universe_id": 1, "version": 1,
+        "exact_set_hash": exact_set_hash(["TCS"]), "symbol_count": 1,
+    }
+
 
 def _ctx(**overrides):
     sym = {
@@ -40,6 +49,7 @@ def _ctx(**overrides):
         "all_gates_passed": True, "strategy_id": "s1",
         "strategy_name": "Trend", "regime": "Bullish", "error": None,
         "expected_holding_days": 5,
+        "universe_context": _universe_context(),
     }
     sym.update(overrides.pop("symbol_overrides", {}))
     ctx = {"available": True, "scan_id": "abc123", "snapshot_ts": "t",
@@ -65,7 +75,8 @@ def _evaluate(ctx=None, market_state="OPEN", provider="Zerodha Kite Connect",
          patch("phase15_scan_context.build_scan_context", return_value=ctx), \
          patch("market_hours.market_status", return_value={"state": market_state}), \
          patch("scan_state_store.load_latest_meta",
-               return_value={"scan_id": ctx.get("scan_id"), "provider": provider}), \
+               return_value={"scan_id": ctx.get("scan_id"), "provider": provider,
+                             "universe_context": _universe_context()}), \
          patch("scan_state_store.load_latest_snapshot",
                return_value={"scan_id": ctx.get("scan_id"),
                              "safety": {"kite_connected": True,
@@ -724,6 +735,7 @@ class TestEndToEndPaperFlow(unittest.TestCase):
                         [g for g in ev["global_gates"] if not g["passed"]])
         self.assertEqual(ev["eligible_count"], 1)
         cand = ev["candidates"][0]
+        self.assertEqual(cand["universe_context"], _universe_context())
         self.assertTrue(cand["eligible"])
         self.assertEqual(cand["failed_gates"], [])
         qty = int(cand["sizing"]["quantity"])
@@ -762,6 +774,7 @@ class TestEndToEndPaperFlow(unittest.TestCase):
                                             trigger_source="TEST")
             self.assertTrue(created["created"], created)
             trade_id = created["trade_id"]
+            self.assertEqual(ledger_rows[trade_id]["evidence"]["universe"], _universe_context())
             self.assertEqual(created["symbol"], "TCS")
             self.assertEqual(len(buys), 1)          # position opened
             self.assertEqual(buys[0][0], "TCS")
