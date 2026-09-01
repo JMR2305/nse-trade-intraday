@@ -97,10 +97,7 @@ jobs:
         run: corepack enable
 
       - name: Install Node dependencies
-        run: |
-          pnpm config set dangerouslyAllowAllBuilds false
-          pnpm config set onlyBuiltDependencies "esbuild,sharp"
-          pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Install Python test dependencies
         run: |
