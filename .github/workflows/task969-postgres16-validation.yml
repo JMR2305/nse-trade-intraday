@@ -36,7 +36,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      -      - name: Verify exact Task 967 candidate ancestry
+      - name: Verify exact Task 967 candidate ancestry
         shell: bash
         run: |
           set -euo pipefail
