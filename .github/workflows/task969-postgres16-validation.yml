@@ -1,0 +1,134 @@
+name: Task 969 PostgreSQL 16 Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - task967-migration-guard-hardening
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: task967
+          POSTGRES_PASSWORD: task967
+          POSTGRES_DB: task967_disposable_task968
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U task967 -d task967_disposable_task968"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    env:
+      DATABASE_URL: postgresql://task967:task967@localhost:5432/task967_disposable_task968
+      TASK967_TEST_DATABASE_URL: postgresql://task967:task967@localhost:5432/task967_disposable_task968
+      NODE_ENV: test
+
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact branch and tree
+        run: |
+          echo "HEAD=$(git rev-parse HEAD)"
+          echo "TREE=$(git rev-parse HEAD^{tree})"
+          test "$(git rev-parse HEAD^{tree})" = "c0653b1d0f26a9869bc86d70240cd96a2e54128c"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Python test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pytest pytest-asyncio psycopg[binary]
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in {1..30}; do
+            pg_isready -h localhost -p 5432 -U task967 -d task967_disposable_task968 && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Migration guard adversarial suite
+        run: |
+          node --test lib/db/scripts/test-guard-adversarial.mjs
+
+      - name: Migration offline safety classification
+        run: |
+          node lib/db/scripts/safe-migrate.mjs check \
+            lib/db/migrations/0002_universe_authority_schema_parity.sql
+
+      - name: Native PostgreSQL validation
+        run: |
+          if [ -f scripts/task969_postgres_validation.py ]; then
+            python scripts/task969_postgres_validation.py
+          else
+            echo "Missing scripts/task969_postgres_validation.py"
+            exit 1
+          fi
+
+      - name: Full API suite
+        run: |
+          pnpm --filter @workspace/api-server exec vitest run --no-file-parallelism
+
+      - name: Relevant Python suites
+        run: |
+          python -m pytest \
+            artifacts/api-server/src/python \
+            -q
+
+      - name: Dashboard suite
+        run: |
+          pnpm --filter @workspace/trading-dashboard exec vitest run
+
+      - name: TypeScript
+        run: |
+          pnpm run typecheck
+
+      - name: Python compilation
+        run: |
+          python -m compileall artifacts/api-server/src/python
+
+      - name: API build
+        run: |
+          pnpm --filter @workspace/api-server run build
+
+      - name: Dashboard build
+        run: |
+          env -u REPL_ID PORT=9999 BASE_PATH=/trading-dashboard/ \
+            pnpm --filter @workspace/trading-dashboard run build
+
+      - name: Upload Task 969 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: task969-postgres-validation-evidence
+          path: |
+            TASK_969_*.md
+            TASK_969_*.json
+            TASK_969_*.csv
+            task969-*.log
+          if-no-files-found: ignore
