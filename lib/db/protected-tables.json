@@ -25,11 +25,19 @@
     "preopen_factor_metrics",
     "preopen_daily_reports",
     "push_subscriptions",
+    "runtime_universe_session_pins",
     "scan_lock",
     "scan_state",
     "session_archives",
     "signal_snapshots",
-    "signals_cache"
+    "signals_cache",
+    "trading_universe_audit_events",
+    "trading_universe_baseline_migrations",
+    "trading_universe_member_details",
+    "trading_universe_members",
+    "trading_universe_sources",
+    "trading_universe_validations",
+    "trading_universes"
   ],
   "drizzleManaged": [
     "alert_deliveries",

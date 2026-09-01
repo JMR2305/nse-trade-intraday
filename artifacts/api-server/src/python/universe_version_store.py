@@ -197,7 +197,7 @@ def _ensure_schema(conn: Any) -> None:
                 notes TEXT,
                 correlation_id TEXT,
                 approval_state TEXT,
-                UNIQUE (correlation_id, action)
+                UNIQUE (action, correlation_id)
             )
             """
         )
