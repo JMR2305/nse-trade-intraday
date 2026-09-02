@@ -19,6 +19,7 @@ import sys
 import tempfile
 import time
 import unittest
+import pytest
 from unittest.mock import MagicMock, patch
 
 # ── Path bootstrap ────────────────────────────────────────────────────────────
@@ -26,6 +27,20 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _PYTHON_ROOT = os.path.dirname(_HERE)
 if _PYTHON_ROOT not in sys.path:
     sys.path.insert(0, _PYTHON_ROOT)
+
+
+@pytest.fixture(autouse=True)
+def _real_package_per_test():
+    """Reload cache helpers from real files, independent of earlier stubs."""
+    saved = dict(sys.modules)
+    try:
+        for name in list(sys.modules):
+            if name == "research_lab" or name.startswith("research_lab."):
+                sys.modules.pop(name, None)
+        yield
+    finally:
+        sys.modules.clear()
+        sys.modules.update(saved)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

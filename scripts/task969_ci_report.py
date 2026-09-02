@@ -140,6 +140,14 @@ TASK974_TEST_BLOBS = {
         "ce45f9fa77d477d9f98a3f21b4501a419636045b",
         "1aaca25606bf181e8c7df09ee359d741149c1999"
     ],
+    "artifacts/api-server/src/python/market_intelligence_hub/test_market_intelligence_hub.py": [
+        "e66f393adbb186b27c00bd5764283ae1cd2bb0fb",
+        "e167717c70b661f7af4f6f3ba8544d151d3a258c"
+    ],
+    "artifacts/api-server/src/python/research_lab/test_research_lab.py": [
+        "bc60544b3950ea1c0cbc60a452f9ab842e43636f",
+        "fa4384d8b5c2e602bba572053398e489a22e5cc7"
+    ],
     "artifacts/api-server/src/python/tests/test_balanced_decision.py": [
         "18fecde4d15d78c58905e7986d5b930aa2989b15",
         "9947f530ea6763c765a8950bbca9f3536d200fa8"
