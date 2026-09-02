@@ -88,6 +88,9 @@ async function getSub(token: string) {
 let templateSchema: string;
 let schemaSequence = 0;
 const suiteId = `task967_push_${process.pid}_${Date.now()}`;
+const queueDiagnostics: unknown[] = [];
+const originalQuery = pool.query.bind(pool);
+let queryObserver: ReturnType<typeof vi.spyOn> | undefined;
 
 beforeAll(async () => {
   // Keep SET search_path and all ORM queries on one session, as before.
@@ -113,9 +116,37 @@ beforeEach(async () => {
       (LIKE "${templateSchema}"."${table}" INCLUDING ALL)`);
   }
   await pool.query(`SET search_path TO "${schema}"`);
+  queueDiagnostics.length = 0;
+  // Task973 observation only: execute the original predicate unchanged, then
+  // inspect raw PostgreSQL timestamps against its exact serialized cutoff.
+  queryObserver = vi.spyOn(pool, "query").mockImplementation((async (...args: any[]) => {
+    const result = await (originalQuery as any)(...args);
+    const query = typeof args[0] === "string" ? args[0] : args[0]?.text;
+    const values = args[1] ?? args[0]?.values ?? [];
+    if (query?.startsWith("select ") && query.includes('"next_attempt_at" <=') &&
+        query.includes('from "alert_deliveries"')) {
+      const cutoff = values.find((value: unknown) => typeof value === "string" && /^\d{4}-\d\d-\d\dT/.test(value));
+      const snapshot = await originalQuery(`SELECT id, status, attempts, destination,
+        next_attempt_at::text, created_at::text, expires_at::text,
+        next_attempt_at <= $1::timestamptz AS due_at_cutoff,
+        extract(epoch FROM (next_attempt_at - $1::timestamptz)) * 1000000 AS delta_us,
+        current_schema(), current_setting('TimeZone') AS timezone,
+        clock_timestamp()::text AS observed_at
+        FROM alert_deliveries ORDER BY created_at, id`, [cutoff]);
+      queueDiagnostics.push({ query, values, selected: result.rows, rows: snapshot.rows });
+    }
+    return result;
+  }) as typeof pool.query);
 });
 
-afterEach(() => { vi.unstubAllGlobals(); });
+afterEach((context) => {
+  queryObserver?.mockRestore();
+  console.log("TASK973_QUEUE_EVIDENCE", JSON.stringify({
+    test: context.task.name, state: context.task.result?.state,
+    errors: context.task.result?.errors, queries: queueDiagnostics,
+  }));
+  vi.unstubAllGlobals();
+});
 afterAll(async () => { await pool.end(); });
 
 describe("dispatchSignalPushNotifications", () => {

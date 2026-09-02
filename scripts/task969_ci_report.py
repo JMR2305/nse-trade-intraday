@@ -28,12 +28,12 @@ SOURCE_CORRECTIONS = {
         '200fae443c28f58cae39e754795adc1eb48c194002a79a59c6c964207215f8a8',
         'b5cdba323db2ebbd425ed525142276a8f4ae6f6ec172d28e1a127680ae5bd6b9'),
 }
-# Task972 changes only this integration-test setup. Pin both complete blobs;
+# Task972/973 change only this integration-test setup and observation. Pin both complete blobs;
 # do not permit arbitrary edits to the test or any additional source files.
 TASK972_TEST_PATH = 'artifacts/api-server/src/lib/pushNotifier.test.ts'
 TASK972_TEST_BLOBS = (
     '86b3bed734c1da10ea64ceb1cc209db9b324c304',
-    'b62437671d184feb803d6d7e6abac17ca5cdc790',
+    '65607b4d3958d5d0b86ca3ddcc7e2ff77e59fa6d',
 )
 
 
