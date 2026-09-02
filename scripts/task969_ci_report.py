@@ -19,6 +19,7 @@ ALLOWED = {
     'TASK_973_QUEUE_DIAGNOSTICS.json',
     'TASK_973_ROOT_CAUSE.md',
     'scripts/task973_prepare_python_db.py',
+    'scripts/task974_collection_diagnostics.py',
 }
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.

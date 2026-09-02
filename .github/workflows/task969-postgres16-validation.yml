@@ -107,6 +107,8 @@ jobs:
         run: |
           set -o pipefail
           ../../../../.venv/bin/python -m pytest tests/integration -q 2>&1 | tee ../../../../task969-python-native.log
+      - name: Task974 clean-interpreter collection diagnostics
+        run: .venv/bin/python scripts/task974_collection_diagnostics.py
       - name: Python application and authority/session suites
         if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python_fixture.outcome == 'success' }}
         id: python
@@ -151,4 +153,5 @@ jobs:
             task969-*.log
             TASK_973_*.json
             TASK_973_*.md
+            task974-diagnostics/
           if-no-files-found: error
