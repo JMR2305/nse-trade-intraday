@@ -34,3 +34,13 @@ The consecutive-block test installs partial market_hours, paper_trader and phase
 Phase22_final's isolated collection additionally executes a runtime-universe bootstrap as a side effect of a busy-lock test. The Task974 test supplies an explicit authority context for that lock-only check and fails on attempted scan; catalog/native authority validation is unchanged.
 
 No historical report has been rewritten. This is failed diagnostic evidence, not certification.
+
+## Newly exposed failures (run 33640990363)
+
+The focused producers/restoration regressions passed 151 tests in 4.64 seconds. The unchanged broad command then reached two new errors and a fatal import-time SystemExit:
+
+- test_phase16.py: ValueError converting MagicMock INITIAL_CAPITAL to Excel.
+- test_phase17.py: TypeError comparing a MagicMock drift with float.
+- test_phase18.py: SystemExit(0) after 26 successful checks, aborting pytest collection.
+
+The observer identifies test_event_intelligence.py as the first config MagicMock installer. test_macro_intelligence.py repeats that installer, while test_explainable_ai.py installs or mutates config/signals modules during collection. test_research_lab.py overwrites signals_store and several real package names with MagicMock objects; this was also observed in the original module-state trace. These test-only installers are now scoped with per-test restoration, including feature flags. Phase18 checks are moved into a test function and their failure count remains an assertion. No passing assertion was removed.

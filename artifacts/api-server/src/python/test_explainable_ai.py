@@ -4,6 +4,7 @@ test_explainable_ai.py — Phase 7.4 test suite (75+ tests, all mocked)
 import sys
 import types
 import unittest
+import pytest
 from unittest.mock import MagicMock, patch
 
 # ── Stub all upstream modules BEFORE any explainable_ai import ────────────────
@@ -101,8 +102,8 @@ def _make_stub(name: str) -> types.ModuleType:
     return mod
 
 
-def _setup_stubs():
-    """Install stub modules so explainable_ai imports don't fail."""
+def _stub_modules():
+    """Construct fresh test-local dependencies without modifying module state."""
     stubs = [
         "signals_store", "signals_cache",
         "market_intelligence_hub", "market_intelligence_hub.shared_services",
@@ -111,36 +112,39 @@ def _setup_stubs():
         "risk_optimisation", "risk_optimisation.shared_services",
         "config",
     ]
-    for name in stubs:
-        sys.modules.setdefault(name, _make_stub(name))
+    modules = {name: _make_stub(name) for name in stubs}
 
     # Patch load_signals
-    ss = sys.modules["signals_store"]
+    ss = modules["signals_store"]
     ss.load_signals = MagicMock(return_value=[_SAMPLE_SIGNAL, _SAMPLE_SIGNAL_SELL])
     ss.load_signal_snapshots = MagicMock(return_value=[_SAMPLE_SIGNAL])
 
     # Patch snapshot functions
-    mih_ss = sys.modules["market_intelligence_hub.shared_services"]
+    mih_ss = modules["market_intelligence_hub.shared_services"]
     mih_ss.get_market_intelligence_snapshot = MagicMock(return_value=_MARKET_SNAP)
 
-    ei_ss = sys.modules["event_intelligence.shared_services"]
+    ei_ss = modules["event_intelligence.shared_services"]
     ei_ss.get_event_intelligence_snapshot = MagicMock(return_value=_EVENT_SNAP)
 
-    mac_ss = sys.modules["macro_intelligence.shared_services"]
+    mac_ss = modules["macro_intelligence.shared_services"]
     mac_ss.get_macro_intelligence_snapshot = MagicMock(return_value=_MACRO_SNAP)
 
-    ro_ss = sys.modules["risk_optimisation.shared_services"]
+    ro_ss = modules["risk_optimisation.shared_services"]
     ro_ss.get_risk_optimisation_snapshot = MagicMock(return_value=_RISK_SNAP)
 
-    cfg = sys.modules["config"]
+    cfg = modules["config"]
     cfg.DEFAULT_WATCHLIST = ["RELIANCE", "TCS"]
 
+    return modules
 
-_setup_stubs()
+
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    with patch.dict(sys.modules, _stub_modules()), patch.dict(os.environ, {"EXPLAINABLE_AI_ENABLED": "true"}):
+        yield
 
 # ── Now import the module under test ─────────────────────────────────────────
 import os
-os.environ["EXPLAINABLE_AI_ENABLED"] = "true"
 
 from explainable_ai.models import (
     is_enabled, disabled_response, explainability_grade, confidence_tier,

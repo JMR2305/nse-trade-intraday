@@ -12,6 +12,10 @@ import pytest
     "test_analytics_30plus_integration",
     "ai_performance.test_ai_performance",
     "strategy_intelligence.test_strategy_intelligence",
+    "test_event_intelligence",
+    "test_macro_intelligence",
+    "test_explainable_ai",
+    "test_research_lab",
 ])
 def test_dependency_stubs_restore_and_consumers_import(producer):
     # A fresh interpreter makes the regression independent of the outer suite's
@@ -31,15 +35,25 @@ for iteration in range(2):
         if "market_scanner" in names:
             assert sys.modules["market_scanner"]._sector_of("INFY") == "IT"
             assert sys.modules["execution_quality.metrics"].build_execution_records() == []
-        else:
+        elif "phase20_executor" in names:
             assert sys.modules["market_hours"].market_status() == {"state": "OPEN"}
             assert sys.modules["phase20_executor"].get_ledger() == []
+        elif "config" in names:
+            assert "RELIANCE" in sys.modules["config"].DEFAULT_WATCHLIST
+        else:
+            assert sys.modules["signals_store"].load_signals()[0]["symbol"] == "RELIANCE"
     finally:
         fixture.close()
     assert all(sys.modules.get(name, missing) is previous for name, previous in before.items())
-    consumers = ({"market_scanner": "_final_action"} if "market_scanner" in names
-                 else {"market_hours": "market_state", "paper_trader": "get_trades",
-                       "phase20_executor": "compute_fill"})
+    if "market_scanner" in names:
+        consumers = {"market_scanner": "_final_action"}
+    elif "phase20_executor" in names:
+        consumers = {"market_hours": "market_state", "paper_trader": "get_trades",
+                     "phase20_executor": "compute_fill"}
+    else:
+        config = importlib.import_module("config")
+        assert isinstance(config.INITIAL_CAPITAL, (int, float))
+        consumers = {"paper_trader": "get_trades"}
     for name, attribute in consumers.items():
         module = importlib.import_module(name)
         assert module.__file__, name

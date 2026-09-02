@@ -24,12 +24,12 @@ import os
 import sys
 import json
 import unittest
+import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 
 # ── Path setup ────────────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.environ["MACRO_INTELLIGENCE_ENABLED"] = "true"
 
 # ── Stub external dependencies before any macro_intelligence import ───────────
 
@@ -42,7 +42,6 @@ _signals_mock.get_latest_signals.return_value = [
     {"symbol": "HDFCBANK",   "opportunity_score": 55.0, "confidence": 70.0,
      "recommendation": "HOLD", "sector": "Banking",  "volume_ratio": 1.1, "rsi_14": 50.0},
 ]
-sys.modules.setdefault("signals_cache", _signals_mock)
 
 _yf_ticker_mock = MagicMock()
 _yf_ticker_mock.fast_info.last_price    = 84.50
@@ -53,7 +52,6 @@ _yf_ticker_mock.history.return_value    = MagicMock(
 )
 _yf_mock = MagicMock()
 _yf_mock.Ticker.return_value = _yf_ticker_mock
-sys.modules.setdefault("yfinance", _yf_mock)
 
 _mi_ss_mock = MagicMock()
 _mi_ss_mock.get_summary.return_value = {
@@ -62,12 +60,24 @@ _mi_ss_mock.get_summary.return_value = {
     "vix_value":         18.5,
     "breadth": {"advance_decline_ratio": 1.6},
 }
-sys.modules.setdefault("market_intelligence_hub", MagicMock())
-sys.modules.setdefault("market_intelligence_hub.shared_services", _mi_ss_mock)
 
 _config_mock = MagicMock()
 _config_mock.DEFAULT_WATCHLIST = ["RELIANCE","TCS","INFY","HDFCBANK","ICICIBANK"]
-sys.modules.setdefault("config", _config_mock)
+
+
+
+def _stub_modules():
+    return {"signals_cache": _signals_mock,
+            "yfinance": _yf_mock,
+            "market_intelligence_hub": MagicMock(),
+            "market_intelligence_hub.shared_services": _mi_ss_mock,
+            "config": _config_mock}
+
+
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    with patch.dict(sys.modules, _stub_modules()), patch.dict(os.environ, {"MACRO_INTELLIGENCE_ENABLED": "true"}):
+        yield
 
 
 # ── Helper: MacroEvent fixture ────────────────────────────────────────────────

@@ -78,7 +78,27 @@ TASK974_TEST_BLOBS = {
     ],
     "artifacts/api-server/src/python/test_task974_import_isolation.py": [
         None,
-        "6ecd12ea134528d141ac4edc36c815cd3a15536f"
+        "dd4cb17e43f64d1989f7ffe9298ba70179a8f78b"
+    ],
+    "artifacts/api-server/src/python/test_event_intelligence.py": [
+        "6fade4c4962c5de7c80a62b18d76814197609466",
+        "cf85aff5ccbca5b7f8b95470cff2e6e1bc7e26ca"
+    ],
+    "artifacts/api-server/src/python/test_macro_intelligence.py": [
+        "6162ee5823b98570a3ee289c6ca9add8cd83ff05",
+        "98b3e32054986dfce05529b7b763f827ad1a7555"
+    ],
+    "artifacts/api-server/src/python/test_explainable_ai.py": [
+        "632dd0050b55644161c74458bc5390b8fc8bed87",
+        "e3b11ff3920e0eb4fdedb1a4127466725dda1cc1"
+    ],
+    "artifacts/api-server/src/python/test_phase18.py": [
+        "ba75a7e2e160b0444e10f4108ff92fa1915358e9",
+        "7018fafd6e4a7a7cf30657b8c0d9ca4ac2626b13"
+    ],
+    "artifacts/api-server/src/python/test_research_lab.py": [
+        "ab9d05fe923f288fa49ac4249185150f935263d9",
+        "0ff45662c46e8f44d1c90cda63e8253c4034f2bb"
     ]
 }
 

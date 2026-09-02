@@ -6,10 +6,10 @@ READ-ONLY · ADVISORY-ONLY · 100% unit-level with mocked upstreams.
 """
 from __future__ import annotations
 import os, sys, unittest
+import pytest
 from unittest.mock import MagicMock, patch
 
 # ── Enable feature flag ────────────────────────────────────────────────────────
-os.environ["RESEARCH_LAB_ENABLED"] = "true"
 
 # ── Stub all upstream dependencies ────────────────────────────────────────────
 _SIGNALS = [
@@ -78,31 +78,41 @@ _XAI_SNAP = {
     "buy_count": 3, "sell_count": 1, "hold_count": 1,
 }
 
-# Stub signals_store
-sys.modules["signals_store"] = MagicMock()
-sys.modules["signals_store"].load_signals = MagicMock(return_value=_SIGNALS)
-sys.modules["signals_store"].load_signal_snapshots = MagicMock(return_value=_SNAPSHOTS)
+def _stub_modules():
+    modules = {}
+    # Stub signals_store
+    modules["signals_store"] = MagicMock()
+    modules["signals_store"].load_signals = MagicMock(return_value=_SIGNALS)
+    modules["signals_store"].load_signal_snapshots = MagicMock(return_value=_SNAPSHOTS)
 
-# Stub upstream shared_services
-_mss = MagicMock(); _mss.get_market_intelligence_snapshot = MagicMock(return_value=_MARKET_SNAP)
-_mess = MagicMock(); _mess.get_event_intelligence_snapshot = MagicMock(return_value={})
-_macss = MagicMock(); _macss.get_macro_intelligence_snapshot = MagicMock(return_value=_MACRO_SNAP)
-_xaiss = MagicMock(); _xaiss.get_explainable_ai_snapshot = MagicMock(return_value=_XAI_SNAP)
-_ross = MagicMock(); _ross.get_risk_optimisation_snapshot = MagicMock(return_value=_RISK_SNAP)
-_ppss = MagicMock(); _ppss.get_portfolio_performance_snapshot = MagicMock(return_value=_MARKET_SNAP)
+    # Stub upstream shared_services
+    _mss = MagicMock(); _mss.get_market_intelligence_snapshot = MagicMock(return_value=_MARKET_SNAP)
+    _mess = MagicMock(); _mess.get_event_intelligence_snapshot = MagicMock(return_value={})
+    _macss = MagicMock(); _macss.get_macro_intelligence_snapshot = MagicMock(return_value=_MACRO_SNAP)
+    _xaiss = MagicMock(); _xaiss.get_explainable_ai_snapshot = MagicMock(return_value=_XAI_SNAP)
+    _ross = MagicMock(); _ross.get_risk_optimisation_snapshot = MagicMock(return_value=_RISK_SNAP)
+    _ppss = MagicMock(); _ppss.get_portfolio_performance_snapshot = MagicMock(return_value=_MARKET_SNAP)
 
-sys.modules["market_intelligence"] = MagicMock()
-sys.modules["market_intelligence.shared_services"] = _mss
-sys.modules["event_intelligence"] = MagicMock()
-sys.modules["event_intelligence.shared_services"] = _mess
-sys.modules["macro_intelligence"] = MagicMock()
-sys.modules["macro_intelligence.shared_services"] = _macss
-sys.modules["explainable_ai"] = MagicMock()
-sys.modules["explainable_ai.shared_services"] = _xaiss
-sys.modules["risk_optimisation"] = MagicMock()
-sys.modules["risk_optimisation.shared_services"] = _ross
-sys.modules["portfolio_performance"] = MagicMock()
-sys.modules["portfolio_performance.shared_services"] = _ppss
+    modules["market_intelligence"] = MagicMock()
+    modules["market_intelligence.shared_services"] = _mss
+    modules["event_intelligence"] = MagicMock()
+    modules["event_intelligence.shared_services"] = _mess
+    modules["macro_intelligence"] = MagicMock()
+    modules["macro_intelligence.shared_services"] = _macss
+    modules["explainable_ai"] = MagicMock()
+    modules["explainable_ai.shared_services"] = _xaiss
+    modules["risk_optimisation"] = MagicMock()
+    modules["risk_optimisation.shared_services"] = _ross
+    modules["portfolio_performance"] = MagicMock()
+    modules["portfolio_performance.shared_services"] = _ppss
+
+    return modules
+
+
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    with patch.dict(sys.modules, _stub_modules()), patch.dict(os.environ, {"RESEARCH_LAB_ENABLED": "true"}):
+        yield
 
 
 # =============================================================================

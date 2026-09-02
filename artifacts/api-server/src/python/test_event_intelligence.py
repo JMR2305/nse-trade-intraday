@@ -22,17 +22,16 @@ import os
 import sys
 import json
 import unittest
+import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 
 # Ensure the python directory is on the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.environ["EVENT_INTELLIGENCE_ENABLED"] = "true"
 
 # ── Stub external dependencies before any event_intelligence import ───────────
 _signals_cache_mock = MagicMock()
 _signals_cache_mock.get_latest_signals.return_value = []
-sys.modules.setdefault("signals_cache", _signals_cache_mock)
 
 _yf_mock = MagicMock()
 _yf_mock.Ticker.return_value.dividends = MagicMock()
@@ -42,7 +41,6 @@ _yf_mock.Ticker.return_value.splits = MagicMock()
 _yf_mock.Ticker.return_value.splits.__len__ = lambda self: 0
 _yf_mock.Ticker.return_value.splits.to_dict.return_value = {}
 _yf_mock.Ticker.return_value.fast_info = MagicMock()
-sys.modules.setdefault("yfinance", _yf_mock)
 
 _mi_mock = MagicMock()
 _mi_mock.get_summary.return_value = {
@@ -56,13 +54,25 @@ _mi_mock.get_sectors.return_value = {
         {"sector": "Banking", "score": 60.0, "trend": "NEUTRAL"},
     ]
 }
-sys.modules.setdefault("market_intelligence_hub", MagicMock())
-sys.modules.setdefault("market_intelligence_hub.shared_services", _mi_mock)
 
 _config_mock = MagicMock()
 _config_mock.DEFAULT_WATCHLIST = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK",
                                    "SBIN", "WIPRO", "LT", "BAJFINANCE", "MARUTI"]
-sys.modules.setdefault("config", _config_mock)
+
+
+
+def _stub_modules():
+    return {"signals_cache": _signals_cache_mock,
+            "yfinance": _yf_mock,
+            "market_intelligence_hub": MagicMock(),
+            "market_intelligence_hub.shared_services": _mi_mock,
+            "config": _config_mock}
+
+
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    with patch.dict(sys.modules, _stub_modules()), patch.dict(os.environ, {"EVENT_INTELLIGENCE_ENABLED": "true"}):
+        yield
 
 
 # ---------------------------------------------------------------------------
