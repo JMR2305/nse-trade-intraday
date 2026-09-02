@@ -22,6 +22,7 @@ import sys
 import types
 import time
 import unittest
+import pytest
 from typing import Any, Dict, Iterator, List, Optional
 from unittest.mock import MagicMock, patch, call
 
@@ -203,8 +204,24 @@ def _install_base_stubs() -> None:
     p3f.get_logger = MagicMock(return_value=MagicMock())
 
 
-_install_base_stubs()
-import phase20_scheduler as sched  # noqa: E402
+import importlib
+
+sched = None
+
+
+@pytest.fixture(autouse=True)
+def _isolated_scheduler_import():
+    """Bind the scheduler to test stubs without leaking them at collection."""
+    global sched
+    saved = dict(sys.modules)
+    try:
+        _install_base_stubs()
+        sys.modules.pop("phase20_scheduler", None)
+        sched = importlib.import_module("phase20_scheduler")
+        yield
+    finally:
+        sys.modules.clear()
+        sys.modules.update(saved)
 
 
 # ---------------------------------------------------------------------------

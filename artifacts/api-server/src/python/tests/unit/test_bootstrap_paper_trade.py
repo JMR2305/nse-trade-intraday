@@ -80,17 +80,40 @@ def _install_stubs():
     sys.modules.setdefault("canonical_portfolio", cp)
 
 
-_install_stubs()
+run_bootstrap_auto_entry = None
+_BOOTSTRAP_MAX_CLOSED_TRADES = None
+_BOOTSTRAP_MIN_CONF = None
+_BOOTSTRAP_MIN_OPP = None
+_BOOTSTRAP_MIN_RR = None
+_BOOTSTRAP_MAX_ORDER_VALUE = None
 
-# Import module under test after stubs are in place
-from phase20_executor import (  # noqa: E402
-    run_bootstrap_auto_entry,
-    _BOOTSTRAP_MAX_CLOSED_TRADES,
-    _BOOTSTRAP_MIN_CONF,
-    _BOOTSTRAP_MIN_OPP,
-    _BOOTSTRAP_MIN_RR,
-    _BOOTSTRAP_MAX_ORDER_VALUE,
-)
+
+@pytest.fixture(autouse=True)
+def _isolated_executor_import():
+    """Import the SUT under stubs per test and restore the interpreter exactly."""
+    global run_bootstrap_auto_entry
+    global _BOOTSTRAP_MAX_CLOSED_TRADES, _BOOTSTRAP_MIN_CONF, _BOOTSTRAP_MIN_OPP
+    global _BOOTSTRAP_MIN_RR, _BOOTSTRAP_MAX_ORDER_VALUE
+
+    saved = dict(sys.modules)
+    try:
+        for name in (
+            "config", "phase20_store", "scan_state_store", "pipeline_events",
+            "paper_trader", "canonical_portfolio", "phase20_executor",
+        ):
+            sys.modules.pop(name, None)
+        _install_stubs()
+        executor = __import__("phase20_executor")
+        run_bootstrap_auto_entry = executor.run_bootstrap_auto_entry
+        _BOOTSTRAP_MAX_CLOSED_TRADES = executor._BOOTSTRAP_MAX_CLOSED_TRADES
+        _BOOTSTRAP_MIN_CONF = executor._BOOTSTRAP_MIN_CONF
+        _BOOTSTRAP_MIN_OPP = executor._BOOTSTRAP_MIN_OPP
+        _BOOTSTRAP_MIN_RR = executor._BOOTSTRAP_MIN_RR
+        _BOOTSTRAP_MAX_ORDER_VALUE = executor._BOOTSTRAP_MAX_ORDER_VALUE
+        yield
+    finally:
+        sys.modules.clear()
+        sys.modules.update(saved)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

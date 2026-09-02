@@ -25,6 +25,7 @@ import unittest
 import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
+from task974_test_isolation import isolated_imports
 
 # Ensure the python directory is on the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -71,7 +72,11 @@ def _stub_modules():
 
 @pytest.fixture(autouse=True)
 def _isolated_dependencies():
-    with patch.dict(sys.modules, _stub_modules()), patch.dict(os.environ, {"EVENT_INTELLIGENCE_ENABLED": "true"}):
+    with isolated_imports(
+        _stub_modules(),
+        target_packages=("event_intelligence",),
+        environment={"EVENT_INTELLIGENCE_ENABLED": "true"},
+    ):
         yield
 
 

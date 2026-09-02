@@ -8,6 +8,7 @@ from __future__ import annotations
 import os, sys, unittest
 import pytest
 from unittest.mock import MagicMock, patch
+from task974_test_isolation import isolated_imports
 
 # ── Enable feature flag ────────────────────────────────────────────────────────
 
@@ -111,7 +112,11 @@ def _stub_modules():
 
 @pytest.fixture(autouse=True)
 def _isolated_dependencies():
-    with patch.dict(sys.modules, _stub_modules()), patch.dict(os.environ, {"RESEARCH_LAB_ENABLED": "true"}):
+    with isolated_imports(
+        _stub_modules(),
+        target_packages=("research_lab",),
+        environment={"RESEARCH_LAB_ENABLED": "true"},
+    ):
         yield
 
 

@@ -78,23 +78,23 @@ TASK974_TEST_BLOBS = {
     ],
     "artifacts/api-server/src/python/test_task974_import_isolation.py": [
         None,
-        "82b480e3563d172d9586030f75e36f04a55c3093"
+        "e53a75f2144248a359ab04017e718bf9dfa5aa9e"
     ],
     "artifacts/api-server/src/python/test_event_intelligence.py": [
         "6fade4c4962c5de7c80a62b18d76814197609466",
-        "cf85aff5ccbca5b7f8b95470cff2e6e1bc7e26ca"
+        "364c04c9f158abd963230ddfd9a0152eff8dc14e"
     ],
     "artifacts/api-server/src/python/test_macro_intelligence.py": [
         "6162ee5823b98570a3ee289c6ca9add8cd83ff05",
-        "98b3e32054986dfce05529b7b763f827ad1a7555"
+        "de89883f856927658f390a43f953667e74aeed53"
     ],
     "artifacts/api-server/src/python/test_explainable_ai.py": [
         "632dd0050b55644161c74458bc5390b8fc8bed87",
-        "e3b11ff3920e0eb4fdedb1a4127466725dda1cc1"
+        "1671c0af6e8074f66d2171a4fd464e9514385db6"
     ],
     "artifacts/api-server/src/python/test_research_lab.py": [
         "ab9d05fe923f288fa49ac4249185150f935263d9",
-        "0ff45662c46e8f44d1c90cda63e8253c4034f2bb"
+        "94995bc5006cf55b7028a4e8153d4d30ec66f5b9"
     ],
     "artifacts/api-server/src/python/test_phase18.py": [
         "ba75a7e2e160b0444e10f4108ff92fa1915358e9",
@@ -119,6 +119,18 @@ TASK974_TEST_BLOBS = {
     "artifacts/api-server/src/python/tests/unit/test_size_reduced_to_cap.py": [
         "346684a657a352dedc054d85262306cad59a0d51",
         "de683b798236e0c7a3b4cdb6ac3515098f7d08a2"
+    ],
+    "artifacts/api-server/src/python/task974_test_isolation.py": [
+        None,
+        "67cd9c31fe8e20ad794dc956d01c4ea2d64e9b40"
+    ],
+    "artifacts/api-server/src/python/tests/test_ohlcv_cold_start_check.py": [
+        "25bbb412e42b05125706f4434273db0b5e4a5c2c",
+        "90abb892a2952eee02812bad497a5fe7fa3053d7"
+    ],
+    "artifacts/api-server/src/python/tests/unit/test_bootstrap_paper_trade.py": [
+        "812c06d01e87ef32d4b74f1112f7e2f1c260e49b",
+        "565595ed746e1c7d27465f8d95ad98a8a0b3fe03"
     ],
     "artifacts/api-server/src/python/tests/test_balanced_decision.py": [
         "18fecde4d15d78c58905e7986d5b930aa2989b15",

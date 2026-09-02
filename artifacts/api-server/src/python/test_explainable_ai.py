@@ -6,6 +6,7 @@ import types
 import unittest
 import pytest
 from unittest.mock import MagicMock, patch
+from task974_test_isolation import isolated_imports
 
 # ── Stub all upstream modules BEFORE any explainable_ai import ────────────────
 
@@ -140,7 +141,11 @@ def _stub_modules():
 
 @pytest.fixture(autouse=True)
 def _isolated_dependencies():
-    with patch.dict(sys.modules, _stub_modules()), patch.dict(os.environ, {"EXPLAINABLE_AI_ENABLED": "true"}):
+    with isolated_imports(
+        _stub_modules(),
+        target_packages=("explainable_ai",),
+        environment={"EXPLAINABLE_AI_ENABLED": "true"},
+    ):
         yield
 
 # ── Now import the module under test ─────────────────────────────────────────
