@@ -18,6 +18,7 @@ ALLOWED = {
     'TASK_971_SCHEMA_ORDER_CORRECTION.md',
     'TASK_973_QUEUE_DIAGNOSTICS.json',
     'TASK_973_ROOT_CAUSE.md',
+    'scripts/task973_prepare_python_db.py',
 }
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
@@ -115,7 +116,7 @@ def report():
     proof = load('TASK_969_IDENTITY.json')
     evidence = load('TASK_969_POSTGRES_BEFORE_AFTER_EVIDENCE.json')
     unique = evidence.get('audit_unique_key', {})
-    gates = ['identity', 'schema_order', 'pnpm', 'install', 'validator_deps', 'guard', 'offline', 'native', 'api_focused', 'api', 'python_deps', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']
+    gates = ['identity', 'schema_order', 'pnpm', 'install', 'validator_deps', 'guard', 'offline', 'native', 'api_focused', 'api', 'python_deps', 'python_fixture', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']
     if outcome('schema_order') == 'failure' or unique.get('match') is False or evidence.get('status') == 'CATALOG_FAILURE':
         verdict = 'B. FAIL — CATALOG/SCHEMA INCOMPATIBILITY'
     elif outcome('guard') == 'failure' or outcome('offline') == 'failure':

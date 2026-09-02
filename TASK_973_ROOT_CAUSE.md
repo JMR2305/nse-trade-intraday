@@ -87,3 +87,30 @@ and IO remain active. All original 25 tests and assertions remain intact.
 Identity still anchors the historical Task967 tree and exact Task971 changes.
 The new runtime exception pins both entire alertQueue source blobs, not a wildcard.
 Final application results must come from the correction's actual Actions run.
+
+## Correction run11 and subsequent fresh-fixture reconciliation
+
+Correction commit: `3027f64ffbf4551a5674ec88ee7b241ca71936cc`.
+Run: https://github.com/JMR2305/nse-trade-intraday/actions/runs/33634302359
+
+- Native PostgreSQL preservation/catalog/idempotency: PASS.
+- Migration adversarial guard: 968 passed, 0 failed; offline SAFE.
+- Focused notifier: 26 passed, 0 failed, 0 skipped (25 original + regression), 9.66s.
+- Full API: 20 files, 170 passed, 0 failed, 0 skipped, 17.06s.
+- Native Python: 8 passed, 12 failed, 3.96s. All 12 failures were teardown
+  UndefinedTable errors for reconciliation_runs, not notification regressions.
+
+The integration class cleans both portfolio_events and reconciliation_runs after
+each test, but its first tests only initialize portfolio_events. On a fresh DB,
+reconciliation_runs does not exist until a later test uses its repository.
+The CI-only fixture helper extracts the existing canonical additive declaration
+and creates the empty schema before integration tests. It executes neither the
+repository's legacy DROP path nor pruning/data operations. Application and test
+assertions are unchanged. The helper requires the exact disposable local URL and
+PostgreSQL16. This is an additional test-environment defect, separate from the
+single queue-clock cause of the notifier failures.
+
+Independent downstream gates now execute after successful native-DB and full-API
+gates even if a Python gate fails, so all results remain visible. Failed steps
+still fail the job and report; no continue-on-error, warning conversion, or
+relaxation of any release gate is used.

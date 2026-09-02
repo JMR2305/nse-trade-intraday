@@ -98,6 +98,9 @@ jobs:
         run: |
           uv sync --frozen
           uv pip install 'pytest-asyncio==1.4.0'
+      - name: Prepare canonical fresh-database Python fixture
+        id: python_fixture
+        run: python scripts/task973_prepare_python_db.py
       - name: Native Python database integration suites
         id: python_native
         working-directory: artifacts/api-server/src/python
@@ -105,24 +108,30 @@ jobs:
           set -o pipefail
           ../../../../.venv/bin/python -m pytest tests/integration -q 2>&1 | tee ../../../../task969-python-native.log
       - name: Python application and authority/session suites
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python_fixture.outcome == 'success' }}
         id: python
         working-directory: artifacts/api-server/src/python
         run: |
           set -o pipefail
           ../../../../.venv/bin/python -m pytest . -q 2>&1 | tee ../../../../task969-python.log
       - name: Dashboard suite
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
         id: dashboard
         run: pnpm --filter @workspace/trading-dashboard run test
       - name: TypeScript
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
         id: typecheck
         run: pnpm run typecheck
       - name: Python compilation
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
         id: compile
         run: python -m compileall -q artifacts/api-server/src/python
       - name: API build
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
         id: api_build
         run: pnpm --filter @workspace/api-server run build
       - name: Dashboard build
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
         id: dashboard_build
         run: env -u REPL_ID PORT=9999 BASE_PATH=/trading-dashboard/ pnpm --filter @workspace/trading-dashboard run build
       - name: Write final report including failed/skipped gates
