@@ -11,8 +11,6 @@ SAFETY:
 
 Expected environment:
     TASK967_TEST_DATABASE_URL
-or:
-    DATABASE_URL
 
 Outputs:
     TASK_969_POSTGRES_BEFORE_AFTER_EVIDENCE.json
@@ -27,8 +25,10 @@ import json
 import os
 import re
 import sys
+import subprocess
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import psycopg
 from psycopg.rows import dict_row
@@ -53,6 +53,7 @@ EXPECTED_TABLES = [
 ]
 
 PRESERVATION_TABLES = [
+    "trading_universe_sources",
     "trading_universes",
     "trading_universe_members",
     "trading_universe_audit_events",
@@ -63,6 +64,10 @@ PRESERVATION_TABLES = [
 ]
 
 EXPECTED_MEMBER_COUNT = 23
+RUN_STATE: dict[str, Any] = {
+    "status": "STARTED", "first_migration": "not executed",
+    "second_migration": "not executed",
+}
 
 SYMBOLS = [
     "BANKBARODA",
@@ -116,36 +121,18 @@ def sha256_text(text: str) -> str:
 
 
 def get_database_url() -> str:
-    url = (
-        os.environ.get("TASK967_TEST_DATABASE_URL")
-        or os.environ.get("DATABASE_URL")
-        or ""
-    ).strip()
+    # Do not fall back to application credentials, and reject libpq URL overrides.
+    url = os.environ.get("TASK967_TEST_DATABASE_URL", "").strip()
 
     if not url:
-        fail("TASK967_TEST_DATABASE_URL / DATABASE_URL is missing")
+        fail("TASK967_TEST_DATABASE_URL is missing")
 
-    lower = url.lower()
-
-    # Task #969 must never be pointed at a production database.
-    forbidden_markers = [
-        "production",
-        "prod-db",
-        "neon.tech",
-        "supabase.co",
-        "replit",
-    ]
-    for marker in forbidden_markers:
-        if marker in lower:
-            fail(
-                f"Refusing database URL containing production-risk marker: {marker}"
-            )
-
-    if "task967_disposable_task968" not in lower:
-        fail(
-            "Database name must contain task967_disposable_task968 "
-            "for this validation"
-        )
+    parsed = urlsplit(url)
+    if (parsed.scheme not in {"postgres", "postgresql"}
+            or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parsed.path != "/task967_disposable_task968"
+            or parsed.query or parsed.fragment):
+        fail("Only the exact local disposable PostgreSQL URL is permitted")
 
     return url
 
@@ -180,12 +167,11 @@ def execute_script(conn: psycopg.Connection, sql: str) -> None:
     conn.commit()
 
 
-def reset_public_schema(conn: psycopg.Connection) -> None:
+def require_empty_public_schema(conn: psycopg.Connection) -> None:
     with conn.cursor() as cur:
-        cur.execute("DROP SCHEMA public CASCADE")
-        cur.execute("CREATE SCHEMA public")
-        cur.execute("GRANT ALL ON SCHEMA public TO public")
-    conn.commit()
+        cur.execute("SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace")
+        if cur.fetchone()[0]:
+            fail("Disposable public schema is not empty; refusing to reset or overwrite it")
 
 
 def create_pre_task964_schema(conn: psycopg.Connection) -> None:
@@ -782,10 +768,15 @@ def get_triggers(conn: psycopg.Connection, table: str) -> list[dict[str, Any]]:
     SELECT
         t.tgname AS trigger_name,
         p.proname AS function_name,
+        n.nspname AS function_schema,
+        t.tgtype AS timing_event_bits,
+        t.tgenabled AS enabled,
+        pg_get_functiondef(p.oid) AS function_definition,
         pg_get_triggerdef(t.oid, true) AS definition
     FROM pg_trigger t
     JOIN pg_proc p
       ON p.oid = t.tgfoid
+    JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE t.tgrelid = %s::regclass
       AND NOT t.tgisinternal
     ORDER BY t.tgname
@@ -796,6 +787,32 @@ def get_triggers(conn: psycopg.Connection, table: str) -> list[dict[str, Any]]:
         return list(cur.fetchall())
 
 
+def get_constraints(conn: psycopg.Connection, table: str) -> list[dict[str, Any]]:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("""
+            SELECT c.conname, c.contype, c.convalidated,
+                   pg_get_constraintdef(c.oid, true) AS definition,
+                   ARRAY(SELECT a.attname FROM unnest(c.conkey) WITH ORDINALITY k(num, ord)
+                         JOIN pg_attribute a ON a.attrelid=c.conrelid AND a.attnum=k.num
+                         ORDER BY k.ord) AS ordered_columns,
+                   CASE WHEN c.confrelid=0 THEN NULL ELSE c.confrelid::regclass::text END AS referenced_table,
+                   ARRAY(SELECT a.attname FROM unnest(c.confkey) WITH ORDINALITY k(num, ord)
+                         JOIN pg_attribute a ON a.attrelid=c.confrelid AND a.attnum=k.num
+                         ORDER BY k.ord) AS referenced_columns
+            FROM pg_constraint c WHERE c.conrelid=%s::regclass ORDER BY c.conname
+        """, (table,))
+        return list(cur.fetchall())
+
+
+def get_sequences(conn: psycopg.Connection) -> list[dict[str, Any]]:
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("""SELECT sequencename, data_type::text, start_value, min_value,
+                       max_value, increment_by, cycle, cache_size, last_value
+                       FROM pg_sequences WHERE schemaname=current_schema()
+                       ORDER BY sequencename""")
+        return list(cur.fetchall())
+
+
 def catalog_snapshot(conn: psycopg.Connection) -> dict[str, Any]:
     result: dict[str, Any] = {}
 
@@ -803,11 +820,40 @@ def catalog_snapshot(conn: psycopg.Connection) -> dict[str, Any]:
         result[table] = {
             "columns": get_columns(conn, table),
             "unique_constraints": get_unique_constraints(conn, table),
+            "constraints": get_constraints(conn, table),
             "indexes": get_indexes(conn, table),
             "triggers": get_triggers(conn, table),
         }
 
+    result["_sequences"] = get_sequences(conn)
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("""SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS arguments,
+                       pg_get_functiondef(p.oid) AS definition FROM pg_proc p
+                       WHERE p.pronamespace=current_schema()::regnamespace AND p.prokind='f'
+                       ORDER BY p.proname, arguments""")
+        result["_functions"] = list(cur.fetchall())
     return result
+
+
+def expected_candidate_catalog(conn: psycopg.Connection, migration_sql: str) -> dict[str, Any]:
+    """Fresh candidate schema, not a replacement for the historical fixture."""
+    with conn.cursor() as cur:
+        cur.execute('CREATE SCHEMA task969_expected')
+        cur.execute('SET search_path TO task969_expected')
+    execute_script(conn, migration_sql)
+    result = catalog_snapshot(conn)
+    with conn.cursor() as cur:
+        cur.execute('SET search_path TO public')
+    conn.commit()
+    return result
+
+
+def normalize_catalog(catalog: dict[str, Any]) -> str:
+    # Sequence state is data evidence, compared before/after separately, not
+    # against a fresh empty expected schema. Normalize only schema qualifiers.
+    text = canonical_json({k: v for k, v in catalog.items() if k != '_sequences'})
+    return text.replace('task969_expected.', '').replace('public.', '').replace(
+        '"function_schema":"task969_expected"', '"function_schema":"public"')
 
 
 def assert_preserved(
@@ -902,15 +948,16 @@ def migration_declared_unique_order() -> list[str]:
 def write_json_evidence(
     *,
     before: dict[str, Any],
-    after_first: dict[str, Any],
-    after_second: dict[str, Any],
+    after_first: dict[str, Any] | None,
+    after_second: dict[str, Any] | None,
     catalog_before: dict[str, Any],
-    catalog_after_first: dict[str, Any],
-    catalog_after_second: dict[str, Any],
+    catalog_after_first: dict[str, Any] | None,
+    catalog_after_second: dict[str, Any] | None,
     pre_order: list[str],
     migration_order: list[str],
 ) -> None:
     evidence = {
+        **RUN_STATE,
         "task": 969,
         "database": "task967_disposable_task968",
         "migration": str(MIGRATION.relative_to(ROOT)),
@@ -1032,7 +1079,8 @@ def main() -> None:
                 SELECT
                     current_database() AS database,
                     current_user AS db_user,
-                    version() AS version
+                    version() AS version,
+                    current_setting('server_version_num')::int AS version_num
                 """
             )
             env = cur.fetchone()
@@ -1046,14 +1094,23 @@ def main() -> None:
                 f"{env['database']}"
             )
 
-        if "PostgreSQL 16" not in env["version"]:
+        RUN_STATE["server"] = dict(env)
+        if env["version_num"] // 10000 != 16:
             fail(
                 "Task969 requires PostgreSQL 16; got: "
                 f"{env['version']}"
             )
 
-        print("TASK969: resetting disposable public schema")
-        reset_public_schema(conn)
+        print("TASK969: requiring an empty disposable public schema (no reset)")
+        require_empty_public_schema(conn)
+
+        parent = '865210ebc282a997ed1157515682faca21839912'
+        historical = subprocess.check_output([
+            'git', 'show', f'{parent}:artifacts/api-server/src/python/universe_version_store.py'
+        ], cwd=ROOT, text=True)
+        if not re.search(r'UNIQUE\s*\(correlation_id,\s*action\)', historical):
+            fail('Historical audit declaration differs from the representative fixture')
+        RUN_STATE['pre_task964_parent'] = parent
 
         print("TASK969: creating representative pre-Task964 schema")
         create_pre_task964_schema(conn)
@@ -1091,15 +1148,22 @@ def main() -> None:
             tuple(migration_order),
         )
 
+        # Persist the baseline before any gate or migration can fail. Missing
+        # executions are null, never fabricated copies of BEFORE measurements.
+        write_json_evidence(before=before, after_first=None, after_second=None,
+            catalog_before=catalog_before, catalog_after_first=None,
+            catalog_after_second=None, pre_order=pre_order, migration_order=migration_order)
+
         # This is the explicit Task #969 catalog gate.
         if pre_order != migration_order:
+            RUN_STATE["status"] = "CATALOG_FAILURE"
             write_json_evidence(
                 before=before,
-                after_first=before,
-                after_second=before,
+                after_first=None,
+                after_second=None,
                 catalog_before=catalog_before,
-                catalog_after_first=catalog_before,
-                catalog_after_second=catalog_before,
+                catalog_after_first=None,
+                catalog_after_second=None,
                 pre_order=pre_order,
                 migration_order=migration_order,
             )
@@ -1108,6 +1172,11 @@ def main() -> None:
                 pre_order=pre_order,
                 migration_order=migration_order,
                 catalog_after_first=catalog_before,
+            )
+
+            IDEMPOTENCY_MD.write_text(
+                '# Task969 — Idempotency\n\nNOT EXECUTED: catalog ordering failed before either migration application.\n',
+                encoding='utf-8',
             )
 
             fail(
@@ -1121,9 +1190,13 @@ def main() -> None:
 
         print("TASK969: applying migration — first application")
         execute_script(conn, migration_sql)
+        RUN_STATE["first_migration"] = "executed"
 
         after_first = preservation_snapshot(conn)
         catalog_after_first = catalog_snapshot(conn)
+        write_json_evidence(before=before, after_first=after_first, after_second=None,
+            catalog_before=catalog_before, catalog_after_first=catalog_after_first,
+            catalog_after_second=None, pre_order=pre_order, migration_order=migration_order)
 
         assert_preserved(
             before,
@@ -1131,10 +1204,22 @@ def main() -> None:
             "first migration application",
         )
 
+        expected = expected_candidate_catalog(conn, migration_sql)
+        if normalize_catalog(catalog_after_first) != normalize_catalog(expected):
+            RUN_STATE["status"] = "CATALOG_FAILURE"
+            RUN_STATE["expected_candidate_catalog"] = expected
+            write_json_evidence(before=before, after_first=after_first, after_second=None,
+                catalog_before=catalog_before, catalog_after_first=catalog_after_first,
+                catalog_after_second=None, pre_order=pre_order, migration_order=migration_order)
+            fail('CATALOG PARITY FAILURE: first-application catalog differs from fresh candidate schema')
+        if catalog_before['_sequences'] != catalog_after_first['_sequences']:
+            fail('First migration changed sequence state')
+
         print("TASK969: first application preserved all seeded authority rows")
 
         print("TASK969: applying migration — second application")
         execute_script(conn, migration_sql)
+        RUN_STATE["second_migration"] = "executed"
 
         after_second = preservation_snapshot(conn)
         catalog_after_second = catalog_snapshot(conn)

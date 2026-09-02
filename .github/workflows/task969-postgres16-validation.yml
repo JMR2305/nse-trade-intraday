@@ -3,13 +3,15 @@ name: Task 969 PostgreSQL 16 Validation
 on:
   workflow_dispatch:
   push:
-    branches:
-      - task967-migration-guard-hardening
+    branches: [task967-migration-guard-hardening]
+
+permissions:
+  contents: read
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -17,152 +19,110 @@ jobs:
           POSTGRES_USER: task967
           POSTGRES_PASSWORD: task967
           POSTGRES_DB: task967_disposable_task968
-        ports:
-          - 5432:5432
+        ports: ['5432:5432']
         options: >-
           --health-cmd="pg_isready -U task967 -d task967_disposable_task968"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-
+          --health-interval=10s --health-timeout=5s --health-retries=10
     env:
-      DATABASE_URL: postgresql://task967:task967@localhost:5432/task967_disposable_task968
-      TASK967_TEST_DATABASE_URL: postgresql://task967:task967@localhost:5432/task967_disposable_task968
+      DATABASE_URL: postgresql://task967:task967@127.0.0.1:5432/task967_disposable_task968
+      TASK967_TEST_DATABASE_URL: postgresql://task967:task967@127.0.0.1:5432/task967_disposable_task968
       NODE_ENV: test
-
+      CI: 'true'
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Checkout candidate
+      - name: Checkout validation HEAD
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Verify exact Task 967 candidate ancestry
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          EXPECTED_TREE="c0653b1d0f26a9869bc86d70240cd96a2e54128c"
-
-          echo "Current validation HEAD: $(git rev-parse HEAD)"
-          echo "Looking for reviewed Task 967 tree: $EXPECTED_TREE"
-
-          CANDIDATE_COMMIT=""
-
-          while read -r commit; do
-            tree="$(git rev-parse "${commit}^{tree}")"
-            if [ "$tree" = "$EXPECTED_TREE" ]; then
-              CANDIDATE_COMMIT="$commit"
-              break
-            fi
-          done < <(git rev-list HEAD)
-
-          if [ -z "$CANDIDATE_COMMIT" ]; then
-            echo "ERROR: reviewed Task 967 tree not found in branch ancestry"
-            exit 1
-          fi
-
-          echo "Task 967 candidate commit: $CANDIDATE_COMMIT"
-          echo "Task 967 candidate tree: $(git rev-parse "${CANDIDATE_COMMIT}^{tree}")"
-
-          test "$(git rev-parse "${CANDIDATE_COMMIT}^{tree}")" = "$EXPECTED_TREE"
-
-          echo "Files added/changed after reviewed Task 967 candidate:"
-          git diff --name-only "$CANDIDATE_COMMIT"..HEAD
-
-          UNEXPECTED="$(
-            git diff --name-only "$CANDIDATE_COMMIT"..HEAD |
-            grep -v -E '^(\.github/workflows/task969-postgres16-validation\.yml|scripts/task969_postgres_validation\.py)$' || true
-          )"
-
-          if [ -n "$UNEXPECTED" ]; then
-            echo "ERROR: unexpected files differ from reviewed Task 967 candidate:"
-            echo "$UNEXPECTED"
-            exit 1
-          fi
-
-          echo "PASS: exact reviewed Task 967 tree is present in ancestry"
-          echo "PASS: only Task 969 validation infrastructure differs from candidate"
-
+      - name: Verify reviewed Task967 ancestor and exact validation-only diff
+        id: identity
+        run: python3 scripts/task969_ci_report.py identity
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-
+          node-version: '22'
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Install Node dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      - name: Install Python test dependencies
+          python-version: '3.12'
+      - name: Pin pnpm compatible with unchanged repository build policy
+        id: pnpm
         run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pytest pytest-asyncio psycopg[binary]
-
-      - name: Wait for PostgreSQL
+          corepack enable
+          corepack prepare pnpm@10.33.3 --activate
+          test "$(pnpm --version)" = '10.33.3'
+      - name: Install locked Node dependencies using repository approvals
+        id: install
         run: |
-          for i in {1..30}; do
-            pg_isready -h localhost -p 5432 -U task967 -d task967_disposable_task968 && exit 0
-            sleep 2
-          done
-          exit 1
-
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee task969-install.log
+          git diff --exit-code -- package.json pnpm-lock.yaml pnpm-workspace.yaml
+      - name: Install native-validator dependency
+        id: validator_deps
+        run: python -m pip install 'psycopg[binary]==3.3.5'
       - name: Migration guard adversarial suite
+        id: guard
         run: |
-          node --test lib/db/scripts/test-guard-adversarial.mjs
-
+          set -o pipefail
+          pnpm --filter @workspace/db run test-guard 2>&1 | tee task969-guard.log
       - name: Migration offline safety classification
+        id: offline
         run: |
-          node lib/db/scripts/safe-migrate.mjs check \
-            lib/db/migrations/0002_universe_authority_schema_parity.sql
-
-      - name: Native PostgreSQL validation
+          set -o pipefail
+          node lib/db/scripts/safe-migrate.mjs check lib/db/migrations/0002_universe_authority_schema_parity.sql 2>&1 | tee task969-offline.log
+      - name: Native PostgreSQL catalog, preservation and idempotency gate
+        id: native
         run: |
-          if [ -f scripts/task969_postgres_validation.py ]; then
-            python scripts/task969_postgres_validation.py
-          else
-            echo "Missing scripts/task969_postgres_validation.py"
-            exit 1
-          fi
-
-      - name: Full API suite
+          set -o pipefail
+          python -u scripts/task969_postgres_validation.py 2>&1 | tee task969-native.log
+      # A catalog failure stops here; downstream tests cannot override it.
+      - name: Full DB-dependent API suite
+        id: api
         run: |
-          pnpm --filter @workspace/api-server exec vitest run --no-file-parallelism
-
-      - name: Relevant Python suites
+          set -o pipefail
+          pnpm --filter @workspace/api-server run test --no-file-parallelism 2>&1 | tee task969-api.log
+      - name: Setup locked Python application environment
+        uses: astral-sh/setup-uv@v6
+      - name: Install Python application/test dependencies
+        id: python_deps
         run: |
-          python -m pytest \
-            artifacts/api-server/src/python \
-            -q
-
+          uv sync --frozen
+          uv pip install 'pytest-asyncio==1.4.0'
+      - name: Native Python database integration suites
+        id: python_native
+        working-directory: artifacts/api-server/src/python
+        run: |
+          set -o pipefail
+          ../../../../.venv/bin/python -m pytest tests/integration -q 2>&1 | tee ../../../../task969-python-native.log
+      - name: Python application and authority/session suites
+        id: python
+        working-directory: artifacts/api-server/src/python
+        run: |
+          set -o pipefail
+          ../../../../.venv/bin/python -m pytest . -q 2>&1 | tee ../../../../task969-python.log
       - name: Dashboard suite
-        run: |
-          pnpm --filter @workspace/trading-dashboard exec vitest run
-
+        id: dashboard
+        run: pnpm --filter @workspace/trading-dashboard run test
       - name: TypeScript
-        run: |
-          pnpm run typecheck
-
+        id: typecheck
+        run: pnpm run typecheck
       - name: Python compilation
-        run: |
-          python -m compileall artifacts/api-server/src/python
-
+        id: compile
+        run: python -m compileall -q artifacts/api-server/src/python
       - name: API build
-        run: |
-          pnpm --filter @workspace/api-server run build
-
+        id: api_build
+        run: pnpm --filter @workspace/api-server run build
       - name: Dashboard build
-        run: |
-          env -u REPL_ID PORT=9999 BASE_PATH=/trading-dashboard/ \
-            pnpm --filter @workspace/trading-dashboard run build
-
-      - name: Upload Task 969 evidence
+        id: dashboard_build
+        run: env -u REPL_ID PORT=9999 BASE_PATH=/trading-dashboard/ pnpm --filter @workspace/trading-dashboard run build
+      - name: Write final report including failed/skipped gates
+        if: always()
+        env:
+          TASK969_STEPS: ${{ toJSON(steps) }}
+        run: python3 scripts/task969_ci_report.py report
+      - name: Upload Task969 evidence even on failure
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -172,4 +132,4 @@ jobs:
             TASK_969_*.json
             TASK_969_*.csv
             task969-*.log
-          if-no-files-found: ignore
+          if-no-files-found: error
