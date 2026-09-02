@@ -121,7 +121,7 @@ jobs:
         working-directory: artifacts/api-server/src/python
         run: |
           set -o pipefail
-          ../../../../.venv/bin/python -m pytest . -q 2>&1 | tee ../../../../task969-python.log
+          ../../../../.venv/bin/python -m pytest . -q -p task974_runtime_leak_diagnostics 2>&1 | tee ../../../../task969-python.log
       - name: Dashboard suite
         if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
         id: dashboard
@@ -161,5 +161,6 @@ jobs:
             TASK_973_*.md
             task974-diagnostics/
             task974-*.log
+            artifacts/api-server/src/python/TASK_974_RUNTIME_MODULE_LEAKS.json
             TASK_974_*.md
           if-no-files-found: error

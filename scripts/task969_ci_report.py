@@ -124,6 +124,10 @@ TASK974_TEST_BLOBS = {
         None,
         "67cd9c31fe8e20ad794dc956d01c4ea2d64e9b40"
     ],
+    "artifacts/api-server/src/python/task974_runtime_leak_diagnostics.py": [
+        None,
+        "3ad1108552857d505abe60b175a5bc9cd94eae32"
+    ],
     "artifacts/api-server/src/python/tests/test_ohlcv_cold_start_check.py": [
         "25bbb412e42b05125706f4434273db0b5e4a5c2c",
         "90abb892a2952eee02812bad497a5fe7fa3053d7"
