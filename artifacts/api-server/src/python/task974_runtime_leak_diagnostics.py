@@ -23,6 +23,7 @@ WATCHED_MODULES = (
 WATCHED_CHILDREN = ("shared_services",)
 OUTPUT = Path("TASK_974_RUNTIME_MODULE_LEAKS.json")
 _baseline: dict[str, dict] = {}
+_previous: dict[str, dict] = {}
 _events: list[dict] = []
 
 
@@ -56,21 +57,35 @@ def _snapshot() -> dict[str, dict]:
 
 
 def pytest_collection_finish(session):  # noqa: ARG001
-    global _baseline
+    global _baseline, _previous
     _baseline = _snapshot()
+    _previous = _baseline
+
+
+def _unsafe(description: dict) -> bool:
+    if description.get("present") and (
+        description.get("is_mock") or not description.get("file")
+    ):
+        return True
+    return any(
+        child.get("is_mock") or not child.get("file")
+        for child in description.get("children", {}).values()
+    )
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_protocol(item, nextitem):  # noqa: ARG001
+    global _previous
     yield
     current = _snapshot()
     changes = {
-        name: {"before": _baseline[name], "after": current[name]}
+        name: {"before": _previous[name], "after": current[name]}
         for name in WATCHED_MODULES
-        if current[name] != _baseline[name]
+        if current[name] != _previous[name] and _unsafe(current[name])
     }
     if changes:
         _events.append({"after_test": item.nodeid, "changes": changes})
+    _previous = current
 
 
 def pytest_sessionfinish(session, exitstatus):  # noqa: ARG001
