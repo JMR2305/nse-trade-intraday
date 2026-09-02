@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Task969-only identity proof and always-run report; standard library only."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import re
@@ -13,7 +14,26 @@ ALLOWED = {
     '.github/workflows/task969-postgres16-validation.yml',
     'scripts/task969_postgres_validation.py',
     'scripts/task969_ci_report.py',
+    'scripts/test_task971_schema_order.py',
+    'TASK_971_SCHEMA_ORDER_CORRECTION.md',
 }
+# Task971 explicitly authorizes only these byte-for-byte source corrections.
+# The reviewed Task967 tree remains the historical anchor, not a moving target.
+SOURCE_CORRECTIONS = {
+    'lib/db/migrations/0002_universe_authority_schema_parity.sql': (
+        'UNIQUE ("action", "correlation_id")', 'UNIQUE ("correlation_id", "action")'),
+    'artifacts/api-server/src/python/universe_version_store.py': (
+        'UNIQUE (action, correlation_id)', 'UNIQUE (correlation_id, action)'),
+    'lib/db/scripts/reviewed-additive-sql.json': (
+        '200fae443c28f58cae39e754795adc1eb48c194002a79a59c6c964207215f8a8',
+        'b5cdba323db2ebbd425ed525142276a8f4ae6f6ec172d28e1a127680ae5bd6b9'),
+}
+
+
+def verify_source_correction(path, before, after):
+    old, new = SOURCE_CORRECTIONS[path]
+    if before.count(old) != 1 or after != before.replace(old, new, 1):
+        raise RuntimeError(f'Unexpected Task971 source edit: {path}')
 
 
 def git(*args):
@@ -31,12 +51,28 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    if set(changed) - ALLOWED:
-        raise RuntimeError(f'Unexpected application/source changes: {set(changed) - ALLOWED}')
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys()
+    if unexpected:
+        raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
+    corrections = {}
+    for path in SOURCE_CORRECTIONS:
+        before = git('show', f'{ancestor}:{path}')
+        after = git('show', f'{head}:{path}')
+        verify_source_correction(path, before, after)
+        # Check raw git blobs as well; strip() must not mask trailing edits.
+        raw_before = subprocess.check_output(['git', 'show', f'{ancestor}:{path}'], cwd=ROOT)
+        raw_after = subprocess.check_output(['git', 'show', f'{head}:{path}'], cwd=ROOT)
+        old, new = SOURCE_CORRECTIONS[path]
+        if raw_after != raw_before.replace(old.encode(), new.encode(), 1):
+            raise RuntimeError(f'Unexpected Task971 raw source edit: {path}')
+        corrections[path] = {'before_blob': git('rev-parse', f'{ancestor}:{path}'),
+                             'after_blob': git('rev-parse', f'{head}:{path}'),
+                             'sha256': hashlib.sha256(raw_after).hexdigest()}
     if git('diff', '--name-only', 'HEAD'):
         raise RuntimeError('Tracked worktree differs from workflow HEAD')
     proof = {'workflow_head': head, 'reviewed_ancestor': ancestor,
-             'reviewed_tree': git('rev-parse', f'{ancestor}^{{tree}}'), 'allowed_diff': changed}
+             'reviewed_tree': git('rev-parse', f'{ancestor}^{{tree}}'), 'allowed_diff': changed,
+             'task971_exact_source_corrections': corrections}
     (ROOT / 'TASK_969_IDENTITY.json').write_text(json.dumps(proof, indent=2) + '\n')
     print(json.dumps(proof, indent=2))
 
@@ -51,8 +87,8 @@ def report():
     proof = load('TASK_969_IDENTITY.json')
     evidence = load('TASK_969_POSTGRES_BEFORE_AFTER_EVIDENCE.json')
     unique = evidence.get('audit_unique_key', {})
-    gates = ['identity', 'pnpm', 'install', 'validator_deps', 'guard', 'offline', 'native', 'api', 'python_deps', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']
-    if unique.get('match') is False or evidence.get('status') == 'CATALOG_FAILURE':
+    gates = ['identity', 'schema_order', 'pnpm', 'install', 'validator_deps', 'guard', 'offline', 'native', 'api', 'python_deps', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']
+    if outcome('schema_order') == 'failure' or unique.get('match') is False or evidence.get('status') == 'CATALOG_FAILURE':
         verdict = 'B. FAIL — CATALOG/SCHEMA INCOMPATIBILITY'
     elif outcome('guard') == 'failure' or outcome('offline') == 'failure':
         verdict = 'C. FAIL — MIGRATION GUARD'
@@ -68,6 +104,7 @@ def report():
              f'- Workflow HEAD: `{proof.get("workflow_head", os.environ.get("GITHUB_SHA", "unknown"))}`',
              f'- Reviewed ancestor: `{proof.get("reviewed_ancestor", "not proven")}`',
              f'- Reviewed tree: `{proof.get("reviewed_tree", "not proven")}`',
+             f'- Task971 exact source corrections: `{proof.get("task971_exact_source_corrections", "not proven")}`',
              f'- PostgreSQL: `{evidence.get("server", {}).get("version", "not measured")}`',
              f'- Guard totals: `{totals}`',
              f'- Offline classification: `{outcome("offline")}` (see task969-offline.log)',

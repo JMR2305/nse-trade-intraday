@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS "trading_universe_audit_events" (
   "correlation_id" TEXT,
   "approval_state" TEXT,
   CONSTRAINT "trading_universe_audit_events_correlation_id_action_key"
-    UNIQUE ("action", "correlation_id")
+    UNIQUE ("correlation_id", "action")
 );
 --> statement-breakpoint
 

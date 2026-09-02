@@ -36,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Verify reviewed Task967 ancestor and exact validation-only diff
+      - name: Verify Task967 ancestor and exact Task971 correction diff
         id: identity
         run: python3 scripts/task969_ci_report.py identity
       - name: Setup Node
@@ -47,6 +47,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Verify canonical audit order and exact source correction boundaries
+        id: schema_order
+        run: python3 -m unittest discover -s scripts -p test_task971_schema_order.py -v
       - name: Pin pnpm compatible with unchanged repository build policy
         id: pnpm
         run: |
