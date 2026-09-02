@@ -114,7 +114,7 @@ jobs:
         run: |
           set -o pipefail
           cd artifacts/api-server/src/python
-          ../../../../.venv/bin/python -m pytest test_task974_import_isolation.py test_consecutive_blocks.py test_analytics_30plus_integration.py ai_performance/test_ai_performance.py strategy_intelligence/test_strategy_intelligence.py test_event_intelligence.py test_macro_intelligence.py test_explainable_ai.py test_research_lab.py test_phase9.py test_phase18.py -q 2>&1 | tee ../../../../task974-focused-python.log
+          ../../../../.venv/bin/python -m pytest test_task974_import_isolation.py test_consecutive_blocks.py test_analytics_30plus_integration.py ai_performance/test_ai_performance.py strategy_intelligence/test_strategy_intelligence.py portfolio_performance/test_portfolio_performance.py test_event_intelligence.py test_macro_intelligence.py test_explainable_ai.py test_research_lab.py tests/buy_audit_test.py tests/test_eod_reconciliation.py tests/test_phase20_startup_overnight_check.py tests/unit/test_size_reduced_to_cap.py test_phase9.py test_phase18.py -q 2>&1 | tee ../../../../task974-focused-python.log
       - name: Python application and authority/session suites
         if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python_fixture.outcome == 'success' }}
         id: python

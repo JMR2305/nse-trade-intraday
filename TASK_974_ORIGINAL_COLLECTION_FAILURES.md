@@ -44,3 +44,12 @@ The focused producers/restoration regressions passed 151 tests in 4.64 seconds. 
 - test_phase18.py: SystemExit(0) after 26 successful checks, aborting pytest collection.
 
 The observer identifies test_event_intelligence.py as the first config MagicMock installer. test_macro_intelligence.py repeats that installer, while test_explainable_ai.py installs or mutates config/signals modules during collection. test_research_lab.py overwrites signals_store and several real package names with MagicMock objects; this was also observed in the original module-state trace. These test-only installers are now scoped with per-test restoration, including feature flags. Phase18 checks are moved into a test function and their failure count remains an assertion. No passing assertion was removed.
+
+## Remaining producer trace (run 33642007379)
+
+The expanded focused suite passed 506 tests in 8.36 seconds. Broad collection then reported 10 errors, all caused by two remaining stub families:
+
+- portfolio_performance/test_portfolio_performance.py installed a partial market_scanner module; this caused eight _final_action import errors.
+- tests/buy_audit_test.py, tests/test_eod_reconciliation.py, tests/test_phase20_startup_overnight_check.py, and tests/unit/test_size_reduced_to_cap.py replaced real market_hours, phase20_executor, phase20_store, and scan_state_store modules during collection; this caused the bootstrap executor and portfolio endpoint errors.
+
+Each identified unit-test producer now installs its existing doubles only inside an autouse test fixture and restores the complete sys.modules state. Tests whose SUT binds dependencies at import receive a fresh SUT inside that scoped fixture. The regression runs every producer twice and proves both stub behavior and exact module-object restoration.

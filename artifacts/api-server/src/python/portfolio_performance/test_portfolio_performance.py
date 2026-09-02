@@ -22,6 +22,7 @@ import os
 import sys
 import types
 import unittest
+import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 
@@ -32,7 +33,6 @@ if _PYTHON_DIR not in sys.path:
     sys.path.insert(0, _PYTHON_DIR)
 
 # ── Disable feature flag by default; tests opt in explicitly ──────────────────
-os.environ.pop("PORTFOLIO_PERFORMANCE_ENABLED", None)
 
 # ── Bypass the 30s raw-data file cache for the entire module ──────────────────
 # The engine shares one /tmp TTL cache across processes. In tests it would
@@ -113,7 +113,14 @@ def tearDownModule():
 # Stub heavy dependencies before imports
 _scanner_stub = types.ModuleType("market_scanner")
 _scanner_stub._sector_of = lambda sym: {"RELIANCE": "ENERGY", "INFY": "IT", "HDFCBANK": "BANKING"}.get(sym, "Unknown")
-sys.modules.setdefault("market_scanner", _scanner_stub)
+def _stub_modules():
+    return {"market_scanner": _scanner_stub}
+
+
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    with patch.dict(sys.modules, _stub_modules()), patch.dict(os.environ):
+        yield
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

@@ -78,7 +78,7 @@ TASK974_TEST_BLOBS = {
     ],
     "artifacts/api-server/src/python/test_task974_import_isolation.py": [
         None,
-        "dd4cb17e43f64d1989f7ffe9298ba70179a8f78b"
+        "82b480e3563d172d9586030f75e36f04a55c3093"
     ],
     "artifacts/api-server/src/python/test_event_intelligence.py": [
         "6fade4c4962c5de7c80a62b18d76814197609466",
@@ -92,13 +92,33 @@ TASK974_TEST_BLOBS = {
         "632dd0050b55644161c74458bc5390b8fc8bed87",
         "e3b11ff3920e0eb4fdedb1a4127466725dda1cc1"
     ],
+    "artifacts/api-server/src/python/test_research_lab.py": [
+        "ab9d05fe923f288fa49ac4249185150f935263d9",
+        "0ff45662c46e8f44d1c90cda63e8253c4034f2bb"
+    ],
     "artifacts/api-server/src/python/test_phase18.py": [
         "ba75a7e2e160b0444e10f4108ff92fa1915358e9",
         "7018fafd6e4a7a7cf30657b8c0d9ca4ac2626b13"
     ],
-    "artifacts/api-server/src/python/test_research_lab.py": [
-        "ab9d05fe923f288fa49ac4249185150f935263d9",
-        "0ff45662c46e8f44d1c90cda63e8253c4034f2bb"
+    "artifacts/api-server/src/python/portfolio_performance/test_portfolio_performance.py": [
+        "a24cb1bb417d89490fa5f5f6d50707f9c30c0771",
+        "df6ceae721f0ba02927a9d1ae629f725cff845bf"
+    ],
+    "artifacts/api-server/src/python/tests/buy_audit_test.py": [
+        "53d17107c62a587c512629d8efcd84cef46305ca",
+        "d9d32bc5ab5b55253ab370bc89090242807da64f"
+    ],
+    "artifacts/api-server/src/python/tests/test_eod_reconciliation.py": [
+        "30ac433adf337d7f9264833399df4167041265b2",
+        "5eef663c3d175293b39c5611f900b48b8b860455"
+    ],
+    "artifacts/api-server/src/python/tests/test_phase20_startup_overnight_check.py": [
+        "b82ccd74d19556091428d72a894b981f49359363",
+        "8fe4758bcaaf25986b3eb5f9ce663eb6211a2d1c"
+    ],
+    "artifacts/api-server/src/python/tests/unit/test_size_reduced_to_cap.py": [
+        "346684a657a352dedc054d85262306cad59a0d51",
+        "de683b798236e0c7a3b4cdb6ac3515098f7d08a2"
     ]
 }
 

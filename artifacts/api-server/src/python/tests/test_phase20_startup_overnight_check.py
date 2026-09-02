@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 import types
 import unittest
+import pytest
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List
 from unittest.mock import MagicMock, patch
@@ -120,7 +121,19 @@ def _install_stubs() -> None:
         zi_mod.ZoneInfo = _FakeZoneInfo
 
 
-_install_stubs()
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    global sched
+    previous = sched
+    with patch.dict(sys.modules):
+        _install_stubs()
+        # A fresh SUT binds only this test's dependencies, never cached fakes.
+        sys.modules.pop("phase20_scheduler", None)
+        sched = importlib.import_module("phase20_scheduler")
+        try:
+            yield
+        finally:
+            sched = previous
 
 # ---------------------------------------------------------------------------
 # Import the module under test (after stubs are in place)
