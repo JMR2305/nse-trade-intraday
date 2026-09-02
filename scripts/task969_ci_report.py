@@ -123,6 +123,10 @@ TASK974_TEST_BLOBS = {
     "artifacts/api-server/src/python/tests/test_balanced_decision.py": [
         "18fecde4d15d78c58905e7986d5b930aa2989b15",
         "9947f530ea6763c765a8950bbca9f3536d200fa8"
+    ],
+    "artifacts/api-server/src/python/tests/test_strategy_intelligence.py": [
+        "e3dd80ddf645a22dffbef9e5cb7136c1e6ddd2fd",
+        "75974caefb5c4b1224d194380a7f46541de487a8"
     ]
 }
 

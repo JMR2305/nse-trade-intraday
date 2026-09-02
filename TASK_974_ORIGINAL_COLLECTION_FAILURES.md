@@ -57,3 +57,7 @@ Each identified unit-test producer now installs its existing doubles only inside
 ## Legacy process-exit trace (run 33681591651)
 
 The final producer regression passed 650 tests plus 11 subtests in 9.89 seconds. Broad collection then reached tests/test_balanced_decision.py, completed all 74 check expressions successfully, and aborted pytest with SystemExit(0). The executable body is now a pytest test function; direct script execution remains supported under the __main__ guard, and all original check expressions are byte-for-byte AST-equivalent.
+
+## Fresh-data fixture trace (run 33682346262)
+
+After the balanced conversion, the focused suite passed 651 tests plus 11 subtests. Broad collection progressed to tests/test_strategy_intelligence.py: 78 checks passed and the two historical-knowledge loader checks failed because the disposable runner correctly had no local SQLite history. The test now creates a temporary two-row historical_knowledge_trades database spanning the as_of cutoff, temporarily points the loader at it, restores DB_PATH deterministically, and reports all original checks as a pytest test. Production data loading is unchanged.
