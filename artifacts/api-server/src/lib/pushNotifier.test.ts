@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { alertDeliveriesTable, db, pool, pushSubscriptionsTable, signalsCacheTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import {
   dispatchSignalPushNotifications,
   dispatchHealthAlertPushNotifications,
@@ -12,7 +12,7 @@ import {
 import { ensureAlertDeliveriesTable } from "./alertQueue";
 
 // This suite must never borrow a developer or production DATABASE_URL.
-vi.mock("@workspace/db", async () => {
+vi.hoisted(() => {
   const raw = process.env.TASK967_TEST_DATABASE_URL;
   if (!raw) throw new Error("Disposable PostgreSQL required: set TASK967_TEST_DATABASE_URL");
   const url = new URL(raw);
@@ -21,11 +21,9 @@ vi.mock("@workspace/db", async () => {
       !/^\/task967_disposable(?:_[a-z0-9_]+)?$/.test(url.pathname)) {
     throw new Error("Only an explicitly named local task967_disposable database is accepted");
   }
-  const [{ default: pg }, { drizzle }, schema] = await Promise.all([
-    import("pg"), import("drizzle-orm/node-postgres"), import("@workspace/db/schema"),
-  ]);
-  const isolatedPool = new pg.Pool({ connectionString: raw, max: 1 });
-  return { ...schema, pool: isolatedPool, db: drizzle(isolatedPool, { schema }) };
+  // Runs before static imports: the real workspace DB adapter reads only this
+  // validated URL, resolving pg from its own declared package dependencies.
+  process.env.DATABASE_URL = raw;
 });
 
 const TEST_TOKEN_PREFIX = "ExponentPushToken[vitest-push-";
@@ -92,6 +90,9 @@ let schemaSequence = 0;
 const suiteId = `task967_push_${process.pid}_${Date.now()}`;
 
 beforeAll(async () => {
+  // Keep SET search_path and all ORM queries on one session, as before.
+  // The real pool is lazy: no connection exists before this test setup.
+  pool.options.max = 1;
   templateSchema = `${suiteId}_template`;
   await pool.query(`CREATE SCHEMA "${templateSchema}"`);
   await pool.query(`SET search_path TO "${templateSchema}"`);

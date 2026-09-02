@@ -36,7 +36,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Verify Task967 ancestor and exact Task971 correction diff
+      - name: Verify Task967 ancestor and exact Task971/972 correction diff
         id: identity
         run: python3 scripts/task969_ci_report.py identity
       - name: Setup Node
@@ -81,6 +81,11 @@ jobs:
           set -o pipefail
           python -u scripts/task969_postgres_validation.py 2>&1 | tee task969-native.log
       # A catalog failure stops here; downstream tests cannot override it.
+      - name: Focused disposable-DB pushNotifier suite
+        id: api_focused
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server run test src/lib/pushNotifier.test.ts --no-file-parallelism 2>&1 | tee task969-api-focused.log
       - name: Full DB-dependent API suite
         id: api
         run: |

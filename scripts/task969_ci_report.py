@@ -28,6 +28,13 @@ SOURCE_CORRECTIONS = {
         '200fae443c28f58cae39e754795adc1eb48c194002a79a59c6c964207215f8a8',
         'b5cdba323db2ebbd425ed525142276a8f4ae6f6ec172d28e1a127680ae5bd6b9'),
 }
+# Task972 changes only this integration-test setup. Pin both complete blobs;
+# do not permit arbitrary edits to the test or any additional source files.
+TASK972_TEST_PATH = 'artifacts/api-server/src/lib/pushNotifier.test.ts'
+TASK972_TEST_BLOBS = (
+    '86b3bed734c1da10ea64ceb1cc209db9b324c304',
+    'b62437671d184feb803d6d7e6abac17ca5cdc790',
+)
 
 
 def verify_source_correction(path, before, after):
@@ -51,9 +58,13 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH}
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
+    test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
+                  git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
+    if test_blobs != TASK972_TEST_BLOBS:
+        raise RuntimeError('Unexpected Task972 pushNotifier test content')
     corrections = {}
     for path in SOURCE_CORRECTIONS:
         before = git('show', f'{ancestor}:{path}')
@@ -72,7 +83,9 @@ def identity():
         raise RuntimeError('Tracked worktree differs from workflow HEAD')
     proof = {'workflow_head': head, 'reviewed_ancestor': ancestor,
              'reviewed_tree': git('rev-parse', f'{ancestor}^{{tree}}'), 'allowed_diff': changed,
-             'task971_exact_source_corrections': corrections}
+             'task971_exact_source_corrections': corrections,
+             'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
+                 'before_blob': test_blobs[0], 'after_blob': test_blobs[1]}}
     (ROOT / 'TASK_969_IDENTITY.json').write_text(json.dumps(proof, indent=2) + '\n')
     print(json.dumps(proof, indent=2))
 
@@ -87,12 +100,12 @@ def report():
     proof = load('TASK_969_IDENTITY.json')
     evidence = load('TASK_969_POSTGRES_BEFORE_AFTER_EVIDENCE.json')
     unique = evidence.get('audit_unique_key', {})
-    gates = ['identity', 'schema_order', 'pnpm', 'install', 'validator_deps', 'guard', 'offline', 'native', 'api', 'python_deps', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']
+    gates = ['identity', 'schema_order', 'pnpm', 'install', 'validator_deps', 'guard', 'offline', 'native', 'api_focused', 'api', 'python_deps', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']
     if outcome('schema_order') == 'failure' or unique.get('match') is False or evidence.get('status') == 'CATALOG_FAILURE':
         verdict = 'B. FAIL — CATALOG/SCHEMA INCOMPATIBILITY'
     elif outcome('guard') == 'failure' or outcome('offline') == 'failure':
         verdict = 'C. FAIL — MIGRATION GUARD'
-    elif any(outcome(x) == 'failure' for x in ['native', 'api', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']):
+    elif any(outcome(x) == 'failure' for x in ['native', 'api_focused', 'api', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']):
         verdict = 'D. FAIL — APPLICATION/DB TESTS'
     elif all(outcome(x) == 'success' for x in gates):
         verdict = 'A. PASS — READY FOR REVIEW, NO MERGE/DEPLOY PERFORMED'
@@ -105,6 +118,7 @@ def report():
              f'- Reviewed ancestor: `{proof.get("reviewed_ancestor", "not proven")}`',
              f'- Reviewed tree: `{proof.get("reviewed_tree", "not proven")}`',
              f'- Task971 exact source corrections: `{proof.get("task971_exact_source_corrections", "not proven")}`',
+             f'- Task972 exact test correction: `{proof.get("task972_exact_test_correction", "not proven")}`',
              f'- PostgreSQL: `{evidence.get("server", {}).get("version", "not measured")}`',
              f'- Guard totals: `{totals}`',
              f'- Offline classification: `{outcome("offline")}` (see task969-offline.log)',
