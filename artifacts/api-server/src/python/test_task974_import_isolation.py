@@ -5,6 +5,34 @@ import subprocess
 import sys
 
 import pytest
+from task974_test_isolation import isolated_imports
+
+
+def test_isolated_imports_restores_existing_child_module_namespace():
+    """A reload mutates a cached child object; its namespace must be restored."""
+    import types
+
+    package = types.ModuleType("task974_synthetic")
+    package.__path__ = []
+    package.__file__ = __file__
+    child = types.ModuleType("task974_synthetic.shared_services")
+    child.__file__ = __file__
+    child.answer = "real"
+    package.shared_services = child
+    sys.modules[package.__name__] = package
+    sys.modules[child.__name__] = child
+    try:
+        with isolated_imports({}, target_packages=(package.__name__,)):
+            sys.modules[package.__name__] = package
+            sys.modules[child.__name__] = child
+            package.shared_services = child
+            child.answer = "stub-bound"
+        assert sys.modules[child.__name__] is child
+        assert child.answer == "real"
+        assert package.shared_services is child
+    finally:
+        sys.modules.pop(child.__name__, None)
+        sys.modules.pop(package.__name__, None)
 
 
 @pytest.mark.parametrize("producer,fixture_name", [

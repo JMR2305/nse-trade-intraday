@@ -302,6 +302,7 @@ class TestDualThresholdWarning:
             _fake_store = types.ModuleType("phase20_store")
             _fake_store.get_settings = lambda: {"min_risk_reward": 2.8}
             import sys as _sys
+            _previous_store = _sys.modules.get("phase20_store")
             _sys.modules["phase20_store"] = _fake_store
 
             try:
@@ -311,12 +312,12 @@ class TestDualThresholdWarning:
                     execution_outcome=eo,
                 )
             finally:
-                # Restore the real module so other tests are unaffected
-                import importlib as _il
-                try:
-                    _sys.modules["phase20_store"] = _il.import_module("phase20_store")
-                except Exception:
+                # Restore the exact prior object; importing while the fake is
+                # cached would simply return and permanently retain the fake.
+                if _previous_store is None:
                     _sys.modules.pop("phase20_store", None)
+                else:
+                    _sys.modules["phase20_store"] = _previous_store
 
         step = _exec_step(journey)
         warning = (step.get("detail") or {}).get("dual_threshold_warning")

@@ -78,7 +78,7 @@ TASK974_TEST_BLOBS = {
     ],
     "artifacts/api-server/src/python/test_task974_import_isolation.py": [
         None,
-        "e53a75f2144248a359ab04017e718bf9dfa5aa9e"
+        "763289ecddca51f169bd5da2168d4b20e706d060"
     ],
     "artifacts/api-server/src/python/test_event_intelligence.py": [
         "6fade4c4962c5de7c80a62b18d76814197609466",
@@ -122,7 +122,7 @@ TASK974_TEST_BLOBS = {
     ],
     "artifacts/api-server/src/python/task974_test_isolation.py": [
         None,
-        "67cd9c31fe8e20ad794dc956d01c4ea2d64e9b40"
+        "08982b401da29d5e5e91a2281071ae96855591b0"
     ],
     "artifacts/api-server/src/python/task974_runtime_leak_diagnostics.py": [
         None,
@@ -135,6 +135,10 @@ TASK974_TEST_BLOBS = {
     "artifacts/api-server/src/python/tests/unit/test_bootstrap_paper_trade.py": [
         "812c06d01e87ef32d4b74f1112f7e2f1c260e49b",
         "565595ed746e1c7d27465f8d95ad98a8a0b3fe03"
+    ],
+    "artifacts/api-server/src/python/tests/test_journey_execution_labels.py": [
+        "ce45f9fa77d477d9f98a3f21b4501a419636045b",
+        "1aaca25606bf181e8c7df09ee359d741149c1999"
     ],
     "artifacts/api-server/src/python/tests/test_balanced_decision.py": [
         "18fecde4d15d78c58905e7986d5b930aa2989b15",

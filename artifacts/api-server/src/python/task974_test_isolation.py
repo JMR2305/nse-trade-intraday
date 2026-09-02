@@ -31,8 +31,9 @@ def isolated_imports(
     }
     saved_package_dicts = {
         name: dict(module.__dict__)
-        for name in target_packages
-        if isinstance((module := sys.modules.get(name)), ModuleType)
+        for name, module in saved_modules.items()
+        if isinstance(module, ModuleType)
+        and any(name == prefix or name.startswith(prefix + ".") for prefix in target_packages)
     }
     saved_environment = {
         name: os.environ.get(name) for name in (environment or {})
@@ -52,10 +53,10 @@ def isolated_imports(
                 sys.modules.pop(name, None)
         sys.modules.update(saved_modules)
         for name, namespace in saved_package_dicts.items():
-            package = sys.modules.get(name)
-            if isinstance(package, ModuleType):
-                package.__dict__.clear()
-                package.__dict__.update(namespace)
+            module = sys.modules.get(name)
+            if isinstance(module, ModuleType):
+                module.__dict__.clear()
+                module.__dict__.update(namespace)
         for name, value in saved_environment.items():
             if value is None:
                 os.environ.pop(name, None)
