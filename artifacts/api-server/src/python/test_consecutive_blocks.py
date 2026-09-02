@@ -21,29 +21,34 @@ from __future__ import annotations
 import sys
 import types
 import unittest
+import pytest
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 
 
-# ── Provide stub top-level modules that phase20_store imports at module load ──
-# Must happen before any import of phase20_store / phase20_gates.
+def _stub_modules():
+    """Fresh test-local stand-ins; importing this test never installs them."""
+    attrs = {
+        "scan_state_store": dict(db_available=lambda: False, _connect=lambda: None,
+                                load_latest_meta=lambda: {}, load_latest_snapshot=lambda: {}),
+        "market_hours": dict(market_status=lambda: {"state": "OPEN"}),
+        "paper_trader": dict(_load_state=lambda: {"trades": [], "positions": {}},
+                             get_portfolio=lambda: {"cash": 50000, "invested_value": 0, "positions": []}),
+        "phase20_executor": dict(get_ledger=lambda *a: [], get_open_trades=lambda: []),
+        "phase20_v3_analytics": dict(record_rejections=lambda *a, **k: None),
+    }
+    modules = {}
+    for name, values in attrs.items():
+        modules[name] = types.ModuleType(name)
+        vars(modules[name]).update(values)
+    return modules
 
-def _ensure_stub(name: str, **attrs):
-    if name not in sys.modules:
-        mod = types.ModuleType(name)
-        mod.__dict__.update(attrs)
-        sys.modules[name] = mod
-    return sys.modules[name]
 
-
-_ensure_stub("scan_state_store", db_available=lambda: False, _connect=lambda: None,
-             load_latest_meta=lambda: {}, load_latest_snapshot=lambda: {})
-_ensure_stub("market_hours", market_status=lambda: {"state": "OPEN"})
-_ensure_stub("paper_trader", _load_state=lambda: {"trades": [], "positions": {}},
-             get_portfolio=lambda: {"cash": 50000, "invested_value": 0, "positions": []})
-_ensure_stub("phase20_executor", get_ledger=lambda *a: [], get_open_trades=lambda: [])
-_ensure_stub("phase20_v3_analytics", record_rejections=lambda *a, **k: None)
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    with patch.dict(sys.modules, _stub_modules()):
+        yield
 
 
 # ── In-memory KV backing store ────────────────────────────────────────────────

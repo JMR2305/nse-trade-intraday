@@ -109,6 +109,12 @@ jobs:
           ../../../../.venv/bin/python -m pytest tests/integration -q 2>&1 | tee ../../../../task969-python-native.log
       - name: Task974 clean-interpreter collection diagnostics
         run: .venv/bin/python scripts/task974_collection_diagnostics.py
+      - name: Task974 scoped-stub restoration regressions
+        id: python_isolation
+        run: |
+          set -o pipefail
+          cd artifacts/api-server/src/python
+          ../../../../.venv/bin/python -m pytest test_task974_import_isolation.py test_consecutive_blocks.py test_analytics_30plus_integration.py ai_performance/test_ai_performance.py strategy_intelligence/test_strategy_intelligence.py test_phase9.py -q 2>&1 | tee ../../../../task974-focused-python.log
       - name: Python application and authority/session suites
         if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python_fixture.outcome == 'success' }}
         id: python
@@ -154,4 +160,6 @@ jobs:
             TASK_973_*.json
             TASK_973_*.md
             task974-diagnostics/
+            task974-*.log
+            TASK_974_*.md
           if-no-files-found: error

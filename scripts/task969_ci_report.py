@@ -20,6 +20,7 @@ ALLOWED = {
     'TASK_973_ROOT_CAUSE.md',
     'scripts/task973_prepare_python_db.py',
     'scripts/task974_collection_diagnostics.py',
+    'TASK_974_ORIGINAL_COLLECTION_FAILURES.md',
 }
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
@@ -48,6 +49,40 @@ TASK973_QUEUE_BLOBS = (
 )
 
 
+# Task974 permits only these complete test-infrastructure blobs. A new test
+# must be absent from the reviewed tree; existing tests pin both versions.
+TASK974_TEST_BLOBS = {
+    "artifacts/api-server/src/python/test_consecutive_blocks.py": [
+        "cc4dda43dfa32c7fee79585db1f8e23bfc8305aa",
+        "e0f21d56109778839d51927bb1a20e9251aea384"
+    ],
+    "artifacts/api-server/src/python/test_analytics_30plus_integration.py": [
+        "a95fa4696921d4715e08b97d392f258ddb0d449e",
+        "b83482ed4e93c852e900402a7d630b38caace820"
+    ],
+    "artifacts/api-server/src/python/ai_performance/test_ai_performance.py": [
+        "d6ab9b98f20e9e9a10b24f8383af9fc054fd2d6f",
+        "58b3ba0d155cf7c69ca6c528371c9007b88e454b"
+    ],
+    "artifacts/api-server/src/python/strategy_intelligence/test_strategy_intelligence.py": [
+        "29e5ee13df4286652cb104a6d272f9e76e9a0ce9",
+        "a7f163d06ceba5b920b4f5f5d0e5119009e024b6"
+    ],
+    "artifacts/api-server/src/python/test_phase9.py": [
+        "d2e9e345a553c4e288e7fadac55340eb8093a402",
+        "c817872bcb9351db3bcdb8cf68426f44592a623c"
+    ],
+    "artifacts/api-server/src/python/test_phase22_final.py": [
+        "3dfc85b6502018382981a8df0a242c328ddde044",
+        "ca83c6f3e5a62d84581488f4edc0ab381c472757"
+    ],
+    "artifacts/api-server/src/python/test_task974_import_isolation.py": [
+        None,
+        "6ecd12ea134528d141ac4edc36c815cd3a15536f"
+    ]
+}
+
+
 def verify_source_correction(path, before, after):
     old, new = SOURCE_CORRECTIONS[path]
     if before.count(old) != 1 or after != before.replace(old, new, 1):
@@ -69,7 +104,7 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH}
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
@@ -81,6 +116,13 @@ def identity():
     if queue_blobs != TASK973_QUEUE_BLOBS:
         raise RuntimeError('Unexpected Task973 queue source content')
     corrections = {}
+    for path, (expected_before, expected_after) in TASK974_TEST_BLOBS.items():
+        exists = subprocess.run(['git', 'cat-file', '-e', f'{ancestor}:{path}'], cwd=ROOT,
+                                capture_output=True).returncode == 0
+        before = git('rev-parse', f'{ancestor}:{path}') if exists else None
+        after = git('rev-parse', f'{head}:{path}')
+        if (before, after) != (expected_before, expected_after):
+            raise RuntimeError(f'Unexpected Task974 test content: {path}')
     for path in SOURCE_CORRECTIONS:
         before = git('show', f'{ancestor}:{path}')
         after = git('show', f'{head}:{path}')
@@ -118,11 +160,12 @@ def report():
     evidence = load('TASK_969_POSTGRES_BEFORE_AFTER_EVIDENCE.json')
     unique = evidence.get('audit_unique_key', {})
     gates = ['identity', 'schema_order', 'pnpm', 'install', 'validator_deps', 'guard', 'offline', 'native', 'api_focused', 'api', 'python_deps', 'python_fixture', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']
+    gates.append('python_isolation')
     if outcome('schema_order') == 'failure' or unique.get('match') is False or evidence.get('status') == 'CATALOG_FAILURE':
         verdict = 'B. FAIL — CATALOG/SCHEMA INCOMPATIBILITY'
     elif outcome('guard') == 'failure' or outcome('offline') == 'failure':
         verdict = 'C. FAIL — MIGRATION GUARD'
-    elif any(outcome(x) == 'failure' for x in ['native', 'api_focused', 'api', 'python_native', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']):
+    elif any(outcome(x) == 'failure' for x in ['native', 'api_focused', 'api', 'python_native', 'python_isolation', 'python', 'dashboard', 'typecheck', 'compile', 'api_build', 'dashboard_build']):
         verdict = 'D. FAIL — APPLICATION/DB TESTS'
     elif all(outcome(x) == 'success' for x in gates):
         verdict = 'A. PASS — READY FOR REVIEW, NO MERGE/DEPLOY PERFORMED'
