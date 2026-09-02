@@ -146,7 +146,11 @@ TASK974_TEST_BLOBS = {
     ],
     "artifacts/api-server/src/python/research_lab/test_research_lab.py": [
         "bc60544b3950ea1c0cbc60a452f9ab842e43636f",
-        "fa4384d8b5c2e602bba572053398e489a22e5cc7"
+        "51235e8df74e9c3317801643f7eeea6e700a0c64"
+    ],
+    "artifacts/api-server/src/python/conftest.py": [
+        None,
+        "d5988b0e9a648fdbe9e5c8771102ddf335162c54"
     ],
     "artifacts/api-server/src/python/tests/test_balanced_decision.py": [
         "18fecde4d15d78c58905e7986d5b930aa2989b15",

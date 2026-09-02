@@ -295,8 +295,9 @@ class TestStringKpiCoercion(unittest.TestCase):
         import json
         import importlib
 
-        import research_lab.shared_services as mod
-        importlib.reload(mod)
+        with patch.dict(os.environ, {"RESEARCH_LAB_ENABLED": "true"}):
+            import research_lab.shared_services as mod
+            importlib.reload(mod)
 
         with tempfile.NamedTemporaryFile(
             suffix=".json", delete=False, mode="w"
@@ -312,7 +313,8 @@ class TestStringKpiCoercion(unittest.TestCase):
 
         try:
             mod._SNAPSHOT_CACHE_FILE = tmp_path
-            snap = mod.get_research_lab_snapshot()
+            with patch.dict(os.environ, {"RESEARCH_LAB_ENABLED": "true"}):
+                snap = mod.get_research_lab_snapshot()
             self.assertIsInstance(snap.get("grade"), str,
                 f"grade from cache type={type(snap.get('grade')).__name__!r}")
             self.assertIsInstance(snap.get("trend"), str,
