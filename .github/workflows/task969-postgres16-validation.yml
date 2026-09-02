@@ -140,4 +140,6 @@ jobs:
             TASK_969_*.json
             TASK_969_*.csv
             task969-*.log
+            TASK_973_*.json
+            TASK_973_*.md
           if-no-files-found: error

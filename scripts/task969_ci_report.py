@@ -16,6 +16,8 @@ ALLOWED = {
     'scripts/task969_ci_report.py',
     'scripts/test_task971_schema_order.py',
     'TASK_971_SCHEMA_ORDER_CORRECTION.md',
+    'TASK_973_QUEUE_DIAGNOSTICS.json',
+    'TASK_973_ROOT_CAUSE.md',
 }
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
@@ -33,7 +35,14 @@ SOURCE_CORRECTIONS = {
 TASK972_TEST_PATH = 'artifacts/api-server/src/lib/pushNotifier.test.ts'
 TASK972_TEST_BLOBS = (
     '86b3bed734c1da10ea64ceb1cc209db9b324c304',
-    '65607b4d3958d5d0b86ca3ddcc7e2ff77e59fa6d',
+    'a0382b7ec1603306fb7ce7154d207299a963b4cd',
+)
+# Task973 permits the demonstrated queue-clock defect correction, not other
+# runtime edits. Pin the entire before/after source blobs independently.
+TASK973_QUEUE_PATH = 'artifacts/api-server/src/lib/alertQueue.ts'
+TASK973_QUEUE_BLOBS = (
+    'a04689aaeb6a3345a3e25d032725c0e4dfe7499d',
+    'ecf2556ed072537590128d64bafd0f9a7e009530',
 )
 
 
@@ -58,13 +67,17 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH}
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH}
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
         raise RuntimeError('Unexpected Task972 pushNotifier test content')
+    queue_blobs = (git('rev-parse', f'{ancestor}:{TASK973_QUEUE_PATH}'),
+                   git('rev-parse', f'{head}:{TASK973_QUEUE_PATH}'))
+    if queue_blobs != TASK973_QUEUE_BLOBS:
+        raise RuntimeError('Unexpected Task973 queue source content')
     corrections = {}
     for path in SOURCE_CORRECTIONS:
         before = git('show', f'{ancestor}:{path}')
@@ -85,7 +98,9 @@ def identity():
              'reviewed_tree': git('rev-parse', f'{ancestor}^{{tree}}'), 'allowed_diff': changed,
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
-                 'before_blob': test_blobs[0], 'after_blob': test_blobs[1]}}
+                 'before_blob': test_blobs[0], 'after_blob': test_blobs[1]},
+             'task973_exact_queue_correction': {'path': TASK973_QUEUE_PATH,
+                 'before_blob': queue_blobs[0], 'after_blob': queue_blobs[1]}}
     (ROOT / 'TASK_969_IDENTITY.json').write_text(json.dumps(proof, indent=2) + '\n')
     print(json.dumps(proof, indent=2))
 

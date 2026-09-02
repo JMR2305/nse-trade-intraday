@@ -133,6 +133,11 @@ export async function processDueDeliveries(
   try {
     await ensureAlertDeliveriesTable();
     const now = new Date();
+    // Queue timestamps default to PostgreSQL now() at microsecond precision.
+    // A JS Date cutoff can precede an already committed enqueue within the
+    // same millisecond. Compare in the database, without rounding stored data
+    // or admitting future retries. Statement time also works in transactions.
+    const databaseNow = sql`statement_timestamp()`;
 
     // Expire overdue non-critical rows first (critical never auto-expires).
     const expiredRows = await db
@@ -142,7 +147,7 @@ export async function processDueDeliveries(
         eq(alertDeliveriesTable.channel, channel),
         inArray(alertDeliveriesTable.status, ["QUEUED", "RETRY_SCHEDULED"]),
         eq(alertDeliveriesTable.critical, false),
-        lte(alertDeliveriesTable.expiresAt, now),
+        lte(alertDeliveriesTable.expiresAt, databaseNow),
       ))
       .returning({ id: alertDeliveriesTable.id });
     counters.expired = expiredRows.length;
@@ -154,7 +159,7 @@ export async function processDueDeliveries(
         eq(alertDeliveriesTable.channel, channel),
         inArray(alertDeliveriesTable.status, ["QUEUED", "RETRY_SCHEDULED"]),
         or(
-          lte(alertDeliveriesTable.nextAttemptAt, now),
+          lte(alertDeliveriesTable.nextAttemptAt, databaseNow),
           sql`${alertDeliveriesTable.nextAttemptAt} IS NULL`,
         ),
       ))

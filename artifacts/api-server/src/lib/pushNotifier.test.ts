@@ -9,7 +9,7 @@ import {
   _resetInMemoryHealthStateOnlyForTests,
   type OpsHealthSnapshot,
 } from "./pushNotifier";
-import { ensureAlertDeliveriesTable } from "./alertQueue";
+import { ensureAlertDeliveriesTable, processDueDeliveries } from "./alertQueue";
 
 // This suite must never borrow a developer or production DATABASE_URL.
 vi.hoisted(() => {
@@ -88,9 +88,6 @@ async function getSub(token: string) {
 let templateSchema: string;
 let schemaSequence = 0;
 const suiteId = `task967_push_${process.pid}_${Date.now()}`;
-const queueDiagnostics: unknown[] = [];
-const originalQuery = pool.query.bind(pool);
-let queryObserver: ReturnType<typeof vi.spyOn> | undefined;
 
 beforeAll(async () => {
   // Keep SET search_path and all ORM queries on one session, as before.
@@ -116,38 +113,60 @@ beforeEach(async () => {
       (LIKE "${templateSchema}"."${table}" INCLUDING ALL)`);
   }
   await pool.query(`SET search_path TO "${schema}"`);
-  queueDiagnostics.length = 0;
-  // Task973 observation only: execute the original predicate unchanged, then
-  // inspect raw PostgreSQL timestamps against its exact serialized cutoff.
-  queryObserver = vi.spyOn(pool, "query").mockImplementation((async (...args: any[]) => {
-    const result = await (originalQuery as any)(...args);
-    const query = typeof args[0] === "string" ? args[0] : args[0]?.text;
-    const values = args[1] ?? args[0]?.values ?? [];
-    if (query?.startsWith("select ") && query.includes('"next_attempt_at" <=') &&
-        query.includes('from "alert_deliveries"')) {
-      const cutoff = values.find((value: unknown) => typeof value === "string" && /^\d{4}-\d\d-\d\dT/.test(value));
-      const snapshot = await originalQuery(`SELECT id, status, attempts, destination,
-        next_attempt_at::text, created_at::text, expires_at::text,
-        next_attempt_at <= $1::timestamptz AS due_at_cutoff,
-        extract(epoch FROM (next_attempt_at - $1::timestamptz)) * 1000000 AS delta_us,
-        current_schema(), current_setting('TimeZone') AS timezone,
-        clock_timestamp()::text AS observed_at
-        FROM alert_deliveries ORDER BY created_at, id`, [cutoff]);
-      queueDiagnostics.push({ query, values, selected: result.rows, rows: snapshot.rows });
-    }
-    return result;
-  }) as typeof pool.query);
 });
 
-afterEach((context) => {
-  queryObserver?.mockRestore();
-  console.log("TASK973_QUEUE_EVIDENCE", JSON.stringify({
-    test: context.task.name, state: context.task.result?.state,
-    errors: context.task.result?.errors, queries: queueDiagnostics,
-  }));
-  vi.unstubAllGlobals();
-});
+afterEach(() => { vi.unstubAllGlobals(); });
 afterAll(async () => { await pool.end(); });
+
+describe("Task973 PostgreSQL queue clock regression", () => {
+  it("delivers a committed microsecond-due row without rounding future retries or sending expired rows", async () => {
+    // Pin only Date (not IO/timers) to the millisecond floor of a real DB
+    // instant. A row one microsecond after it deterministically reproduces
+    // the old cutoff bug, without sleeps or a fake database.
+    const { rows: [clock] } = await pool.query(
+      `SELECT date_trunc('milliseconds', clock_timestamp())::text AS instant`);
+    const appClock = new Date(clock.instant);
+    await pool.query(`INSERT INTO alert_deliveries
+      (idempotency_key, channel, kind, title, destination, status, attempts,
+       next_attempt_at, expires_at) VALUES
+      ('task973-due', 'push', 'regression', 'due', 'due', 'QUEUED', 0,
+       $1::timestamptz + interval '1 microsecond', $1::timestamptz + interval '1 day'),
+      ('task973-future', 'push', 'regression', 'future', 'future', 'RETRY_SCHEDULED', 1,
+       $1::timestamptz + interval '1 day', $1::timestamptz + interval '2 days'),
+      ('task973-expired', 'push', 'regression', 'expired', 'expired', 'QUEUED', 0,
+       $1::timestamptz - interval '1 day', $1::timestamptz - interval '1 second')`,
+      [appClock.toISOString()]);
+    const { rows: [boundary] } = await pool.query(`SELECT
+      extract(epoch FROM (next_attempt_at - $1::timestamptz)) * 1000000 AS delta_us,
+      next_attempt_at <= $1::timestamptz AS old_predicate,
+      next_attempt_at <= statement_timestamp() AS database_predicate
+      FROM alert_deliveries WHERE idempotency_key = 'task973-due'`, [appClock.toISOString()]);
+    expect(Number(boundary.delta_us)).toBe(1);
+    expect(boundary.old_predicate).toBe(false);
+    expect(boundary.database_predicate).toBe(true);
+    const sender = vi.fn(async (_row: typeof alertDeliveriesTable.$inferSelect) => ({ ok: true }));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(appClock);
+    try {
+      expect(await processDueDeliveries("push", sender)).toEqual({
+        delivered: 1, retried: 0, failed: 0, expired: 1,
+      });
+      expect(sender).toHaveBeenCalledTimes(1);
+      expect(sender.mock.calls[0]?.[0].destination).toBe("due");
+      const rows = await db.select().from(alertDeliveriesTable);
+      expect(rows.find(r => r.idempotencyKey === "task973-due")?.status).toBe("DELIVERED");
+      expect(rows.find(r => r.idempotencyKey === "task973-future")?.status).toBe("RETRY_SCHEDULED");
+      expect(rows.find(r => r.idempotencyKey === "task973-future")?.attempts).toBe(1);
+      expect(rows.find(r => r.idempotencyKey === "task973-expired")?.status).toBe("EXPIRED");
+      expect(await processDueDeliveries("push", sender)).toEqual({
+        delivered: 0, retried: 0, failed: 0, expired: 0,
+      });
+      expect(sender).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 describe("dispatchSignalPushNotifications", () => {
   it("does nothing when there are no enabled subscriptions", async () => {
