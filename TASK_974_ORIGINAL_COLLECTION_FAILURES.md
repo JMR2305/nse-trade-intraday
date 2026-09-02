@@ -53,3 +53,7 @@ The expanded focused suite passed 506 tests in 8.36 seconds. Broad collection th
 - tests/buy_audit_test.py, tests/test_eod_reconciliation.py, tests/test_phase20_startup_overnight_check.py, and tests/unit/test_size_reduced_to_cap.py replaced real market_hours, phase20_executor, phase20_store, and scan_state_store modules during collection; this caused the bootstrap executor and portfolio endpoint errors.
 
 Each identified unit-test producer now installs its existing doubles only inside an autouse test fixture and restores the complete sys.modules state. Tests whose SUT binds dependencies at import receive a fresh SUT inside that scoped fixture. The regression runs every producer twice and proves both stub behavior and exact module-object restoration.
+
+## Legacy process-exit trace (run 33681591651)
+
+The final producer regression passed 650 tests plus 11 subtests in 9.89 seconds. Broad collection then reached tests/test_balanced_decision.py, completed all 74 check expressions successfully, and aborted pytest with SystemExit(0). The executable body is now a pytest test function; direct script execution remains supported under the __main__ guard, and all original check expressions are byte-for-byte AST-equivalent.

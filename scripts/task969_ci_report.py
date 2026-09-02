@@ -119,6 +119,10 @@ TASK974_TEST_BLOBS = {
     "artifacts/api-server/src/python/tests/unit/test_size_reduced_to_cap.py": [
         "346684a657a352dedc054d85262306cad59a0d51",
         "de683b798236e0c7a3b4cdb6ac3515098f7d08a2"
+    ],
+    "artifacts/api-server/src/python/tests/test_balanced_decision.py": [
+        "18fecde4d15d78c58905e7986d5b930aa2989b15",
+        "9947f530ea6763c765a8950bbca9f3536d200fa8"
     ]
 }
 
