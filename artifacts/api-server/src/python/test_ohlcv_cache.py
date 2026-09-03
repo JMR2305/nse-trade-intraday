@@ -27,6 +27,7 @@ Run: cd artifacts/api-server/src/python && python -m pytest test_ohlcv_cache.py 
 from __future__ import annotations
 
 import types
+import os
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
@@ -50,6 +51,39 @@ def _make_df(days: int = 130, latest_age_days: int = 1) -> pd.DataFrame:
 def _make_stale_df(days: int = 130) -> pd.DataFrame:
     """Return a DataFrame whose latest bar is 20 days old (UNAVAILABLE)."""
     return _make_df(days=days, latest_age_days=20)
+
+
+@pytest.fixture
+def due_postmarket_refresh(monkeypatch):
+    """Exercise the real guard/worker with a due clock and isolated lease I/O."""
+    import market_hours
+    import phase20_store
+    import post_market_data_refresh
+    now = datetime(2026, 9, 3, 16, 0, tzinfo=timezone(timedelta(hours=5, minutes=30)))
+    monkeypatch.setattr(market_hours, "now_ist", lambda: now)
+    monkeypatch.setattr(market_hours, "market_status", lambda: {"state": "POST_CLOSE"})
+    monkeypatch.setattr(post_market_data_refresh, "_today_ist", lambda: "2026-09-03")
+    state = {}
+    def acquire(key, value):
+        if key in state:
+            return False
+        state[key] = value
+        return True
+    def renew(key, token, expiry):
+        return state.get(key, {}).get("token") == token
+    def release(key, token):
+        if state.get(key, {}).get("token") == token:
+            del state[key]
+            return True
+        return False
+    monkeypatch.setattr(phase20_store, "kv_get", lambda key: state.get(key))
+    monkeypatch.setattr(phase20_store, "kv_set", lambda key, value: state.__setitem__(key, value))
+    monkeypatch.setattr(phase20_store, "kv_acquire_expiring_claim", acquire)
+    monkeypatch.setattr(phase20_store, "kv_renew_expiring_claim", renew)
+    monkeypatch.setattr(phase20_store, "kv_release_if_owned", release)
+    # External event persistence is not the cache/guard behavior under test.
+    monkeypatch.setattr(post_market_data_refresh, "_emit", lambda *a, **k: None)
+    return state
 
 
 # ── Test 1: First run writes to cache ────────────────────────────────────────
@@ -133,7 +167,7 @@ def test_missing_bars_fetches_only_missing():
 
 # ── Test 4: Post-market job appends latest candle ────────────────────────────
 
-def test_postmarket_job_appends_candle():
+def test_postmarket_job_appends_candle(due_postmarket_refresh):
     """run_postmarket_refresh fetches 5d bars and writes them to cache."""
     df5 = _make_df(days=5, latest_age_days=0)
     written: Dict[str, int] = {}
@@ -147,13 +181,15 @@ def test_postmarket_job_appends_candle():
          patch("ohlcv_cache_store.log_refresh_start", return_value=1), \
          patch("ohlcv_cache_store.log_refresh_complete"), \
          patch("ohlcv_cache_store.write_symbol_to_cache", side_effect=fake_write), \
-         patch("yfinance.download", return_value=_make_multiindex_bulk(
+         patch("post_market_data_refresh._download_batch_with_deadline", return_value=_make_multiindex_bulk(
              ["RELIANCE.NS", "TCS.NS"], df5)):
         from post_market_data_refresh import run_postmarket_refresh
         result = run_postmarket_refresh()
     assert result["success"]
     assert result["symbols_updated"] == 2
     assert "RELIANCE" in written and "TCS" in written
+    assert result["ran"] is True
+    assert due_postmarket_refresh["ohlcv_postmarket_refresh_state:2026-09-03"]["status"] == "SUCCESS"
 
 
 # ── Test 5: Pre-market readiness detects complete cache ───────────────────────
@@ -167,7 +203,8 @@ def test_premarket_readiness_ready():
         "TCS":      {"cached": True, "data_quality": "LIVE", "missing_required": False,
                      "latest_date": date.today().isoformat(), "age_days": 1},
     }
-    with patch("config.NIFTY_50", ["RELIANCE", "TCS"]), \
+    with patch.dict(os.environ, {"APEXQUANT_BUILD_ID": "task974-readiness-fixture"}), \
+         patch("config.NIFTY_50", ["RELIANCE", "TCS"]), \
          patch("ohlcv_cache_store.get_cache_status", return_value=status), \
          patch("ohlcv_cache_store._get_last_refresh_state",
                return_value={"refresh_date": date.today().isoformat(), "status": "SUCCESS"}), \
@@ -241,6 +278,8 @@ def test_kite_ltp_overrides_price():
         "enabled": True,
         "session_verified": True,
         "ltps": {"RELIANCE": 2500.0},
+        "quote_sources": {"RELIANCE": "kite_live"},
+        "quote_reasons": {},
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "note": "Kite LTP",
     }
@@ -360,7 +399,7 @@ def test_backtest_cache_as_of_date():
 
 # ── Test 13: A missing symbol degrades the refresh to PARTIAL ────────────────
 
-def test_missing_symbol_makes_refresh_partial():
+def test_missing_symbol_makes_refresh_partial(due_postmarket_refresh):
     """A symbol yfinance cannot return now makes the run PARTIAL (no LTIM exception)."""
     df5 = _make_df(days=5)
 
@@ -372,7 +411,7 @@ def test_missing_symbol_makes_refresh_partial():
          patch("ohlcv_cache_store.log_refresh_start", return_value=1), \
          patch("ohlcv_cache_store.log_refresh_complete"), \
          patch("ohlcv_cache_store.write_symbol_to_cache", return_value=5), \
-         patch("yfinance.download", return_value=bulk):
+         patch("post_market_data_refresh._download_batch_with_deadline", return_value=bulk):
         from post_market_data_refresh import run_postmarket_refresh
         result = run_postmarket_refresh()
     assert result["success"]
@@ -382,15 +421,22 @@ def test_missing_symbol_makes_refresh_partial():
     assert result["symbols_missing"] == 1
     # The LTIM-specific response field is gone.
     assert "known_missing_ltim" not in result
+    assert result["ran"] is True
+    state = due_postmarket_refresh["ohlcv_postmarket_refresh_state:2026-09-03"]
+    assert state["unfinished_symbols"] == ["INFY"]
+    assert "ohlcv_postmarket_refresh_lease:2026-09-03" not in due_postmarket_refresh
 
 
 # ── Test 14: Scan-count API has separated fields ──────────────────────────────
 
 def test_scan_count_api_has_correct_fields():
     """build_scan_status_response returns scan_count_today (COMPLETED) field."""
-    with patch("scan_state_store.count_scans_today_ist", return_value=18), \
+    with patch("scan_state_store.scan_observability_counts_today_ist", return_value={
+             "completed_scans_today": 18, "started_scans_today": 20,
+             "skipped_scans_today": 2,
+         }), \
          patch("scan_state_store.load_latest_meta", return_value=None), \
-         patch("scan_state_store.db_available", return_value=True):
+         patch("scan_state_store.db_available", return_value=False):
         from scan_state_store import build_scan_status_response
         result = build_scan_status_response()
     # scan_count_today must be present and equal COMPLETED count

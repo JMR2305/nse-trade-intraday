@@ -123,23 +123,23 @@ jobs:
           set -o pipefail
           ../../../../.venv/bin/python -m pytest . -q -p task974_runtime_leak_diagnostics 2>&1 | tee ../../../../task969-python.log
       - name: Dashboard suite
-        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
         id: dashboard
         run: pnpm --filter @workspace/trading-dashboard run test
       - name: TypeScript
-        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
         id: typecheck
         run: pnpm run typecheck
       - name: Python compilation
-        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
         id: compile
         run: python -m compileall -q artifacts/api-server/src/python
       - name: API build
-        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
         id: api_build
         run: pnpm --filter @workspace/api-server run build
       - name: Dashboard build
-        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
         id: dashboard_build
         run: env -u REPL_ID PORT=9999 BASE_PATH=/trading-dashboard/ pnpm --filter @workspace/trading-dashboard run build
       - name: Write final report including failed/skipped gates
@@ -163,4 +163,5 @@ jobs:
             task974-*.log
             artifacts/api-server/src/python/TASK_974_RUNTIME_MODULE_LEAKS.json
             TASK_974_*.md
+            TASK974_STEP26_REMAINING_FAILURES_STATUS.md
           if-no-files-found: error

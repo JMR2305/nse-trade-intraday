@@ -11,6 +11,7 @@ import os
 import sys
 import time
 from unittest.mock import patch
+import pytest
 
 PASS = FAIL = 0
 
@@ -34,6 +35,8 @@ import kite_quote_provider as kqp
 import live_scan_engine as lse
 
 def test_phase22_finalization():
+    if not os.environ.get("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set — durable Kite token integration requires a real disposable DB")
     global PASS, FAIL
     PASS = FAIL = 0
     # ── T1: Perf classification ──────────────────────────────────────────────────

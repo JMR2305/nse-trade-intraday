@@ -227,8 +227,8 @@ class TestExplorationBudgetToday(unittest.TestCase):
         # 1 share at ₹2,000 = ₹2,000 / ₹50,000 = 4%
         rows = self._make_db_rows([{"symbol": "DRREDDY", "price": 2000.0, "qty": 1}])
         with patch("paper_exploration_engine._with_db", return_value=rows):
-            with patch("paper_exploration_engine.get_portfolio",
-                       return_value={"total_value": 50_000.0}, create=True):
+            with patch("paper_trader.get_portfolio",
+                       return_value={"total_value": 50_000.0}):
                 budget = exploration_budget_today(settings)
 
         self.assertEqual(budget["trades_used"], 1)

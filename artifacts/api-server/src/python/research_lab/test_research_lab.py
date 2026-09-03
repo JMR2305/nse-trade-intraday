@@ -320,7 +320,6 @@ class TestStringKpiCoercion(unittest.TestCase):
             self.assertIsInstance(snap.get("trend"), str,
                 f"trend from cache type={type(snap.get('trend')).__name__!r}")
         finally:
-            import os
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 

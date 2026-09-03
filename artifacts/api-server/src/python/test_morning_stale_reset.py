@@ -330,8 +330,8 @@ class TestReplayEngineExecutionLabel(unittest.TestCase):
             f"Expected ELIGIBLE, got {exec_step['result']!r}"
         )
         self.assertEqual(
-            exec_step["reason"], "Paper eligible",
-            f"Expected 'Paper eligible', got {exec_step['reason']!r}"
+            exec_step["reason"], "Paper eligible — execution outcome not recorded for this scan",
+            f"Expected explicit missing execution outcome, got {exec_step['reason']!r}"
         )
 
     def test_order_submitted_event_is_paper_buy(self):

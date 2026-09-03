@@ -130,7 +130,7 @@ def _pipeline_events_ok():
                payload={"confidence": 65}),
         _event(4, "ORDER_SUBMITTED", "EXECUTION"),
         _event(5, "ORDER_EXECUTED", "EXECUTION",
-               payload={"trade_id": "T1", "fill_price": 100.0}),
+               payload={"trade_id": "P20-T1", "fill_price": 100.0}),
         _event(6, "ORDER_SUBMITTED", "EXECUTION", symbol="TCS"),
         _event(7, "ORDER_CANCELLED", "EXECUTION", symbol="TCS"),
         _event(8, "POSITION_OPENED", "PORTFOLIO"),

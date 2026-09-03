@@ -383,6 +383,9 @@ class TestInsertRowFinalGuardBlocksAfterCutoff(unittest.TestCase):
 
         sss = types.ModuleType("scan_state_store")
         sss.db_available = lambda: False  # use file fallback path
+        def unexpected_db_connection():
+            raise AssertionError("File-fallback cutoff test must not connect to DB")
+        sss._connect = unexpected_db_connection
         sys.modules["scan_state_store"] = sss
 
         import phase20_executor as ex

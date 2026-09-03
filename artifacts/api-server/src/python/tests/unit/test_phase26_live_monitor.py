@@ -220,23 +220,23 @@ class TestConsistency(unittest.TestCase):
         kw = dict(
             scan_meta={"scan_id": "scan-1", "completed_at": scan_ts},
             replay={"scan_id": "scan-1", "snapshot_ts": scan_ts,
-                    "execution_trades": [{"trade_id": "t1",
+                    "execution_trades": [{"trade_id": "P20-t1",
                                           "symbol": "INFY"}]},
             portfolio={"cash": 40_000.0, "equity": 50_000.0,
                        "realized_pnl": 100.0,
                        "positions": [{"symbol": "INFY", "quantity": 10,
                                       "current_value": 10_000.0,
-                                      "trade_id": "t1"}]},
+                                      "trade_id": "P20-t1"}]},
             ledger_rows=[
-                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "t1",
+                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "P20-t1",
                  "status": "OPEN", "fill_price": 1000.0},
-                {"scan_id": "scan-0", "symbol": "TCS", "trade_id": "t0",
+                {"scan_id": "scan-0", "symbol": "TCS", "trade_id": "P20-t0",
                  "status": "CLOSED", "realized_pnl": 100.0,
                  "fill_price": 500.0}],
             stage_events={"total_events": 10, "stages": []},
             scan_events=[{"event_type": "ORDER_EXECUTED",
                                "symbol": "INFY", "ts": scan_ts}],
-            learning_trade_ids=["t0"],
+            learning_trade_ids=["P20-t0"],
             phase15_report={"available": True, "mismatches": []},
             e2e_runs=[{"run_id": "r1", "scan_id": "scan-1"}],
         )
@@ -285,7 +285,7 @@ class TestConsistency(unittest.TestCase):
         rep = run_cross_page_consistency(**self.canonical(
             scan_events=[ev, dict(ev)],
             ledger_rows=[{"scan_id": "scan-1", "symbol": "INFY",
-                          "trade_id": "t1", "status": "OPEN",
+                          "trade_id": "P20-t1", "status": "OPEN",
                           "fill_price": 1000.0}],
             portfolio={"cash": 40_000.0, "equity": 50_000.0,
                        "positions": [{"symbol": "INFY", "quantity": 10,
@@ -314,45 +314,45 @@ class TestConsistency(unittest.TestCase):
     def test_duplicate_portfolio_stage_event_detected(self):
         # canonical query_events shape: metadata under `payload`
         ev = {"event_type": "POSITION_OPENED", "symbol": "INFY",
-              "stage": "PORTFOLIO", "payload": {"trade_id": "t1"}}
+              "stage": "PORTFOLIO", "payload": {"trade_id": "P20-t1"}}
         rep = run_cross_page_consistency(**self.canonical(
             scan_events=[
                 {"event_type": "ORDER_EXECUTED", "symbol": "INFY",
-                 "ts": "t", "payload": {"trade_id": "t1"}}, ev, dict(ev)]))
+                 "ts": "t", "payload": {"trade_id": "P20-t1"}}, ev, dict(ev)]))
         dupes = [m for m in rep["mismatches"]
                  if m["field"] == "duplicate_event"]
         self.assertEqual(len(dupes), 1)
-        self.assertIn("POSITION_OPENED:t1", dupes[0]["note"])
+        self.assertIn("POSITION_OPENED:P20-t1", dupes[0]["note"])
 
     def test_two_legit_same_symbol_trades_are_not_duplicates(self):
         # Two valid executions of the same symbol with DISTINCT trade IDs in
         # payload must never trip the one-shot duplicate check.
         evs = [
             {"event_type": "ORDER_EXECUTED", "symbol": "INFY", "ts": "t1",
-             "stage": "EXECUTION", "payload": {"trade_id": "t1"}},
+             "stage": "EXECUTION", "payload": {"trade_id": "P20-t1"}},
             {"event_type": "ORDER_EXECUTED", "symbol": "INFY", "ts": "t2",
-             "stage": "EXECUTION", "payload": {"trade_id": "t2"}},
+             "stage": "EXECUTION", "payload": {"trade_id": "P20-t2"}},
             {"event_type": "POSITION_OPENED", "symbol": "INFY", "ts": "t1",
-             "stage": "PORTFOLIO", "payload": {"trade_id": "t1"}},
+             "stage": "PORTFOLIO", "payload": {"trade_id": "P20-t1"}},
             {"event_type": "POSITION_OPENED", "symbol": "INFY", "ts": "t2",
-             "stage": "PORTFOLIO", "payload": {"trade_id": "t2"}},
+             "stage": "PORTFOLIO", "payload": {"trade_id": "P20-t2"}},
         ]
         rep = run_cross_page_consistency(**self.canonical(
             scan_events=evs,
             ledger_rows=[
-                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "t1",
+                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "P20-t1",
                  "status": "OPEN", "fill_price": 1000.0},
-                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "t2",
+                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "P20-t2",
                  "status": "OPEN", "fill_price": 1001.0}],
             replay={"scan_id": "scan-1", "snapshot_ts": "x",
-                    "execution_trades": [{"trade_id": "t1"},
-                                         {"trade_id": "t2"}]},
+                    "execution_trades": [{"trade_id": "P20-t1"},
+                                         {"trade_id": "P20-t2"}]},
             portfolio={"cash": 30_000.0, "equity": 50_000.0,
                        "positions": [
                            {"symbol": "INFY", "quantity": 10,
-                            "current_value": 10_000.0, "trade_id": "t1"},
+                            "current_value": 10_000.0, "trade_id": "P20-t1"},
                            {"symbol": "INFY", "quantity": 10,
-                            "current_value": 10_000.0, "trade_id": "t2"}]}))
+                            "current_value": 10_000.0, "trade_id": "P20-t2"}]}))
         self.assertEqual(
             [m for m in rep["mismatches"]
              if m["field"] == "duplicate_event"], [])
@@ -363,13 +363,13 @@ class TestConsistency(unittest.TestCase):
         # executed-trade parity (only the executed row counts).
         rep = run_cross_page_consistency(**self.canonical(
             ledger_rows=[
-                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "t1",
+                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "P20-t1",
                  "status": "OPEN", "fill_ts": "t"},
-                {"scan_id": "scan-1", "symbol": "TCS", "trade_id": "t2",
+                {"scan_id": "scan-1", "symbol": "TCS", "trade_id": "P20-t2",
                  "status": "REJECTED"},
-                {"scan_id": "scan-1", "symbol": "WIPRO", "trade_id": "t3",
+                {"scan_id": "scan-1", "symbol": "WIPRO", "trade_id": "P20-t3",
                  "status": "PENDING"},
-                {"scan_id": "scan-0", "symbol": "TCS", "trade_id": "t0",
+                {"scan_id": "scan-0", "symbol": "TCS", "trade_id": "P20-t0",
                  "status": "CLOSED", "realized_pnl": 100.0,
                  "fill_price": 500.0}]))
         self.assertEqual(
@@ -384,9 +384,9 @@ class TestConsistency(unittest.TestCase):
         # broker mismatch).
         rep = run_cross_page_consistency(**self.canonical(
             ledger_rows=[
-                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "t1",
+                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "P20-t1",
                  "status": "EXIT_PENDING", "fill_price": 1000.0},
-                {"scan_id": "scan-0", "symbol": "TCS", "trade_id": "t0",
+                {"scan_id": "scan-0", "symbol": "TCS", "trade_id": "P20-t0",
                  "status": "CLOSED", "realized_pnl": 100.0,
                  "fill_price": 500.0}]))
         self.assertEqual(
@@ -399,7 +399,7 @@ class TestConsistency(unittest.TestCase):
         # execution and must not be counted — parity is fill-based.
         rep = run_cross_page_consistency(**self.canonical(
             ledger_rows=[
-                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "t1",
+                {"scan_id": "scan-1", "symbol": "INFY", "trade_id": "P20-t1",
                  "status": "OPEN", "fill_price": 1000.0},
                 {"scan_id": "scan-1", "symbol": "TCS", "trade_id": "t9",
                  "status": "OPEN"}]))          # unfilled
@@ -417,10 +417,10 @@ class TestConsistency(unittest.TestCase):
         rep = run_cross_page_consistency(**self.canonical(
             scan_events=[
                 {"event_type": "ORDER_EXECUTED", "symbol": "INFY",
-                 "ts": scan_ts, "payload": {"trade_id": "t1"}},
+                 "ts": scan_ts, "payload": {"trade_id": "P20-t1"}},
                 {"event_type": "POSITION_CLOSED", "symbol": "TCS",
                  "stage": "PORTFOLIO", "ts": scan_ts,
-                 "payload": {"trade_id": "t0"}}]))
+                 "payload": {"trade_id": "P20-t0"}}]))
         self.assertEqual(
             [m for m in rep["mismatches"]
              if m["source"] in ("broker", "mission_control",

@@ -15,7 +15,7 @@ closures directly.
 """
 
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import sys
 import os
@@ -100,9 +100,8 @@ def _run_evaluate(
     merged_settings = dict(DEFAULT_SETTINGS)
     merged_settings.update(settings_override)
 
-    def fake_with_db(fn, fallback):
-        # Return the merged settings as if stored in DB
-        return {k: merged_settings[k] for k in DEFAULT_SETTINGS}
+    conn = MagicMock()
+    conn.cursor.return_value.__enter__.return_value.fetchone.return_value = (merged_settings,)
 
     snapshot = {
         "scan_id": "test-scan-001",
@@ -112,7 +111,9 @@ def _run_evaluate(
         },
     }
 
-    with patch.object(ps, "_with_db", side_effect=fake_with_db), \
+    with patch.object(ps, "db_available", return_value=True), \
+         patch.object(ps, "_connect", return_value=conn), \
+         patch.object(ps, "_ensure_schema"), \
          patch("phase20_store.kv_get", return_value=None), \
          patch("phase20_store.kv_set"), \
          patch.object(phase15_scan_context, "build_scan_context",
@@ -121,7 +122,14 @@ def _run_evaluate(
                       return_value={"state": "OPEN"}), \
          patch.object(scan_state_store, "load_latest_meta",
                       return_value={"scan_id": "test-scan-001",
-                                    "provider": "zerodha"}), \
+                                    "provider": "zerodha",
+                                    "universe_context": {
+                                        "natural_session": "2026-08-07",
+                                        "universe_key": "TEST_ONLY",
+                                        "universe_id": 1, "version": 1,
+                                        "exact_set_hash": "test-pinned-set",
+                                        "symbol_count": len(scan_symbols),
+                                    }}), \
          patch.object(scan_state_store, "load_latest_snapshot",
                       return_value=snapshot), \
          patch.object(paper_trader, "_load_state",

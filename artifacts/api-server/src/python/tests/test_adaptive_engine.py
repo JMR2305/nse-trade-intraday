@@ -27,6 +27,7 @@ import failure_analyzer
 import model_versioning
 import adaptive_adjustments
 import decision_service
+import market_data_engine
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -47,7 +48,6 @@ def tmp_db(tmp_path, monkeypatch):
     monkeypatch.setattr(failure_analyzer, "_kb_strategy_stats",
                         lambda *a, **k: None)
 
-    import market_data_engine
     monkeypatch.setattr(market_data_engine, "get_last_source",
                         lambda sym: "yfinance")
     return db
@@ -431,11 +431,19 @@ def test_negative_adjustment_can_demote_buy(tmp_db, _decision_env):
     assert d["recommendation"] != "BUY"
 
 
-def test_hard_risk_filter_never_overridden(tmp_db, _decision_env):
+@pytest.mark.parametrize("reasons,expected", [
+    (["Volatility above limit"], "WATCH"),
+    (["Volatility above limit", "Volume below minimum"], "AVOID"),
+])
+def test_risk_filters_remain_non_actionable_with_positive_adjustment(
+    tmp_db, _decision_env, reasons, expected,
+):
+    # Task387: one high-confidence failure is WATCH; two still force AVOID.
+    # Neither policy branch may become BUY due to a positive model adjustment.
     item = _item(90.0)
     item["filter_passed"] = False
-    item["filter_reasons"] = ["Volatility above limit"]
+    item["filter_reasons"] = reasons
     d = decision_service._decide(item, {}, [], 50.0,
                                  model_weights={"symbol|TCS": 15.0},
                                  model_version=1)
-    assert d["recommendation"] == "AVOID"
+    assert d["recommendation"] == expected

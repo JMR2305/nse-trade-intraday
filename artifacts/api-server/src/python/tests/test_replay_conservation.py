@@ -146,5 +146,7 @@ class TestMalformedSnapshots:
 
 
 class TestCapital:
-    def test_configured_capital_is_50k(self):
+    def test_configured_capital_is_50k(self, monkeypatch):
+        # Exercise configured capital independently of the deployment default.
+        monkeypatch.setattr("portfolio_store.INITIAL_CAPITAL", 50_000.0)
         assert _configured_capital() == 50_000.0

@@ -11,6 +11,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 TREE = 'c0653b1d0f26a9869bc86d70240cd96a2e54128c'
 ALLOWED = {
+    'TASK974_STEP26_REMAINING_FAILURES_STATUS.md',
     '.github/workflows/task969-postgres16-validation.yml',
     'scripts/task969_postgres_validation.py',
     'scripts/task969_ci_report.py',
@@ -74,11 +75,11 @@ TASK974_TEST_BLOBS = {
     ],
     "artifacts/api-server/src/python/test_phase22_final.py": [
         "3dfc85b6502018382981a8df0a242c328ddde044",
-        "ca83c6f3e5a62d84581488f4edc0ab381c472757"
+        "48937e1b9190fc364b92bc564a3bd40e16299606"
     ],
     "artifacts/api-server/src/python/test_task974_import_isolation.py": [
         None,
-        "763289ecddca51f169bd5da2168d4b20e706d060"
+        "7587d868cac7502184e03494370d60bd1e6290dc"
     ],
     "artifacts/api-server/src/python/test_event_intelligence.py": [
         "6fade4c4962c5de7c80a62b18d76814197609466",
@@ -146,11 +147,11 @@ TASK974_TEST_BLOBS = {
     ],
     "artifacts/api-server/src/python/research_lab/test_research_lab.py": [
         "bc60544b3950ea1c0cbc60a452f9ab842e43636f",
-        "51235e8df74e9c3317801643f7eeea6e700a0c64"
+        "5274336b11d97773e97b392aa86748de9a0b1587"
     ],
     "artifacts/api-server/src/python/conftest.py": [
         None,
-        "d5988b0e9a648fdbe9e5c8771102ddf335162c54"
+        "67eee051d4731da35e9a53b0d07f106be88ce9ee"
     ],
     "artifacts/api-server/src/python/tests/test_balanced_decision.py": [
         "18fecde4d15d78c58905e7986d5b930aa2989b15",
@@ -159,6 +160,54 @@ TASK974_TEST_BLOBS = {
     "artifacts/api-server/src/python/tests/test_strategy_intelligence.py": [
         "e3dd80ddf645a22dffbef9e5cb7136c1e6ddd2fd",
         "75974caefb5c4b1224d194380a7f46541de487a8"
+    ],
+    "artifacts/api-server/src/python/strategy_optimisation/test_strategy_optimisation.py": [
+        "63a88bdf39550d82fa1c67743f03cdd039f08552",
+        "5991078f338cb8c330cd4380271615ac2bf1b7d3"
+    ],
+    "artifacts/api-server/src/python/test_morning_stale_reset.py": [
+        "1c09a594eb05494a73dbd50afe5872bd59f6d8ba",
+        "c873555b33120db701c89efef02dd141c7b37ebb"
+    ],
+    "artifacts/api-server/src/python/test_ohlcv_cache.py": [
+        "5e7be4fdb393fe3ea897cca7f378888fb46381ff",
+        "dcc65fd4dd14572609aa04b81d235ebaf1fbcf0b"
+    ],
+    "artifacts/api-server/src/python/test_validation_certification.py": [
+        "b602df60316f5719dbbb87abcca6868fd33d5659",
+        "a667011e2cca7469d8453c7c93236868b95f8b7a"
+    ],
+    "artifacts/api-server/src/python/tests/test_adaptive_engine.py": [
+        "78fdf014c8d812ab060d227f7c5f7fd747eb6d3e",
+        "9e79c36540334b1090ec368192fd7c17b26d44dd"
+    ],
+    "artifacts/api-server/src/python/tests/test_invalidation_override.py": [
+        "42f488d12a0532ddc53e4209dbbf9cc95a45a342",
+        "cb5b5b502f1de5eeb131a9e090e4197f26ec35c8"
+    ],
+    "artifacts/api-server/src/python/tests/test_replay_conservation.py": [
+        "5e5b5fffb0dca43f65295cd79709dae1a94b27b3",
+        "16988b12759263582f12162d3112161e409237ec"
+    ],
+    "artifacts/api-server/src/python/tests/test_research_loader_v43.py": [
+        "1f6c203a7b4e5dff6a0a756d33cd811171b88803",
+        "6dde9eddfa24aa2316538a4869e88425796ce559"
+    ],
+    "artifacts/api-server/src/python/tests/test_v43_entry_gates.py": [
+        "991058e6efc52ca999fd29df795228249a7ec409",
+        "28ecae464f3396741417dfa4eef2589b1b7915e0"
+    ],
+    "artifacts/api-server/src/python/tests/unit/test_paper_exploration.py": [
+        "8f6791792274b120f3373c5f9933b5d2b8f13277",
+        "50311c42d07ccb6ff6480a3278e217f32137d568"
+    ],
+    "artifacts/api-server/src/python/tests/unit/test_phase0c_safety_fixes.py": [
+        "b4564c644b27fa1ed0c1105e5e7fb59040f89639",
+        "404d2fe8620efe6ea48f2acb50b12b1b5e313b0c"
+    ],
+    "artifacts/api-server/src/python/tests/unit/test_phase26_live_monitor.py": [
+        "82d1825f22e7f23976510e98cd3eaec18cd8dd09",
+        "cb208a2c8036d27806c6e30e0506cdfb684ccd09"
     ]
 }
 
