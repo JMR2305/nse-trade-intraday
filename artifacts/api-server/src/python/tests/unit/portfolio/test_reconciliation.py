@@ -42,7 +42,12 @@ from src.portfolio.reconciliation import (
     ReconciliationEngine,
 )
 
-_NOW = datetime.now(timezone.utc)
+_NOW = None
+
+
+@pytest.fixture(autouse=True)
+def _refresh_fixture_timestamp(monkeypatch):
+    monkeypatch.setitem(globals(), "_NOW", datetime.now(timezone.utc))
 
 # ---------------------------------------------------------------------------
 # Helpers

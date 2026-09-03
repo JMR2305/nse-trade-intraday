@@ -11,6 +11,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 TREE = 'c0653b1d0f26a9869bc86d70240cd96a2e54128c'
 ALLOWED = {
+    'TASK974_STEP27_BROAD_PYTHON_12_STATUS.md',
     'TASK974_STEP26_REMAINING_FAILURES_STATUS.md',
     '.github/workflows/task969-postgres16-validation.yml',
     'scripts/task969_postgres_validation.py',
@@ -53,6 +54,34 @@ TASK973_QUEUE_BLOBS = (
 # Task974 permits only these complete test-infrastructure blobs. A new test
 # must be absent from the reviewed tree; existing tests pin both versions.
 TASK974_TEST_BLOBS = {
+    "artifacts/api-server/src/python/test_observability_center.py": [
+        "574cad1cee3148384161b34e47d146848580bc4c",
+        "f67b7dcb80de63ccb55967808528c3b702eec4d3"
+    ],
+    "artifacts/api-server/src/python/test_daily_session_and_pipeline_e2e.py": [
+        "ee17230d8d6995d0eb36228a4dbfe36e7068b266",
+        "9d9676cb8f94b2ec62dc50c07b96f23b01d0fb43"
+    ],
+    "artifacts/api-server/src/python/test_phase20.py": [
+        "3ab34b1e15e340f45f9aa61a734d099febf45133",
+        "81fa7951bdf3fd93b14a9a2933cfd869cd7d49da"
+    ],
+    "artifacts/api-server/src/python/tests/unit/portfolio/test_exposure.py": [
+        "42d010ddd90b7f74a47dc3ad7fcbac392577a9ef",
+        "9a4fbbca10f815b16dcd7ecdcfc9f6b1d9b9aff0"
+    ],
+    "artifacts/api-server/src/python/tests/unit/portfolio/test_freeze_patch_coverage.py": [
+        "8442952902745ca5a82d97313cf5a7c969dbe410",
+        "2ab9be316cd4371b182a8fc0e897b15e9ed340c5"
+    ],
+    "artifacts/api-server/src/python/tests/unit/portfolio/test_reconciliation.py": [
+        "4f38cffcc9238f31abcf8a2ddbd874973a536141",
+        "282463dba30d8ffc8f86eda891bbbe2c61a9a278"
+    ],
+    "artifacts/api-server/src/python/test_task974_step27_regressions.py": [
+        None,
+        "3f597a41f0d243e73a9608eb40b07fe8cc1b9285"
+    ],
     "artifacts/api-server/src/python/test_consecutive_blocks.py": [
         "cc4dda43dfa32c7fee79585db1f8e23bfc8305aa",
         "e0f21d56109778839d51927bb1a20e9251aea384"

@@ -164,4 +164,5 @@ jobs:
             artifacts/api-server/src/python/TASK_974_RUNTIME_MODULE_LEAKS.json
             TASK_974_*.md
             TASK974_STEP26_REMAINING_FAILURES_STATUS.md
+            TASK974_STEP27_BROAD_PYTHON_12_STATUS.md
           if-no-files-found: error

@@ -21,7 +21,13 @@ Covers:
 import ast
 import os
 import unittest
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from unittest.mock import patch
+
+# Load the real native-extension dependency before per-test module snapshots.
+# Late import through patch() otherwise unloads/reimports NumPy at teardown.
+import live_scan_engine
 
 import phase20_store as store
 from phase20_store import DEFAULT_SETTINGS
@@ -468,6 +474,14 @@ class TestRunTickOpenAlertE2E(unittest.TestCase):
     SESSION_INIT_FAILED notification across consecutive ticks, and no alert
     when the OPEN retry succeeds. Exercises the FRESH branch (scan_age small)
     so the session_alert key must survive into the tick result."""
+
+    def setUp(self):
+        instant = datetime(2026, 9, 3, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        for target, value in (("market_hours.now_ist", instant),
+                              ("daily_session_manager._today_ist", instant.date().isoformat())):
+            clock = patch(target, return_value=value)
+            clock.start()
+            self.addCleanup(clock.stop)
 
     def _tick(self, sched, kv, claims, notifications):
         """Run one real run_tick() with a shared KV/claim/notification world."""

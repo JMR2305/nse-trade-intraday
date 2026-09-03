@@ -10,7 +10,12 @@ import inspect
 import json
 from pathlib import Path
 import unittest
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from unittest.mock import MagicMock, patch
+
+# Keep the real pandas/NumPy dependency loaded across scoped module restoration.
+import ohlcv_cache_store
 
 import phase20_store as store
 from phase20_store import DEFAULT_SETTINGS, CONFIRMATION_TEXT, config_hash
@@ -467,7 +472,7 @@ class TestExitsSafety(unittest.TestCase):
         t.update(over)
         return t
 
-    def _run(self, trade, rec, stale=False, market_state="OPEN"):
+    def _run(self, trade, rec, stale=False, market_state="OPEN", clock_ist=None):
         import phase20_exits as x
         ctx = {"available": True, "scan_id": "s2", "stale": stale,
                "symbols": ({"TCS": rec} if rec else {})}
@@ -478,7 +483,10 @@ class TestExitsSafety(unittest.TestCase):
         recorded = []
         sells = []
         settings = dict(DEFAULT_SETTINGS)
+        clock_ist = clock_ist or datetime(2026, 9, 3, 10, 0,
+                                        tzinfo=ZoneInfo("Asia/Kolkata"))
         with patch.object(x, "get_open_trades", return_value=[trade]), \
+             patch("market_hours.now_ist", return_value=clock_ist), \
              patch("phase15_scan_context.build_scan_context", return_value=ctx), \
              patch("market_hours.market_status",
                    return_value={"state": market_state}), \
@@ -576,6 +584,23 @@ class TestExitsSafety(unittest.TestCase):
         self.assertEqual(result["exits"], [])
         self.assertEqual(result["pending"], [])
         self.assertEqual(len(sells), 0)
+
+    def test_explicit_squareoff_clock_still_exits(self):
+        rec = {"entry_price": 101.0, "data_quality": "LIVE", "final_action": "BUY"}
+        close = datetime(2026, 9, 3, 15, 20, tzinfo=ZoneInfo("Asia/Kolkata"))
+        result, _, sells = self._run(self._trade(), rec, clock_ist=close)
+        self.assertEqual(result["exits"][0]["rule"], "MARKET_CLOSE_EXIT")
+        self.assertEqual(len(sells), 1)
+
+    def test_open_fixture_overrides_after_market_ambient_clock(self):
+        after_close = datetime(2026, 9, 3, 16, 10, tzinfo=ZoneInfo("Asia/Kolkata"))
+        with patch("market_hours.now_ist", return_value=after_close) as ambient:
+            self.test_no_exit_keeps_position_open()
+            self.test_trailing_stop_not_armed_without_peak()
+            self.test_trailing_stop_triggers_after_peak_then_pullback()
+            # The inner intraday clock was restored, not leaked.
+            import market_hours
+            self.assertIs(market_hours.now_ist, ambient)
 
     # ── Task 791: exit_on_stale_after_days tests ──────────────────────────────
 

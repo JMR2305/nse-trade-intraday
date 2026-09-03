@@ -74,7 +74,13 @@ from src.portfolio.exposure import (
 # Shared helpers
 # ---------------------------------------------------------------------------
 
-_NOW = datetime.now(timezone.utc)
+_NOW = None
+
+
+@pytest.fixture(autouse=True)
+def _refresh_fixture_timestamp(monkeypatch):
+    # Preserve the production thresholds while refreshing this test's inputs.
+    monkeypatch.setitem(globals(), "_NOW", datetime.now(timezone.utc))
 
 
 def _cfg(**kw) -> PortfolioConfig:
