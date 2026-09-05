@@ -9,9 +9,13 @@ require the exact Zeabur identity and an explicit disposable acknowledgement.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
+import inspect
 import os
+import re
 import sys
+import textwrap
 import types
 from dataclasses import dataclass
 from typing import Any, Mapping
@@ -42,6 +46,19 @@ REQUIRED_ACK = AUTHORIZED_DATABASE
 
 LIVE_ORDER_FLAGS = ("AUTO_EXECUTION_ENABLED", "LIVE_ORDERS_ENABLED")
 TRUTHY = frozenset({"1", "true", "yes", "on", "enabled"})
+
+AUTHORITY_TABLES = tuple(task969.EXPECTED_TABLES)
+AUTHORITY_TABLE_SET = frozenset(AUTHORITY_TABLES)
+EXPECTED_FIXTURE_COUNTS = {
+    "trading_universe_sources": 1,
+    "trading_universes": 1,
+    "trading_universe_members": 23,
+    "trading_universe_audit_events": 1,
+    "runtime_universe_session_pins": 1,
+    "trading_universe_member_details": 23,
+    "trading_universe_validations": 1,
+    "trading_universe_baseline_migrations": 1,
+}
 
 
 class SafetyError(RuntimeError):
@@ -175,49 +192,385 @@ def fixture_evidence(conn: Any) -> tuple[dict[str, int], list[str], str]:
     return counts, symbols, exact_set_hash(symbols)
 
 
-def prepare(conn: Any) -> None:
-    print("TASK976 action: PREPARE_DISPOSABLE_FIXTURE_ONLY")
-    print("TASK976 fixture: requiring empty public schema; no overwrite/reset")
-    task969.require_empty_public_schema(conn)
-    task969.create_pre_task964_schema(conn)
-    task969.seed_authority_state(conn)
+def _quote_identifier(identifier: str) -> str:
+    return '"' + identifier.replace('"', '""') + '"'
 
-    counts, symbols, symbol_hash = fixture_evidence(conn)
+
+def public_table_counts(conn: Any) -> dict[str, int]:
+    """Capture counts only; never read or print application row contents."""
+    with conn.cursor() as cur:
+        cur.execute(
+            """SELECT table_name FROM information_schema.tables
+               WHERE table_schema = 'public' AND table_type = 'BASE TABLE'
+               ORDER BY table_name"""
+        )
+        tables = [row[0] for row in cur.fetchall()]
+        counts: dict[str, int] = {}
+        for table in tables:
+            cur.execute(f"SELECT count(*) FROM {_quote_identifier(table)}")
+            counts[table] = int(cur.fetchone()[0])
+    return counts
+
+
+def require_unrelated_tables_preserved(
+    before: Mapping[str, int], after: Mapping[str, int]
+) -> int:
+    before_unrelated = {
+        table: count for table, count in before.items()
+        if table not in AUTHORITY_TABLE_SET
+    }
+    after_unrelated = {
+        table: count for table, count in after.items()
+        if table not in AUTHORITY_TABLE_SET
+    }
+    if before_unrelated != after_unrelated:
+        raise SafetyError("An unrelated public table changed during fixture tooling")
+    return len(before_unrelated)
+
+
+def classify_authority_state(
+    existing_counts: Mapping[str, int], exact_fixture: bool
+) -> str:
+    authority_counts = {
+        table: int(existing_counts[table])
+        for table in AUTHORITY_TABLES if table in existing_counts
+    }
+    if any(count != 0 for count in authority_counts.values()):
+        if (
+            exact_fixture
+            and set(authority_counts) == AUTHORITY_TABLE_SET
+            and authority_counts == EXPECTED_FIXTURE_COUNTS
+        ):
+            return "EXACT"
+        raise SafetyError("Non-empty universe-authority state is not the exact Task976 fixture")
+    return "EMPTY"
+
+
+def _reviewed_schema_sql() -> str:
+    source = textwrap.dedent(inspect.getsource(task969.create_pre_task964_schema))
+    tree = ast.parse(source)
+    candidates = [
+        node.value for node in ast.walk(tree)
+        if isinstance(node, ast.Constant)
+        and isinstance(node.value, str)
+        and "CREATE TABLE trading_universe_sources" in node.value
+    ]
+    if len(candidates) != 1:
+        raise SafetyError("Could not resolve the reviewed Task969 authority schema")
+    return candidates[0]
+
+
+def reviewed_additive_statements(missing_tables: set[str]) -> list[str]:
+    if not missing_tables <= AUTHORITY_TABLE_SET:
+        raise SafetyError("Unreviewed authority table requested")
+    selected: list[str] = []
+    created: set[str] = set()
+    for raw in _reviewed_schema_sql().split(";"):
+        statement = raw.strip()
+        if not statement:
+            continue
+        table_match = re.match(r"CREATE TABLE\s+([a-z0-9_]+)", statement, re.I)
+        index_match = re.match(
+            r"CREATE(?: UNIQUE)? INDEX\s+[a-z0-9_]+\s+ON\s+([a-z0-9_]+)",
+            statement,
+            re.I,
+        )
+        target = (table_match or index_match)
+        if target and target.group(1) in missing_tables:
+            if re.search(r"\b(DROP|TRUNCATE|DELETE|ALTER)\b", statement, re.I):
+                raise SafetyError("Reviewed additive schema unexpectedly became destructive")
+            selected.append(statement)
+            if table_match:
+                created.add(table_match.group(1))
+    if created != missing_tables:
+        raise SafetyError("Reviewed schema does not define every missing authority table")
+    return selected
+
+
+def create_missing_authority_tables(conn: Any, missing_tables: set[str]) -> None:
+    statements = reviewed_additive_statements(missing_tables)
+    with conn.cursor() as cur:
+        for statement in statements:
+            cur.execute(statement)
+
+
+def _fetchall(conn: Any, sql: str) -> list[tuple[Any, ...]]:
+    with conn.cursor() as cur:
+        cur.execute(sql)
+        return list(cur.fetchall())
+
+
+def _matching_count(conn: Any, sql: str, params: tuple[Any, ...] = ()) -> int:
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        return int(cur.fetchone()[0])
+
+
+def expected_member_rows() -> list[tuple[Any, ...]]:
+    symbols = sorted(task969.SYMBOLS)
+    sectors = {symbol: "INFRA" for symbol in symbols}
+    sectors.update({
+        "BANKBARODA": "BANK", "BANKINDIA": "BANK", "CANBK": "BANK",
+        "FEDERALBNK": "BANK", "IDFCFIRSTB": "BANK", "KTKBANK": "BANK",
+        "MAHABANK": "BANK", "PNB": "BANK", "UNIONBANK": "BANK",
+        "WIPRO": "IT",
+    })
+    return sorted(
+        (symbol, sectors[symbol], 900000 + task969.SYMBOLS.index(symbol) + 1,
+         "MAPPED", True, "task969", "representative mapping")
+        for symbol in symbols
+    )
+
+
+def fixture_state_is_exact(conn: Any, counts: Mapping[str, int]) -> bool:
+    if set(counts).intersection(AUTHORITY_TABLE_SET) != AUTHORITY_TABLE_SET:
+        return False
+    authority_counts = {table: int(counts[table]) for table in AUTHORITY_TABLES}
+    if authority_counts != EXPECTED_FIXTURE_COUNTS:
+        return False
+
+    symbols = sorted(task969.SYMBOLS)
+    expected_members = expected_member_rows()
+    full_match_counts = [
+        _matching_count(conn, """SELECT count(*) FROM trading_universe_sources
+            WHERE id=1 AND source_type='BASELINE' AND source_reference='task969-seed'
+              AND source_table='custom_universe_master'
+              AND source_snapshot_at='2026-08-28T04:00:00Z'::timestamptz
+              AND source_set_hash=%s AND imported_at IS NOT NULL
+              AND imported_by='task969'
+              AND metadata='{"purpose":"native-postgres-validation"}'::jsonb""",
+                        (task969.APPROVED_SET_HASH,)),
+        _matching_count(conn, """SELECT count(*) FROM trading_universes
+            WHERE id=3 AND universe_key='CUSTOM_LOW_PRICE_SECTOR'
+              AND display_name='Custom Low Price Sector' AND version=1
+              AND status='ACTIVE' AND effective_from='2026-08-31T03:30:00Z'::timestamptz
+              AND effective_until IS NULL AND created_at='2026-08-28T04:00:00Z'::timestamptz
+              AND created_by='task969' AND approved_at='2026-08-28T04:01:00Z'::timestamptz
+              AND approved_by='task969'
+              AND notes='Task969 representative pre-Task964 authority state'
+              AND exact_set_hash=%s AND enabled_symbol_count=23 AND source_id=1""",
+                        (task969.APPROVED_SET_HASH,)),
+        _matching_count(conn, """SELECT count(*) FROM trading_universe_members
+            WHERE universe_id=3 AND exchange='NSE' AND mapping_status='MAPPED'
+              AND enabled IS TRUE AND added_at='2026-08-28T04:02:00Z'::timestamptz
+              AND added_by='task969' AND removed_at IS NULL AND removed_by IS NULL
+              AND notes='representative mapping'"""),
+        _matching_count(conn, """SELECT count(*) FROM trading_universe_audit_events
+            WHERE id=1 AND occurred_at='2026-08-28T04:05:00Z'::timestamptz
+              AND actor='task969' AND action='BASELINE_IMPORTED'
+              AND universe_key='CUSTOM_LOW_PRICE_SECTOR' AND old_version IS NULL
+              AND new_version=1 AND symbol IS NULL AND change_type IS NULL
+              AND old_value IS NULL AND new_value IS NULL
+              AND notes='Representative audit event'
+              AND correlation_id='task969-audit-1' AND approval_state='APPROVED'"""),
+        _matching_count(conn, """SELECT count(*) FROM runtime_universe_session_pins
+            WHERE natural_session='preopen-2026-08-31-task969'
+              AND universe_key='CUSTOM_LOW_PRICE_SECTOR' AND universe_id=3
+              AND universe_version=1 AND universe_symbols=%s::jsonb
+              AND universe_symbol_count=23 AND universe_set_hash=%s
+              AND effective_from='2026-08-31T03:30:00Z'::timestamptz
+              AND pinned_at='2026-08-31T03:30:01Z'::timestamptz""",
+                        (task969.canonical_json(task969.SYMBOLS), task969.APPROVED_SET_HASH)),
+        _matching_count(conn, """SELECT count(*) FROM trading_universe_member_details
+            WHERE universe_id=3 AND created_at='2026-08-28T04:02:00Z'::timestamptz
+              AND created_by='task969'
+              AND metadata->>'exchange'='NSE' AND metadata->>'instrument_type'='EQ'
+              AND metadata->>'segment'='NSE' AND metadata->>'mapping_status'='MAPPED'
+              AND (metadata - 'instrument_token') =
+                  '{"exchange":"NSE","instrument_type":"EQ","segment":"NSE","mapping_status":"MAPPED"}'::jsonb"""),
+        _matching_count(conn, """SELECT count(*) FROM trading_universe_validations
+            WHERE id=1 AND universe_id=3 AND result='VALIDATION_PASS'
+              AND checked_at='2026-08-28T04:03:00Z'::timestamptz
+              AND checked_by='task969' AND correlation_id='task969-validation-1'
+              AND evidence='{"mapping_count":23,"expected_count":23}'::jsonb"""),
+        _matching_count(conn, """SELECT count(*) FROM trading_universe_baseline_migrations
+            WHERE id=1 AND occurred_at='2026-08-28T04:04:00Z'::timestamptz
+              AND actor='task969' AND action='BASELINE_MIGRATION'
+              AND universe_key='CUSTOM_LOW_PRICE_SECTOR' AND destination_universe_id=3
+              AND destination_version=1 AND source_authority='custom_universe_master'
+              AND exact_symbol_count=23 AND exact_set_hash=%s AND mapping_count=23
+              AND previous_configured_universe_key='CUSTOM_LOW_PRICE_SECTOR'
+              AND reason='MIGRATE_EXISTING_PRODUCTION_BASELINE_TO_VERSIONED_AUTHORITY'
+              AND correlation_id='task969-baseline-migration-1'
+              AND evidence='{"mapping_complete":true}'::jsonb""",
+                        (task969.APPROVED_SET_HASH,)),
+    ]
+    if full_match_counts != [1, 1, 23, 1, 1, 23, 1, 1]:
+        return False
+    checks = [
+        (_fetchall(conn, """SELECT id, source_type, source_reference, source_table,
+                         source_set_hash, imported_by FROM trading_universe_sources"""),
+         [(1, "BASELINE", "task969-seed", "custom_universe_master",
+           task969.APPROVED_SET_HASH, "task969")]),
+        (_fetchall(conn, """SELECT id, universe_key, version, status, exact_set_hash,
+                         enabled_symbol_count, source_id, created_by, approved_by
+                         FROM trading_universes"""),
+         [(3, "CUSTOM_LOW_PRICE_SECTOR", 1, "ACTIVE", task969.APPROVED_SET_HASH,
+           23, 1, "task969", "task969")]),
+        (_fetchall(conn, """SELECT symbol, sector, instrument_token, mapping_status,
+                         enabled, added_by, notes FROM trading_universe_members
+                         ORDER BY symbol"""), expected_members),
+        (_fetchall(conn, """SELECT id, actor, action, universe_key, old_version,
+                         new_version, correlation_id, approval_state
+                         FROM trading_universe_audit_events"""),
+         [(1, "task969", "BASELINE_IMPORTED", "CUSTOM_LOW_PRICE_SECTOR", None,
+           1, "task969-audit-1", "APPROVED")]),
+        (_fetchall(conn, """SELECT natural_session, universe_key, universe_id,
+                         universe_version, universe_symbol_count, universe_set_hash
+                         FROM runtime_universe_session_pins"""),
+         [("preopen-2026-08-31-task969", "CUSTOM_LOW_PRICE_SECTOR", 3, 1, 23,
+           task969.APPROVED_SET_HASH)]),
+        (_fetchall(conn, """SELECT id, universe_id, result, checked_by, correlation_id
+                         FROM trading_universe_validations"""),
+         [(1, 3, "VALIDATION_PASS", "task969", "task969-validation-1")]),
+        (_fetchall(conn, """SELECT id, actor, action, universe_key,
+                         destination_universe_id, destination_version,
+                         exact_symbol_count, exact_set_hash, mapping_count,
+                         correlation_id FROM trading_universe_baseline_migrations"""),
+         [(1, "task969", "BASELINE_MIGRATION", "CUSTOM_LOW_PRICE_SECTOR", 3, 1,
+           23, task969.APPROVED_SET_HASH, 23, "task969-baseline-migration-1")]),
+    ]
+    if not all(actual == expected for actual, expected in checks):
+        return False
+    detail_rows = _fetchall(
+        conn,
+        """SELECT symbol, metadata->>'instrument_token', metadata->>'mapping_status',
+                  created_by FROM trading_universe_member_details ORDER BY symbol""",
+    )
+    expected_details = [
+        (symbol, str(900000 + task969.SYMBOLS.index(symbol) + 1), "MAPPED", "task969")
+        for symbol in symbols
+    ]
+    return detail_rows == expected_details
+
+
+def require_fixture_evidence(
+    counts: Mapping[str, int], symbols: list[str], symbol_hash: str
+) -> None:
+    if dict(counts) != EXPECTED_FIXTURE_COUNTS:
+        raise SafetyError("Prepared fixture row counts do not match the reviewed fixture")
     if symbols != sorted(task969.SYMBOLS):
         raise SafetyError("Prepared fixture does not contain the exact authorized symbol set")
     if symbol_hash != task969.APPROVED_SET_HASH:
         raise SafetyError("Prepared fixture exact-set hash mismatch")
+
+
+def prepare(conn: Any) -> None:
+    print("TASK976 action: PREPARE_DISPOSABLE_FIXTURE_ONLY")
+    before = public_table_counts(conn)
+    exact_before = fixture_state_is_exact(conn, before)
+    state = classify_authority_state(before, exact_before)
+    if state == "EXACT":
+        counts, symbols, symbol_hash = fixture_evidence(conn)
+        require_fixture_evidence(counts, symbols, symbol_hash)
+        after = public_table_counts(conn)
+        unrelated_count = require_unrelated_tables_preserved(before, after)
+        print("TASK976 fixture_state: EXACT_EXISTING_IDEMPOTENT")
+    else:
+        missing = AUTHORITY_TABLE_SET - set(before)
+        print(f"TASK976 authority_tables_missing: {len(missing)}")
+        print("TASK976 authority_existing_rows: 0")
+        create_missing_authority_tables(conn, set(missing))
+        task969.seed_authority_state(_NoCommitConnection(conn))
+        after = public_table_counts(conn)
+        if not fixture_state_is_exact(conn, after):
+            raise SafetyError("Prepared authority state is not the exact Task976 fixture")
+        unrelated_count = require_unrelated_tables_preserved(before, after)
+        counts, symbols, symbol_hash = fixture_evidence(conn)
+        require_fixture_evidence(counts, symbols, symbol_hash)
+        conn.commit()
+        print("TASK976 fixture_state: PREPARED")
 
     for table in task969.EXPECTED_TABLES:
         print(f"TASK976 row_count.{table}: {counts[table]}")
     print(f"TASK976 enabled_symbol_count: {len(symbols)}")
     print("TASK976 exact_symbol_set: PASS")
     print(f"TASK976 exact_set_hash: {symbol_hash}")
+    print("TASK976 mapping_tokens_scope: BENCHMARK_ONLY_NON_BROKER")
+    print("TASK976 unrelated_tables_preserved: PASS")
+    print(f"TASK976 unrelated_table_count: {unrelated_count}")
     print("TASK976 fixture_preparation: PASS")
 
 
-def cleanup(conn: Any) -> None:
-    """Remove only reviewed Task969 fixture tables from the authorized DB."""
+class _NoCommitConnection:
+    """Expose DB-API operations while deferring a reviewed helper's commit."""
+
+    def __init__(self, connection: Any):
+        self._connection = connection
+
+    def cursor(self, *args: Any, **kwargs: Any) -> Any:
+        return self._connection.cursor(*args, **kwargs)
+
+    def commit(self) -> None:
+        return None
+
+    def rollback(self) -> None:
+        self._connection.rollback()
+
+
+def delete_fixture_rows(conn: Any) -> None:
+    statements = [
+        ("""DELETE FROM runtime_universe_session_pins
+            WHERE natural_session=%s AND universe_key=%s AND universe_id=%s
+              AND universe_version=%s AND universe_symbols=%s::jsonb
+              AND universe_symbol_count=23 AND universe_set_hash=%s""",
+         ("preopen-2026-08-31-task969", "CUSTOM_LOW_PRICE_SECTOR", 3, 1,
+          task969.canonical_json(task969.SYMBOLS), task969.APPROVED_SET_HASH)),
+        ("""DELETE FROM trading_universe_member_details
+            WHERE universe_id=%s AND created_by=%s AND metadata->>'mapping_status'='MAPPED'""",
+         (3, "task969")),
+        ("""DELETE FROM trading_universe_validations
+            WHERE id=%s AND universe_id=3 AND checked_by=%s AND correlation_id=%s
+              AND evidence=%s::jsonb""",
+         (1, "task969", "task969-validation-1",
+          '{"mapping_count":23,"expected_count":23}')),
+        ("""DELETE FROM trading_universe_baseline_migrations
+            WHERE id=%s AND actor=%s AND correlation_id=%s AND exact_set_hash=%s
+              AND reason='MIGRATE_EXISTING_PRODUCTION_BASELINE_TO_VERSIONED_AUTHORITY'
+              AND evidence=%s::jsonb""",
+         (1, "task969", "task969-baseline-migration-1", task969.APPROVED_SET_HASH,
+          '{"mapping_complete":true}')),
+        ("""DELETE FROM trading_universe_members
+            WHERE universe_id=%s AND added_by=%s AND exchange='NSE'
+              AND mapping_status='MAPPED' AND instrument_token BETWEEN 900001 AND 900023""",
+         (3, "task969")),
+        ("""DELETE FROM trading_universe_audit_events
+            WHERE id=%s AND actor=%s AND correlation_id=%s
+              AND universe_key='CUSTOM_LOW_PRICE_SECTOR'""",
+         (1, "task969", "task969-audit-1")),
+        ("""DELETE FROM trading_universes
+            WHERE id=%s AND created_by=%s AND universe_key='CUSTOM_LOW_PRICE_SECTOR'
+              AND version=1 AND exact_set_hash=%s""",
+         (3, "task969", task969.APPROVED_SET_HASH)),
+        ("""DELETE FROM trading_universe_sources
+            WHERE id=%s AND imported_by=%s AND source_reference='task969-seed'
+              AND metadata=%s::jsonb""",
+         (1, "task969", '{"purpose":"native-postgres-validation"}')),
+    ]
     with conn.cursor() as cur:
-        cur.execute(
-            """SELECT c.relname
-               FROM pg_class c
-               JOIN pg_namespace n ON n.oid = c.relnamespace
-               WHERE n.nspname = 'public'
-                 AND c.relkind IN ('r', 'p')
-               ORDER BY c.relname"""
-        )
-        present = {row[0] for row in cur.fetchall()}
-        unexpected = present - set(task969.EXPECTED_TABLES)
-        if unexpected:
-            raise SafetyError(
-                "Cleanup refused because public contains non-fixture tables: "
-                + ", ".join(sorted(unexpected))
-            )
-        for table in reversed(task969.EXPECTED_TABLES):
-            cur.execute(f'DROP TABLE IF EXISTS "{table}" CASCADE')
+        for sql, params in statements:
+            cur.execute(sql, params)
+
+
+def cleanup(conn: Any) -> None:
+    """Remove exact fixture-owned rows; never drop any application table."""
+    before = public_table_counts(conn)
+    if not fixture_state_is_exact(conn, before):
+        raise SafetyError("Cleanup refused: exact Task976 fixture ownership is not proven")
+    with conn.cursor() as cur:
+        for table in AUTHORITY_TABLES:
+            cur.execute(f"LOCK TABLE {_quote_identifier(table)} IN SHARE ROW EXCLUSIVE MODE")
+    if not fixture_state_is_exact(conn, before):
+        raise SafetyError("Cleanup refused: fixture state changed before ownership lock")
+    delete_fixture_rows(conn)
+    after = public_table_counts(conn)
+    if any(after.get(table, 0) for table in AUTHORITY_TABLES):
+        raise SafetyError("Cleanup did not remove the complete Task976 fixture state")
+    unrelated_count = require_unrelated_tables_preserved(before, after)
     conn.commit()
     print("TASK976 action: CLEANUP_DISPOSABLE_FIXTURE_ONLY")
+    print("TASK976 unrelated_tables_preserved: PASS")
+    print(f"TASK976 unrelated_table_count: {unrelated_count}")
     print("TASK976 cleanup: PASS")
 
 
