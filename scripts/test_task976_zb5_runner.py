@@ -156,6 +156,63 @@ class ZB5RunnerTests(unittest.TestCase):
         self.assertEqual(runner.evaluate(runner.synthetic_metrics(memory_over_85_s=5)).level, "FAIL")
         self.assertEqual(runner.evaluate(runner.synthetic_metrics(memory_fraction=0.80)).level, "WARN")
 
+    def test_unbounded_memory_max_is_valid_without_fabricated_fraction(self):
+        ok, fraction = runner.resolve_memory_resource_evidence(
+            True,
+            356601856,
+            "max",
+        )
+        self.assertTrue(ok)
+        self.assertEqual(fraction, 0)
+
+    def test_finite_memory_max_preserves_normal_fraction(self):
+        ok, fraction = runner.resolve_memory_resource_evidence(
+            True,
+            2147483648,
+            "4294967296",
+        )
+        self.assertTrue(ok)
+        self.assertEqual(fraction, 0.5)
+
+    def test_missing_or_malformed_memory_capacity_fails_closed(self):
+        self.assertEqual(
+            runner.resolve_memory_resource_evidence(True, 100, None),
+            (False, 0),
+        )
+        self.assertEqual(
+            runner.resolve_memory_resource_evidence(True, 100, "invalid"),
+            (False, 0),
+        )
+        self.assertEqual(
+            runner.resolve_memory_resource_evidence(True, 100, "0"),
+            (False, 0),
+        )
+        self.assertEqual(
+            runner.resolve_memory_resource_evidence(False, 100, "max"),
+            (False, 0),
+        )
+
+    def test_resource_sampler_accepts_unbounded_memory_max_and_keeps_peak(self):
+        sampler = runner.ResourceSampler()
+
+        values = {
+            "memory.current": "183508992",
+            "memory.max": "max",
+            "cpu.stat": "usage_usec 1000\n",
+        }
+
+        def fake_cgroup_value(name):
+            return values[name]
+
+        with patch.object(runner, "_cgroup_value", side_effect=fake_cgroup_value), \
+             patch.object(sampler.stop_event, "wait", side_effect=[False, True]), \
+             patch.object(runner.time, "monotonic", side_effect=[1.0, 1.1]):
+            sampler._run()
+
+        self.assertTrue(sampler.ok)
+        self.assertEqual(sampler.peak_memory, 183508992)
+        self.assertEqual(sampler.memory_over_85_s, 0)
+
     def test_cpu_backlog_threshold(self):
         self.assertEqual(runner.evaluate(runner.synthetic_metrics(
             cpu_over_180_s=31, latency_increasing=True, backlog_increasing=True)).level, "FAIL")

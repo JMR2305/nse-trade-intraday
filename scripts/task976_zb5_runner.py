@@ -299,6 +299,30 @@ def _cgroup_value(name: str) -> str | None:
     except OSError: return None
 
 
+
+def resolve_memory_resource_evidence(
+    sampler_ok: bool,
+    peak_memory: int,
+    memory_max: str | None,
+) -> tuple[bool, float]:
+    """Resolve finite vs cgroup-v2 unbounded memory capacity evidence."""
+    if not sampler_ok or not memory_max:
+        return False, 0
+
+    if memory_max == "max":
+        # Valid cgroup-v2 unbounded controller. Peak usage is still measured,
+        # but no finite capacity exists from which to derive utilization.
+        return True, 0
+
+    try:
+        finite_memory_max = int(memory_max)
+        if finite_memory_max <= 0:
+            raise ValueError("invalid finite memory.max")
+        return True, peak_memory / finite_memory_max
+    except (TypeError, ValueError, ZeroDivisionError):
+        return False, 0
+
+
 class ResourceSampler:
     def __init__(self):
         self.stop_event = threading.Event(); self.peak_memory = 0; self.memory_over_85_s = 0
@@ -310,8 +334,25 @@ class ResourceSampler:
             now = time.monotonic(); current = _cgroup_value("memory.current"); maximum = _cgroup_value("memory.max")
             cpu_text = _cgroup_value("cpu.stat")
             try:
-                memory, cap = int(current), int(maximum); self.peak_memory = max(self.peak_memory, memory)
-                memory_streak = next_pressure_streak(memory_streak, memory / cap > .85, now-prior_t)
+                memory = int(current)
+                if memory < 0:
+                    raise ValueError("negative memory.current")
+                self.peak_memory = max(self.peak_memory, memory)
+
+                if maximum == "max":
+                    # Valid cgroup-v2 unbounded controller: no finite
+                    # capacity exists for an 85% utilization calculation.
+                    memory_streak = next_pressure_streak(
+                        memory_streak, False, now-prior_t
+                    )
+                else:
+                    cap = int(maximum)
+                    if cap <= 0:
+                        raise ValueError("invalid finite memory.max")
+                    memory_streak = next_pressure_streak(
+                        memory_streak, memory / cap > .85, now-prior_t
+                    )
+
                 self.memory_over_85_s = max(self.memory_over_85_s, memory_streak)
                 usage = int(dict(line.split() for line in cpu_text.splitlines())["usage_usec"])
                 over_cpu = prior_cpu is not None and (usage-prior_cpu)/1e6/(now-prior_t) > 1.8
@@ -425,8 +466,11 @@ def run_live(tier: int, env: Mapping[str, str]) -> dict[str, Any]:
         if before_fixture != after_fixture: raise SafetyError("fixture postflight mismatch")
         sampler.stop(); memory_max = _cgroup_value("memory.max")
         memory_events_after = _key_values(_cgroup_value("memory.events"))
-        if not sampler.ok or not memory_max or memory_max == "max": resource_ok, memory_fraction = False, 0
-        else: resource_ok, memory_fraction = True, sampler.peak_memory / int(memory_max)
+        resource_ok, memory_fraction = resolve_memory_resource_evidence(
+            sampler.ok,
+            sampler.peak_memory,
+            memory_max,
+        )
         resource_ok = (resource_ok and memory_events_valid(memory_events_before) and
                        memory_events_valid(memory_events_after))
         failures = sum(status is None or status >= 400 for status, _, _ in results)
