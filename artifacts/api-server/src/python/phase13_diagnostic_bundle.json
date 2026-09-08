@@ -1,7 +1,7 @@
 {
   "bundle_version": 1,
   "phase": 13,
-  "generated_at": "2026-08-13T19:35:47Z",
+  "generated_at": "2026-08-26T22:11:57Z",
   "engine_version": "Research Engine v1.0 \u00b7 Phase 13",
   "mode": "PAPER_TRADING_RESEARCH_ONLY",
   "label": "PAPER / RESEARCH ONLY",
@@ -55,21 +55,20 @@
   "relative_strength_leaders": [],
   "relative_strength_laggards": [],
   "evidence_distribution": {
-    "insufficient": 51
+    "insufficient": 50
   },
   "action_summary": {
-    "AVOID": 50,
-    "WATCH": 1
+    "WATCH": 50
   },
   "contradiction_summary": {
-    "NONE": 47,
-    "LOW": 4,
+    "NONE": 48,
+    "LOW": 2,
     "MEDIUM": 0,
     "HIGH": 0
   },
   "scan_staleness": {
-    "stale": false,
-    "age_minutes": 605.6
+    "stale": true,
+    "age_minutes": 736.1
   },
   "audit_summary": {
     "trade_count": 0,
@@ -82,7 +81,7 @@
     "note": "All proposals require human approval. No auto-promotion."
   },
   "sample_counts": {
-    "symbols_analyzed": 51,
+    "symbols_analyzed": 50,
     "completed_trades": 0
   },
   "self_tests": {
@@ -160,8 +159,8 @@
     {
       "file": "phase13_cache.json",
       "exists": true,
-      "size_bytes": 144497,
-      "modified": "2026-08-13T19:35:47Z"
+      "size_bytes": 145350,
+      "modified": "2026-08-26T22:11:57Z"
     },
     {
       "file": "phase13_proposals.json",
@@ -173,31 +172,31 @@
       "file": "phase13_audit_report.json",
       "exists": true,
       "size_bytes": 1269,
-      "modified": "2026-08-13T19:35:47Z"
+      "modified": "2026-08-26T22:11:57Z"
     },
     {
       "file": "phase13_diagnostic_bundle.json",
       "exists": true,
-      "size_bytes": 6021,
-      "modified": "2026-08-12T21:45:06Z"
+      "size_bytes": 5012,
+      "modified": "2026-08-13T19:46:23Z"
     },
     {
       "file": "phase13_summary.csv",
       "exists": true,
-      "size_bytes": 2273,
-      "modified": "2026-08-12T21:45:06Z"
+      "size_bytes": 1722,
+      "modified": "2026-08-13T19:46:23Z"
     },
     {
       "file": "phase7_scan_cache.json",
       "exists": true,
-      "size_bytes": 71760,
-      "modified": "2026-08-13T19:35:26Z"
+      "size_bytes": 99096,
+      "modified": "2026-08-26T22:11:46Z"
     },
     {
       "file": "market_context_cache.json",
       "exists": true,
-      "size_bytes": 571,
-      "modified": "2026-08-13T09:30:58Z"
+      "size_bytes": 563,
+      "modified": "2026-08-26T09:56:36Z"
     }
   ],
   "errors": {},

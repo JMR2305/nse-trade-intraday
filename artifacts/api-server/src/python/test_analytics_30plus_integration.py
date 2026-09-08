@@ -25,6 +25,7 @@ import os
 import sys
 import types
 import unittest
+import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch
 
@@ -41,14 +42,24 @@ _SECTOR_MAP = {
     "SUNPHARMA": "Pharma", "CIPLA": "Pharma",
 }
 _scanner._sector_of = lambda sym: _SECTOR_MAP.get(sym, "Unknown")
-sys.modules.setdefault("market_scanner", _scanner)
 
 _eq_stub = types.ModuleType("execution_quality")
 _eq_metrics = types.ModuleType("execution_quality.metrics")
 _eq_metrics.build_execution_records = lambda: []
 _eq_stub.metrics = _eq_metrics
-sys.modules.setdefault("execution_quality", _eq_stub)
-sys.modules.setdefault("execution_quality.metrics", _eq_metrics)
+
+
+
+def _stub_modules():
+    return {"market_scanner": _scanner, "execution_quality": _eq_stub,
+            "execution_quality.metrics": _eq_metrics}
+
+
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    # Restore dependency identity and feature flags even if setup fails.
+    with patch.dict(sys.modules, _stub_modules()), patch.dict(os.environ):
+        yield
 
 
 # ── Realistic seeded dataset: 36 closed paper trades ─────────────────────────

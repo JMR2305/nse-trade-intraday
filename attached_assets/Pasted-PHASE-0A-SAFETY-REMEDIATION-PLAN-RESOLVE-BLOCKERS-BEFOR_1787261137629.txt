@@ -1,0 +1,231 @@
+PHASE 0A SAFETY REMEDIATION PLAN — RESOLVE BLOCKERS BEFORE ANY NEW ARCHITECTURE WORK
+
+Use APEXQUANT_PHASE0_HARD_VERIFICATION_AND_AUTHORITY_LOCK_REPORT.md as the controlling report.
+
+Do not implement code yet.
+Do not change settings yet.
+Do not close positions yet.
+Do not create migrations yet.
+Do not change strategy thresholds.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+The Phase 0 report recommendation is BLOCKED.
+
+Critical blockers:
+1. TRENT and DRREDDY are OPEN after market hours.
+2. Both were entered after the documented 15:15 IST no-new-entry cutoff.
+3. No proven MARKET_CLOSE_EXIT / POST_CLOSE_FORCE_EXIT / EXIT_PENDING / BLOCKED trace was found.
+4. Auto paper entries and bootstrap are enabled in production.
+5. Production capital is ₹500,000, while earlier plan expected ₹100,000.
+6. Active universe is NIFTY_50, while operator wanted low-price IT/Infra/Bank.
+7. LTIM is still active.
+8. Low-price custom universe has zero production rows.
+9. Closed Phase 20 rows are not DB-immutable.
+10. Legacy stores and live-order-capable legacy bot code need formal quarantine.
+
+GOAL:
+Create a remediation plan that resolves these blockers before any Phase 1 intraday/multi-agent work.
+
+TASK 1 — IMMEDIATE OPERATOR SAFETY OPTIONS
+
+Present operator-safe choices, but do not execute them.
+
+For each option, list exact effect, risk, rollback, and required evidence:
+
+A. Pause auto paper entries only.
+B. Pause bootstrap only.
+C. Pause both auto paper entries and bootstrap.
+D. Leave enabled, but only after cutoff/EOD proof is fixed.
+
+Recommend the safest option.
+
+TASK 2 — OPEN POSITION REMEDIATION PLAN
+
+For TRENT and DRREDDY, provide a step-by-step paper-only remediation plan.
+
+For each trade:
+- trade_id
+- symbol
+- quantity
+- entry time IST
+- entry price
+- current status
+- missing exit evidence
+- recommended action
+- exact pre-action evidence to capture
+- exact operator-approved action, if force close is needed
+- exact post-action evidence to capture
+
+Do not silently close positions.
+If using POST /api/phase20/force-eod-close is recommended, present it as an operator-approved paper-only action, not automatic execution.
+
+TASK 3 — ROOT CAUSE PLAN FOR POST-15:15 ENTRIES
+
+Investigate why AUTO / BOOTSTRAP_AUTO admitted entries after 15:15.
+
+Check:
+- market_hours.automatic_paper_entry_status()
+- phase20_executor.py
+- phase20_scheduler.py
+- run_bootstrap_auto_entry
+- paper_entry_admission.py
+- timezone conversion
+- server clock vs IST
+- stale signal time vs decision time
+- deployed build/version mismatch
+- bootstrap-specific bypass
+- manual/override path, if any
+
+Deliver:
+- likely root cause candidates
+- exact files/functions involved
+- evidence needed to prove each
+- proposed fix plan
+- tests required
+
+TASK 4 — EOD / FORCE-CLOSE ROOT CAUSE PLAN
+
+Investigate why positions stayed OPEN after market close.
+
+Check:
+- phase20_exits.manage_open_positions()
+- phase20_scheduler.py EOD job
+- phase20_eod_status.py
+- phase20_store.py
+- pipeline_events
+- scheduler state
+- exit tick path
+- EXIT_PENDING logic
+- force-close claim/idempotency logic
+- data-quality/price-availability gate
+
+Deliver:
+- why MARKET_CLOSE_EXIT did not close these rows
+- why POST_CLOSE_FORCE_EXIT was not proven
+- whether exit job was not invoked, failed, skipped, or lacked evidence
+- exact missing event IDs
+- proposed fix plan
+- tests required
+
+TASK 5 — SETTINGS RECONCILIATION PLAN
+
+Create an operator decision form for:
+
+1. Capital:
+- keep ₹500,000
+- restore ₹100,000
+- choose another value
+
+2. Active universe:
+- keep NIFTY_50
+- switch to low-price IT/Infra/Bank
+- first publish/populate custom universe, then switch
+
+3. LTIM:
+- keep active
+- remove from active universe while preserving history
+
+4. Auto entries:
+- pause until safety proof
+- keep enabled after fix
+
+5. Bootstrap:
+- pause until safety proof
+- keep enabled after fix
+- retire
+
+Do not apply settings yet.
+
+TASK 6 — CLOSED-TRADE IMMUTABILITY PLAN
+
+The Phase 0 report says closed-row immutability is not DB-proven.
+
+Propose exact implementation plan for:
+- storage-level trigger or constraint
+- allowed OPEN → EXIT_PENDING → CLOSED transitions
+- deny UPDATE/DELETE on CLOSED rows
+- append-only correction event
+- actor/correlation ID audit
+- migration exception policy
+- tests
+
+Do not implement yet.
+
+TASK 7 — LEGACY STORE AND LIVE-ORDER QUARANTINE PLAN
+
+Create a formal quarantine plan for:
+- paper_trades
+- paper_portfolio
+- experimental_paper_trades
+- portfolio_events
+- portfolio_snapshots
+- phase11_price_snapshots
+- phase11_capital_topups
+- intraday-trading-bot live order routes
+- broker_client.py live order method
+
+Include:
+- what must be labeled legacy
+- what must be blocked from Phase 20 authority
+- what import/call tests must be added
+- what UI pages need warning labels
+- what can be retired later
+
+TASK 8 — UI SAFETY VISIBILITY PLAN
+
+For Mission Control, AI Paper Trader, Portfolio/Risk, Mobile Positions:
+
+Propose UI changes to clearly show:
+- auto paper entries enabled/disabled
+- bootstrap enabled/disabled
+- active capital
+- active universe
+- open prior-session positions
+- EXIT_PENDING
+- EOD close status
+- stale data warning
+- canonical vs legacy source warning
+
+Do not implement yet.
+
+TASK 9 — TEST PLAN
+
+Create the exact test list required before unblocking:
+
+1. No AUTO entry after 15:15.
+2. No BOOTSTRAP_AUTO entry after 15:15.
+3. Stale signal before cutoff cannot create decision after cutoff.
+4. Scheduler EOD closes OPEN positions from 15:20.
+5. Post-close force-close after 15:30.
+6. EXIT_PENDING escalates/retries correctly.
+7. No duplicate open position.
+8. CLOSED trade cannot be updated or deleted.
+9. Legacy stores cannot affect Phase 20 portfolio.
+10. Live order methods cannot be imported/called from Phase 20/scheduler/agent path.
+11. UI shows open prior-session warning.
+12. Production route proof after deploy.
+
+TASK 10 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE0A_SAFETY_REMEDIATION_PLAN.md
+
+Include:
+1. BLOCKED summary.
+2. Immediate operator safety options.
+3. Open-position remediation plan.
+4. Post-15:15 root-cause plan.
+5. EOD/force-close root-cause plan.
+6. Settings reconciliation plan.
+7. Closed-row immutability plan.
+8. Legacy/live-order quarantine plan.
+9. UI safety visibility plan.
+10. Test plan.
+11. Exact recommended next operator action.
+12. Confirmation no code changed.
+13. Confirmation no settings changed.
+14. Confirmation no positions changed.
+15. Confirmation no live orders.

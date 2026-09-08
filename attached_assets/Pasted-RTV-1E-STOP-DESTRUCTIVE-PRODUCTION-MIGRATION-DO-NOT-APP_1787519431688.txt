@@ -1,0 +1,195 @@
+RTV-1E — STOP DESTRUCTIVE PRODUCTION MIGRATION
+
+DO NOT APPROVE OR PUBLISH THE CURRENT DATABASE MIGRATION.
+
+The Replit deployment preview is proposing these destructive changes to:
+
+custom_universe_master
+
+DROP COLUMN:
+- instrument_exchange
+- instrument_tradingsymbol
+- instrument_cache_date
+- instrument_mapping_at
+
+This is NOT approved.
+
+These columns are part of the RTV-1D / RTV-1E instrument-reference metadata design and may be required for the 23-symbol CUSTOM_LOW_PRICE_SECTOR token-hydration path.
+
+Goal:
+Determine why the deployment system thinks these columns should be deleted, and produce a NON-DESTRUCTIVE migration plan.
+
+Do not publish.
+Do not approve the current migration.
+Do not modify production DB.
+Do not delete columns.
+Do not delete data.
+Do not recreate the table.
+Do not reset the database.
+
+TASK 1 — COMPARE DEVELOPMENT VS PRODUCTION SCHEMA
+
+Inspect READ-ONLY:
+
+Development custom_universe_master schema
+vs
+Production custom_universe_master schema
+vs
+Current application schema definition / CREATE TABLE / migration source
+
+For every column report:
+
+- column name
+- development exists: YES/NO
+- production exists: YES/NO
+- current source expects it: YES/NO
+- current RTV-1E code reads it: YES/NO
+- current RTV-1E code writes it: YES/NO
+- safe to retain: YES/NO
+
+Inspect specifically:
+
+- instrument_token
+- instrument_exchange
+- instrument_tradingsymbol
+- instrument_cache_date
+- instrument_mapping_at
+
+TASK 2 — IDENTIFY ROOT CAUSE
+
+Explain exactly why Replit generated DROP COLUMN migrations.
+
+Possible causes to verify:
+
+A. current development schema definition omits the columns
+B. migration/schema tooling believes production has extra columns
+C. RTV-1E code added application logic but schema declaration was not updated
+D. development database differs from production
+E. an older schema definition is overriding newer columns
+F. another cause
+
+Do not guess.
+
+TASK 3 — VERIFY RTV-1E REQUIREMENTS
+
+RTV-1E requires metadata-only hydration for the existing 23 active custom-universe rows.
+
+Required metadata includes:
+
+- instrument_token
+- exchange
+- tradingsymbol
+- instrument cache date
+- mapping timestamp
+
+Determine whether the proposed columns are the intended persistence fields for these values.
+
+If YES:
+they MUST NOT be dropped.
+
+TASK 4 — CREATE NON-DESTRUCTIVE SCHEMA FIX
+
+Bring the canonical schema definition in source into agreement with the desired production schema.
+
+Preferred outcome:
+
+custom_universe_master retains:
+
+- instrument_token
+- instrument_exchange
+- instrument_tradingsymbol
+- instrument_cache_date
+- instrument_mapping_at
+
+If one or more columns do not exist in development but are required:
+add them safely to development/schema definition.
+
+If they already exist in production:
+preserve them.
+
+Do not generate DROP COLUMN statements for these RTV metadata fields.
+
+TASK 5 — VERIFY EXISTING PRODUCTION DATA
+
+READ-ONLY check the 26 current rows.
+
+Report for each metadata column:
+
+- non-null row count
+- null row count
+- sample status without exposing sensitive data
+
+Do not update values during this diagnostic.
+
+TASK 6 — REGENERATE MIGRATION
+
+After correcting the canonical schema definition:
+
+regenerate the deployment migration.
+
+The migration must contain:
+
+NO DROP COLUMN for:
+- instrument_exchange
+- instrument_tradingsymbol
+- instrument_cache_date
+- instrument_mapping_at
+- instrument_token
+
+If a migration is unnecessary, report:
+
+NO DATABASE MIGRATION REQUIRED
+
+If additive changes are required, they must be non-destructive.
+
+TASK 7 — MIGRATION SAFETY REVIEW
+
+Before asking for approval, provide the exact generated SQL.
+
+Classify every statement:
+
+SAFE ADDITIVE
+SAFE INDEX
+DATA BACKFILL
+DESTRUCTIVE — NOT ALLOWED
+
+There must be zero destructive statements for RTV-1E.
+
+TASK 8 — PREVIEW DEPLOYMENT
+
+Only after the destructive migration is removed:
+
+create a preview deployment if available.
+
+Verify:
+- application starts
+- custom universe loads
+- 23 active rows preserved
+- sectors preserved
+- no portfolio mutation
+- no ledger mutation
+- no safety flag change
+- schema contains required metadata columns
+
+TASK 9 — STOP FOR USER APPROVAL
+
+Do NOT click or simulate approval.
+
+Return:
+
+SAFE TO APPROVE
+or
+NOT SAFE TO APPROVE
+
+Include:
+- root cause
+- corrected schema
+- regenerated SQL
+- whether any production data would be deleted
+- whether all 23 custom-universe memberships remain unchanged
+
+FINAL RULE
+
+The current migration shown in the deployment UI is NOT APPROVED.
+
+Do not publish until the regenerated migration contains no destructive DROP COLUMN statements for RTV-1E instrument metadata.

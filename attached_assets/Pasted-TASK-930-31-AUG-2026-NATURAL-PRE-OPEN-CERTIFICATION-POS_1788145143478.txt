@@ -1,0 +1,941 @@
+TASK #930 — 31 AUG 2026 NATURAL PRE-OPEN CERTIFICATION
+POST VERSIONED-UNIVERSE MIGRATION
+PAPER TRADING ONLY
+
+DATE:
+2026-08-31
+
+OBSERVATION START:
+Approximately 08:40 IST
+
+MODE:
+READ-ONLY NATURAL SESSION OBSERVATION
+
+IMPORTANT:
+
+DO NOT:
+- manually trigger Phase 5A
+- manually trigger Phase 5B
+- manually trigger Phase 5C
+- manually run a market scan
+- manually freeze
+- retry/replay/backfill any pre-open session
+- refresh provider data through a mutation endpoint
+- change universe membership
+- activate another universe revision
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- place broker orders
+- modify portfolio/ledger/capital/settings
+- fabricate fallback incidents
+- alter historical Task #930 evidence
+- deploy code during the certification window
+
+Observe natural scheduler activity only.
+
+==================================================
+0. PRODUCTION IDENTITY PRECHECK
+==================================================
+
+READ ONLY:
+
+GET /api/health/details
+
+Report:
+
+environment
+git_commit
+build_id
+deployment_id
+runtime_timestamp
+
+Require:
+
+environment = production
+
+Production identity must match the currently published release.
+
+If UI/API build IDs are separately exposed:
+require MATCH.
+
+If identity is ambiguous or mismatched:
+STOP.
+
+Do not continue certification on an unproven runtime.
+
+==================================================
+1. VERSIONED UNIVERSE AUTHORITY
+==================================================
+
+This is now mandatory.
+
+Require the authoritative active/effective universe to resolve from the durable
+versioned authority, not legacy/custom-master fallback.
+
+Expected:
+
+universe_key =
+CUSTOM_LOW_PRICE_SECTOR
+
+durable universe ID =
+3
+
+version =
+1
+
+revision status =
+ACTIVE
+
+effective_from =
+2026-08-31 09:00 IST
+(2026-08-31 03:30:00 UTC)
+
+effective policy =
+NEXT_NATURAL_SESSION_09_00_IST
+
+symbol count =
+23
+
+exact approved set hash =
+22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016
+
+mapping coverage =
+23/23
+
+baseline migration audit count >= 1
+
+Require no conflicting ACTIVE revision.
+
+==================================================
+2. EXACT APPROVED 23-SYMBOL SET
+==================================================
+
+Require exact active/effective membership:
+
+BANKBARODA
+BANKINDIA
+CANBK
+FEDERALBNK
+IDFCFIRSTB
+KTKBANK
+MAHABANK
+PNB
+UNIONBANK
+COALINDIA
+GAIL
+HUDCO
+IRCON
+IRFC
+MRPL
+NBCC
+NMDC
+NTPC
+PFC
+RECLTD
+RVNL
+SAIL
+WIPRO
+
+Require:
+
+count = 23
+missing symbols = 0
+unexpected symbols = 0
+duplicate symbols = 0
+duplicate instrument tokens = 0
+
+Do not rely on count alone.
+
+Compare exact set/hash.
+
+==================================================
+3. KITE INSTRUMENT AUTHORITY
+==================================================
+
+Confirm the production Kite instrument reference remains healthy.
+
+Expected prior baseline:
+
+instrument master row count approximately 10,210
+mapping coverage = 23/23
+
+READ ONLY verify:
+
+instrument reference complete = true
+instrument reference fresh = true
+provider = Zerodha/Kite authoritative source
+all 23 mappings valid
+
+Require:
+
+missing = 0
+duplicate token = 0
+invalid exchange = 0
+invalid segment = 0
+invalid instrument type = 0
+stale mapping = 0
+
+If instrument authority has degraded:
+STOP.
+
+Do not bypass with cached/historical tokens.
+
+==================================================
+4. SAFETY BASELINE
+==================================================
+
+Require:
+
+automatic paper entries = false
+entry confirmation = null
+bootstrap = false
+automatic exits = true
+controlled execution = disabled
+execution_allowed = false
+live broker orders = disabled
+broker mode = PAPER_TRADING / RESEARCH ONLY
+
+portfolio source =
+phase20_ledger
+
+open positions =
+0
+
+EXIT_PENDING =
+0
+
+historical closed paper trades =
+6
+
+Any unexpected execution enablement:
+STOP.
+
+==================================================
+5. KITE SESSION HEALTH
+==================================================
+
+READ ONLY.
+
+Require:
+
+connected = true
+token status = VALID
+token expired = false
+mock mode = false
+live order placement = false
+
+If Kite is unavailable:
+record the natural failure.
+
+Do not manually recover the certification run.
+
+==================================================
+6. RUNTIME CONSUMER AUTHORITY CONSISTENCY
+==================================================
+
+Before natural Phase 5A starts, verify all available runtime consumers resolve
+the same durable universe authority.
+
+Check where exposed:
+
+1. canonical scanner
+2. scanner readiness
+3. pre-open scheduler
+4. Phase 5A
+5. market-data coverage
+6. Mission Control
+7. strategy context
+8. advisory/multi-bot universe resolver
+9. signal generation
+10. future paper-entry eligibility
+
+For each where possible report:
+
+universe_key
+universe_id
+version
+expected_count
+set_hash
+
+Require agreement.
+
+No legacy NIFTY50 / 50-symbol / DEFAULT_WATCHLIST authority may appear.
+
+==================================================
+7. SCANNER / READINESS PRECHECK
+==================================================
+
+READ ONLY.
+
+Require:
+
+revision_not_found = false
+
+scanner expected count = 23
+
+scanner_coverage_ok = true
+
+pre-open universe status != UNIVERSE_UNAVAILABLE
+
+readiness denominator derives from active version count = 23
+
+Do not manually run a scan.
+
+==================================================
+8. TASK #947 TIMING CONTRACT
+==================================================
+
+Verify deployed timing semantics before certification:
+
+automatic Phase 5A collection:
+09:00 <= time < 09:12 IST
+
+final-proof candidate window:
+09:08:00 <= completed_at < 09:12:00 IST
+
+NO automatic Phase 5A collection:
+09:12 <= time < 09:15 IST
+
+freeze:
+09:15 uses exact verified final-proof batch
+
+freshness:
+age < 300 seconds = eligible
+age >= 300 seconds = stale
+
+automatic origin =
+SCHEDULED
+
+manual/direct refresh origin =
+MANUAL
+
+Do not alter these rules.
+
+==================================================
+9. WAIT FOR NATURAL PHASE 5A
+==================================================
+
+Do not invoke Phase 5A.
+
+Capture the naturally scheduled session:
+
+session_id
+trading_date
+origin
+scheduled_at
+started_at
+completed_at
+
+Require:
+
+origin = SCHEDULED
+
+The session must be associated with the active/effective durable universe
+version.
+
+Capture:
+
+universe_id
+universe_version
+set_hash
+expected_count
+
+==================================================
+10. PROVIDER SCOPE
+==================================================
+
+Require custom-universe pre-open collection:
+
+provider =
+NSE Official
+
+scope =
+ALL
+
+Provider cache scope must also correspond to ALL.
+
+A restricted NIFTY provider scope cannot certify this universe.
+
+==================================================
+11. NATURAL COLLECTION TIMELINE
+==================================================
+
+For each natural Phase 5A collection between 09:00 and 09:12 report:
+
+timestamp
+collection_batch_id
+provider scope
+provider raw count
+
+expected
+provider_returned
+normalized
+persisted
+live
+stale
+
+outcomes accounted
+missing
+duplicate
+malformed
+unexpected
+failed
+
+persistence_status
+verified batch pointer
+
+Also capture provider timestamp/liveness evidence where available.
+
+==================================================
+12. EXACT SYMBOL OUTCOME ACCOUNTING
+==================================================
+
+Task #941 contract:
+
+exactly one immutable outcome for every expected symbol.
+
+Require:
+
+expected symbols =
+23
+
+durable outcome rows =
+23
+
+distinct outcome symbols =
+23
+
+duplicate outcome symbols =
+0
+
+unexpected outcome symbols =
+0
+
+For each symbol capture:
+
+symbol
+outcome_status
+reason_code
+provider_symbol
+provider_response_present
+normalization_result
+eligibility_status
+snapshot_id
+provider_scope
+provider_raw_count
+
+No expected symbol may disappear silently.
+
+==================================================
+13. FINAL-PROOF WINDOW
+==================================================
+
+Between:
+
+09:08:00 inclusive
+and
+09:12:00 exclusive
+
+identify the final qualifying naturally scheduled batch.
+
+Require:
+
+origin = SCHEDULED
+
+same trading date
+
+same universe revision/version
+
+same exact set hash
+
+expected = 23
+provider returned = 23
+normalized live = 23
+persisted live = 23
+durable outcomes = 23
+
+missing = 0
+duplicate = 0
+malformed = 0
+unexpected = 0
+failed = 0
+
+persistence_status = MATCH
+
+For every live row:
+
+source_status = LIVE
+is_stale = false
+timestamp valid
+age < 300 seconds AT INGESTION
+
+Exact set equality:
+
+EXPECTED_SET
+=
+NORMALIZED_LIVE_SET
+=
+PERSISTED_LIVE_SET
+
+==================================================
+14. FINAL-PROOF BATCH PINNING
+==================================================
+
+Once a qualifying batch exists:
+
+record:
+
+FINAL_PROOF_BATCH_ID
+
+Require:
+
+verified_collection_batch =
+FINAL_PROOF_BATCH_ID
+
+Do not manually pin anything.
+
+==================================================
+15. 09:12–09:15 SILENT WINDOW
+==================================================
+
+CRITICAL.
+
+After 09:12:
+
+NO new automatic Phase 5A collection should occur.
+
+Observe only.
+
+If another automatic scheduled Phase 5A collection occurs in:
+
+09:12 <= time < 09:15
+
+STOP certification.
+
+VERDICT:
+SCHEDULER TIMING FAILURE
+
+Do not retry or correct it.
+
+==================================================
+16. 09:15 FREEZE
+==================================================
+
+At natural freeze:
+
+freeze must independently re-read the exact final-proof batch.
+
+Require:
+
+frozen_collection_batch
+=
+verified_collection_batch
+=
+FINAL_PROOF_BATCH_ID
+
+No new provider collection may occur as part of freeze.
+
+Freeze must prove:
+
+expected = 23
+persisted live = 23
+outcomes = 23
+exact symbol parity
+same universe revision/version
+same set hash
+same batch ID
+
+Important:
+
+Do NOT recalculate the provider age as if a new provider collection occurred at
+09:15.
+
+The required freshness proof is that the batch was LIVE and age <300 seconds
+AT INGESTION inside the final-proof window.
+
+==================================================
+17. PHASE 5B / 5C NATURAL LIFECYCLE
+==================================================
+
+Only if Phase 5A naturally verifies and freezes:
+
+observe downstream progression.
+
+Do NOT trigger anything.
+
+Report:
+
+phase
+origin
+session_id
+upstream batch
+universe version
+started_at
+completed_at
+status
+
+Require natural scheduled ordering.
+
+==================================================
+18. NATURAL CANONICAL MARKET SCAN
+==================================================
+
+When naturally reached:
+
+require:
+
+origin = SCHEDULED
+
+universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+universe version =
+1
+
+requested =
+23
+
+received =
+23
+
+current quote provider =
+ZERODHA_KITE
+
+current quote freshness =
+LIVE
+
+fallback =
+0
+
+stale =
+0
+
+synthetic =
+0
+
+unavailable =
+0
+
+Do not manually run a scan.
+
+==================================================
+19. MISSION CONTROL DATA AUTHORITY
+==================================================
+
+Observe Mission Control.
+
+Healthy current-price state should show:
+
+ZERODHA_KITE
+23/23
+VERIFIED_HEALTHY / equivalent
+
+Historical OHLCV may show:
+
+YFINANCE
+
+That must NOT trigger a current-price fallback incident.
+
+==================================================
+20. NATURAL FALLBACK INCIDENT CHECK
+==================================================
+
+If current-price authority naturally falls away from Kite:
+
+do not manufacture or clear anything.
+
+Confirm durable incident lifecycle.
+
+Capture:
+
+incident_id
+status
+severity
+first_detected_at
+last_detected_at
+expected_provider
+actual_provider
+affected_symbol_count
+affected_symbols
+first_scan_id
+latest_scan_id
+fallback_reason
+readiness_state
+execution_blocked
+detection_count
+
+Mission Control should display the active incident.
+
+==================================================
+21. NATURAL FALLBACK RECOVERY
+==================================================
+
+If Kite naturally recovers:
+
+Require:
+
+ACTIVE
+→
+RECOVERED
+
+Capture:
+
+recovered_at
+duration
+
+Do not delete incident history.
+
+==================================================
+22. PRE-OPEN UI TRUTHFULNESS
+==================================================
+
+Read-only browser check.
+
+Pre-Open Intelligence must separately display:
+
+SESSION STATE
+
+and
+
+COLLECTION CERTIFICATION STATE
+
+A session-level Frozen state must not imply certification unless the exact
+verified collection batch was actually frozen.
+
+==================================================
+23. PURE OBSERVATION CHECK
+==================================================
+
+Verify this certification caused:
+
+manual scans = 0
+manual Phase 5A triggers = 0
+manual Phase 5B/5C triggers = 0
+manual freezes = 0
+retries = 0
+replays = 0
+backfills = 0
+settings mutations = 0
+universe mutations = 0
+broker orders = 0
+portfolio mutations = 0
+ledger mutations = 0
+
+==================================================
+24. HISTORICAL PRESERVATION
+==================================================
+
+Do not modify prior failed natural-session evidence.
+
+Preserve all previous Task #930 sessions exactly as recorded.
+
+Do NOT:
+retry
+replay
+backfill
+relabel
+attach the new universe revision retroactively
+change batch pointers
+change freeze pointers
+
+==================================================
+25. PORTFOLIO / LEDGER POST-CHECK
+==================================================
+
+Compare:
+
+/api/portfolio
+/api/portfolio/snapshot
+
+Require agreement on:
+
+source
+initial capital
+cash
+equity
+realized P&L
+unrealized P&L
+open positions
+
+Expected canonical source:
+phase20_ledger
+
+No unexplained portfolio mutation.
+
+==================================================
+26. TRADE ACTIVITY REPORT
+==================================================
+
+Report separately:
+
+signals generated
+recommendations generated
+paper-order attempts
+paper fills
+paper exits
+live broker orders
+
+Remember:
+
+SIGNAL
+!=
+PAPER ORDER
+!=
+LIVE BROKER ORDER
+
+Automatic paper entries are currently OFF.
+
+A successful Task #930 certification does NOT automatically enable paper-entry
+execution.
+
+==================================================
+27. TASK #930 PASS CONTRACT
+==================================================
+
+PASS only if the naturally scheduled session proves ALL:
+
+production identity valid
+
+durable universe authority effective
+
+universe ID = 3
+
+version = 1
+
+exact set hash =
+22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016
+
+active universe = exact 23
+
+Kite mappings = 23/23
+
+scanner readiness = healthy
+
+origin = SCHEDULED
+
+provider = NSE Official
+
+provider scope = ALL
+
+09:08–<09:12 final-proof batch exists
+
+expected = 23
+returned = 23
+normalized live = 23
+persisted live = 23
+outcomes = 23
+
+missing = 0
+duplicate = 0
+malformed = 0
+unexpected = 0
+failed = 0
+
+all live at ingestion
+all is_stale = false at ingestion
+all timestamps valid
+all age <300 at ingestion
+
+persistence_status = MATCH
+
+verified batch = final-proof batch
+
+NO automatic Phase 5A collection after 09:12
+
+09:15 frozen batch = same final-proof batch
+
+downstream lifecycle natural
+
+canonical scan natural
+
+current-price authority correctly proven
+
+safety unchanged
+
+==================================================
+28. FAILURE RULE
+==================================================
+
+If ANY required certification condition fails:
+
+STOP.
+
+Do NOT:
+
+retry
+replay
+backfill
+manually collect
+manually freeze
+manually scan
+change settings
+change universe
+deploy a fix during the session
+
+Preserve the failed natural session as immutable evidence.
+
+Diagnose only after the observation window.
+
+==================================================
+29. OUTPUT FILES
+==================================================
+
+Create:
+
+TASK_930_2026_08_31_NATURAL_PREOPEN_CERTIFICATION.md
+
+TASK_930_2026_08_31_COLLECTION_TIMELINE.csv
+
+TASK_930_2026_08_31_SYMBOL_OUTCOME_MATRIX.csv
+
+TASK_930_2026_08_31_BATCH_AND_FREEZE_EVIDENCE.md
+
+TASK_930_2026_08_31_VERSIONED_UNIVERSE_EVIDENCE.md
+
+TASK_930_2026_08_31_DATA_AUTHORITY_CHECK.md
+
+TASK_930_2026_08_31_SAFETY_AND_PORTFOLIO_CHECK.md
+
+==================================================
+30. FINAL VERDICT
+==================================================
+
+Return exactly one:
+
+A. TASK #930 PASS — NATURAL PRE-OPEN CERTIFIED
+
+B. PRODUCTION IDENTITY FAILURE
+
+C. VERSIONED UNIVERSE AUTHORITY FAILURE
+
+D. KITE INSTRUMENT / MAPPING FAILURE
+
+E. SCANNER / READINESS FAILURE
+
+F. PHASE 5A COVERAGE FAILURE
+
+G. FINAL-PROOF WINDOW FAILURE
+
+H. SCHEDULER TIMING FAILURE
+
+I. PROVIDER / LIVE-EVIDENCE FAILURE
+
+J. PERSISTENCE / EXACT-SET FAILURE
+
+K. FREEZE / BATCH-INTEGRITY FAILURE
+
+L. KITE / CURRENT-PRICE AUTHORITY FAILURE
+
+M. DATA-AUTHORITY OBSERVABILITY FAILURE
+
+N. SAFETY REGRESSION
+
+O. PORTFOLIO / LEDGER REGRESSION
+
+FINAL RULE:
+
+Certification must come entirely from the natural production scheduler.
+
+No manual action may convert a failed natural session into a pass.

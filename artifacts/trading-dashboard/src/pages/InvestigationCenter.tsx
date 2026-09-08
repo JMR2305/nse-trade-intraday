@@ -24,6 +24,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  getUniverseEvidenceNotice,
+  type UniverseResolution,
+} from "@/lib/backtestUniverseEvidence";
+import {
   AlertTriangle, Ban, BookOpen, CheckCircle2, ChevronLeft, ChevronRight,
   Clock, FlaskConical, History, Pause, Play, Search, ShieldCheck, ShieldX,
   Square, SkipBack, SkipForward, Wallet, XCircle, Zap,
@@ -50,6 +54,8 @@ interface BacktestRun {
     interval?: string; start?: string; end?: string; capital?: number;
     symbols?: string[] | null; universe?: string;
     sizing?: RunSizing; volume_time_normalized?: boolean;
+    universe_evidence?: string;
+    universe_resolution?: UniverseResolution;
   };
   progress?: { phase?: string; done?: number; total?: number; ts?: string; cash?: number; symbol?: string };
   metrics?: Record<string, unknown> | null;
@@ -393,6 +399,7 @@ export default function InvestigationCenter() {
   const [end, setEnd] = useState(rangePreset(30).end);
   const [symbolsText, setSymbolsText] = useState("");
   const [universe, setUniverse] = useState("configured");
+  const [allowCurrentUniverseFallback, setAllowCurrentUniverseFallback] = useState(false);
   const [capital, setCapital] = useState(100000);
 
   useEffect(() => {
@@ -435,6 +442,11 @@ export default function InvestigationCenter() {
           interval, start, end, capital,
           symbols: symbolsText.trim() ? symbolsText.split(/[\s,]+/).filter(Boolean) : undefined,
           universe,
+          universe_mode: universe === "custom_low_price_sector" ? "CUSTOM_LOW_PRICE_SECTOR" : undefined,
+          as_of_date: universe === "custom_low_price_sector" ? end : undefined,
+          allow_current_universe_fallback: universe === "custom_low_price_sector"
+            ? allowCurrentUniverseFallback
+            : undefined,
           ...(overrides ?? {}),
         }),
       }, 30_000),
@@ -872,6 +884,23 @@ export default function InvestigationCenter() {
   }, [missed, sym, symTickToCandleIdx]);
 
   const m = run?.metrics as Record<string, number> | undefined;
+  // Symbols whose candles were synthetic (source='mock') at run time.
+  // Always an array when present; absent only in runs made before this guard.
+  const mockCandleSymbols =
+    (run?.metrics as Record<string, unknown> | undefined)
+      ?.mock_candle_symbols as string[] | undefined;
+  const resultMetrics = run?.metrics as Record<string, unknown> | undefined;
+  const universeEvidence = (
+    resultMetrics?.universe_evidence ?? run?.config?.universe_evidence
+  ) as string | undefined;
+  const universeResolution = (
+    resultMetrics?.universe_resolution ?? run?.config?.universe_resolution
+  ) as UniverseResolution | undefined;
+  const universeEvidenceNotice = getUniverseEvidenceNotice(
+    universeEvidence,
+    universeResolution,
+  );
+
   const decisionCount = useMemo(() => {
     let n = 0;
     for (let i = 0; i <= cursor; i++) n += ticksByIdx.get(i)?.decisions.length ?? 0;
@@ -941,8 +970,24 @@ export default function InvestigationCenter() {
               onChange={(e) => setUniverse(e.target.value)} data-testid="select-universe">
               <option value="configured">Configured universe</option>
               <option value="nifty50">Nifty 50</option>
+              <option value="custom_low_price_sector">Low-price IT / Infra / Bank</option>
             </select>
           </label>
+          {universe === "custom_low_price_sector" && (
+            <label className="flex max-w-72 items-start gap-2 text-xs text-amber-300">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={allowCurrentUniverseFallback}
+                onChange={(e) => setAllowCurrentUniverseFallback(e.target.checked)}
+                data-testid="checkbox-current-universe-fallback"
+              />
+              <span>
+                If no snapshot exists on or before the end date, use today&apos;s membership
+                (degraded evidence; otherwise the run fails closed).
+              </span>
+            </label>
+          )}
           <label className="flex flex-col gap-1 min-w-48">
             <span className="text-xs text-muted-foreground">Symbols (optional, overrides universe)</span>
             <input className="bg-background border rounded px-2 py-1.5" placeholder="e.g. RELIANCE, TCS"
@@ -958,6 +1003,11 @@ export default function InvestigationCenter() {
           </Button>
           {launch.data && !launch.data.ok && (
             <span className="text-xs text-red-500">{String(launch.data.error)}</span>
+          )}
+          {universe === "custom_low_price_sector" && (
+            <span className="text-xs text-amber-400" data-testid="custom-universe-evidence-note">
+              Uses membership verified on or before {end || "the selected end date"} to prevent look-ahead.
+            </span>
           )}
           {interval !== "1d" && start && end &&
             (new Date(end).getTime() - new Date(start).getTime()) / 86400_000 > 55 && (
@@ -1269,6 +1319,61 @@ export default function InvestigationCenter() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Data provenance warnings ─────────────────────────────────────── */}
+      {universeEvidenceNotice && (
+        <div
+          className={[
+            "flex items-start gap-3 rounded-md border px-4 py-3 text-sm",
+            universeEvidenceNotice.tone === "warning"
+              ? "border-amber-500/60 bg-amber-500/10 text-amber-400"
+              : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+          ].join(" ")}
+          data-testid={
+            universeEvidenceNotice.tone === "warning"
+              ? "banner-current-universe-fallback"
+              : "universe-evidence-historical-snapshot"
+          }
+          role={universeEvidenceNotice.tone === "warning" ? "alert" : "status"}
+        >
+          {universeEvidenceNotice.tone === "warning"
+            ? <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />
+            : <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" aria-hidden="true" />}
+          <div className="space-y-1">
+            <p className="font-semibold">{universeEvidenceNotice.heading}</p>
+            <p className="text-xs opacity-90">{universeEvidenceNotice.detail}</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mock Candle Warning ───────────────────────────────────────────── */}
+      {mockCandleSymbols && mockCandleSymbols.length > 0 && (
+        <div
+          className="flex items-start gap-3 rounded-md border border-amber-500/60 bg-amber-500/10 px-4 py-3 text-sm text-amber-400"
+          data-testid="banner-mock-candle-warning"
+          role="alert"
+        >
+          <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0 text-amber-400" aria-hidden="true" />
+          <div className="space-y-1">
+            <p className="font-semibold">Synthetic (mock) candles detected</p>
+            <p className="text-xs text-amber-400/80">
+              The following symbol{mockCandleSymbols.length > 1 ? "s were" : " was"} excluded
+              from this run because their cached candles were generated by a synthetic fallback
+              (yfinance was rate-limited when the cache was populated). No trades were placed
+              on fake data, but results reflect fewer symbols than requested.
+            </p>
+            <p className="text-xs font-mono text-amber-300">
+              {mockCandleSymbols.join(", ")}
+            </p>
+            <p className="text-xs text-amber-400/60">
+              To fix: the cached mock candles must be cleared before a retry will fetch real data —
+              simply retrying will re-use the same synthetic cache. Ask your administrator to delete
+              the backtest candle cache entries for these symbols (or the full cache), then rerun
+              once yfinance is no longer rate-limited.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ── Run Comparison Panel ─────────────────────────────────────────── */}
       {completedRuns.length > 0 && (

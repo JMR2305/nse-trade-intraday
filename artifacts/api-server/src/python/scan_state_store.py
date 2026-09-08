@@ -72,14 +72,21 @@ def _ensure_schema(conn) -> None:
                 symbols_received INTEGER,
                 symbols_missing INTEGER,
                 symbols_stale INTEGER,
+                trigger_origin TEXT NOT NULL DEFAULT 'UNKNOWN',
                 missing_symbols JSONB,
                 stale_symbols JSONB,
+                universe_context JSONB,
                 error TEXT,
                 snapshot JSONB,
                 updated_at TIMESTAMPTZ DEFAULT NOW()
             )
             """
         )
+        cur.execute("""
+            ALTER TABLE scan_state
+                ADD COLUMN IF NOT EXISTS trigger_origin TEXT NOT NULL DEFAULT 'UNKNOWN',
+                ADD COLUMN IF NOT EXISTS universe_context JSONB
+        """)
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS scan_lock (
@@ -121,10 +128,10 @@ def save_successful_scan(snapshot: Dict[str, Any]) -> None:
                 INSERT INTO scan_state (
                     id, scan_id, status, started_at, completed_at, snapshot_ts,
                     provider, symbols_requested, symbols_received, symbols_missing,
-                    symbols_stale, missing_symbols, stale_symbols, error, snapshot,
-                    updated_at
+                    symbols_stale, trigger_origin, missing_symbols, stale_symbols, error, snapshot,
+                    universe_context, updated_at
                 ) VALUES (
-                    1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s, NOW()
+                    1, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s, %s, NOW()
                 )
                 ON CONFLICT (id) DO UPDATE SET
                     scan_id = EXCLUDED.scan_id,
@@ -137,8 +144,10 @@ def save_successful_scan(snapshot: Dict[str, Any]) -> None:
                     symbols_received = EXCLUDED.symbols_received,
                     symbols_missing = EXCLUDED.symbols_missing,
                     symbols_stale = EXCLUDED.symbols_stale,
+                    trigger_origin = EXCLUDED.trigger_origin,
                     missing_symbols = EXCLUDED.missing_symbols,
                     stale_symbols = EXCLUDED.stale_symbols,
+                    universe_context = EXCLUDED.universe_context,
                     error = NULL,
                     snapshot = EXCLUDED.snapshot,
                     updated_at = NOW()
@@ -148,9 +157,11 @@ def save_successful_scan(snapshot: Dict[str, Any]) -> None:
                     meta["completed_at"], meta["snapshot_ts"], meta["provider"],
                     meta["symbols_requested"], meta["symbols_received"],
                     meta["symbols_missing"], meta["symbols_stale"],
+                    meta["trigger_origin"],
                     json.dumps(meta["missing_symbols"]),
                     json.dumps(meta["stale_symbols"]),
                     json.dumps(snapshot, default=str),
+                    json.dumps(meta.get("universe_context") or {}),
                 ),
             )
         conn.commit()
@@ -227,9 +238,9 @@ def load_latest_meta() -> Optional[Dict[str, Any]]:
                     cur.execute(
                         """
                         SELECT scan_id, status, started_at, completed_at,
-                               snapshot_ts, provider, symbols_requested,
-                               symbols_received, symbols_missing, symbols_stale,
-                               missing_symbols, stale_symbols, error, updated_at
+                                snapshot_ts, provider, symbols_requested,
+                                symbols_received, symbols_missing, symbols_stale, trigger_origin,
+                       missing_symbols, stale_symbols, error, universe_context, updated_at
                         FROM scan_state WHERE id = 1
                         """
                     )
@@ -243,9 +254,11 @@ def load_latest_meta() -> Optional[Dict[str, Any]]:
                         "snapshot_ts": row[4], "provider": row[5],
                         "symbols_requested": row[6], "symbols_received": row[7],
                         "symbols_missing": row[8], "symbols_stale": row[9],
-                        "missing_symbols": row[10] or [],
-                        "stale_symbols": row[11] or [],
-                        "error": row[12], "updated_at": _ts(row[13]),
+                        "trigger_origin": row[10] or "UNKNOWN",
+                        "missing_symbols": row[11] or [],
+                        "stale_symbols": row[12] or [],
+                        "error": row[13], "universe_context": row[14] or {},
+                        "updated_at": _ts(row[15]),
                     }
             finally:
                 conn.close()
@@ -388,54 +401,215 @@ def _meta_from_snapshot(snapshot: Dict[str, Any], status: str,
         "symbols_stale": int(health.get("symbols_stale") or 0),
         "missing_symbols": list(health.get("unavailable_symbols") or []),
         "stale_symbols": list(health.get("stale_symbols") or []),
+        "trigger_origin": str(snapshot.get("trigger_origin") or "UNKNOWN").upper(),
+        "universe_context": dict(snapshot.get("universe_context") or {}),
         "error": error,
     }
 
 
-def count_scans_today_ist() -> int:
-    """Return the number of SCAN_COMPLETED pipeline events since midnight IST
-    today.
+def ist_day_bounds_utc(now_utc: Optional[datetime] = None) -> Tuple[datetime, datetime]:
+    """Return (start, end) UTC datetimes covering the current IST calendar day.
 
-    IST = UTC + 05:30.  The correct approach is:
+    IST = UTC + 05:30. Shift now to IST, truncate to IST midnight, shift back.
+    Correctly handles the post-18:30-UTC case where the IST day has already
+    rolled over to the next calendar day.
+    """
+    from datetime import timedelta
+    _IST_OFFSET = timedelta(hours=5, minutes=30)
+    now = now_utc or _now_utc()
+    now_ist = now + _IST_OFFSET
+    ist_midnight = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    start = ist_midnight - _IST_OFFSET
+    return start, start + timedelta(days=1)
+
+
+def scan_observability_counts_today_ist() -> Dict[str, int]:
+    """Return durable, IST-scoped scan observability counts.
+
+    These values deliberately come from the append-only pipeline event store,
+    rather than a process-local counter or a scan-history page limit:
+
+    * ``completed_scans_today`` is SCAN_COMPLETED.
+    * ``started_scans_today`` is SCAN_STARTED.
+    * ``scheduler_ticks_today`` is SCHEDULER_TICK (emitted only when a
+      scheduled scan is due, not on every one-minute heartbeat).
+    * ``lock_busy_skips_today`` is SCAN_SKIPPED_BUSY.
+
+    IST = UTC + 05:30.  The day boundary is:
       1. Convert the current UTC instant to IST (add 5h30m).
       2. Take that IST local date at 00:00:00.
       3. Convert back to UTC (subtract 5h30m) to get the cutoff.
 
-    This correctly handles the post-18:30 UTC case — after 18:30 UTC the IST
-    clock has already rolled over to the next day, so the cutoff must advance
-    to 18:30 of the *current* UTC date, not the previous one.
-
-    Falls back to 0 on any error or when DB is unavailable.  Never raises.
+    Falls back to zeroes on any error or when the durable store is unavailable.
+    Never raises: visibility must not affect scanning.
     """
+    empty = {
+        "completed_scans_today": 0,
+        "started_scans_today": 0,
+        "scheduler_ticks_today": 0,
+        "lock_busy_skips_today": 0,
+    }
     if not db_available():
-        return 0
+        return empty
     try:
-        from datetime import timedelta
-        _IST_OFFSET = timedelta(hours=5, minutes=30)
-        now_utc = _now_utc()
-        # Step 1: shift to IST
-        now_ist = now_utc + _IST_OFFSET
-        # Step 2: IST midnight (00:00) of the current IST calendar day
-        ist_midnight = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
-        # Step 3: convert back to UTC
-        today_ist_midnight_utc = ist_midnight - _IST_OFFSET
+        today_ist_midnight_utc, _ = _ist_today_cutoff_utc()
         conn = _connect()
         try:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT COUNT(*) FROM pipeline_events
-                    WHERE event_type = 'SCAN_COMPLETED'
+                    SELECT event_type, COUNT(*)
+                    FROM pipeline_events
+                    WHERE event_type IN (
+                        'SCAN_STARTED', 'SCAN_COMPLETED', 'SCHEDULER_TICK',
+                        'SCAN_SKIPPED_BUSY'
+                    )
                       AND ts >= %s
+                    GROUP BY event_type
                     """,
                     (today_ist_midnight_utc,),
                 )
-                row = cur.fetchone()
-            return int(row[0]) if row else 0
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+        count_by_type = {str(event_type): int(count) for event_type, count in rows}
+        return {
+            "completed_scans_today": count_by_type.get("SCAN_COMPLETED", 0),
+            "started_scans_today": count_by_type.get("SCAN_STARTED", 0),
+            "scheduler_ticks_today": count_by_type.get("SCHEDULER_TICK", 0),
+            "lock_busy_skips_today": count_by_type.get("SCAN_SKIPPED_BUSY", 0),
+        }
+    except Exception:
+        return empty
+
+
+def count_scans_today_ist() -> int:
+    """Return the number of completed scans since midnight IST today.
+
+    Retained as the stable compatibility helper for existing callers. New
+    observability consumers should call ``scan_observability_counts_today_ist``
+    so they do not confuse completed scans with history rows or scheduler work.
+    """
+    return scan_observability_counts_today_ist()["completed_scans_today"]
+
+
+def classified_job_counts_today_ist() -> Dict[str, int]:
+    """Count classified durable jobs without conflating maintenance with scans."""
+    empty = {"market_scans_today": 0, "all_system_jobs_today": 0}
+    if not db_available():
+        return empty
+    try:
+        start, end = ist_day_bounds_utc()
+        conn = _connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT COALESCE(job_type,
+                                    CASE WHEN trigger_source = 'MANUAL'
+                                         THEN 'MANUAL_SCAN' ELSE 'MARKET_SCAN' END),
+                           COUNT(*)
+                    FROM phase20_scan_runs
+                    WHERE COALESCE(completed_at, started_at, created_at) >= %s
+                      AND COALESCE(completed_at, started_at, created_at) < %s
+                    GROUP BY 1
+                    """,
+                    (start, end),
+                )
+                rows = cur.fetchall()
+        finally:
+            conn.close()
+        counts = {str(kind): int(count) for kind, count in rows}
+        return {
+            "market_scans_today": counts.get("MARKET_SCAN", 0),
+            "all_system_jobs_today": sum(counts.values()),
+        }
+    except Exception:
+        return empty
+
+
+def _classified_jobs_today_ist(limit: int) -> list[Dict[str, Any]]:
+    """Read Task 857 rows directly; empty means callers should use legacy data."""
+    if not db_available():
+        return []
+    try:
+        start, end = ist_day_bounds_utc()
+        conn = _connect()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT scan_id, trigger_source, started_at, completed_at,
+                           duration_s, symbols_requested, symbols_received, status,
+                           error, job_type, scan_type, market_state, entry_eligible,
+                           execution_eligible, source, started_at_ist,
+                           completed_at_ist, details
+                    FROM phase20_scan_runs
+                    WHERE COALESCE(completed_at, started_at, created_at) >= %s
+                      AND COALESCE(completed_at, started_at, created_at) < %s
+                    ORDER BY COALESCE(completed_at, started_at, created_at) ASC
+                    LIMIT %s
+                    """,
+                    (start, end, max(1, min(200, int(limit)))),
+                )
+                rows = cur.fetchall()
         finally:
             conn.close()
     except Exception:
-        return 0
+        return []
+
+    # Legacy test/migration rows have a different tuple shape; return [] so
+    # the established event pairing below remains a safe compatibility path.
+    if any(len(row) < 18 for row in rows):
+        return []
+    history: list[Dict[str, Any]] = []
+    previous_completed: Optional[datetime] = None
+    for row in rows:
+        started, completed = row[2], row[3]
+        if isinstance(started, datetime) and started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        if isinstance(completed, datetime) and completed.tzinfo is None:
+            completed = completed.replace(tzinfo=timezone.utc)
+        gap = None
+        if isinstance(started, datetime) and isinstance(previous_completed, datetime):
+            gap = max(0, round((started - previous_completed).total_seconds()))
+        if isinstance(completed, datetime):
+            previous_completed = completed
+        try:
+            # The durable row may predate provenance rules or be written by a
+            # non-HTTP caller. Re-apply the central allowlist at this response
+            # boundary rather than returning raw JSON from its details column.
+            from phase20_store import history_scan_provenance, sanitize_scan_details
+            job_type = row[9] or (
+                "MANUAL_SCAN" if str(row[1] or "").upper() == "MANUAL"
+                else "MARKET_SCAN"
+            )
+            provenance = history_scan_provenance(row[17], job_type)
+            safe_details = sanitize_scan_details(row[17])
+        except Exception:
+            provenance = {}
+            safe_details = {}
+        history.append({
+            "scan_id": row[0],
+            "started_at": _iso(started) if isinstance(started, datetime) else started,
+            "completed_at": _iso(completed) if isinstance(completed, datetime) else completed,
+            "started_at_ist": row[15],
+            "completed_at_ist": row[16],
+            "duration_s": row[4],
+            "symbols_scanned": row[6] if row[6] is not None else row[5],
+            "gap_from_prev_s": gap,
+            "status": row[7] or "UNKNOWN",
+            "error": row[8],
+            "job_type": job_type,
+            "scan_type": row[10] or "CANONICAL",
+            "market_state": row[11] or "UNKNOWN",
+            "entry_eligible": bool(row[12]),
+            "execution_eligible": bool(row[13]),
+            "source": row[14] or row[1],
+            "details": safe_details,
+            "provenance": provenance,
+        })
+    return history
 
 
 def build_scan_status_response() -> Dict[str, Any]:
@@ -479,8 +653,58 @@ def build_scan_status_response() -> Dict[str, Any]:
     except Exception:
         pass
 
-    # ── Completed scans today (IST) and rotation index ────────────────────
-    scan_count_today = count_scans_today_ist()
+    # ── Durable IST-day counts and scheduler runtime identity ─────────────
+    # `scan_count_today` / `rotation` remain as compatibility aliases for
+    # existing clients. The explicit fields below are the operator-facing
+    # contract: a completion count must never be presented as a rotation count.
+    observability = scan_observability_counts_today_ist()
+    job_counts = classified_job_counts_today_ist()
+    # Preserve the established aliases for existing consumers. New operator UI
+    # must use market_scans_today rather than interpreting these generic
+    # pipeline-completion counters as scheduler-only market scans.
+    scan_count_today = observability["completed_scans_today"]
+    runtime: Dict[str, Any] = {}
+    try:
+        from phase20_store import get_scheduler_health as _scheduler_health
+        scheduler = _scheduler_health() or {}
+        runtime = {
+            "owner": scheduler.get("owner"),
+            "process_start_at": scheduler.get("process_start_at"),
+            "status": scheduler.get("status"),
+            "heartbeat_at": scheduler.get("heartbeat_at"),
+            "next_due_at": scheduler.get("next_due_at"),
+        }
+    except Exception:
+        pass
+
+    jobs = _classified_jobs_today_ist(100)
+    latest_market_job = next(
+        (job for job in reversed(jobs) if job.get("job_type") == "MARKET_SCAN"),
+        None,
+    )
+    latest_system_job = jobs[-1] if jobs else None
+    market_state = "UNKNOWN"
+    next_jobs: list[Dict[str, Any]] = []
+    try:
+        from market_hours import market_status
+        market = market_status() or {}
+        market_state = str(market.get("state") or market.get("market_state") or "UNKNOWN").upper()
+        transition = market.get("next_transition") or {}
+        if transition.get("at_ist"):
+            next_jobs.append({
+                "job_type": "MARKET_SCAN" if transition.get("event") == "market_open"
+                else "SYSTEM_HEARTBEAT",
+                "scheduled_at_ist": transition.get("at_ist"),
+                "source": "SCHEDULER",
+            })
+    except Exception:
+        pass
+    if runtime.get("next_due_at"):
+        next_jobs.append({
+            "job_type": "MARKET_SCAN",
+            "scheduled_at": runtime.get("next_due_at"),
+            "source": "SCHEDULER",
+        })
 
     # ── Live in-flight progress from KV (None when scanner is idle) ────────
     progress: Optional[Dict[str, Any]] = None
@@ -498,6 +722,14 @@ def build_scan_status_response() -> Dict[str, Any]:
         "age_minutes": age_minutes,
         "scan_count_today": scan_count_today,
         "rotation": scan_count_today,
+        **observability,
+        **job_counts,
+        "latest_market_job": latest_market_job,
+        "latest_system_job": latest_system_job,
+        "next_jobs": next_jobs,
+        "market_state": market_state,
+        "entry_execution_allowed": market_state == "OPEN",
+        "runtime": runtime,
         "cadence_minutes": cadence_minutes,
         "progress": progress,
     }
@@ -542,7 +774,8 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
                 },
                 ...
             ],
-            "count": int,
+            "count": int,             # number of rows returned (after limit)
+            "total_completed": int,   # all completed scans today
             "ist_date": "YYYY-MM-DD",
         }
 
@@ -551,7 +784,30 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
     """
     cutoff_utc, ist_date = _ist_today_cutoff_utc()  # type: ignore[misc]
 
-    empty: Dict[str, Any] = {"success": True, "history": [], "count": 0, "ist_date": ist_date}
+    classified = _classified_jobs_today_ist(max(50, limit))
+    if classified:
+        newest_first = list(reversed(classified[-limit:]))
+        return {
+            "success": True,
+            "history": newest_first,
+            "count": len(newest_first),
+            "total_completed": sum(
+                1 for job in classified if str(job.get("status") or "").upper() == "SUCCESS"
+            ),
+            "market_scans_today": sum(
+                1 for job in classified if job.get("job_type") == "MARKET_SCAN"
+            ),
+            "all_system_jobs_today": len(classified),
+            "ist_date": ist_date,
+        }
+
+    empty: Dict[str, Any] = {
+        "success": True,
+        "history": [],
+        "count": 0,
+        "total_completed": 0,
+        "ist_date": ist_date,
+    }
 
     if not db_available():
         return empty
@@ -651,6 +907,13 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
             prev_completed_ts = ts
             pending_start = None  # consumed — reset for the next scan
 
+    # `total_completed` is the authoritative number of durable completion
+    # events for the IST day. History pairing below remains useful for duration
+    # and gap enrichment, but it must never silently change the day's count.
+    # Count before timestamp/payload parsing so a malformed row is visible in
+    # the total rather than being hidden by presentation enrichment.
+    total_completed = sum(1 for _ts, event_type, _payload in rows
+                          if event_type == "SCAN_COMPLETED")
     # Apply limit (oldest ones fall off) and return newest-first
     history = list(reversed(history[-limit:]))
 
@@ -658,6 +921,7 @@ def build_scan_history_response(limit: int = 10) -> Dict[str, Any]:
         "success": True,
         "history": history,
         "count":   len(history),
+        "total_completed": total_completed,
         "ist_date": ist_date,
     }
 

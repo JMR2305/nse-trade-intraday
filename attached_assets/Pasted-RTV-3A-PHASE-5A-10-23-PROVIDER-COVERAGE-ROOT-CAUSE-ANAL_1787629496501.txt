@@ -1,0 +1,429 @@
+RTV-3A — PHASE 5A 10/23 PROVIDER COVERAGE ROOT-CAUSE ANALYSIS
+
+Use:
+- RTV3_NATURAL_SESSION_CERTIFICATION.md
+- RTV3_PREOPEN_BATCH_EVIDENCE.csv
+- RTV3_SAFETY_AND_LEDGER_RECONCILIATION.md
+- RTV2A_PREOPEN_PERSISTENCE_ROOT_CAUSE.md
+- RTV2A_FIX_AND_TEST_REPORT.md
+- RTV1H_CUSTOM_UNIVERSE_TOKEN_MAP.csv
+
+TARGET:
+SOURCE / READ-ONLY PRODUCTION DIAGNOSIS FIRST
+
+CURRENT NATURAL-SESSION FAILURE:
+
+Session:
+preopen-2026-08-25-9b8340
+
+Collection origin:
+SCHEDULED
+
+Provider:
+LIVE
+
+Provider-collected count:
+10
+
+Persisted count:
+10
+
+Required active-universe count:
+23
+
+Failed count:
+0
+
+Persistence status:
+MATCH
+
+Collection batch:
+collection-6073abbd096c44e7b4e4b51a205696ba
+
+IMPORTANT INTERPRETATION:
+
+Persistence parity for the collected batch succeeded:
+
+10 provider
+=
+10 persisted
+
+The defect is that the scheduled Phase 5A collection covered only 10 of the
+required 23 active symbols.
+
+Do not rewrite this evidence.
+Do not manually rerun Phase 5A in production.
+
+GOAL:
+
+Determine exactly why Phase 5A received/accepted only 10 of the 23 active
+CUSTOM_LOW_PRICE_SECTOR symbols and fix the coverage path without weakening the
+durable 23/23 parity gate.
+
+DO NOT:
+- manually trigger Phase 5A
+- manually trigger 5B/5C
+- manually run a market scan
+- enable automatic entries
+- enable bootstrap
+- enable live broker orders
+- place broker orders
+- change universe membership
+- reset portfolio
+- modify historical ledger
+- weaken the required 23-symbol gate
+
+TASK 1 — RECONSTRUCT THE EXACT 23-SYMBOL INPUT
+
+Read the production active universe at the failed Phase 5A session.
+
+Expected active universe:
+
+BANKBARODA
+BANKINDIA
+CANBK
+FEDERALBNK
+IDFCFIRSTB
+KTKBANK
+MAHABANK
+PNB
+UNIONBANK
+COALINDIA
+GAIL
+HUDCO
+IRCON
+IRFC
+MRPL
+NBCC
+NMDC
+NTPC
+PFC
+RECLTD
+RVNL
+SAIL
+WIPRO
+
+Confirm:
+- active count = 23
+- all 23 active at collection time
+- mappings = 23/23
+- no duplicate token
+- NSE exchange mapping valid
+
+TASK 2 — IDENTIFY THE EXACT 10 COLLECTED SYMBOLS
+
+From the immutable batch:
+
+collection-6073abbd096c44e7b4e4b51a205696ba
+
+list:
+
+- the 10 persisted symbols
+- sector
+- provider symbol
+- returned price/pre-open fields
+- collection timestamp
+- mapping/token
+
+Then list the 13 missing active symbols.
+
+Create explicit sets:
+
+EXPECTED_23
+COLLECTED_10
+MISSING_13
+
+TASK 3 — TRACE PHASE 5A UNIVERSE AUTHORITY
+
+Trace:
+
+Phase 20 active universe
+→ pre-open scheduler
+→ Phase 5A collector
+→ provider request universe
+→ provider response
+→ symbol normalization
+→ filtering
+→ persistence batch
+
+At each stage report symbol count and exact symbol set.
+
+Find the first stage where:
+
+23
+becomes
+10
+
+That transition point is the root cause.
+
+TASK 4 — CHECK FOR TOP-10 / LIMIT / RANK CAP
+
+Search Phase 5A/pre-open code and configuration for:
+
+10
+top 10
+limit
+max_symbols
+candidate_limit
+watchlist_limit
+rank_limit
+preopen_limit
+slice [:10]
+head(10)
+LIMIT 10
+
+Determine whether Phase 5A is intentionally or accidentally restricting
+collection to the top 10 candidates.
+
+If a 10-symbol limit exists, identify:
+- file
+- function
+- config
+- intended purpose
+- whether it applies before or after provider collection
+
+Do not simply increase a limit until its intent is proven.
+
+TASK 5 — CHECK PROVIDER CONTRACT
+
+Determine what the NSE pre-open provider actually returns to this code path.
+
+Answer:
+
+- Does the provider endpoint return all requested symbols?
+- Does it return only symbols with active pre-open activity?
+- Does it return a ranked/top subset?
+- Is there pagination?
+- Is there a default page size of 10?
+- Does our client request only one page?
+- Are 13 symbols absent from provider data?
+- Are symbols filtered because no pre-open trade/IEP exists?
+- Are symbol aliases mismatched?
+- Are bank/infra symbols filtered by another condition?
+
+Report response count before application filtering.
+
+TASK 6 — CHECK PAGINATION / RESPONSE TRUNCATION
+
+Inspect:
+- page/pageSize
+- limit/offset
+- cursor
+- query parameters
+- JSON arrays
+- client helper defaults
+
+If provider returned multiple pages:
+prove whether only the first 10 were consumed.
+
+Add tests if this is the root cause.
+
+TASK 7 — CHECK SYMBOL NORMALIZATION
+
+For the 13 missing symbols compare:
+
+active symbol
+instrument tradingsymbol
+provider symbol
+normalized symbol
+
+Check for:
+- `-EQ`
+- NSE prefixes
+- whitespace
+- case
+- renamed instruments
+- alias table
+- index/equity confusion
+
+Do not alter active-universe membership.
+
+TASK 8 — CHECK PRE-OPEN ELIGIBILITY SEMANTICS
+
+Determine whether all 23 active symbols are expected to have NSE pre-open data
+every day.
+
+If some symbols legitimately have no current pre-open record:
+
+DO NOT fabricate rows.
+
+Instead determine the correct contract:
+
+A. provider must return all 23, including explicit NO_DATA statuses
+
+or
+
+B. collector may receive fewer than 23 provider rows but must persist an
+explicit per-symbol status for every expected symbol so coverage is still
+23/23 with some NO_DATA / NOT_AVAILABLE entries
+
+The system must distinguish:
+
+MISSING DUE TO PIPELINE FAILURE
+
+from
+
+PROVIDER HAS NO PRE-OPEN DATA FOR THIS SYMBOL
+
+Do not treat provider absence as successful live data.
+
+TASK 9 — DEFINE PHASE 5A COVERAGE CONTRACT
+
+The current gate assumes:
+
+provider_collected_count =
+persisted_count =
+23
+
+Confirm whether that is semantically correct for NSE pre-open data.
+
+If every active symbol should always have a provider row:
+retain exact 23/23 rule.
+
+If legitimate provider absence can occur:
+define stronger metrics:
+
+expected_symbol_count = 23
+provider_response_count = N
+live_data_count = N
+explicit_no_data_count = 23-N
+persisted_coverage_count = 23
+
+Then require:
+
+persisted_coverage_count = expected_symbol_count = 23
+
+and every symbol must have an explicit outcome.
+
+Do not weaken the gate by silently accepting 10/23.
+
+TASK 10 — FAILED_COUNT SEMANTICS
+
+Current evidence says:
+
+provider_collected = 10
+persisted = 10
+failed_count = 0
+
+while 13 expected symbols are absent.
+
+Determine whether failed_count semantics are incomplete.
+
+If missing expected symbols are pipeline failures:
+failed_count should reflect them.
+
+If provider legitimately returns no-data:
+track them separately as:
+no_data_count / unavailable_count / not_returned_count
+
+Do not report failed_count=0 while 13 symbols disappear without an explicit
+classification.
+
+TASK 11 — FIX THE SMALLEST CORRECT LAYER
+
+Depending on proven root cause:
+
+- remove accidental top-10 truncation
+- implement provider pagination
+- correct symbol normalization
+- expand expected-universe request
+- add explicit NO_DATA outcomes
+- correct coverage accounting
+
+Do NOT:
+- change universe
+- relax required coverage
+- fabricate pre-open data
+- modify strategy thresholds
+
+TASK 12 — TESTS
+
+Add tests covering:
+
+1. 23 requested / 23 returned
+2. 23 requested / provider pagination
+3. 23 requested / 10 live + 13 explicit no-data
+4. missing symbol mapping
+5. malformed provider row
+6. duplicate provider symbol
+7. provider partial response
+8. top-10 truncation regression
+9. immutable batch persistence
+10. freeze blocked without complete expected-symbol coverage
+11. retry produces one final verified batch
+12. failed/no-data counts truthful
+
+TASK 13 — RECHECK DOWNSTREAM CONTRACT
+
+Ensure:
+
+Freeze
+5B
+5C
+Reconciliation
+Enrichment
+
+use the final verified 23-symbol coverage record.
+
+They must not assume that:
+provider live-data rows == expected universe count
+
+unless that is the proven provider contract.
+
+TASK 14 — SAFETY REGRESSION
+
+Run:
+- Phase 5A suites
+- persistence/durability suites
+- scheduler suites
+- readiness suites
+- scan-origin suites
+- portfolio/ledger suites
+- automatic-entry safety suites
+- API build/typecheck
+
+No weakened tests.
+
+TASK 15 — DEPLOYMENT DECISION
+
+If a runtime fix is required:
+
+create a controlled deployment candidate and report:
+
+APPROVED_DEPLOY_COMMIT
+EXPECTED_BUILD_ID
+
+Do not publish until source scope, tests, and schema safety pass.
+
+If the issue is only an invalid certification assumption and runtime behavior is
+already correct:
+do not change runtime code; update the validation contract with explicit evidence.
+
+TASK 16 — OUTPUTS
+
+Create:
+
+1. RTV3A_PHASE5A_10_OF_23_ROOT_CAUSE.md
+2. RTV3A_SYMBOL_COVERAGE_MATRIX.csv
+3. RTV3A_PROVIDER_CONTRACT.md
+4. RTV3A_FIX_AND_TEST_REPORT.md
+5. RTV3A_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL VERDICT:
+
+A. ROOT CAUSE FIXED — DEPLOYMENT REQUIRED
+B. PROVIDER PAGINATION/TRUNCATION DEFECT
+C. UNIVERSE INPUT DEFECT
+D. SYMBOL NORMALIZATION DEFECT
+E. LEGITIMATE PROVIDER NO-DATA — COVERAGE CONTRACT FIX REQUIRED
+F. UNRESOLVED
+
+FINAL RULE:
+
+Do not manually retry today's failed Phase 5A.
+
+Preserve session
+preopen-2026-08-25-9b8340
+and collection batch
+collection-6073abbd096c44e7b4e4b51a205696ba
+as immutable failure evidence.

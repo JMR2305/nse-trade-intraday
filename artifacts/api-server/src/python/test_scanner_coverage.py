@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import sys
 import os
+import hashlib
 import unittest
 from datetime import datetime, timedelta
 from unittest.mock import patch
@@ -27,6 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import market_hours
 import scan_state_store
+import config
 from scanner_coverage import coverage_probe
 from config import MIN_SYMBOLS_EXPECTED
 
@@ -54,12 +56,48 @@ def _meta(received: int, requested: int = MIN_SYMBOLS_EXPECTED, ts: str = MONDAY
     }
 
 
+def _universe_context(key: str, symbols: list[str], version: int = 1):
+    """Build the immutable pin written alongside a canonical scan."""
+    enabled_symbols = sorted(symbols)
+    exact_set_hash = hashlib.sha256(
+        "\n".join(enabled_symbols).encode("utf-8")
+    ).hexdigest()
+    return {
+        "universe_key": key,
+        "enabled_symbols": enabled_symbols,
+        "exact_set_hash": exact_set_hash,
+        "version": version,
+    }
+
+
+def _meta_for_universe(meta, context):
+    """Attach the scan's pin without mutating a shared fixture."""
+    if meta is None:
+        return None
+    result = dict(meta)
+    result["universe_context"] = {
+        "exact_set_hash": context["exact_set_hash"],
+        "version": context["version"],
+    }
+    return result
+
+
 def _probe(state: str, now: datetime, meta):
+    context = _universe_context(
+        config.UniverseMode.NIFTY_50.value,
+        list(config.NIFTY_50),
+    )
     with patch.object(market_hours, "market_status",
                       return_value={"state": state}), \
          patch.object(market_hours, "now_ist", return_value=now), \
+         patch("scanner_coverage._expected_universe",
+               return_value=(
+                   config.UniverseMode.NIFTY_50.value,
+                   context["enabled_symbols"],
+                   context,
+               )), \
          patch.object(scan_state_store, "load_latest_meta",
-                      return_value=meta):
+                      return_value=_meta_for_universe(meta, context)):
         return coverage_probe()
 
 
@@ -70,25 +108,31 @@ class TestScannerCoverage(unittest.TestCase):
         r = _probe("OPEN", MONDAY_10AM, _meta(50, ts=FRIDAY_SCAN_TS))
         self.assertFalse(r["ok"])
         self.assertFalse(r["scan_fresh_for_session"])
+        self.assertEqual(
+            r["readiness_state"], "stale_or_different_pinned_revision"
+        )
         self.assertIn("previous session", r["warning"])
 
     def test_no_scan_at_all_during_open_is_flagged(self):
         r = _probe("OPEN", MONDAY_10AM, None)
         self.assertFalse(r["ok"])
+        self.assertEqual(r["readiness_state"], "no_current_version_scan")
         self.assertIn("No completed scan", r["warning"])
 
     def test_fresh_full_coverage_is_healthy(self):
         r = _probe("OPEN", MONDAY_10AM, _meta(MIN_SYMBOLS_EXPECTED))
         self.assertTrue(r["ok"])
         self.assertTrue(r["scan_fresh_for_session"])
+        self.assertEqual(r["readiness_state"], "healthy_current_scan")
         self.assertIsNone(r["warning"])
 
     def test_fresh_low_coverage_is_flagged_with_missing_symbols(self):
         r = _probe("OPEN", MONDAY_10AM,
-                   _meta(48, missing=["LTIM", "TMPV"]))
+                   _meta(MIN_SYMBOLS_EXPECTED - 2, missing=["WIPRO", "TMPV"]))
         self.assertFalse(r["ok"])
-        self.assertIn("48/", r["warning"])
-        self.assertIn("LTIM", r["warning"])
+        self.assertEqual(r["readiness_state"], "incomplete_current_scan")
+        self.assertIn(f"{MIN_SYMBOLS_EXPECTED - 2}/", r["warning"])
+        self.assertIn("WIPRO", r["warning"])
 
     def test_preopen_counts_as_in_session(self):
         """PRE_OPEN applies the same rules — stale Friday scan is flagged."""
@@ -102,11 +146,137 @@ class TestScannerCoverage(unittest.TestCase):
         self.assertFalse(r["ok"])
         self.assertIn(f"48/{MIN_SYMBOLS_EXPECTED}", r["warning"])
 
+    def test_durable_authority_failure_has_explicit_readiness_state(self):
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch("scanner_coverage._expected_universe",
+                   side_effect=RuntimeError("authority unavailable")):
+            r = coverage_probe()
+
+        self.assertFalse(r["success"])
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["readiness_state"], "durable_authority_unavailable")
+
+    def test_scan_metadata_failure_is_not_reported_as_no_scan(self):
+        context = _universe_context(
+            config.UniverseMode.NIFTY_50.value,
+            list(config.NIFTY_50),
+        )
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch("scanner_coverage._expected_universe",
+                   return_value=(
+                       config.UniverseMode.NIFTY_50.value,
+                       context["enabled_symbols"],
+                       context,
+                   )), \
+             patch.object(scan_state_store, "load_latest_meta",
+                          side_effect=RuntimeError("metadata store unavailable")):
+            r = coverage_probe()
+
+        self.assertFalse(r["success"])
+        self.assertFalse(r["ok"])
+        self.assertEqual(r["readiness_state"], "scan_metadata_unavailable")
+        self.assertIn("metadata", r["warning"].lower())
+
+    def test_different_pinned_revision_has_explicit_readiness_state(self):
+        context = _universe_context(
+            config.UniverseMode.NIFTY_50.value,
+            list(config.NIFTY_50),
+        )
+        different_context = dict(context)
+        different_context["version"] = context["version"] + 1
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch("scanner_coverage._expected_universe",
+                   return_value=(
+                       config.UniverseMode.NIFTY_50.value,
+                       context["enabled_symbols"],
+                       context,
+                   )), \
+             patch.object(scan_state_store, "load_latest_meta",
+                          return_value=_meta_for_universe(
+                              _meta(MIN_SYMBOLS_EXPECTED), different_context
+                          )):
+            r = coverage_probe()
+
+        self.assertFalse(r["success"])
+        self.assertFalse(r["ok"])
+        self.assertTrue(r["universe_mismatch"])
+        self.assertEqual(
+            r["readiness_state"], "stale_or_different_pinned_revision"
+        )
+
+    def test_custom_universe_full_coverage_is_healthy_at_its_active_size(self):
+        """A healthy 23-symbol custom scan is not compared with NIFTY 50."""
+        custom_symbols = [f"CUSTOM{i}" for i in range(23)]
+        context = _universe_context(
+            config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value,
+            custom_symbols,
+        )
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch(
+                 "scanner_coverage._expected_universe",
+                 return_value=(
+                     config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value,
+                     context["enabled_symbols"],
+                     context,
+                 ),
+             ), \
+             patch.object(
+                 scan_state_store,
+                 "load_latest_meta",
+                 return_value=_meta_for_universe(
+                     _meta(23, requested=23), context
+                 ),
+             ):
+            r = coverage_probe()
+
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["active_universe"], "CUSTOM_LOW_PRICE_SECTOR")
+        self.assertEqual(r["expected_symbols"], sorted(custom_symbols))
+        self.assertEqual(r["min_symbols_expected"], 23)
+        self.assertIsNone(r["warning"])
+
+    def test_custom_universe_partial_coverage_still_fails_closed(self):
+        custom_symbols = [f"CUSTOM{i}" for i in range(23)]
+        context = _universe_context(
+            config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value,
+            custom_symbols,
+        )
+        with patch.object(market_hours, "market_status",
+                          return_value={"state": "OPEN"}), \
+             patch.object(market_hours, "now_ist", return_value=MONDAY_10AM), \
+             patch(
+                 "scanner_coverage._expected_universe",
+                 return_value=(
+                     config.UniverseMode.CUSTOM_LOW_PRICE_SECTOR.value,
+                     context["enabled_symbols"],
+                     context,
+                 ),
+             ), \
+             patch.object(
+                 scan_state_store,
+                 "load_latest_meta",
+                 return_value=_meta_for_universe(
+                     _meta(22, requested=22, missing=["CUSTOM22"]), context
+                 ),
+             ):
+            r = coverage_probe()
+
+        self.assertFalse(r["ok"])
+        self.assertIn("22/23", r["warning"])
+
     def test_weekday_holiday_low_coverage_is_expected(self):
         """HOLIDAY is out of session — stale/low coverage is not a warning."""
         holiday_noon = datetime(2026, 8, 15, 12, 0, tzinfo=IST)
         r = _probe("HOLIDAY", holiday_noon,
-                   _meta(48, ts=FRIDAY_SCAN_TS, missing=["LTIM", "TMPV"]))
+                   _meta(48, ts=FRIDAY_SCAN_TS, missing=["WIPRO", "TMPV"]))
         self.assertTrue(r["ok"])
         self.assertFalse(r["in_session"])
         self.assertIsNone(r["warning"])

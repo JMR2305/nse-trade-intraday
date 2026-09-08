@@ -26,7 +26,7 @@ try:
 except Exception:
     _log = None  # structured logging optional
 
-INITIAL_CAPITAL = 50_000.0    # ₹50,000 — daily paper-trading session capital (resets every trading day)
+INITIAL_CAPITAL = 100_000.0   # ₹100,000 — fallback; reset reads the durable Phase 20 setting
 
 # ── Phase 15: estimated friction costs (research realism, paper only) ────────
 SLIPPAGE_PCT = 0.05          # assumed 0.05% slippage per side
@@ -172,8 +172,9 @@ def _compute_portfolio(state: dict, current_prices: dict[str, float]) -> Portfol
         )
 
     total_value = cash + invested_value
-    total_pnl = total_value - INITIAL_CAPITAL
-    total_pnl_pct = (total_pnl / INITIAL_CAPITAL) * 100
+    _start_cap = _store.get_initial_capital()
+    total_pnl = total_value - _start_cap
+    total_pnl_pct = (total_pnl / _start_cap) * 100
 
     return PortfolioState(
         cash=round(cash, 2),

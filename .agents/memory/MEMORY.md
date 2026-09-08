@@ -1,5 +1,10 @@
+- [EOD squareoff KV claim + import bug](eod-squareoff-kv-claim-import-bug.md) — kv_claim_once writes before imports run; phase20_settings doesn't exist; runPython needs last-JSON-line parsing.
 - [Phase 7 live scan design](phase7-live-scan.md) — canonical scan has one scan_id/snapshot_ts; health endpoint probes 3 symbols only (quick); full scan via /live-data/scan/run.
 - [Phase 7 safety gates](phase7-safety-gates.md) — STALE→WATCH, UNAVAILABLE→IGNORE enforced in live_scan_engine._apply_quality_gate(); never in market_scanner.py.
+- [Manual scan market-hours gate](manual-scan-market-hours.md) — every full-scan entry point, including operator triggers, must require OPEN; execution gates alone are not enough.
+- [Dashboard scan GET side effect](dashboard-scan-get-side-effect.md) — observation GETs read durable snapshots only; no snapshot is explicit and scheduled origin remains authoritative.
+- [Pre-open durable lifecycle proof](preopen-durable-lifecycle-proof.md) — a Phase 5A phase is complete only with durable writes and same-batch provider/persisted-count parity.
+- [Phase 5A outcome accounting](phase5a-outcome-accounting.md) — complete live-snapshot parity needs immutable per-symbol outcomes; no-data evidence never certifies a partial batch.
 - [Phase 8 broker safety design](phase8-broker-safety.md) — credential masking, no-auto-execution guarantee, two-step confirm tokens, MockBrokerClient fallback.
 - [Phase 8 test pattern](phase8-tests.md) — all broker tests must stay unit-level with mocked clients; never hit a real broker in tests.
 - [Watchlist default fallback](watchlist-default.md) — watchlist.json may not exist; any reader must fall back to config.DEFAULT_WATCHLIST like main.py does, or features silently show empty.
@@ -111,4 +116,26 @@
 - [Backtest scheduler cold-start fix](backtest-scheduler-coldstart.md) — bt_queue_tick_cmd.py is the lightweight scheduler tick (116ms cold); never use main.py for scheduler ticks; scan is 93% of replay time (370s floor for 5-sym 15m 30d).
 - [TATAMOTORS demerger mapping](tatamotors-demerger-mapping.md) — TATAMOTORS.NS is dead; use TMPV+TMCV; NIFTY_50 is now 51; _meta(50) tests must become _meta(MIN_SYMBOLS_EXPECTED).
 - [Phase 27E/27F test conventions](phase27ef-tests.md) — frontend vitest needs PORT=9999 BASE_PATH=/trading-dashboard/; Python check_* fns are pure (inject inputs dict directly, no patching needed for most).
+- [Scheduler health shape & IST counting](scheduler-health-shape.md) — get_scheduler_health() is FLAT (no state wrapper); "today" counts need ist_day_bounds_utc, never UTC dates.
 - [Kite LTP overlay (Option A)](kite-ltp-overlay.md) — KITE_LTP_OVERLAY_ENABLED flag; overlays current_price/execution_price only; indicators always yfinance_daily_bars; kite_ltp_overlay.py is the single source; 37/37 tests.
+- [Membership-price provenance](membership-price-provenance.md) — durable universe refresh prices are not current quotes; derive live provider/freshness from canonical health.
+- [Local NIFTY 50 OHLCV cache](ohlcv-cache.md) — cache-first fetch_batch (< 5s warm vs 22 min cold); post-market refresh at POST_CLOSE tick; ltps key is bare symbol not .NS; tickers in MultiIndex level 0.
+- [OHLCV cold-start check](ohlcv-cold-start.md) — token-fenced expiring takeover (not kv_claim_once); ColdStartTestCase per-test save/restore avoids cross-file sys.modules contamination.
+- [Paper-capital admission concurrency](paper-capital-migration-concurrency.md) — migration, entry state, and final exposure sizing share one advisory gate; gate-time snapshots are not authoritative.
+- [Scheduled scan cache invalidation](scheduled-scan-cache-invalidation.md) — lifecycle events must invalidate status/history caches; no-store headers and browser cache busting cannot clear server TTL entries.
+- [Public build-ID labels](public-build-id-labels.md) — UI/API identities are commit-derived via source handoff; product version is separate and MATCH requires exact build equality.
+- [Custom universe historical membership](custom-universe-history.md) — mutable universe masters need append-only refresh snapshots for no-look-ahead backtests; current rows are never historical truth.
+- [EOD paper outcome audit](eod-paper-outcome-audit.md) — EOD requires an acknowledged ledger close or one deduped blocked outcome; retry audit writes only, never repeat a sell.
+- [Phase 0B post-cutoff entry root cause](phase0b-post-cutoff-root-cause.md) — exits clear gates before entries on the same _manage_paper() tick; deployed code lacked PAPER_ENTRY_CUTOFF guard; stale 14:49 snapshot used at 15:25 IST; server down during POST_CLOSE → EOD missed.
+- [Two-environment DB architecture](two-env-db.md) — production DB (nse-trade-intraday.replit.app) and local dev DB (localhost:8080) are separate; prod initial_capital=500000; dev initial_capital=100000; never assume they share state.
+- [Advisory audit governance](advisory-audit-governance.md) — immutable advisory storage must independently recompute supervisor approval from actual inputs before any write.
+- [Static architecture audit boundary](static-architecture-audit.md) — architecture inventories are source-derived; never treat table/state presence or route reachability as runtime-verified without live evidence.
+- [Trading-data readiness contract](trading-data-readiness.md) — never infer trading readiness from service health; require full token coverage plus fresh scan and per-quote provenance timestamps.
+- [Python-managed schema parity](python-managed-schema-parity.md) — durable columns belong in canonical CREATE TABLE, never production-only runtime ALTER paths.
+- [RTV-2D test harness](rtv2d-test-harness.md) — legacy Python scripts require source-dir CWD, isolated processes, and cleanup of generated local fixtures.
+- [Phase 5A universe coverage](phase5a-universe-coverage.md) — parity is insufficient; settings outages and incomplete exact symbol sets must fail closed.
+- [Observability provenance](observability-provenance.md) — keep current quotes, historical OHLCV, scan origin, and manual audit evidence distinct; never fabricate legacy evidence.
+- [Versioned universe baseline imports](universe-versioning-baseline.md) — lock and exact-set-verify imports; preserve descriptive legacy gaps without fabricating membership.
+- [Runtime universe session pinning](runtime-universe-session-pinning.md) — pin one version/hash at 09:00 IST; never swap membership or fall back during a session.
+- [Pre-open final-proof window](preopen-final-proof-window.md) — freeze only a naturally scheduled, exact, live-at-ingestion batch from 09:08–09:12 IST; never overwrite it during matching.
+- [Authority migration phantom locks](authority-migration-phantom-locks.md) — exact-source and zero-position assertions need write-conflicting locks through publish commit.

@@ -1,0 +1,93 @@
+URGENT — RESOLVE KITE SESSION MISMATCH FOR BOOTSTRAP MODE
+
+Use APEXQUANT_TASK772_BOOTSTRAP_ACTIVATION_AND_FIRST_TRADE_REPORT.md as the controlling report.
+
+Do not change thresholds.
+Do not enable live orders.
+PAPER ONLY.
+
+Current state:
+- bootstrap_paper_enabled=true
+- auto_paper_entries=true
+- auto_paper_entries_confirmed_at is set
+- circuit breaker clear
+- KITE_LTP_OVERLAY_ENABLED=true
+- scanner is fresh
+- dashboard visually shows Zerodha Kite Connect Live
+- but bootstrap report says kite_ltp_session_verified=false and quote_reliable=false
+- therefore no bootstrap trade is created
+
+TASK 1 — IDENTIFY ENVIRONMENT BEING USED
+
+For the dashboard, bootstrap executor, scanner, and Kite token store, report:
+
+- environment name: production / dev / local / Replit deployment
+- DATABASE_URL hash or masked DB identity
+- phase20_kv table used
+- kite_token_store used
+- scan_state table used
+- phase20_paper_trades table used
+- latest scan_id
+- whether this is the same environment the user sees in dashboard
+
+TASK 2 — VERIFY KITE STATUS IN SAME ENVIRONMENT AS BOOTSTRAP
+
+Run the Kite status check from the exact process/environment where `run_bootstrap_auto_entry()` runs.
+
+Report:
+- connected
+- token_status
+- access_token_masked
+- user_id
+- last_success_at
+- kite_ltp_session_verified
+- quote_reliable
+- KITE_LTP_OVERLAY_ENABLED
+
+Do not rely on dashboard label alone.
+
+TASK 3 — FIX SESSION ROUTING
+
+If dashboard Kite auth and bootstrap executor use different token stores or databases:
+- make bootstrap read the same token store as the dashboard
+OR
+- clearly route the operator to the correct `/kite-auth` for the bootstrap environment
+OR
+- move bootstrap execution to the production environment where Kite is already authenticated
+
+Do not duplicate tokens insecurely.
+Do not expose full access tokens.
+
+TASK 4 — RERUN BOOTSTRAP AFTER SAME-ENV KITE VERIFIED
+
+After same-environment Kite status shows:
+- kite_ltp_session_verified=true
+- kite_ltp_available=true
+- quote_reliable=true
+
+Wait for next scan or trigger one safe paper scan.
+
+Expected:
+- INDUSINDBK or DRREDDY becomes bootstrap_eligible
+- one P20 paper trade is created
+- trigger_source=BOOTSTRAP_AUTO
+- fill_model=bootstrap_paper
+- max notional ≤ ₹1,500
+- BOOTSTRAP_PAPER_TRADE_APPROVED emitted
+- no live broker order API called
+
+TASK 5 — REPORT
+
+Generate:
+APEXQUANT_BOOTSTRAP_ENV_KITE_SESSION_FIX_AND_FIRST_TRADE_PROOF.md
+
+Include:
+1. Root cause of Kite session mismatch.
+2. Which environment the dashboard uses.
+3. Which environment bootstrap uses.
+4. Whether they are now aligned.
+5. Same-environment Kite status proof.
+6. First bootstrap-eligible candidate.
+7. Whether P20 bootstrap trade was created.
+8. DB proof: trade_id, symbol, trigger_source, fill_model, qty, fill_price.
+9. Confirmation no live orders.

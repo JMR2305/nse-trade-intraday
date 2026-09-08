@@ -1,0 +1,160 @@
+ADD DYNAMIC INTRADAY EXIT MONITORING — DO NOT WAIT ONLY FOR FIXED TARGET
+
+Use TODAYS_TRADE_EXIT_QUALITY_AUDIT.md as the controlling audit.
+
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+PROBLEM:
+The bot currently appears to hold trades until fixed target, stop-loss, trailing activation, or MARKET_CLOSE_EXIT.
+For intraday, this is not enough. We cannot sit on a far fixed target and hope price keeps increasing.
+
+Today:
+- DRREDDY and DIVISLAB exited only by MARKET_CLOSE_EXIT.
+- DIVISLAB target ₹9,380.80 from ₹8,570 entry was not intraday-realistic.
+- No separate break-even/profit-lock exit exists.
+- No per-trade high-water/low-water history is persisted.
+
+GOAL:
+For every open paper trade, every market scan must evaluate whether price is increasing, decreasing, reversing, or losing momentum, and exit intelligently before EOD when profit should be protected.
+
+TASK 1 — PER-SCAN OPEN POSITION MONITORING
+
+On every MARKET_SCAN, for each OPEN paper trade, record:
+
+- trade_id
+- symbol
+- scan_id
+- timestamp_ist
+- current_ltp
+- price_source
+- entry_price
+- quantity
+- unrealized_pnl
+- unrealized_pnl_pct
+- high_water_price
+- high_water_time_ist
+- low_water_price
+- low_water_time_ist
+- max_unrealized_profit
+- max_unrealized_loss
+- price_change_since_last_scan
+- trend_direction: UP / DOWN / FLAT
+- consecutive_up_scans
+- consecutive_down_scans
+- reversal_from_high_pct
+- time_to_squareoff_minutes
+
+Persist this in a table:
+paper_trade_price_tracking
+
+TASK 2 — PROFIT LOCK RULE
+
+Add a new paper-only exit rule:
+
+PROFIT_LOCK_EXIT
+
+Suggested thresholds:
+- If unrealized profit reaches +0.30%, activate breakeven protection.
+- If unrealized profit reaches +0.60%, lock +0.25%.
+- If unrealized profit reaches +1.00%, lock +0.50%.
+- If price falls back to the active lock price, exit immediately.
+
+Make settings configurable:
+profit_lock_enabled = true
+profit_lock_breakeven_trigger_pct = 0.30
+profit_lock_stage1_trigger_pct = 0.60
+profit_lock_stage1_lock_pct = 0.25
+profit_lock_stage2_trigger_pct = 1.00
+profit_lock_stage2_lock_pct = 0.50
+
+TASK 3 — MOMENTUM REVERSAL EXIT
+
+Add optional exit rule:
+
+MOMENTUM_REVERSAL_EXIT
+
+If a trade has been profitable and price reverses meaningfully from high-water:
+- high_water_profit_pct >= 0.50%
+- reversal_from_high_pct >= 0.30%
+- current price below last 2 scan prices
+- volume/momentum weakening if available
+
+Then exit to protect profit.
+
+TASK 4 — INTRADAY TARGET MODEL
+
+Keep the existing fixed target for reference, but add intraday practical targets:
+
+- intraday_target_1_pct = 0.50%
+- intraday_target_2_pct = 1.00%
+- intraday_target_3_pct = 1.50%
+
+The bot should not rely only on far daily/swing targets like +9%.
+
+For each trade, store:
+- fixed_target
+- intraday_target_1
+- intraday_target_2
+- intraday_target_3
+- active_exit_plan
+
+TASK 5 — EXIT PRIORITY
+
+Use this exit priority:
+
+1. STOP_LOSS_HIT
+2. PROFIT_LOCK_EXIT
+3. MOMENTUM_REVERSAL_EXIT
+4. TRAILING_STOP_EXIT
+5. INTRADAY_TARGET_EXIT
+6. FIXED_TARGET_EXIT
+7. MARKET_CLOSE_EXIT
+8. POST_CLOSE_FORCE_EXIT
+
+If multiple fire, log all candidates but execute the most protective valid exit.
+
+TASK 6 — UI CHANGES
+
+In AI Paper Trader and Mission Control, show for each open trade:
+
+- Entry price
+- Current LTP
+- Unrealized P&L
+- High-water price
+- Max profit seen
+- Profit lock status
+- Active lock price
+- Trend: UP / DOWN / FLAT
+- Exit rule currently armed
+- Why not exited yet
+
+TASK 7 — TESTS
+
+Add tests:
+1. Open trade updates price tracking every scan.
+2. High-water price updates when LTP rises.
+3. Low-water price updates when LTP falls.
+4. Profit lock activates at +0.30%.
+5. Profit lock exits when price falls back.
+6. Momentum reversal exits after high-water reversal.
+7. Fixed far target does not block profit-lock exit.
+8. MARKET_CLOSE_EXIT still runs after 15:20.
+9. No new entries after 15:15.
+10. No live broker order API called.
+
+TASK 8 — REPORT
+
+Generate:
+APEXQUANT_DYNAMIC_INTRADAY_EXIT_MONITORING_AND_PROFIT_LOCK_REPORT.md
+
+Include:
+1. Why current exit logic waited until MARKET_CLOSE_EXIT.
+2. Why fixed targets are not enough for intraday.
+3. New per-scan tracking table.
+4. New profit-lock logic.
+5. New momentum reversal logic.
+6. DIVISLAB example showing how profit-lock would behave.
+7. Test results.
+8. Confirmation no live orders.

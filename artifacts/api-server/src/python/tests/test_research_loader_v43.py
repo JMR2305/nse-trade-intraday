@@ -409,7 +409,7 @@ class TestV43MalformedPersistedSettings(unittest.TestCase):
     crashes (e.g. max_concurrent_positions='1.5' → int crash; invalid
     research_failure_mode string → silent behavioral change).
 
-    Approach: patch phase20_store._with_db to simulate the DB returning
+    Approach: patch phase20_store's DB connection to simulate the DB returning
     malformed stored data, then call the real get_settings() and verify the
     returned dict has been sanitized.  We separately test the in-function
     safe-conversion helpers (simulated via direct logic tests) to confirm
@@ -423,11 +423,11 @@ class TestV43MalformedPersistedSettings(unittest.TestCase):
         """
         import phase20_store as s
 
-        def fake_with_db(fn, fallback):
-            # Simulate DB returning bad_stored
-            return bad_stored
-
-        with patch.object(s, "_with_db", side_effect=fake_with_db), \
+        conn = MagicMock()
+        conn.cursor.return_value.__enter__.return_value.fetchone.return_value = (bad_stored,)
+        with patch.object(s, "db_available", return_value=True), \
+             patch.object(s, "_connect", return_value=conn), \
+             patch.object(s, "_ensure_schema"), \
              patch("phase20_store.kv_get", return_value=None):
             return s.get_settings()
 

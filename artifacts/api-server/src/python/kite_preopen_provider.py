@@ -15,7 +15,8 @@ NSE Official provider (no auction quantities/imbalance).
 
 Requires:
   ZERODHA_API_KEY    env var
-  KITE_ACCESS_TOKEN  env var (set by the Kite OAuth flow)
+  a shared Phase-20 Kite session (or legacy KITE_ACCESS_TOKEN when no shared
+  session store is available)
 
 Falls through to Yahoo Finance if the Kite session is absent or invalid.
 
@@ -62,6 +63,18 @@ def _build_sector_map() -> Dict[str, str]:
         return {}
 
 
+def resolve_preopen_token() -> Optional[str]:
+    """Resolve the shared session, with legacy pre-open-only env compatibility."""
+    try:
+        import kite_token_store
+        token, authoritative = kite_token_store.resolve_preferred_token()
+    except Exception:
+        token, authoritative = None, False
+    if token or authoritative:
+        return token
+    return os.environ.get("KITE_ACCESS_TOKEN", "").strip() or None
+
+
 class KitePreOpenProvider:
     """
     Secondary pre-open provider using the Zerodha Kite API.
@@ -82,17 +95,20 @@ class KitePreOpenProvider:
     # ── Kite session ──────────────────────────────────────────────────────────
 
     def _get_kite(self):
-        if self._kite is not None:
-            return self._kite
         api_key = os.environ.get("ZERODHA_API_KEY", "").strip()
-        token   = os.environ.get("KITE_ACCESS_TOKEN", "").strip()
+        token = resolve_preopen_token()
         if not api_key or not token:
+            self._kite = None
+            self._kite_token = None
             return None
+        if self._kite is not None and token == getattr(self, "_kite_token", None):
+            return self._kite
         try:
             from kiteconnect import KiteConnect
             k = KiteConnect(api_key=api_key)
             k.set_access_token(token)
             self._kite = k
+            self._kite_token = token
             return k
         except Exception:
             return None
@@ -100,7 +116,7 @@ class KitePreOpenProvider:
     @classmethod
     def is_available(cls) -> bool:
         api_key = os.environ.get("ZERODHA_API_KEY", "").strip()
-        token   = os.environ.get("KITE_ACCESS_TOKEN", "").strip()
+        token = resolve_preopen_token()
         if not api_key or not token:
             return False
         try:
@@ -118,7 +134,7 @@ class KitePreOpenProvider:
         if not kite:
             return {
                 "status":  ProviderState.UNAVAILABLE,
-                "message": "No Kite session (KITE_ACCESS_TOKEN not set or expired)",
+                "message": "No active shared Kite session",
                 "provider": self.PROVIDER_LABEL,
             }
         try:

@@ -1,0 +1,554 @@
+OBSERVABILITY CORRECTION BATCH — #919 + #928 + KITE LTP STATUS CONSISTENCY
+
+GOAL:
+
+Fix the three production-observability inconsistencies currently visible in
+Mission Control without changing trading logic, strategy logic, portfolio,
+universe membership, execution permissions, or Task #920 certification state.
+
+CURRENT PRODUCTION:
+
+APPROVED_DEPLOY_COMMIT =
+9f83f6764e3861e351e6334070d4031a85818876
+
+EXPECTED BUILD =
+apexquant-9f83f6764e38
+
+CURRENT OBSERVED ISSUES:
+
+1. Mission Control shows:
+
+UI apexquant-v1.0.0
+API apexquant-9f83f6764e38
+Build mismatch
+
+2. Scanner warning shows:
+
+Scanner coverage 23/50 during market hours
+
+even though the authoritative active universe is:
+
+CUSTOM_LOW_PRICE_SECTOR
+active count = 23
+coverage = 23/23
+
+3. Low Price Universe Builder shows:
+
+Kite LTP = FALLBACK_OR_UNAVAILABLE
+
+while production health reports:
+- active symbols = 23
+- valid mappings = 23/23
+- 23/23 current scan coverage
+- zero stale/fallback/synthetic/unavailable counts in authoritative health
+- Kite connected/authenticated
+
+IMPORTANT SAFETY RULES:
+
+DO NOT:
+- enable automatic entries
+- enable bootstrap
+- enable controlled paper execution
+- enable live broker orders
+- trigger Phase 5A/5B/5C
+- manually trigger a market scan
+- replay or retry pre-open
+- place broker orders
+- modify portfolio
+- modify ledger
+- modify capital
+- modify active-universe membership
+- change strategy thresholds
+- alter Task #920 evidence
+- mutate historical RTV-3 sessions/batches
+
+This is an OBSERVABILITY / READINESS-TRUTH batch only.
+
+==================================================
+PART A — #919 MISSION CONTROL BUILD IDENTITY
+==================================================
+
+TASK A1 — TRACE UI IDENTITY SOURCE
+
+Find exactly where Mission Control gets:
+
+apexquant-v1.0.0
+
+Inspect:
+- MissionControl.tsx
+- frontend constants
+- Vite environment variables
+- package version
+- generated build metadata
+- buildIdentity scripts
+- deployment artifact config
+- browser cache/service worker
+- API comparison logic
+
+Report:
+- source file
+- variable
+- whether hardcoded
+- whether build-time or runtime
+- whether stale cache can override it
+
+TASK A2 — DEFINE CORRECT IDENTITY MODEL
+
+Separate:
+
+PRODUCT VERSION
+from
+DEPLOYMENT IDENTITY
+
+Example:
+
+Product Version:
+v1.0.0
+
+UI Build:
+apexquant-<UI commit first 12>
+
+API Build:
+apexquant-<API commit first 12>
+
+Do not compare:
+
+product semantic version
+
+against:
+
+deployment build ID
+
+TASK A3 — BUILD INJECTION
+
+Frontend production bundle must embed:
+
+ui_git_commit
+ui_build_id
+
+derived from the exact commit used to build the frontend.
+
+Do not hardcode:
+apexquant-v1.0.0
+
+as deployment identity.
+
+TASK A4 — MATCH LOGIC
+
+Mission Control should display:
+
+Product Version: v1.0.0
+UI Build: <actual UI build>
+API Build: <actual API build>
+
+Status:
+MATCH
+only when the deployment identities legitimately match.
+
+If frontend/API were genuinely built from different commits:
+show MISMATCH truthfully.
+
+Do not fake equality.
+
+TASK A5 — CACHE SAFETY
+
+Check:
+- service worker
+- PWA cache
+- static asset hashes
+- browser bundle cache
+- Replit static deployment cache
+
+Ensure a new deployment cannot keep serving stale identity metadata.
+
+==================================================
+PART B — #928 ACTIVE-UNIVERSE READINESS TRUTH
+==================================================
+
+CURRENT WRONG OUTPUT:
+
+coverage = 23
+symbols_requested = 23
+min_symbols_expected = 50
+ok = false
+
+ROOT PROBLEM TO VERIFY:
+
+Legacy NIFTY50 minimum-symbol expectation is still being used after the
+production universe changed to CUSTOM_LOW_PRICE_SECTOR.
+
+TASK B1 — FIND EVERY HARD-CODED / LEGACY 50
+
+Search source for:
+
+50
+min_symbols_expected
+minimum_symbols
+expected_symbols
+NIFTY50
+NIFTY 50
+coverage threshold
+scanner coverage
+research universe
+approved universe
+
+Identify every place where readiness/coverage still assumes 50 symbols.
+
+Classify each usage:
+
+- legitimate NIFTY50-specific
+- legacy runtime assumption
+- UI-only text
+- test fixture
+- notification wording
+- readiness gate
+- scan coverage
+
+Do not blindly replace every 50.
+
+TASK B2 — DEFINE UNIVERSE AUTHORITY
+
+For runtime readiness, expected coverage must derive from the authoritative
+configured active universe.
+
+For:
+
+CUSTOM_LOW_PRICE_SECTOR
+
+expected_symbol_count = active universe count
+
+Currently:
+expected_symbol_count = 23
+
+The source of truth must be the same durable universe authority used by the
+scanner.
+
+Do not derive expected count from:
+- stale scan history
+- frontend constants
+- NIFTY50 defaults
+- local JSON when durable settings are available
+
+TASK B3 — READINESS CONTRACT
+
+Define:
+
+expected_symbol_count
+requested_symbol_count
+successful_symbol_count
+missing_symbol_count
+stale_symbol_count
+fallback_symbol_count
+synthetic_symbol_count
+unavailable_symbol_count
+
+For current production:
+
+expected = 23
+requested = 23
+successful = 23
+
+Readiness must not fail solely because an old 50-symbol baseline exists.
+
+TASK B4 — FAIL-CLOSED SEMANTICS
+
+Do NOT weaken readiness.
+
+Readiness should still fail if:
+
+- expected universe cannot be resolved
+- requested set differs from expected
+- missing symbols > 0
+- stale execution-grade price > permitted threshold
+- unavailable symbols > 0
+- fallback/synthetic data is prohibited for the applicable readiness gate
+- duplicate mappings exist
+
+Fix only the incorrect denominator/authority.
+
+TASK B5 — LEGACY NIFTY50 NOTICES
+
+Fix informational notices that currently say custom-universe symbols are
+outside the approved NIFTY50 research universe.
+
+Notifications must reference the active configured universe.
+
+Historical scan records may retain their original universe metadata.
+
+Do not rewrite historical evidence.
+
+TASK B6 — UI WARNING
+
+Mission Control warning should become truthful.
+
+When 23/23 active symbols are healthy:
+
+do NOT show:
+
+Scanner coverage 23/50
+
+Instead show either:
+
+Scanner coverage 23/23
+
+or no warning if coverage is fully healthy.
+
+If degraded:
+
+show:
+
+Scanner coverage X/23
+
+for this active universe.
+
+==================================================
+PART C — KITE LTP STATUS CONSISTENCY
+==================================================
+
+CURRENT UI:
+
+Kite LTP =
+FALLBACK_OR_UNAVAILABLE
+
+CURRENT PRODUCTION OBSERVATIONS:
+
+- mappings = 23/23
+- Kite token valid
+- Kite connected/authenticated
+- market open
+- health reports complete scan coverage
+- no fallback/synthetic/unavailable symbols in authoritative health
+
+TASK C1 — TRACE CARD SOURCE
+
+Find exactly where the Low Price Universe Builder gets:
+
+FALLBACK_OR_UNAVAILABLE
+
+Trace:
+frontend component
+→ API endpoint
+→ backend field
+→ provenance calculation
+→ cache/state source
+
+Report the full lineage.
+
+TASK C2 — SEPARATE CONCEPTS
+
+Do not conflate:
+
+1. Kite authentication/mapping health
+2. current execution-grade quote provenance
+3. research/historical OHLCV provider
+4. scanner provider label
+5. cached universe-builder metadata
+
+Define explicit fields where needed.
+
+Example:
+
+kite_connection_status
+kite_mapping_coverage
+current_price_source
+historical_ohlcv_source
+quote_freshness
+fallback_count
+synthetic_count
+unavailable_count
+
+TASK C3 — DETERMINE REAL CURRENT PRICE AUTHORITY
+
+Inspect current production code and API truth.
+
+If the current scan actually gets current prices from Yahoo Finance:
+the UI must say that truthfully.
+
+If Kite is the execution-grade LTP authority but this card reads a stale field:
+fix the card.
+
+Do NOT label data as Kite LTP unless the actual value came from Kite.
+
+Do NOT label Yahoo-derived values as Kite.
+
+TASK C4 — FIX THE CARD
+
+Preferred UI pattern:
+
+Kite:
+CONNECTED
+
+Mappings:
+23/23
+
+Current Price Source:
+<Kite / Yahoo / other actual source>
+
+Price Freshness:
+LIVE / STALE / UNAVAILABLE
+
+Fallback:
+0
+
+This is better than a single ambiguous:
+
+Kite LTP = FALLBACK_OR_UNAVAILABLE
+
+TASK C5 — CONSISTENCY TEST
+
+The following surfaces must not contradict each other:
+
+- /api/health/details
+- /api/live-data/health
+- /api/live-data/health-v2
+- /api/live-data/coverage
+- /api/kite/status
+- /api/kite/diagnostics
+- Low Price Universe Builder
+- Mission Control scanner warning
+
+If differences are intentional:
+label the semantics clearly.
+
+==================================================
+PART D — TESTS
+==================================================
+
+Add tests for:
+
+BUILD IDENTITY
+1. semantic version kept separate from build identity
+2. UI build injected from source commit
+3. UI/API matching build shows MATCH
+4. genuine different builds show MISMATCH
+5. stale static apexquant-v1.0.0 cannot masquerade as build identity
+
+READINESS
+6. CUSTOM_LOW_PRICE_SECTOR with 23/23 passes coverage denominator
+7. 22/23 fails
+8. missing durable universe fails closed
+9. NIFTY50 mode still expects its own active count
+10. historical scans do not change current-universe readiness
+11. no stale NIFTY50 warning for custom-universe symbols
+
+KITE / PROVENANCE UI
+12. connected Kite + 23/23 mappings displayed accurately
+13. current-price source displayed from actual provenance
+14. Yahoo current-price source is not mislabeled Kite
+15. stale/unavailable/fallback states render correctly
+16. API and UI provenance fields remain consistent
+
+Run:
+- relevant backend tests
+- readiness suites
+- universe suites
+- market-data/provenance suites
+- frontend Mission Control tests
+- Low Price Universe Builder tests
+- API TypeScript
+- workspace TypeScript
+- frontend build
+- Python compilation
+
+==================================================
+PART E — RELEASE ISOLATION
+==================================================
+
+Create a NEW branch from current production:
+
+9f83f6764e3861e351e6334070d4031a85818876
+
+Suggested:
+
+fix/observability-identity-readiness-20260825
+
+Do not mix:
+- Task #920 changes
+- advisory bot merge
+- controlled-entry activation
+- portfolio changes
+- strategy changes
+
+Before deployment report:
+
+BASE_COMMIT
+CANDIDATE_COMMIT
+changed files
+runtime changes
+UI changes
+tests
+schema diff
+
+Prefer:
+schema diff = none
+
+If destructive schema appears:
+STOP.
+
+==================================================
+PART F — CONTROLLED DEPLOYMENT
+==================================================
+
+Only after:
+- source scope PASS
+- tests PASS
+- schema safety PASS
+
+create:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first 12>
+
+Deploy only that commit.
+
+Post-deploy READ ONLY verify:
+
+1. API identity exact
+2. UI identity correct
+3. no false Build mismatch
+4. scanner coverage denominator = 23
+5. full healthy coverage does not show 23/50 warning
+6. active universe remains CUSTOM_LOW_PRICE_SECTOR
+7. active count remains 23
+8. mappings remain 23/23
+9. Kite remains connected/authenticated
+10. price-source/provenance UI agrees with API truth
+11. automatic entries remain false
+12. bootstrap remains false
+13. controlled execution remains disabled
+14. live broker orders remain disabled
+15. portfolio/ledger unchanged
+16. no manual scan triggered
+17. no Phase 5A/5B/5C action
+18. Task #920 evidence untouched
+
+==================================================
+OUTPUT FILES
+==================================================
+
+Create:
+
+1. OBSERVABILITY_ROOT_CAUSE_REPORT.md
+2. TASK_919_BUILD_IDENTITY_FIX.md
+3. TASK_928_UNIVERSE_READINESS_FIX.md
+4. KITE_LTP_PROVENANCE_UI_FIX.md
+5. OBSERVABILITY_TEST_AND_RELEASE_REPORT.md
+6. OBSERVABILITY_POST_DEPLOY_VERIFICATION.md
+
+FINAL VERDICT:
+
+A. PASS — OBSERVABILITY TRUTH RESTORED
+B. BUILD IDENTITY ISSUE REMAINS
+C. READINESS DENOMINATOR ISSUE REMAINS
+D. KITE/PRICE PROVENANCE ISSUE REMAINS
+E. TEST FAILURE
+F. SOURCE SCOPE FAILURE
+G. SCHEMA FAILURE
+H. DEPLOYMENT IDENTITY FAILURE
+I. SAFETY REGRESSION
+
+FINAL RULE:
+
+Fix observability truth only.
+
+Do not enable trading and do not alter the Task #920 certification path.

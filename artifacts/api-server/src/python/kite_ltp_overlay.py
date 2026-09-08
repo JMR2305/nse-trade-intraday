@@ -49,6 +49,8 @@ def fetch_ltp_overlay(symbols: List[str]) -> Dict[str, Any]:
             "enabled": bool,
             "session_verified": bool,
             "ltps": {SYMBOL: float_or_None},
+            "quote_sources": {SYMBOL: provider source},
+            "quote_reasons": {SYMBOL: non-live reason},
             "fetched_at": str ISO timestamp,
             "note": str,
             "error": str or None,
@@ -61,19 +63,23 @@ def fetch_ltp_overlay(symbols: List[str]) -> Dict[str, Any]:
             "enabled": False,
             "session_verified": False,
             "ltps": {},
+            "quote_sources": {},
+            "quote_reasons": {},
             "fetched_at": None,
             "note": DAILY_BAR_MODE_LABEL,
             "error": None,
         }
 
     try:
-        from kite_quote_provider import kite_session_verified, get_ltp
+        from kite_quote_provider import kite_session_verified, get_quotes
         session_ok = kite_session_verified()
         if not session_ok:
             return {
                 "enabled": True,
                 "session_verified": False,
                 "ltps": {},
+                "quote_sources": {},
+                "quote_reasons": {},
                 "fetched_at": None,
                 "note": (
                     "KITE_LTP_OVERLAY_ENABLED=true but Kite session not "
@@ -81,13 +87,39 @@ def fetch_ltp_overlay(symbols: List[str]) -> Dict[str, Any]:
                 ),
                 "error": None,
             }
-        ltps = get_ltp(symbols)
+        quotes = get_quotes(symbols)
+        quote_sources: Dict[str, str] = {}
+        quote_reasons: Dict[str, str] = {}
+        ltps: Dict[str, float] = {}
+        for symbol in symbols:
+            key = symbol.upper().strip()
+            quote = quotes.get(key) or {}
+            source = str(quote.get("data_source") or "unavailable")
+            quote_sources[key] = source
+            # Execution-grade status is per-symbol.  A verified session is
+            # necessary but not sufficient: Yahoo fallback must never inherit
+            # Kite's session or LIVE designation.
+            raw_ltp = quote.get("ltp")
+            try:
+                valid_ltp = float(raw_ltp) > 0
+            except (TypeError, ValueError):
+                valid_ltp = False
+            if source == "kite_live" and valid_ltp:
+                ltps[key] = float(raw_ltp)
+            else:
+                quote_reasons[key] = str(
+                    quote.get("reason_not_live")
+                    or quote.get("kite_error")
+                    or f"Execution-grade Kite quote unavailable (source={source})"
+                )[:200]
         fetched_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        available = sum(1 for v in ltps.values() if v is not None and float(v) > 0)
+        available = len(ltps)
         return {
             "enabled": True,
             "session_verified": True,
             "ltps": ltps,
+            "quote_sources": quote_sources,
+            "quote_reasons": quote_reasons,
             "fetched_at": fetched_at,
             "note": (
                 f"{OVERLAY_MODE_LABEL} — "
@@ -101,6 +133,8 @@ def fetch_ltp_overlay(symbols: List[str]) -> Dict[str, Any]:
             "enabled": True,
             "session_verified": False,
             "ltps": {},
+            "quote_sources": {},
+            "quote_reasons": {},
             "fetched_at": None,
             "note": f"KITE_LTP_OVERLAY_ENABLED=true but LTP fetch failed: {exc!s:.120}",
             "error": str(exc)[:200],
@@ -122,7 +156,14 @@ def build_symbol_overlay(
     enabled = overlay_result.get("enabled", False)
     session_ok = overlay_result.get("session_verified", False)
     ltps: Dict[str, Any] = overlay_result.get("ltps") or {}
+    quote_sources: Dict[str, Any] = overlay_result.get("quote_sources") or {}
+    quote_reasons: Dict[str, Any] = overlay_result.get("quote_reasons") or {}
     fetched_at = overlay_result.get("fetched_at")
+    execution_quality = str(yfinance_data_quality or "UNKNOWN")
+    # A caller-provided quality label must not turn daily/fallback data into
+    # execution LIVE merely by reusing that word.
+    if execution_quality.upper() == "LIVE":
+        execution_quality = "NON_LIVE_YFINANCE"
 
     out: Dict[str, Any] = {
         # Option A invariants — never change regardless of Kite state
@@ -137,7 +178,7 @@ def build_symbol_overlay(
         "current_price_source": INDICATOR_SOURCE,
         "execution_price_source": INDICATOR_SOURCE,
         "quote_reliable": False,
-        "data_quality_for_execution": yfinance_data_quality,
+        "data_quality_for_execution": execution_quality,
         "latest_price_time_ist": None,
         "reason_not_live_ltp": None,
         "kite_ltp_overlay_enabled": enabled,
@@ -154,7 +195,9 @@ def build_symbol_overlay(
         )
         return out
 
-    raw_ltp = ltps.get(symbol.upper())
+    key = symbol.upper()
+    raw_ltp = ltps.get(key)
+    quote_source = quote_sources.get(key)
     if raw_ltp is not None:
         try:
             ltp = round(float(raw_ltp), 2)
@@ -163,7 +206,7 @@ def build_symbol_overlay(
     else:
         ltp = 0.0
 
-    if ltp > 0:
+    if ltp > 0 and quote_source == "kite_live":
         out["kite_ltp"] = ltp
         out["kite_ltp_available"] = True
         out["current_price_source"] = "kite_live_ltp"
@@ -173,7 +216,9 @@ def build_symbol_overlay(
         out["latest_price_time_ist"] = fetched_at
     else:
         out["reason_not_live_ltp"] = (
-            f"Kite session verified but LTP not available for {symbol}"
+            str(quote_reasons.get(key))
+            if quote_reasons.get(key)
+            else f"Kite session verified but execution-grade Kite LTP not available for {symbol}"
         )
 
     return out

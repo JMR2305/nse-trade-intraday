@@ -22,9 +22,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 import phase20_store as store
-from phase20_executor import get_open_trades, record_exit
+from phase20_executor import get_all_open_trades, get_open_trades, record_exit
 
 
 def _now() -> datetime:
@@ -49,10 +50,13 @@ def _sector_of(symbol: str) -> str:
 
 
 def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
-    """Evaluate all open Phase 20 paper positions for exits."""
+    """Evaluate all open Phase 20 paper positions for exits.
+
+    Always runs the EXIT_PENDING timeout cleanup even when there are no OPEN
+    trades — EXIT_PENDING positions live in the ledger, not in open_trades,
+    so they would be silently skipped by an early-return guard.
+    """
     open_trades = get_open_trades()
-    if not open_trades:
-        return {"evaluated": 0, "exits": [], "pending": []}
 
     from phase15_scan_context import build_scan_context
     ctx = build_scan_context()
@@ -60,6 +64,14 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
     stale = bool(ctx.get("stale", True))
     symbols_ctx: Dict[str, Any] = ctx.get("symbols") or {}
     exit_scan_id = ctx.get("scan_id")
+
+    # Force-close EXIT_PENDING positions that have exceeded max_holding_days.
+    # Runs unconditionally because EXIT_PENDING rows are not in open_trades.
+    timeout_closed = _resolve_timeout_exit_pending(settings, symbols_ctx, exit_scan_id)
+
+    if not open_trades:
+        return {"evaluated": 0, "exits": [] + timeout_closed,
+                "pending": [], "timeout_closed": timeout_closed}
 
     from market_hours import market_status
     mstat = market_status()
@@ -145,8 +157,12 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
             if entry_dt and (_now() - entry_dt).days >= max_days:
                 rule = "TIME_EXIT"
 
-        if rule is None and settings.get("square_off_before_close"):
-            # Square off in the last 15 minutes of the session.
+        if rule is None:
+            # Mandatory intraday square-off: close all OPEN paper positions at
+            # or after 15:20 IST (10 minutes before NSE close).  This rule is
+            # unconditional — it does NOT require square_off_before_close=True
+            # in settings.  Paper positions must never carry overnight unless
+            # the operator has explicitly disabled auto_paper_exits.
             if mstate == "OPEN":
                 try:
                     from market_hours import now_ist, MARKET_CLOSE
@@ -154,7 +170,7 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
                     close_dt = ist.replace(hour=MARKET_CLOSE.hour,
                                            minute=MARKET_CLOSE.minute,
                                            second=0, microsecond=0)
-                    if (close_dt - ist).total_seconds() <= 15 * 60:
+                    if (close_dt - ist).total_seconds() <= 10 * 60:
                         rule = "MARKET_CLOSE_EXIT"
                 except Exception:
                     pass
@@ -180,6 +196,58 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
             continue  # position stays open
 
         if not quote_reliable:
+            # ── Task 791: prefer immediate yfinance close over EXIT_PENDING ──
+            # When exit_on_stale_after_days > 0, a trade that has been held
+            # long enough (>= N days from fill_ts) may be closed immediately
+            # using the yfinance daily close — even on a stale scan — rather
+            # than accumulating EXIT_PENDING entries that won't resolve until
+            # Kite LTP comes back online.
+            _stale_exit_days = int(settings.get("exit_on_stale_after_days", 5))
+            if _stale_exit_days > 0:
+                _entry_dt = _parse_ts(trade.get("fill_ts"))
+                _held_days = (_now() - _entry_dt).days if _entry_dt else 0
+                _yf_quote = float(rec.get("entry_price") or 0)
+                if (_held_days >= _stale_exit_days
+                        and _yf_quote > 0
+                        and not rec.get("error")):
+                    # Use yfinance daily close for an immediate CLOSED exit.
+                    _ok, _msg = execute_sell(
+                        sym, qty, _yf_quote,
+                        ledger_trade_id=trade_id,
+                        reason=(
+                            f"Phase 20 exit {rule} "
+                            f"(stale scan, yfinance daily close, "
+                            f"held {_held_days}d >= exit_on_stale_after_days="
+                            f"{_stale_exit_days}d, trade {trade_id})"
+                        ),
+                        exit_type=("STOP_HIT" if rule == "STOP_LOSS_HIT"
+                                   else "TARGET_HIT" if rule == "TARGET_HIT"
+                                   else "SIGNAL_EXIT"),
+                    )
+                    if _ok:
+                        record_exit(trade_id, _yf_quote, rule, exit_scan_id,
+                                    status="CLOSED")
+                        exits.append({
+                            "trade_id": trade_id, "symbol": sym, "rule": rule,
+                            "exit_price": _yf_quote,
+                            "price_source": "yfinance_daily_close_stale",
+                        })
+                        store.add_notification(
+                            "EXIT_COMPLETED",
+                            f"Paper exit {sym} @ ₹{_yf_quote} ({rule}, "
+                            f"yfinance close on stale scan)",
+                            f"Trade {trade_id} closed by {rule} using yfinance "
+                            f"daily close on a stale scan (held {_held_days}d >= "
+                            f"exit_on_stale_after_days={_stale_exit_days}d). "
+                            f"Kite LTP was offline. Scan: {exit_scan_id}.",
+                            severity="INFO",
+                            context={
+                                "trade_id": trade_id, "symbol": sym,
+                                "rule": rule, "scan_id": exit_scan_id,
+                                "price_source": "yfinance_daily_close_stale",
+                                "held_days": _held_days,
+                            })
+                        continue
             # NEVER fabricate a fill from stale/unavailable data.
             record_exit(trade_id, 0.0, rule, exit_scan_id, status="EXIT_PENDING")
             pend = {"trade_id": trade_id, "symbol": sym, "rule": rule,
@@ -252,25 +320,865 @@ def manage_open_positions(settings: Dict[str, Any]) -> Dict[str, Any]:
     # Retry previously pending exits when data has recovered.
     retried = _retry_pending(symbols_ctx, scan_ok, stale, exit_scan_id)
 
-    return {"evaluated": len(open_trades), "exits": exits + retried,
-            "pending": pending}
+    return {"evaluated": len(open_trades), "exits": exits + retried + timeout_closed,
+            "pending": pending, "timeout_closed": timeout_closed}
+
+
+# ── EOD post-close force-exit ──────────────────────────────────────────────────
+
+def _eod_session_date() -> str:
+    """Return the calendar date of the close window in Asia/Kolkata."""
+    return datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+
+
+def _record_market_close_blocked(
+    trade: Dict[str, Any],
+    *,
+    session_date: str,
+    scan_id: Optional[str],
+    reason: str,
+    exit_price_source: str = "unavailable",
+    quote_reliable: bool = False,
+    sell_msg: Optional[str] = None,
+) -> bool:
+    """Persist one visible blocked outcome for an EOD position.
+
+    A scheduler may be restarted or tick more than once after 15:30.  The
+    event-store dedupe key therefore belongs at the durable write boundary,
+    rather than relying on a process-local guard.  Returning ``False`` means
+    the audit row could not be verified; callers must leave the scheduler
+    claim retryable rather than silently marking the close window complete.
+    """
+    sym = str(trade.get("symbol") or "").upper()
+    trade_id = str(trade.get("trade_id") or "")
+    payload = {
+        "trade_id": trade_id,
+        "session_date_ist": session_date,
+        "reason": reason,
+        "exit_price_source": exit_price_source,
+        "quote_reliable": quote_reliable,
+        "sell_ok": False,
+    }
+    if sell_msg:
+        payload["sell_msg"] = sell_msg
+
+    try:
+        from pipeline_events import emit as _emit
+        durable = _emit(
+            "MARKET_CLOSE_EXIT_BLOCKED", "PORTFOLIO",
+            scan_id=scan_id, symbol=sym, payload=payload,
+            dedupe_key=f"market-close-outcome:{session_date}:{trade_id}",
+        )
+    except Exception:
+        return False
+    if durable is False:
+        return False
+
+    # The notification is intentionally best-effort.  The pipeline event is
+    # the durable audit record; an unavailable notification channel must not
+    # make a stored outcome look unresolved.
+    try:
+        store.add_notification(
+            "MARKET_CLOSE_EXIT_BLOCKED",
+            f"{sym} overnight carry — EOD close blocked",
+            f"Trade {trade_id} could not be closed at market end: {reason}. "
+            "Position is carrying overnight. Manual review required.",
+            severity="WARN",
+            context={
+                "trade_id": trade_id, "symbol": sym, "scan_id": scan_id,
+                "session_date_ist": session_date, "reason": reason,
+                "sell_msg": sell_msg,
+            },
+        )
+    except Exception:
+        pass
+    return True
+
+
+def _retry_unresolved_market_close_outcomes(
+    outcomes: List[Dict[str, Any]],
+    session_date: str,
+) -> Dict[str, Any]:
+    """Retry only EOD audit writes that previously failed to persist.
+
+    A retry must never submit a second sell for a position that already has a
+    terminal close or durable blocked outcome.  These rows contain only the
+    minimal data required to persist the missing blocked event.
+    """
+    blocked: List[Dict[str, Any]] = []
+    unresolved: List[Dict[str, Any]] = []
+    for outcome in outcomes:
+        trade = {
+            "trade_id": str(outcome.get("trade_id") or ""),
+            "symbol": str(outcome.get("symbol") or "").upper(),
+        }
+        reason = str(outcome.get("reason") or "POST_CLOSE_FORCE_EXIT blocked")
+        if _record_market_close_blocked(
+            trade, session_date=session_date, scan_id=outcome.get("scan_id"),
+            reason=f"{reason} (retrying failed EOD audit write)",
+            exit_price_source=str(outcome.get("exit_price_source") or "unavailable"),
+            quote_reliable=bool(outcome.get("quote_reliable")),
+            sell_msg=outcome.get("sell_msg"),
+        ):
+            blocked.append(trade | {"reason": reason})
+        else:
+            unresolved.append(dict(outcome))
+    return {
+        "evaluated": len(outcomes), "force_closed": [], "blocked": blocked,
+        "unresolved": unresolved, "retrying_audit_outcomes": True,
+    }
+
+
+def close_all_for_intraday_squareoff(settings: Dict[str, Any]) -> Dict[str, Any]:
+    """15:20 IST dedicated intraday squareoff — closes every OPEN paper position.
+
+    Called from the scheduler's KV-guarded 15:20 IST dedicated job, independent
+    of scan cadence. Uses MARKET_CLOSE_EXIT exit rule (same as the normal
+    intraday squareoff path in manage_open_positions()).
+
+    Records a durable per-trade outcome via phase20_eod_outcomes regardless of
+    success or failure — no silent skips allowed.
+
+    Returns dict with keys: evaluated, closed, pending, blocked, unresolved.
+    Never raises.
+    """
+    from phase20_executor import get_all_open_trades, record_exit
+    settings = settings or {}
+    session_date = _eod_session_date()
+    job_type = "15:20_squareoff"
+    config_hash = settings.get("config_hash")
+
+    if not settings.get("auto_paper_exits", True):
+        return {
+            "evaluated": 0, "closed": [], "pending": [], "blocked": [],
+            "unresolved": [], "skipped_reason": "auto_paper_exits_disabled",
+        }
+
+    open_trades = get_all_open_trades()
+    if not open_trades:
+        return {
+            "evaluated": 0, "closed": [], "pending": [],
+            "blocked": [], "unresolved": [],
+        }
+
+    try:
+        from paper_trader import execute_sell
+    except Exception as exc:
+        _err = str(exc)[:200]
+        from phase20_eod_outcomes import record_eod_outcome as _reo
+        unresolved = []
+        for trade in open_trades:
+            tid = str(trade.get("trade_id") or "")
+            sym = str(trade.get("symbol") or "").upper()
+            _reo(session_date=session_date, trade_id=tid, symbol=sym,
+                 job_type=job_type, selected_outcome="ERROR",
+                 reason=f"paper_sell_service_unavailable: {_err}",
+                 config_hash=config_hash, error_detail=_err)
+            unresolved.append({"trade_id": tid, "symbol": sym})
+        return {"evaluated": len(open_trades), "closed": [], "pending": [],
+                "blocked": [], "unresolved": unresolved,
+                "error": _err}
+
+    # Best-effort scan context for price resolution.
+    ctx: Dict[str, Any] = {}
+    try:
+        from phase15_scan_context import build_scan_context
+        ctx = build_scan_context() or {}
+    except Exception:
+        pass
+    scan_ok = bool(ctx.get("available"))
+    ctx_stale = bool(ctx.get("stale", True))
+    ctx_today = bool(ctx.get("is_today_session", False))
+    symbols_ctx: Dict[str, Any] = ctx.get("symbols") or {}
+    exit_scan_id: Optional[str] = ctx.get("scan_id")
+    yf_data_usable = scan_ok and not ctx_stale and ctx_today
+
+    closed: List[Dict[str, Any]] = []
+    pending: List[Dict[str, Any]] = []
+    blocked: List[Dict[str, Any]] = []
+    unresolved: List[Dict[str, Any]] = []
+
+    from phase20_eod_outcomes import record_eod_outcome as _reo
+
+    for trade in open_trades:
+        sym = str(trade.get("symbol") or "").upper()
+        trade_id = str(trade.get("trade_id") or "")
+        try:
+            qty = int(trade.get("quantity") or 0)
+            fill_price = float(trade.get("fill_price") or 0)
+        except (TypeError, ValueError) as exc:
+            _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+                 job_type=job_type, selected_outcome="ERROR",
+                 reason=f"invalid_trade_fields: {str(exc)[:100]}",
+                 config_hash=config_hash)
+            unresolved.append({"trade_id": trade_id, "symbol": sym})
+            continue
+
+        rec = symbols_ctx.get(sym) or {}
+        quote: float = 0.0
+        exit_price_source: str = "unavailable"
+        quote_reliable = False
+        fallback_used = False
+
+        # 1. yfinance daily close (fresh + today + LIVE/NEAR_LIVE)
+        yf_price = float(rec.get("entry_price") or 0)
+        dq = str(rec.get("data_quality") or "").upper()
+        if yf_data_usable and yf_price > 0 and dq in ("LIVE", "NEAR_LIVE") and not rec.get("error"):
+            quote = yf_price
+            exit_price_source = "yfinance_daily_close"
+            quote_reliable = True
+
+        # 1b. OHLCV cache previous-session close — prefer over fill price
+        if not quote_reliable:
+            try:
+                from ohlcv_cache_store import read_symbol_from_cache
+                _cache_row = read_symbol_from_cache(sym.replace(".NS", ""))
+                if _cache_row and isinstance(_cache_row, dict):
+                    _prev_close = float(
+                        _cache_row.get("close") or _cache_row.get("Close") or 0
+                    )
+                    if _prev_close > 0:
+                        quote = _prev_close
+                        exit_price_source = "ohlcv_cache_prev_session_close"
+                        quote_reliable = False
+                        fallback_used = True
+            except Exception:
+                pass
+
+        # 2. Fill-price fallback
+        if not quote_reliable and quote <= 0 and fill_price > 0:
+            quote = fill_price
+            exit_price_source = "fill_price_fallback"
+            quote_reliable = False
+            fallback_used = True
+
+        # No price at all — record blocked outcome and continue
+        if quote <= 0:
+            _reason = "15:20_squareoff: no price available"
+            _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+                 job_type=job_type, selected_outcome="BLOCKED",
+                 exit_rule="MARKET_CLOSE_EXIT", exit_price=None,
+                 exit_price_source="unavailable", reason=_reason,
+                 config_hash=config_hash)
+            try:
+                from pipeline_events import emit as _pe
+                _pe("MARKET_CLOSE_EXIT_BLOCKED", "PORTFOLIO",
+                    symbol=sym,
+                    payload={
+                        "trade_id": trade_id, "reason": _reason,
+                        "session_date_ist": session_date,
+                        "job_type": job_type,
+                    },
+                    dedupe_key=f"market-close-15-20-blocked:{session_date}:{trade_id}",
+                )
+            except Exception:
+                pass
+            blocked.append({"trade_id": trade_id, "symbol": sym, "reason": _reason})
+            continue
+
+        ok, msg = False, ""
+        try:
+            ok, msg = execute_sell(
+                sym, qty, quote,
+                ledger_trade_id=trade_id,
+                reason=f"MARKET_CLOSE_EXIT 15:20 squareoff (source={exit_price_source})",
+                exit_type="SIGNAL_EXIT",
+            )
+        except Exception as exc:
+            ok, msg = False, str(exc)[:200]
+
+        if not ok:
+            # Sell rejected — leave OPEN, record durable outcome
+            _reason = f"15:20_squareoff execute_sell rejected: {msg}"
+            _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+                 job_type=job_type, selected_outcome="BLOCKED",
+                 exit_rule="MARKET_CLOSE_EXIT", exit_price=quote,
+                 exit_price_source=exit_price_source, reason=_reason,
+                 config_hash=config_hash)
+            blocked.append({"trade_id": trade_id, "symbol": sym,
+                            "reason": _reason, "exit_price_source": exit_price_source})
+            continue
+
+        try:
+            record_exit(trade_id, quote, "MARKET_CLOSE_EXIT", exit_scan_id,
+                        status="CLOSED")
+        except Exception as exc:
+            _reason = f"15:20_squareoff ledger close failed: {str(exc)[:200]}"
+            _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+                 job_type=job_type, selected_outcome="ERROR",
+                 exit_rule="MARKET_CLOSE_EXIT", exit_price=quote,
+                 exit_price_source=exit_price_source, reason=_reason,
+                 config_hash=config_hash)
+            unresolved.append({"trade_id": trade_id, "symbol": sym, "reason": _reason})
+            continue
+
+        pnl = round((quote - fill_price) * qty, 2)
+        _reo(session_date=session_date, trade_id=trade_id, symbol=sym,
+             job_type=job_type, selected_outcome="CLOSED",
+             exit_rule="MARKET_CLOSE_EXIT", exit_price=quote,
+             exit_price_source=exit_price_source, realized_pnl=pnl,
+             config_hash=config_hash)
+        closed.append({"trade_id": trade_id, "symbol": sym, "exit_price": quote,
+                       "exit_price_source": exit_price_source,
+                       "realized_pnl": pnl, "fallback_used": fallback_used})
+
+    return {
+        "evaluated": len(open_trades),
+        "closed": closed,
+        "pending": pending,
+        "blocked": blocked,
+        "unresolved": unresolved,
+    }
+
+
+def eod_force_close_open_positions(
+    settings: Dict[str, Any],
+    open_trades: Optional[List[Dict[str, Any]]] = None,
+    session_date: Optional[str] = None,
+    retry_outcomes: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
+    """Force-close any OPEN paper positions after market has closed.
+
+    Called from the scheduler's CLOSED / POST_CLOSE state handler.  This is
+    the safety net for positions that survived the 15:20 IST intraday square-off
+    window (e.g. because the final pre-close tick was missed or the server
+    restarted at an inconvenient moment).
+
+    Exit rule: POST_CLOSE_FORCE_EXIT.
+
+    Price resolution (in order):
+      1. Kite LTP from the most-recent scan snapshot (live verified price).
+      2. yfinance daily close from the scan snapshot (LIVE / NEAR_LIVE quality).
+      3. Fill price (entry price) — recorded honestly so the position is closed;
+         an INFO notification marks the fallback.
+
+    When no price is available at all the position is left open and a
+    MARKET_CLOSE_EXIT_BLOCKED pipeline event is emitted so the dashboard can
+    surface a visible warning.  The position is NOT silently carried overnight
+    without this explicit signal.
+
+    Returns a dict with keys: evaluated, force_closed, blocked, unresolved.
+    ``blocked`` contains only outcomes whose durable event write succeeded.
+    ``unresolved`` means an audit write failed and the scheduler must retry.
+    Never raises — errors are converted into a visible per-trade outcome.
+
+    Respects the ``auto_paper_exits`` operator setting: when the setting is
+    False this function returns immediately without touching any positions.
+    This keeps EOD force-close consistent with the normal exit gate so that
+    disabling automatic exits prevents *all* automated sells, including the
+    post-close safety net.
+
+    Price provenance is recorded in the ``PAPER_TRADE_FORCE_CLOSED`` pipeline
+    event payload (exit_price_source, quote_reliable, fallback_used).  The
+    ``record_exit()`` ledger row stores only the canonical fields it already
+    supports (exit_price, exit_rule, exit_scan_id, realized_pnl).
+    """
+    settings = settings or {}
+    session_date = session_date or _eod_session_date()
+    if retry_outcomes is not None:
+        return _retry_unresolved_market_close_outcomes(retry_outcomes, session_date)
+    if open_trades is None:
+        open_trades = get_all_open_trades()
+    if not open_trades:
+        return {"evaluated": 0, "force_closed": [], "blocked": [],
+                "unresolved": []}
+
+    if not settings.get("auto_paper_exits", True):
+        blocked: List[Dict[str, Any]] = []
+        unresolved: List[Dict[str, Any]] = []
+        for trade in open_trades:
+            item = {
+                "trade_id": str(trade.get("trade_id") or ""),
+                "symbol": str(trade.get("symbol") or "").upper(),
+                "reason": "auto_paper_exits_disabled",
+            }
+            if _record_market_close_blocked(
+                trade, session_date=session_date, scan_id=None,
+                reason="POST_CLOSE_FORCE_EXIT disabled by operator setting "
+                       "auto_paper_exits=false",
+            ):
+                blocked.append(item)
+            else:
+                unresolved.append(item)
+        return {
+            "evaluated": len(open_trades), "force_closed": [], "blocked": blocked,
+            "unresolved": unresolved, "skipped_reason": "auto_paper_exits_disabled",
+        }
+
+    try:
+        from paper_trader import execute_sell
+    except Exception as exc:
+        blocked = []
+        unresolved = []
+        reason = f"POST_CLOSE_FORCE_EXIT paper sell service unavailable: {str(exc)[:200]}"
+        for trade in open_trades:
+            item = {
+                "trade_id": str(trade.get("trade_id") or ""),
+                "symbol": str(trade.get("symbol") or "").upper(),
+                "reason": "paper_sell_service_unavailable",
+            }
+            if _record_market_close_blocked(
+                trade, session_date=session_date, scan_id=None, reason=reason,
+            ):
+                blocked.append(item)
+            else:
+                unresolved.append(item)
+        return {
+            "evaluated": len(open_trades), "force_closed": [], "blocked": blocked,
+            "unresolved": unresolved,
+        }
+
+    context_error: Optional[str] = None
+    try:
+        from phase15_scan_context import build_scan_context
+        ctx = build_scan_context()
+        if not isinstance(ctx, dict):
+            raise ValueError("scan context was not a dict")
+    except Exception as exc:
+        # A close at the entry fill is still safer and more honest than silently
+        # abandoning every position when the scan cache is unavailable.
+        ctx = {}
+        context_error = str(exc)[:200]
+    scan_ok = bool(ctx.get("available"))
+    ctx_stale = bool(ctx.get("stale", True))
+    ctx_today = bool(ctx.get("is_today_session", False))
+    symbols_ctx: Dict[str, Any] = ctx.get("symbols") or {}
+    exit_scan_id: Optional[str] = ctx.get("scan_id")
+
+    # yfinance prices are only accepted when the scan is fresh *and* from
+    # today's IST session.  A stale or prior-session snapshot would close
+    # a position at yesterday's close, which is misleading and harmful.
+    yf_data_usable: bool = scan_ok and not ctx_stale and ctx_today
+
+    force_closed: List[Dict[str, Any]] = []
+    blocked: List[Dict[str, Any]] = []
+    unresolved: List[Dict[str, Any]] = []
+
+    # Durable outcome helper — TASK 5: every evaluated trade gets a record.
+    _cfg_hash = settings.get("config_hash")
+    _reo_fn = None
+    try:
+        from phase20_eod_outcomes import record_eod_outcome as _reo_fn_import
+        _reo_fn = _reo_fn_import
+    except Exception:
+        pass
+
+    def _durable_outcome_fc(tid_: str, sym_: str, outcome_: str,
+                             rule_: Optional[str] = None,
+                             price_: Optional[float] = None,
+                             src_: Optional[str] = None,
+                             pnl_: Optional[float] = None,
+                             reason_: Optional[str] = None,
+                             err_: Optional[str] = None) -> None:
+        if _reo_fn is None:
+            return
+        try:
+            _reo_fn(session_date=session_date, trade_id=tid_, symbol=sym_,
+                    job_type="15:30_force_close", selected_outcome=outcome_,
+                    exit_rule=rule_, exit_price=price_, exit_price_source=src_,
+                    realized_pnl=pnl_, reason=reason_, config_hash=_cfg_hash,
+                    error_detail=err_)
+        except Exception:
+            pass
+
+    for trade in open_trades:
+        sym = str(trade.get("symbol") or "").upper()
+        trade_id = str(trade.get("trade_id"))
+        try:
+            qty = int(trade.get("quantity") or 0)
+            fill_price = float(trade.get("fill_price") or 0)
+        except (TypeError, ValueError) as exc:
+            item = {"trade_id": trade_id, "symbol": sym,
+                    "reason": "invalid_trade_quantity_or_fill_price",
+                    "scan_id": exit_scan_id}
+            if _record_market_close_blocked(
+                trade, session_date=session_date, scan_id=exit_scan_id,
+                reason=(
+                    "POST_CLOSE_FORCE_EXIT could not read required ledger "
+                    f"values: {str(exc)[:200]}"
+                ),
+            ):
+                blocked.append(item)
+            else:
+                unresolved.append(item)
+            continue
+        rec = symbols_ctx.get(sym) or {}
+        if not isinstance(rec, dict):
+            rec = {}
+
+        # ── Price resolution ─────────────────────────────────────────────────
+        # Canonical scan context (build_scan_context) exposes data_quality and
+        # entry_price per symbol, but not Kite LTP (which is overlaid by
+        # kite_ltp_overlay.py only when KITE_LTP_OVERLAY_ENABLED is set and is
+        # not part of the base context contract).  Resolution order:
+        #
+        #   1. yfinance daily close — only when scan is fresh AND from today's
+        #      IST session AND data_quality is LIVE or NEAR_LIVE.
+        #   2. Fill price (entry price) — always available; marks the exit as
+        #      a fallback with INFO-level notification so operators can audit.
+        #
+        # If neither source is available (fill price also 0) the position is
+        # left OPEN and a MARKET_CLOSE_EXIT_BLOCKED event is emitted.
+
+        quote: float = 0.0
+        exit_price_source: str = "unavailable"
+        quote_reliable: bool = False
+        fallback_used: bool = False
+
+        # 1. yfinance daily close (fresh, today's session, LIVE / NEAR_LIVE)
+        try:
+            yf_price = float(rec.get("entry_price") or 0)
+        except (TypeError, ValueError):
+            yf_price = 0.0
+        dq = str(rec.get("data_quality") or "").upper()
+        if yf_data_usable and yf_price > 0 and dq in ("LIVE", "NEAR_LIVE") and not rec.get("error"):
+            quote = yf_price
+            exit_price_source = "yfinance_daily_close"
+            quote_reliable = True
+
+        # 1b. OHLCV cache previous-session close (cold-start / stale scan)
+        # Prefer over fill price for an honest mark-to-market reference.
+        # Uses the local nightly OHLCV cache so no live network call is made.
+        if not quote_reliable:
+            try:
+                from ohlcv_cache_store import read_symbol_from_cache as _rsc
+                _cache_row = _rsc(sym.replace(".NS", ""))
+                if _cache_row and isinstance(_cache_row, dict):
+                    _prev_close = float(
+                        _cache_row.get("close") or _cache_row.get("Close") or 0
+                    )
+                    if _prev_close > 0:
+                        quote = _prev_close
+                        exit_price_source = "ohlcv_cache_prev_session_close"
+                        quote_reliable = False  # prior-session price, not intraday
+                        fallback_used = True
+            except Exception:
+                pass
+
+        # 2. Fill price fallback — always available; labelled clearly
+        if not quote_reliable and quote <= 0 and fill_price > 0:
+            quote = fill_price
+            exit_price_source = "fill_price_fallback"
+            quote_reliable = False
+            fallback_used = True
+
+        # No price at all — persist one blocked outcome and skip.
+        if quote <= 0:
+            reason = (
+                "POST_CLOSE_FORCE_EXIT could not obtain a quote or fill-price "
+                "fallback"
+            )
+            if context_error:
+                reason = (
+                    f"{reason}; scan context unavailable: {context_error}"
+                )
+            item = {"trade_id": trade_id, "symbol": sym,
+                    "reason": reason, "scan_id": exit_scan_id,
+                    "exit_price_source": "unavailable",
+                    "quote_reliable": False}
+            if _record_market_close_blocked(
+                trade, session_date=session_date, scan_id=exit_scan_id,
+                reason=reason, exit_price_source="unavailable",
+            ):
+                blocked.append(item)
+            else:
+                unresolved.append(item)
+            continue
+
+        # ── Execute paper sell ───────────────────────────────────────────────
+        try:
+            ok, msg = execute_sell(
+                sym, qty, quote,
+                ledger_trade_id=trade_id,
+                reason=(
+                    f"POST_CLOSE_FORCE_EXIT (trade {trade_id}, "
+                    f"source={exit_price_source}, "
+                    f"fallback={fallback_used})"
+                ),
+                exit_type="SIGNAL_EXIT",
+            )
+        except Exception as exc:
+            ok, msg = False, str(exc)[:200]
+
+        if not ok:
+            # execute_sell failed — leave the ledger row OPEN so a retry is
+            # possible and the ledger remains consistent with the paper
+            # portfolio.  Recording CLOSED here would create a desync where
+            # the portfolio still holds the position but the ledger shows it
+            # closed, silently corrupting cash/equity/P&L accounting.
+            # Emit MARKET_CLOSE_EXIT_BLOCKED so the operator can see the
+            # failure and take manual action on the next tick.
+            item = {"trade_id": trade_id, "symbol": sym,
+                    "reason": f"POST_CLOSE_FORCE_EXIT execute_sell rejected: {msg}",
+                    "scan_id": exit_scan_id,
+                    "exit_price_source": exit_price_source,
+                    "quote_reliable": quote_reliable, "sell_msg": str(msg)[:200]}
+            if _record_market_close_blocked(
+                trade, session_date=session_date, scan_id=exit_scan_id,
+                reason=f"POST_CLOSE_FORCE_EXIT execute_sell rejected: {msg}",
+                exit_price_source=exit_price_source,
+                quote_reliable=quote_reliable, sell_msg=str(msg)[:200],
+            ):
+                blocked.append(item)
+                _durable_outcome_fc(trade_id, sym, "BLOCKED",
+                                    rule_="POST_CLOSE_FORCE_EXIT",
+                                    price_=quote, src_=exit_price_source,
+                                    reason_=f"execute_sell rejected: {msg}")
+            else:
+                unresolved.append(item)
+                _durable_outcome_fc(trade_id, sym, "ERROR",
+                                    rule_="POST_CLOSE_FORCE_EXIT",
+                                    price_=quote, src_=exit_price_source,
+                                    reason_="execute_sell rejected + audit write failed",
+                                    err_=msg)
+            continue
+
+        rule = "POST_CLOSE_FORCE_EXIT"
+        try:
+            ledger_closed = record_exit(
+                trade_id, quote, rule, exit_scan_id, status="CLOSED",
+            )
+            if ledger_closed is False:
+                raise RuntimeError("canonical ledger did not confirm CLOSED status")
+        except Exception as exc:
+            # The paper sell may have succeeded while the ledger update failed.
+            # Do not claim a terminal result in that case: preserve a visible
+            # blocked outcome for reconciliation instead of hiding a desync.
+            item = {"trade_id": trade_id, "symbol": sym,
+                    "reason": f"POST_CLOSE_FORCE_EXIT ledger close record failed: {str(exc)[:200]}",
+                    "scan_id": exit_scan_id,
+                    "exit_price_source": exit_price_source,
+                    "quote_reliable": quote_reliable}
+            if _record_market_close_blocked(
+                trade, session_date=session_date, scan_id=exit_scan_id,
+                reason=f"POST_CLOSE_FORCE_EXIT ledger close record failed: {str(exc)[:200]}",
+                exit_price_source=exit_price_source,
+                quote_reliable=quote_reliable,
+            ):
+                blocked.append(item)
+                _durable_outcome_fc(trade_id, sym, "BLOCKED",
+                                    rule_="POST_CLOSE_FORCE_EXIT",
+                                    price_=quote, src_=exit_price_source,
+                                    reason_=f"ledger close failed: {str(exc)[:100]}")
+            else:
+                unresolved.append(item)
+                _durable_outcome_fc(trade_id, sym, "ERROR",
+                                    rule_="POST_CLOSE_FORCE_EXIT",
+                                    price_=quote, src_=exit_price_source,
+                                    reason_="ledger close failed + audit write failed",
+                                    err_=str(exc)[:100])
+            continue
+
+        # Emit a rich pipeline event with provenance metadata
+        try:
+            from pipeline_events import emit as _pe
+            pnl = round((quote - fill_price) * qty, 2)
+            _pe("PAPER_TRADE_FORCE_CLOSED", "PORTFOLIO",
+                scan_id=exit_scan_id, symbol=sym,
+                payload={
+                    "trade_id": trade_id,
+                    "exit_price": quote,
+                    "exit_rule": rule,
+                    "realized_pnl": pnl,
+                    "exit_price_source": exit_price_source,
+                    "quote_reliable": quote_reliable,
+                    "fallback_used": fallback_used,
+                    "sell_ok": ok,
+                    "sell_msg": msg if not ok else None,
+                })
+        except Exception:
+            pass
+
+        severity = "INFO" if quote_reliable else "WARN"
+        try:
+            store.add_notification(
+                "EXIT_COMPLETED",
+                f"EOD force-close {sym} @ ₹{quote} (POST_CLOSE_FORCE_EXIT)",
+                f"Trade {trade_id} force-closed after market close. "
+                f"Price source: {exit_price_source}. "
+                f"Fallback used: {fallback_used}. Reliable: {quote_reliable}.",
+                severity=severity,
+                context={
+                    "trade_id": trade_id, "symbol": sym, "rule": rule,
+                    "exit_price": quote, "exit_price_source": exit_price_source,
+                    "quote_reliable": quote_reliable, "fallback_used": fallback_used,
+                    "scan_id": exit_scan_id,
+                })
+        except Exception:
+            pass
+
+        pnl_fc = round((quote - fill_price) * qty, 2)
+        _durable_outcome_fc(trade_id, sym, "CLOSED",
+                            rule_="POST_CLOSE_FORCE_EXIT",
+                            price_=quote, src_=exit_price_source,
+                            pnl_=pnl_fc)
+        force_closed.append({
+            "trade_id": trade_id, "symbol": sym,
+            "exit_price": quote, "exit_price_source": exit_price_source,
+            "quote_reliable": quote_reliable, "fallback_used": fallback_used,
+        })
+
+    return {
+        "evaluated": len(open_trades),
+        "force_closed": force_closed,
+        "blocked": blocked,
+        "unresolved": unresolved,
+    }
+
+
+def _resolve_timeout_exit_pending(
+    settings: Dict[str, Any],
+    symbols_ctx: Dict[str, Any],
+    exit_scan_id: Optional[str],
+) -> List[Dict[str, Any]]:
+    """Force-close EXIT_PENDING positions that have exceeded max_holding_days.
+
+    When Kite LTP is offline for an extended period the normal pending-retry
+    path never fires (it waits for a reliable quote).  A position that has
+    been in EXIT_PENDING long enough that even the original TIME_EXIT
+    threshold would have triggered is force-closed using whichever price
+    source is available:
+
+        1. Live yfinance daily close from the current scan snapshot.
+        2. Fill price (entry price) — never fabricates a loss, but records an
+           honest TIMEOUT exit so the position is no longer stuck.
+
+    Calls execute_sell so the paper portfolio is also reconciled; if the
+    portfolio no longer holds the position (desync) the ledger entry is still
+    closed so the UI reflects reality.
+
+    This function is advisory-safe: errors are swallowed per-trade so one
+    bad row never blocks the rest.
+    """
+    from phase20_executor import get_exit_pending_trades, record_exit
+    from paper_trader import execute_sell
+    out: List[Dict[str, Any]] = []
+    max_days = float(settings.get("max_holding_days", 10))
+
+    # Use get_exit_pending_trades() — no row-count limit, EXIT_PENDING only.
+    # get_ledger(500) would miss trades older than the 500-row window.
+    for trade in get_exit_pending_trades():
+        if trade.get("status") != "EXIT_PENDING":
+            continue
+        try:
+            sym = str(trade.get("symbol") or "").upper()
+            trade_id = str(trade.get("trade_id") or "")
+            qty = int(trade.get("quantity") or 0)
+            fill_price = float(trade.get("fill_price") or 0)
+
+            # Measure time spent in EXIT_PENDING state using exit_ts (the
+            # timestamp recorded when the trade transitioned to EXIT_PENDING).
+            # Fallback chain: exit_ts → fill_ts → created_at.
+            # created_at is always present (DB DEFAULT NOW()) so this chain
+            # guarantees that no EXIT_PENDING trade can be permanently stranded
+            # even when exit_ts and fill_ts are both NULL (legacy rows).
+            pending_dt = _parse_ts(trade.get("exit_ts"))
+            _ts_source = "exit_ts"
+            if pending_dt is None:
+                pending_dt = _parse_ts(trade.get("fill_ts"))
+                _ts_source = "fill_ts_legacy_fallback"
+            if pending_dt is None:
+                pending_dt = _parse_ts(trade.get("created_at"))
+                _ts_source = "created_at_legacy_fallback"
+            if not (pending_dt and (_now() - pending_dt).days >= max_days):
+                continue
+
+            # Price source: prefer live scan quote, fall back to fill price.
+            rec = symbols_ctx.get(sym) or {}
+            quote = float(rec.get("entry_price") or 0)
+            _price_source = "yfinance_daily_close"
+            # Kite LTP overlay when available
+            _kite_ltp = float(rec.get("kite_ltp") or 0)
+            if (rec.get("kite_ltp_available") and _kite_ltp > 0
+                    and rec.get("quote_reliable")):
+                quote = _kite_ltp
+                _price_source = "kite_ltp"
+            if not (quote > 0 and not rec.get("error")):
+                # No scan data at all — use fill price to un-stuck the position.
+                quote = fill_price
+                _price_source = "fill_price_fallback"
+
+            # Try to reconcile the paper portfolio; if it's already desync'd,
+            # still close the ledger so the dashboard is accurate.
+            ok, _msg = execute_sell(
+                sym, qty, quote,
+                ledger_trade_id=trade_id,
+                reason=(f"Phase 20 TIMEOUT_EXIT_PENDING "
+                        f"(pending >{max_days:.0f}d via {_ts_source}, "
+                        f"Kite LTP offline)"),
+                exit_type="SIGNAL_EXIT",
+            )
+            if not ok:
+                # Portfolio desync — close ledger only. The sell was never
+                # pending in paper_trader so this is safe to do directly.
+                try:
+                    from pipeline_events import emit as _pe
+                    _pe("EXECUTION_SKIPPED_WITH_REASON", "EXECUTION",
+                        scan_id=exit_scan_id, symbol=sym,
+                        payload={
+                            "reason": _msg,
+                            "note": "TIMEOUT_EXIT_PENDING sell skipped — portfolio position gone; closing ledger",
+                            "exit_rule": "TIMEOUT_EXIT_PENDING",
+                            "trade_id": trade_id,
+                        })
+                except Exception:
+                    pass
+
+            record_exit(trade_id, quote, "TIMEOUT_EXIT_PENDING", exit_scan_id,
+                        status="CLOSED")
+            days_stuck = (_now() - pending_dt).days
+            store.add_notification(
+                "EXIT_COMPLETED",
+                f"Force-closed {sym} after {days_stuck}d in EXIT_PENDING "
+                f"(Kite LTP offline — {_price_source})",
+                f"Trade {trade_id} has been stuck in EXIT_PENDING for {days_stuck} days "
+                f"(since {pending_dt.date().isoformat()}, measured via {_ts_source}). "
+                f"Force-closed at ₹{quote:.2f} using {_price_source}. "
+                f"Exit rule: TIMEOUT_EXIT_PENDING.",
+                severity="WARN",
+                context={
+                    "trade_id": trade_id, "symbol": sym,
+                    "days_stuck": days_stuck, "exit_price": quote,
+                    "price_source": _price_source,
+                    "ts_source": _ts_source,
+                    "scan_id": exit_scan_id,
+                },
+            )
+            out.append({
+                "trade_id": trade_id, "symbol": sym,
+                "exit_price": quote, "price_source": _price_source,
+                "days_stuck": days_stuck,
+                "exit_rule": "TIMEOUT_EXIT_PENDING",
+            })
+        except Exception:
+            pass  # never let one bad trade block the rest
+    return out
 
 
 def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
                    exit_scan_id: Optional[str]) -> List[Dict[str, Any]]:
-    """Complete EXIT_PENDING trades once a reliable quote is available."""
-    from phase20_executor import get_ledger
+    """Complete EXIT_PENDING trades once a reliable quote is available.
+
+    Two resolution tiers:
+      1. LIVE / NEAR_LIVE (or Kite LTP) — preferred; standard resolution.
+      2. yfinance daily close fallback — accepted when Kite LTP has been
+         offline for days and the only quote is a fresh daily-bar close.
+         The exit price is still a real market price, just not intraday.
+    """
+    from phase20_executor import get_exit_pending_trades
     from paper_trader import execute_sell
     out: List[Dict[str, Any]] = []
     if not scan_ok or stale:
         return out
-    for trade in get_ledger(500):
+    # Use get_exit_pending_trades() — no 500-row limit, fetches all EXIT_PENDING.
+    for trade in get_exit_pending_trades():
         if trade.get("status") != "EXIT_PENDING":
             continue
         sym = str(trade.get("symbol") or "").upper()
         rec = symbols_ctx.get(sym) or {}
         quote = float(rec.get("entry_price") or 0)  # yfinance daily close (baseline)
         dq = str(rec.get("data_quality") or "").upper()
+        _price_source = "yfinance_daily_close"
         # Task 4: Kite LTP overlay — use live LTP for pending exit resolution
         _kite_ltp_retry = float(rec.get("kite_ltp") or 0)
         if (rec.get("kite_ltp_available")
@@ -278,7 +1186,39 @@ def _retry_pending(symbols_ctx: Dict[str, Any], scan_ok: bool, stale: bool,
                 and rec.get("quote_reliable")):
             quote = _kite_ltp_retry
             dq = "LIVE"   # treat as LIVE for the eligibility check below
-        if not (quote > 0 and dq in ("LIVE", "NEAR_LIVE") and not rec.get("error")):
+            _price_source = "kite_ltp"
+
+        # How long has this trade been in EXIT_PENDING?  Use exit_ts (the
+        # transition timestamp), falling back to fill_ts then created_at for
+        # legacy rows where both may be NULL.  Without this chain a trade
+        # with NULL exit_ts + fill_ts gets _ep_pending_hours=0 and tier-2
+        # never fires, leaving the position permanently stuck.
+        _ep_ts_str = (trade.get("exit_ts")
+                      or trade.get("fill_ts")
+                      or trade.get("created_at"))
+        _ep_pending_hours = 0.0
+        if _ep_ts_str:
+            try:
+                from datetime import datetime as _epdt
+                _ep_dt_obj = _epdt.fromisoformat(
+                    str(_ep_ts_str).replace("Z", "+00:00"))
+                _ep_pending_hours = (_now() - _ep_dt_obj).total_seconds() / 3600.0
+            except Exception:
+                pass
+
+        # Tier 1: live / near-live data quality (or Kite LTP) — no age gate.
+        # Tier 2: yfinance daily close fallback — only accepted when the trade
+        #   has been stuck in EXIT_PENDING for at least 24 hours.  This gate
+        #   ensures newly-pending trades still wait for a reliable quote and do
+        #   not get immediately resolved on low-quality data, while positions
+        #   stuck for days (Kite LTP offline) are eventually unblocked.
+        _MIN_PENDING_HOURS_FOR_FALLBACK = 24.0
+        tier1_ok = (dq in ("LIVE", "NEAR_LIVE") and quote > 0
+                    and not rec.get("error"))
+        tier2_ok = (dq not in ("", "UNAVAILABLE", "ERROR")
+                    and quote > 0 and not rec.get("error")
+                    and _ep_pending_hours >= _MIN_PENDING_HOURS_FOR_FALLBACK)
+        if not (tier1_ok or tier2_ok):
             continue
         qty = int(trade.get("quantity") or 0)
         rule = str(trade.get("exit_rule") or "PENDING_DATA_RESOLVED")

@@ -1,0 +1,230 @@
+PHASE 0 HARD VERIFICATION — LOCK CURRENT AUTHORITY, SETTINGS, EOD, LEGACY STORES BEFORE ANY NEW ARCHITECTURE WORK
+
+Use APEXQUANT_FULL_SYSTEM_PHASE_AGENT_UI_ARCHITECTURE_INVENTORY.md as the controlling inventory.
+
+Do not implement new architecture yet.
+Do not create migrations yet.
+Do not change strategy thresholds.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+The full inventory found several critical inconsistencies:
+- Production capital currently reports ₹500,000, not the earlier ₹100,000 target.
+- Auto paper entries and bootstrap are enabled in production.
+- Active universe is still NIFTY 50, not low-price IT/Infra/Bank.
+- At least one open Phase 20 position was observed after market hours.
+- Multiple legacy trade/portfolio stores exist.
+- Closed-trade immutability is intended but not DB-proven.
+- Separate intraday-trading-bot code contains live-order-capable abstractions and must remain quarantined.
+- Intraday candles and per-trade high-water tracking tables do not exist yet.
+
+GOAL:
+Before any multi-agent/intraday logic implementation, produce a hard verification and lock report that resolves current production truth and authority boundaries.
+
+TASK 1 — CURRENT PRODUCTION SETTINGS LOCK
+
+Read production only.
+
+Verify and report:
+- configured_initial_capital
+- current cash
+- auto_paper_entries
+- bootstrap_paper_enabled
+- bootstrap confirmation timestamp
+- active universe mode
+- active symbol count
+- LTIM active/inactive status
+- custom low-price universe availability
+- max daily trades
+- max concurrent positions
+- no-new-entry cutoff
+- market-close exit time
+- post-close force-exit setting/status
+
+Clearly state:
+- current production value
+- expected value from operator plan, if known
+- whether this is configuration drift
+- recommended operator decision required
+
+TASK 2 — OPEN POSITION / EOD TRACE INVESTIGATION
+
+Investigate the open TRENT or any other open Phase 20 position observed after market hours.
+
+For each open position:
+- trade_id
+- symbol
+- quantity
+- entry_time_ist
+- entry_price
+- trigger_source
+- status
+- why still OPEN
+- whether MARKET_CLOSE_EXIT attempted
+- whether POST_CLOSE_FORCE_EXIT attempted
+- whether EXIT_PENDING exists
+- whether MARKET_CLOSE_EXIT_BLOCKED exists
+- scheduler trace around 15:20 and 15:30
+- pipeline events
+- replay trace
+- portfolio impact
+
+Do not silently close or mutate yet unless explicitly approved.
+If urgent cleanup is required, present the exact operator action separately.
+
+TASK 3 — CANONICAL AUTHORITY LOCK
+
+Prove and document the only current authorities:
+
+- canonical paper ledger
+- canonical portfolio projection
+- canonical scan state
+- canonical pipeline event stream
+- canonical Phase 20 settings
+- canonical EOD status
+
+For every competing/legacy store:
+- paper_trades
+- paper_portfolio
+- experimental_paper_trades
+- portfolio_events
+- portfolio_snapshots
+- phase11_price_snapshots
+- Phase 11 capital topups
+
+State:
+- owner
+- current use
+- whether any UI page reads it
+- whether it can conflict with Phase 20
+- quarantine / bridge / retire recommendation
+
+TASK 4 — WRITER TRACE
+
+Trace all writers to:
+- phase20_paper_trades
+- paper_trades
+- experimental_paper_trades
+- portfolio_events
+- portfolio_snapshots
+- phase20_settings
+
+For each writer:
+- file/function
+- what it writes
+- whether it is active
+- whether it can run in production
+- whether it is mutating canonical state
+- safety recommendation
+
+TASK 5 — CLOSED TRADE IMMUTABILITY
+
+The inventory says completed trade immutability is intended but not DB-proven.
+
+Verify:
+- Can any code update a CLOSED Phase 20 trade?
+- Can any code delete a CLOSED Phase 20 trade?
+- Are generic update/delete helpers reachable from routes/jobs?
+- Is there a DB trigger or constraint protecting CLOSED rows?
+- Is there an audit trail for changes?
+
+Recommend:
+- storage-level immutable-close trigger/policy
+- allowed exceptions, if any
+- audit event requirement
+
+Do not implement yet. Just propose exact policy.
+
+TASK 6 — LIVE ORDER QUARANTINE
+
+Search the entire repository for:
+- place_order
+- modify_order
+- cancel_order
+- kite.order
+- order_place
+- broker_order
+- LIVE_EXECUTION
+
+Report:
+- every file/function found
+- whether it is under ApexQuant production API path or legacy intraday-trading-bot
+- whether any production route can reach it
+- whether any scheduler/agent can reach it
+- quarantine status
+
+Confirm:
+- current ApexQuant Phase 20 path is paper-only
+- legacy order-capable modules are not imported into production authority path
+- no live broker order API is called
+
+TASK 7 — AGENT RUNTIME PROOF
+
+For current production, verify:
+- which framework agents are actually running
+- AgentRegistry contents
+- SnapshotBus topics
+- topic freshness
+- agent heartbeat
+- whether Market Data / Market Intelligence / Strategy / Risk / AI Decision / Execution / Learning / Knowledge / Supervisor are active or only code-present
+
+Do not assume source code means runtime activation.
+
+TASK 8 — UI SOURCE AUDIT FOR CRITICAL PAGES
+
+For these pages:
+- Mission Control
+- AI Paper Trader
+- Portfolio / Risk Analytics
+- Live Data Health
+- System Readiness
+- Agent Operations
+- Mobile Positions / AI Ops
+
+Report:
+- backend routes used
+- canonical vs legacy source
+- stale/cache behavior
+- whether it can show old/open/closed positions incorrectly
+- whether quantity comes from Phase 20 ledger
+- whether EOD/pending/open warnings are visible
+
+TASK 9 — OPERATOR DECISION TABLE
+
+Create a table of decisions needed before architecture finalization:
+
+1. Capital: ₹100,000 or ₹500,000?
+2. Active universe: NIFTY 50 or low-price IT/Infra/Bank?
+3. Auto paper entries: keep enabled or pause until EOD proof?
+4. Bootstrap: keep enabled or pause?
+5. What to do with open TRENT/other positions?
+6. Which legacy stores to quarantine/retire?
+7. Intraday candle provider source?
+8. Autoscale vs always-on worker?
+9. Profit-lock defaults?
+10. Future live-order boundary?
+
+TASK 10 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE0_HARD_VERIFICATION_AND_AUTHORITY_LOCK_REPORT.md
+
+Include:
+1. Current production settings truth.
+2. EOD/open-position trace.
+3. Canonical authority map.
+4. Legacy store quarantine plan.
+5. Writer trace.
+6. Closed-trade immutability gap.
+7. Live-order quarantine proof.
+8. Agent runtime proof.
+9. UI source audit.
+10. Operator decision table.
+11. Final recommendation:
+   - SAFE TO PROCEED TO PHASE 1
+   - SAFE WITH WARNINGS
+   - BLOCKED
+12. Confirmation no code was changed.
+13. Confirmation no live orders.

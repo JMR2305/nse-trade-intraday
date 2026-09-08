@@ -1,0 +1,236 @@
+TASK #944 — POST-PUBLISH PRODUCTION VERIFICATION ONLY
+
+IMPORTANT:
+
+The Replit deployment panel already shows:
+PUBLISHED
+
+Do NOT republish again.
+
+Do NOT create another deployment.
+
+Perform the remaining POST-PUBLISH READ-ONLY verification against the currently
+running production deployment.
+
+GOAL:
+
+Determine exactly which commit/build is running in production and verify that
+Task #941 + Task #942 runtime changes are actually present.
+
+DO NOT:
+- republish
+- trigger Phase 5A
+- trigger Phase 5B/5C
+- trigger a scan
+- retry/replay/backfill pre-open
+- refresh universe
+- place trades
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- modify portfolio/ledger/settings
+- modify historical Task #930 evidence
+
+TASK 1 — CURRENT PRODUCTION IDENTITY
+
+READ ONLY:
+
+GET /api/health/details
+
+Report exactly:
+
+environment
+git_commit
+build_id
+deployment_id
+runtime_timestamp
+
+Also report:
+
+CURRENT_WORKSPACE_HEAD
+TASK_941_MERGE_COMMIT
+TASK_942_MERGE_COMMIT
+CURRENT_VISIBLE_GIT_COMMIT
+
+Do not assume the visible Git HEAD is the deployed runtime.
+
+TASK 2 — DETERMINE DEPLOYMENT SOURCE
+
+Prove which source commit produced the currently published deployment.
+
+If production git_commit differs from the latest documentation-only commit:
+that is acceptable only if the production commit contains the required Task
+#941/#942 runtime code.
+
+Create:
+
+DEPLOYED_SOURCE_COMMIT = <SHA>
+DEPLOYED_BUILD_ID = <build>
+
+TASK 3 — VERIFY TASK #941 IS IN PRODUCTION
+
+Without triggering Phase 5A, source/runtime inspect the deployed build and prove:
+
+1. Custom-universe NSE provider scope = ALL
+2. hard-coded NIFTY cannot override custom-universe provider scope
+3. provider cache is isolated by query scope
+4. preopen_collection_outcomes support exists
+5. every expected symbol receives an immutable outcome
+6. missing provider rows do not create fabricated snapshots
+7. NSE timestamps are parsed as Asia/Kolkata
+8. missing/malformed/future/>=300s timestamps fail stale
+9. MATCH requires exact expected/live/persisted parity
+10. freeze independently validates exact batch/outcomes/liveness
+
+For each item return:
+PASS / FAIL
+plus file/function evidence.
+
+TASK 4 — VERIFY TASK #942 IN PRODUCTION
+
+READ ONLY browser/source verification.
+
+Confirm the Pre-Open UI distinguishes:
+
+SESSION STATE
+
+from:
+
+CERTIFIED COLLECTION STATE
+
+An incomplete batch must not look certified merely because the session itself
+is Frozen.
+
+Return:
+PASS / FAIL
+
+TASK 5 — HISTORICAL AUGUST 26 SESSION
+
+READ ONLY.
+
+Confirm:
+
+session =
+preopen-2026-08-26-ccb21a
+
+remains historical incomplete evidence.
+
+Do not retry/replay/backfill/update it.
+
+Also reconcile the historical 3-symbol discrepancy if already proven:
+
+Earlier reports disagree between:
+
+COALINDIA / NTPC / WIPRO
+
+and
+
+COALINDIA / GAIL / NTPC
+
+Read the immutable persisted batch/outcome rows and report:
+
+AUTHORITATIVE_COLLECTED_3 = [...]
+
+Do not modify history.
+
+TASK 6 — SCHEMA PRESENCE
+
+READ ONLY.
+
+Confirm the production schema contains the additive Task #941 outcome-storage
+support required by the deployed code.
+
+Specifically verify:
+preopen_collection_outcomes
+
+and required indexes/columns if applicable.
+
+No migration may be run during this check.
+
+TASK 7 — SAFETY BASELINE
+
+Confirm:
+
+active universe = CUSTOM_LOW_PRICE_SECTOR
+active count = 23
+mappings = 23/23
+
+automatic paper entries = false
+entry confirmation = null
+bootstrap = false
+automatic exits = true
+controlled execution = disabled
+execution_allowed = false
+live broker orders = disabled
+mode = PAPER_TRADING
+
+portfolio source = phase20_ledger
+open positions = 0
+EXIT_PENDING = 0
+six historical closed trades preserved
+
+TASK 8 — KITE / MARKET DATA
+
+READ ONLY.
+
+Confirm:
+
+Kite token valid
+Kite connected/authenticated
+mock mode false
+
+If market is open:
+current quote coverage = 23/23
+provider = ZERODHA_KITE
+fallback/stale/synthetic/unavailable = 0
+
+Do not trigger a scan to obtain these values.
+
+TASK 9 — NO-MUTATION PROOF
+
+Confirm this verification caused:
+
+manual scans = 0
+Phase5A triggers = 0
+retries = 0
+replays = 0
+broker orders = 0
+settings mutations = 0
+portfolio/ledger mutations = 0
+
+TASK 10 — NEXT NATURAL SESSION DECISION
+
+If Tasks #941/#942 are definitely present in the currently deployed production
+runtime:
+
+return:
+
+A. TASK #944 PASS — CURRENT PRODUCTION READY FOR NEXT NATURAL PRE-OPEN
+
+Do not republish.
+
+If production is still running a pre-Task-941 build:
+
+return:
+
+B. TASK #944 FAIL — TASK #941/#942 NOT DEPLOYED
+
+and identify the exact clean runtime commit that needs to be published.
+
+Do NOT publish it automatically.
+
+OUTPUT:
+
+1. TASK_944_POST_PUBLISH_RUNTIME_VERIFICATION.md
+2. TASK_944_RUNTIME_IDENTITY_AND_SAFETY.md
+3. TASK_944_HISTORICAL_3_SYMBOL_RECONCILIATION.md
+4. TASK_944_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL RULE:
+
+The app is already published.
+
+Do not click Republish merely because the Agent text says publishing is ready.
+
+First prove what is actually running.

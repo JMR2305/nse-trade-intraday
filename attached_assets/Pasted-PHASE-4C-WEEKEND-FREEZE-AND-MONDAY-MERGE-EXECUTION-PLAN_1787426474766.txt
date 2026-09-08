@@ -1,0 +1,136 @@
+PHASE 4C — WEEKEND FREEZE AND MONDAY MERGE EXECUTION PLAN
+
+Use these controlling reports:
+- APEXQUANT_PHASE1G_POST_PUBLISH_UPSERT_HARDENING_VERIFICATION_REPORT.md
+- APEXQUANT_PHASE2D_ADVISORY_BOT_MERGE_READINESS_PACKAGE.md
+- APEXQUANT_PHASE3B_DISABLED_ADVISORY_INTEGRATION_SAFETY_REVIEW.md
+- APEXQUANT_PHASE4B_CONTROLLED_PAPER_ENTRY_SAFETY_REVIEW.md
+
+Do not code new features.
+Do not merge to main.
+Do not deploy to production.
+Do not enable advisory flags.
+Do not enable controlled-entry flags.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Goal:
+Create the final Monday execution plan and branch-freeze package.
+
+TASK 1 — BRANCH MAP
+
+Document all current branches and their status:
+
+1. main
+- production-safe baseline
+- custom universe active
+- auto entries disabled
+- bootstrap disabled
+
+2. phase2a-advisory-multi-bot-logic
+- advisory core
+- safe for later merge review
+- not merged
+- not deployed
+
+3. phase3a-advisory-integration-disabled
+- disabled API/UI/manual runner
+- safe for Monday manual-test prep
+- not merged
+- not deployed
+
+4. phase4a-controlled-paper-entry-framework-disabled
+- disabled controlled-entry readiness/dry-run framework
+- safe for Monday review
+- not merged
+- not deployed
+
+TASK 2 — FREEZE CONFIRMATION
+
+Confirm no further feature coding is required before Monday.
+
+Confirm:
+- all advisory flags disabled
+- all controlled-entry flags disabled
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- no scheduler hook
+- no execution endpoint
+- no production deployment
+- no merge
+
+TASK 3 — MONDAY SEQUENCE
+
+Create exact Monday sequence:
+
+A. Before market open:
+- confirm production health
+- confirm settings
+- confirm positions=[]
+- confirm active universe CUSTOM_LOW_PRICE_SECTOR
+
+B. After first scan completes, around 09:30 IST:
+- run Phase 1H first custom-universe scan checks
+
+C. After 15:20 IST:
+- run EOD status and EOD outcomes checks
+
+D. If Phase 1H passes:
+- operator reviews merge order
+- merge advisory core first
+- then disabled advisory integration
+- then disabled controlled-entry framework
+- deployment remains separate approval
+
+E. If Phase 1H fails:
+- do not merge
+- do not deploy
+- do not enable anything
+- produce blocker report
+
+TASK 4 — MERGE ORDER AND GUARDS
+
+Define safe merge order:
+
+1. phase2a-advisory-multi-bot-logic
+2. phase3a-advisory-integration-disabled
+3. phase4a-controlled-paper-entry-framework-disabled
+
+Before each merge, rerun:
+- Phase 0C safety tests
+- custom universe tests
+- advisory tests
+- integration tests
+- controlled-entry tests
+- TypeScript/API/UI tests
+- protected-file diff guard
+
+After each merge, confirm:
+- no production deploy
+- flags default disabled
+- no scheduler hook
+- no execution endpoint
+- auto entries still false
+- bootstrap still false
+
+TASK 5 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE4C_WEEKEND_FREEZE_AND_MONDAY_MERGE_PLAN.md
+
+Include:
+1. Branch map.
+2. Freeze confirmation.
+3. Monday test sequence.
+4. Merge order.
+5. Test commands.
+6. Rollback plan.
+7. Conditions for GO.
+8. Conditions for NO-GO.
+9. Confirmation no new feature coding.
+10. Confirmation no merge/deploy/enablement done now.

@@ -2213,7 +2213,6 @@ export interface TradeDecision {
   historical_expectancy: number;
   historical_profit_factor: number;
   historical_win_rate: number;
-  historical_sharpe: number;
   pattern_match_pct: number;
   historical_trades: number;
   best_pattern: string;
@@ -2744,6 +2743,31 @@ export interface LiveDataScanRunResult {
   retry_in_s?: number;
   /** Human-readable error detail (only present on failure responses) */
   error?: string;
+}
+
+/**
+ * Server-recognised operational context; free-form text is rejected.
+ */
+export type ScanTriggerAuditContextApprovalContext = typeof ScanTriggerAuditContextApprovalContext[keyof typeof ScanTriggerAuditContextApprovalContext];
+
+
+export const ScanTriggerAuditContextApprovalContext = {
+  OPERATOR_REQUEST: 'OPERATOR_REQUEST',
+  RELEASE_VALIDATION: 'RELEASE_VALIDATION',
+  INCIDENT_RESPONSE: 'INCIDENT_RESPONSE',
+} as const;
+
+/**
+ * Optional concise labels for an authorized manual/API scan trigger. The server derives the authenticated actor and request ID; do not send credentials, tokens, cookies, or secrets in this object.
+ */
+export interface ScanTriggerAuditContext {
+  /** Server-recognised operational context; free-form text is rejected. */
+  approval_context?: ScanTriggerAuditContextApprovalContext;
+  /**
+     * Structured approval/audit ID; free-form text is rejected.
+     * @pattern ^(?!API-|KEY-|TOKEN-|SECRET-)[A-Z]{2,12}-(?:\d{1,8}|[A-Z0-9]{1,12}-20\d{2}-\d{2}-\d{2})$
+     */
+  audit_reference?: string;
 }
 
 export interface ErrorResponse {

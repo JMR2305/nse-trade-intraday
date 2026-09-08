@@ -1,0 +1,314 @@
+RTV-3C — CLEAN TASK #918 RELEASE BRANCH + CONTROLLED DEPLOYMENT
+
+Use:
+- TASK_918_SUMMARY.md
+- RTV3B_CONTROLLED_DEPLOYMENT_REPORT.md
+- RTV3B_RUNTIME_IDENTITY_AND_SAFETY.md
+- RTV3B_NEXT_NATURAL_SESSION_GATE.md
+- RTV3A_PHASE5A_10_OF_23_ROOT_CAUSE.md
+- RTV3A_FIX_AND_TEST_REPORT.md
+
+CURRENT PRODUCTION BASE:
+
+2e54e5e2f23f8ac5df86c9ec97aceeb3c8426832
+
+CURRENT MIXED BRANCH HEAD:
+
+8317ae3cfad0f907d76cf903d90ee444d7cf9ebe
+
+TASK #918 IMPLEMENTATION COMMIT:
+
+fc550ff3b728574fdfbd8f6326955e62312fbff4
+
+GOAL:
+
+Create a clean deployment candidate starting from the current production commit
+and containing ONLY the verified Task #918 Phase 5A universe-coverage repair and
+its directly required tests/schema/status-model changes.
+
+DO NOT publish the current mixed branch.
+
+DO NOT include unrelated:
+- Mission Control changes
+- dashboard build identity changes
+- deployment/build script changes
+- state.json/gitignore changes
+- prior RTV report/evidence commits unless required as documentation only
+- unrelated database initialization
+- unrelated runtime changes
+
+DO NOT:
+- enable automatic entries
+- enable bootstrap
+- enable live broker orders
+- place broker orders
+- change universe
+- change capital
+- reset portfolio
+- modify historical ledger
+- manually trigger Phase 5A/5B/5C
+- manually trigger scans
+
+TASK 1 — CREATE CLEAN RELEASE BRANCH
+
+Create a new branch from exactly:
+
+2e54e5e2f23f8ac5df86c9ec97aceeb3c8426832
+
+Suggested name:
+
+release/task918-phase5a-coverage
+
+Confirm:
+- base SHA exact
+- clean working tree
+- no post-production unrelated commits present
+
+TASK 2 — IDENTIFY TASK #918 REQUIRED DIFF
+
+Inspect commit:
+
+fc550ff3b728574fdfbd8f6326955e62312fbff4
+
+and any strictly required prerequisite commits.
+
+Task #918 runtime scope should be limited to:
+
+- durable active-universe resolution
+- exact requested-symbol propagation
+- provider-cache isolation by normalized requested symbol set
+- expected/returned/missing/duplicate/malformed/unexpected coverage evidence
+- COVERAGE_INCOMPLETE handling
+- exact persisted-vs-expected symbol-set freeze validation
+- related status models
+- directly related tests
+
+Expected runtime files include:
+
+artifacts/api-server/src/python/config.py
+artifacts/api-server/src/python/preopen_db.py
+artifacts/api-server/src/python/preopen_engine.py
+artifacts/api-server/src/python/preopen_intelligence_tick.py
+artifacts/api-server/src/python/preopen_provider_manager.py
+artifacts/api-server/src/python/preopen_scheduler.py
+
+Do not assume every file in fc550ff3 is required.
+
+TASK 3 — CHERRY-PICK / PORT ONLY REQUIRED CHANGES
+
+Prefer the smallest safe method:
+
+A. clean cherry-pick if fc550ff3 contains only approved Task #918 scope
+
+or
+
+B. selectively port the approved hunks/files if the commit contains unrelated evidence or changes
+
+Do not cherry-pick unrelated commits merely to satisfy dependencies.
+
+If Task #918 genuinely depends on another runtime change:
+document it and justify it explicitly before adding it.
+
+TASK 4 — CLEAN DIFF REVIEW
+
+Compare:
+
+production base
+→ clean Task #918 candidate
+
+List EVERY changed file.
+
+Classify each:
+
+- Task #918 runtime
+- Task #918 test
+- Task #918 schema/status model
+- documentation/evidence
+- unrelated
+
+Required:
+unrelated runtime files = 0
+
+Specifically require NO changes to:
+
+- MissionControl.tsx
+- dashboard build identity files
+- build.mjs unless Task #918 strictly requires it
+- scripts/deploy-build.sh
+- state.json
+- generic deployment configuration
+- strategy logic
+- entry logic
+- broker logic
+- portfolio logic
+
+TASK 5 — PROVE THE ROOT-CAUSE FIX IS PRESENT
+
+Verify clean candidate implements:
+
+1. active custom universe resolved before provider selection
+2. exact 23-symbol set passed to provider manager
+3. provider cache keyed by normalized requested symbol set
+4. DEFAULT_WATCHLIST cannot substitute for readable CUSTOM_LOW_PRICE_SECTOR
+5. partial collections produce COVERAGE_INCOMPLETE
+6. coverage evidence records:
+   - expected
+   - returned
+   - normalized
+   - missing
+   - duplicate
+   - malformed
+   - unexpected
+7. verified batch requires complete expected coverage
+8. freeze compares exact symbol identity, not just row count
+
+TASK 6 — TEST GATE
+
+Run:
+
+- Phase 5A engine/lifecycle/provider/scheduler/persistence/coverage
+- Phase 20 safety
+- daily session and pipeline
+- canonical portfolio
+- live-readiness / overnight-entry-safety
+- scan history/status
+- custom-universe
+- API build
+- API TypeScript
+- workspace TypeScript
+- Python compilation
+
+Expected prior reference:
+169 Phase 5A-related tests passed
+62 Phase20 safety passed
+27 daily-session passed
+32 portfolio passed
+67 readiness/safety passed
+89 scan/custom-universe passed
+
+Do not weaken tests.
+
+TASK 7 — SCHEMA SAFETY
+
+Inspect development → production schema diff.
+
+Require:
+- no destructive SQL
+- no DROP
+- no TRUNCATE
+- no table recreation
+- no historical evidence rewrite
+
+If Task #918 requires additive coverage fields:
+show exact SQL and classify each statement.
+
+TASK 8 — PRESERVE FAILED RTV-3 EVIDENCE
+
+Do not modify:
+
+session:
+preopen-2026-08-25-9b8340
+
+batch:
+collection-6073abbd096c44e7b4e4b51a205696ba
+
+Confirm hashes/evidence remain unchanged where available.
+
+TASK 9 — CREATE APPROVED RELEASE COMMIT
+
+Only after scope + tests + schema pass:
+
+APPROVED_DEPLOY_COMMIT =
+<full SHA>
+
+EXPECTED_BUILD_ID =
+apexquant-<first 12 SHA chars>
+
+This commit must contain only the approved Task #918 release scope.
+
+TASK 10 — CONTROLLED PRODUCTION PUBLISH
+
+Publish only the clean candidate.
+
+Do not manually trigger any pre-open lifecycle or scan after deployment.
+
+TASK 11 — RUNTIME IDENTITY GATE
+
+Immediately verify production:
+
+environment = production
+git_commit = APPROVED_DEPLOY_COMMIT
+build_id = EXPECTED_BUILD_ID
+deployment_id = present
+runtime_timestamp = current
+
+Any mismatch:
+STOP.
+
+TASK 12 — POST-DEPLOY SAFETY
+
+READ ONLY.
+
+Require:
+- CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- mappings = 23/23
+- automatic entries = false
+- confirmation = null
+- bootstrap = false
+- automatic exits = true
+- live broker orders = disabled
+- open rows = 0
+- EXIT_PENDING rows = 0
+- six historical CLOSED rows preserved
+- realized P&L = -278.74
+- canonical portfolio parity preserved
+
+TASK 13 — KITE STATUS
+
+READ ONLY.
+
+Check:
+- credentials present
+- token stored
+- token valid/unexpired
+- connected/authenticated
+- login required
+
+Do not manually login or create credentials as part of this deployment.
+
+TASK 14 — DO NOT RUN TASK #920 TODAY
+
+The current time is already after today's natural Phase 5A window.
+
+Do not manually simulate today's validation.
+
+After clean deployment:
+STOP.
+
+Task #920 must run only during the next natural scheduled NSE session.
+
+TASK 15 — OUTPUT
+
+Create:
+
+1. RTV3C_CLEAN_RELEASE_SCOPE_REPORT.md
+2. RTV3C_CONTROLLED_DEPLOYMENT_REPORT.md
+3. RTV3C_RUNTIME_IDENTITY_AND_SAFETY.md
+4. RTV3C_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL VERDICT:
+
+A. RTV-3C DEPLOYMENT PASS — TASK #920 READY
+B. CLEAN SCOPE COULD NOT BE ISOLATED
+C. TEST FAILURE
+D. SCHEMA FAILURE
+E. DEPLOYMENT IDENTITY FAILURE
+F. SAFETY REGRESSION
+G. KITE LOGIN REQUIRED
+
+FINAL RULE:
+
+Do not publish the mixed branch.
+
+Only a clean Task #918 release candidate may be deployed.

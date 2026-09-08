@@ -23,7 +23,7 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-PHASE11_DEFAULT_CAPITAL    = 50_000.0   # ₹50,000 starting capital
+PHASE11_DEFAULT_CAPITAL    = 100_000.0  # canonical paper-capital baseline
 PHASE11_TOPUP_THRESHOLD    = 10_000.0   # Mode B: top-up when cash < this
 PHASE11_CAPITAL_MODE_KEY   = "phase11_capital_mode"        # "A" or "B"
 PHASE11_STARTING_CAP_KEY   = "phase11_starting_capital"
@@ -141,20 +141,19 @@ def get_capital_config() -> Dict[str, Any]:
 def update_capital_config(patch: Dict[str, Any]) -> Dict[str, Any]:
     """Update capital mode settings."""
     from phase20_store import kv_set
+    guarded_keys = {"starting_capital", "topup_target"}.intersection(patch)
+    if guarded_keys:
+        raise ValueError(
+            f"{', '.join(sorted(guarded_keys))} is guarded; "
+            "use the Phase 20 capital migration endpoint"
+        )
     if "mode" in patch:
         mode = str(patch["mode"]).upper()
         if mode not in ("A", "B"):
             raise ValueError("mode must be 'A' or 'B'")
         kv_set(PHASE11_CAPITAL_MODE_KEY, mode)
-    if "starting_capital" in patch:
-        val = float(patch["starting_capital"])
-        if val < 1000:
-            raise ValueError("starting_capital must be ≥ 1000")
-        kv_set(PHASE11_STARTING_CAP_KEY, val)
     if "topup_threshold" in patch:
         kv_set(PHASE11_TOPUP_THRESH_KEY, float(patch["topup_threshold"]))
-    if "topup_target" in patch:
-        kv_set(PHASE11_TOPUP_TARGET_KEY, float(patch["topup_target"]))
     return get_capital_config()
 
 
@@ -326,6 +325,29 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
     if not canon_positions:
         return []
 
+    # Build a provenance index from the phase20 ledger so each position row
+    # can include trigger_source and fill_model — needed for the BOOTSTRAP badge
+    # in the frontend.  Fails silently so normal positions are never blocked.
+    _provenance: Dict[str, Dict[str, Any]] = {}
+    try:
+        from phase20_executor import get_open_trades as _get_open_trades
+        for _t in _get_open_trades():
+            _sym = str(_t.get("symbol") or "").upper()
+            if _sym:
+                _provenance[_sym] = {
+                    "trigger_source": _t.get("trigger_source"),
+                    "fill_model":     _t.get("fill_model"),
+                    "allocation_override": (
+                        (_t.get("evidence") or {}).get(
+                            "quality_allocation_override"
+                        )
+                        if isinstance(_t.get("evidence"), dict)
+                        else None
+                    ),
+                }
+    except Exception:
+        pass
+
     # Try to get regime from latest scan
     regime = _safe(lambda: _get_current_regime(), "UNKNOWN")
 
@@ -343,6 +365,7 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
         stop_loss    = float(pos.get("stop_loss") or avg_price * 0.97)
         target       = float(pos.get("target") or avg_price * 1.06)
         buy_ts       = pos.get("opened_at") or ""
+        age_ts_src   = pos.get("age_ts_source")   # set by canonical_portfolio fallback chain
         strategy     = pos.get("strategy_id") or "UNKNOWN"
         confidence   = 0.0
         risk_level   = "MEDIUM"
@@ -355,18 +378,49 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
                         else cur_val - cost_basis)
         pnl_pct      = (pnl / cost_basis * 100) if cost_basis > 0 else 0.0
 
-        # Holding duration
-        holding_mins = 0
+        # Holding duration — clamped to >= 0 to absorb clock-skew / tz bugs.
+        # When no usable timestamp exists (opened_at is None/empty and
+        # age_ts_source is None), holding_days is explicitly set to None so
+        # the UI shows "—" rather than a misleading 0.
+        holding_mins: int = 0
+        holding_days: Optional[float] = None
         if buy_ts:
             try:
                 bt = datetime.fromisoformat(str(buy_ts).replace("Z", "+00:00"))
-                holding_mins = int((now_ts - bt).total_seconds() / 60)
+                if bt.tzinfo is None:
+                    bt = bt.replace(tzinfo=timezone.utc)
+                holding_mins = max(0, int((now_ts - bt).total_seconds() / 60))
+                holding_days = round(holding_mins / 1440, 2)
             except Exception:
                 pass
 
         # Current expected return (live price vs target)
         cur_exp_return = ((target - current_price) / current_price * 100) if current_price > 0 else 0.0
 
+        # Near-TIME_EXIT warning: flag positions within 2 days of the max holding
+        # threshold so the UI can highlight them amber.
+        _max_holding_days: int = 10  # default — matches phase20_store default
+        try:
+            from phase20_store import get_settings as _gs
+            _max_holding_days = int(_gs().get("max_holding_days", 10) or 10)
+        except Exception:
+            pass
+        # Guard against None holding_days (no usable timestamp) so the
+        # near-exit comparison never raises TypeError.
+        near_time_exit = (holding_days is not None
+                          and holding_days >= (_max_holding_days - 2))
+
+        _prov = _provenance.get(str(sym).upper() if sym else "", {})
+        _allocation = (
+            _prov.get("allocation_override")
+            if isinstance(_prov.get("allocation_override"), dict)
+            else {}
+        )
+        _exposure_after = (
+            _allocation.get("exposure_after")
+            if isinstance(_allocation.get("exposure_after"), dict)
+            else {}
+        )
         result.append({
             "stock":                  sym,
             "buy_time":               buy_ts,
@@ -385,7 +439,31 @@ def get_open_positions_detail() -> List[Dict[str, Any]]:
             "market_regime":          regime,
             "risk_level":             risk_level,
             "holding_mins":           holding_mins,
+            "holding_days":           holding_days,
+            # Which timestamp field was used: "fill_ts" (normal), "signal_ts" /
+            # "snapshot_ts" / "created_at" (fallback), or None (unavailable).
+            "age_ts_source":          age_ts_src,
             "holding_label":          _fmt_holding(holding_mins),
+            "near_time_exit":         near_time_exit,
+            "max_holding_days":       _max_holding_days,
+            # Bootstrap provenance — present only when trigger_source="BOOTSTRAP_AUTO"
+            "trigger_source":         _prov.get("trigger_source"),
+            "fill_model":             _prov.get("fill_model"),
+            "allocation_tier":        _allocation.get("tier"),
+            "allocation_reason":      _allocation.get("reason"),
+            "allocation_requested_multiplier": _allocation.get(
+                "requested_multiplier"),
+            "allocation_effective_multiplier": _allocation.get(
+                "effective_multiplier"),
+            "allocation_base_notional": _allocation.get("base_notional"),
+            "allocation_final_notional": _allocation.get("final_notional"),
+            "allocation_risk_amount": _allocation.get("final_risk_amount"),
+            "allocation_risk_pct": _allocation.get("final_risk_pct"),
+            "allocation_limiting_caps": _allocation.get("limiting_caps") or [],
+            "allocation_stock_exposure_pct": _exposure_after.get("stock_pct"),
+            "allocation_sector_exposure_pct": _exposure_after.get("sector_pct"),
+            "allocation_portfolio_exposure_pct": _exposure_after.get(
+                "portfolio_deployed_pct"),
         })
 
     result.sort(key=lambda x: x["current_pnl_pct"], reverse=True)
@@ -406,10 +484,20 @@ def get_closed_positions_detail(limit: int = 100) -> List[Dict[str, Any]]:
     except Exception:
         trades = []
 
-    # Also pull from phase20 ledger if available
-    phase20_trades = _safe(lambda: _get_phase20_closed_trades(limit), [])
-    if phase20_trades:
-        trades = phase20_trades
+    # Phase 20 ledger takes priority when present (authoritative for bootstrap &
+    # all Phase 20 auto-entries).  Also read the legacy paper_trades table and
+    # merge, deduplicating by (symbol, buy_ts) so nothing appears twice.
+    ledger_trades = _safe(lambda: _get_phase20_ledger_closed_trades(limit), [])
+    legacy_trades = _safe(lambda: _get_phase20_closed_trades(limit), [])
+
+    if ledger_trades:
+        # Prefer ledger rows; supplement with any legacy rows not already covered.
+        ledger_keys = {(r["symbol"], r.get("buy_ts", "")) for r in ledger_trades}
+        extra = [r for r in legacy_trades
+                 if (r["symbol"], r.get("buy_ts", "")) not in ledger_keys]
+        trades = ledger_trades + extra
+    elif legacy_trades:
+        trades = legacy_trades
 
     closed = []
     for t in trades:
@@ -422,7 +510,15 @@ def get_closed_positions_detail(limit: int = 100) -> List[Dict[str, Any]]:
         symbol      = t.get("symbol", t.get("stock", ""))
         entry_price = float(t.get("entry_price", t.get("buy_price", 0)) or 0)
         exit_price  = float(t.get("price", t.get("exit_price", 0)) or 0)
-        qty         = int(t.get("quantity", t.get("qty", 0)) or 0)
+        # quantity is authoritative when present in either the Phase 20 ledger
+        # or legacy paper-trades history. Leave absent/malformed historical
+        # values as None so the UI can say that the quantity was not recorded,
+        # rather than presenting a made-up zero.
+        raw_qty = t.get("quantity", t.get("qty"))
+        try:
+            qty = int(raw_qty) if raw_qty is not None else None
+        except (TypeError, ValueError):
+            qty = None
         pnl         = float(t.get("pnl", t.get("profit", 0)) or 0)
         pnl_pct     = float(t.get("pnl_pct", t.get("profit_pct", 0)) or 0)
         if pnl_pct == 0 and entry_price > 0 and exit_price > 0:
@@ -438,7 +534,7 @@ def get_closed_positions_detail(limit: int = 100) -> List[Dict[str, Any]]:
         if not lesson and pnl < 0:
             lesson = f"Loss of ₹{abs(pnl):,.0f} ({abs(pnl_pct):.1f}%). Review stop-loss adherence."
 
-        closed.append({
+        row: Dict[str, Any] = {
             "symbol":           symbol,
             "buy_time":         buy_ts,
             "sell_time":        sell_ts,
@@ -453,7 +549,14 @@ def get_closed_positions_detail(limit: int = 100) -> List[Dict[str, Any]]:
             "ai_confidence":    confidence,
             "strategy":         strategy,
             "lesson_learned":   lesson,
-        })
+        }
+        # Pass through Phase 20 provenance fields when present — the dashboard
+        # uses these to render the BOOTSTRAP badge on bootstrap-seeded trades.
+        if t.get("trigger_source"):
+            row["trigger_source"] = t["trigger_source"]
+        if t.get("fill_model"):
+            row["fill_model"] = t["fill_model"]
+        closed.append(row)
 
     closed.sort(key=lambda x: x.get("sell_time", "") or "", reverse=True)
     return closed[:limit]
@@ -476,6 +579,91 @@ def get_recommendation_queue() -> Dict[str, Any]:
     if not items:
         items = _safe(lambda: _get_scan_signal_recs(), []) or []
 
+    # Resolve the canonical scan once. Allocation previews are joined only when
+    # scan id, snapshot timestamp, and settings hash all match the current
+    # recommendation source. A symbol-only join can make a prior scan's sizing
+    # look current, which is not acceptable for operator-facing provenance.
+    _sc: Dict[str, Any] = {}
+    try:
+        from phase15_scan_context import build_scan_context as _bsc
+        _sc = _bsc() or {}
+    except Exception:
+        _sc = {}
+
+    # Merge the latest Phase 20 allocation preview by symbol only after the
+    # provenance match above. These values are explicitly marked as a preview,
+    # never an executed allocation.
+    try:
+        from phase20_store import (
+            get_settings as _p20_get_settings,
+            kv_get as _p20_kv_get,
+        )
+        _entry_eval = _p20_kv_get("last_entry_evaluation") or {}
+        _current_settings = _p20_get_settings() or {}
+        _provenance_matches = (
+            bool(_sc.get("scan_id"))
+            and str(_entry_eval.get("scan_id") or "")
+            == str(_sc.get("scan_id") or "")
+            and bool(_sc.get("snapshot_ts"))
+            and str(_entry_eval.get("snapshot_ts") or "")
+            == str(_sc.get("snapshot_ts") or "")
+            and bool(_current_settings.get("config_hash"))
+            and str(_entry_eval.get("settings_config_hash") or "")
+            == str(_current_settings.get("config_hash") or "")
+        )
+        _allocation_by_symbol = (
+            {
+                str(c.get("symbol") or "").upper(): (
+                    c.get("allocation_override_preview") or {}
+                )
+                for c in (_entry_eval.get("candidates") or [])
+                if c.get("symbol")
+                and isinstance(
+                    c.get("allocation_override_preview"), dict
+                )
+            }
+            if _provenance_matches
+            else {}
+        )
+        for item in items:
+            _allocation = _allocation_by_symbol.get(
+                str(item.get("symbol") or "").upper()
+            )
+            if not _allocation:
+                continue
+            _exposure = (
+                _allocation.get("exposure_after")
+                if isinstance(_allocation.get("exposure_after"), dict)
+                else {}
+            )
+            item.update({
+                "allocation_tier": _allocation.get("tier"),
+                "allocation_reason": _allocation.get("reason"),
+                "allocation_requested_multiplier": _allocation.get(
+                    "requested_multiplier"),
+                "allocation_effective_multiplier": _allocation.get(
+                    "effective_multiplier"),
+                "allocation_base_notional": _allocation.get("base_notional"),
+                "allocation_final_notional": _allocation.get("final_notional"),
+                "allocation_risk_amount": _allocation.get("final_risk_amount"),
+                "allocation_risk_pct": _allocation.get("final_risk_pct"),
+                "allocation_limiting_caps": _allocation.get(
+                    "limiting_caps") or [],
+                "allocation_stock_exposure_pct": _exposure.get("stock_pct"),
+                "allocation_sector_exposure_pct": _exposure.get("sector_pct"),
+                "allocation_portfolio_exposure_pct": _exposure.get(
+                    "portfolio_deployed_pct"),
+                "allocation_preview": True,
+                 "allocation_preview_not_executed": True,
+                 "allocation_scan_id": _entry_eval.get("scan_id"),
+                 "allocation_snapshot_ts": _entry_eval.get("snapshot_ts"),
+                 "allocation_evaluated_at": _entry_eval.get("evaluated_at"),
+                 "allocation_settings_config_hash": _entry_eval.get(
+                     "settings_config_hash"),
+            })
+    except Exception:
+        pass
+
     # Filter: only BUY / STRONG BUY
     items = [i for i in items if i.get("action", "").upper() in
              ("BUY", "STRONG BUY", "STRONG_BUY")]
@@ -486,13 +674,7 @@ def get_recommendation_queue() -> Dict[str, Any]:
     # ── Session-date gate ──────────────────────────────────────────────────
     # When the latest scan is from a previous trading day, the recommendation
     # queue must be cleared so yesterday's BUY items don't appear as active.
-    _is_today_session = True
-    try:
-        from phase15_scan_context import build_scan_context as _bsc
-        _sc = _bsc()
-        _is_today_session = bool(_sc.get("is_today_session", True))
-    except Exception:
-        pass
+    _is_today_session = bool(_sc.get("is_today_session", True))
 
     if not _is_today_session:
         return {
@@ -1138,6 +1320,7 @@ def _get_current_regime() -> str:
 
 
 def _get_phase20_closed_trades(limit: int) -> List[Dict]:
+    """Read closed trades from the legacy paper_trades table (Phase 11 path)."""
     if not _db_available():
         return []
     conn = _connect()
@@ -1173,6 +1356,84 @@ def _get_phase20_closed_trades(limit: int) -> List[Dict]:
             "entry_price": meta.get("entry_price", meta.get("buy_price")),
             "lesson_learned": meta.get("lesson_learned", ""),
             "exit_reason": r[7],
+        })
+    return result
+
+
+def _get_phase20_ledger_closed_trades(limit: int) -> List[Dict]:
+    """Read closed trades from phase20_paper_trades (Phase 20 ledger path).
+
+    These include BOOTSTRAP_AUTO trades and any other Phase 20 paper entries.
+    Returned rows carry ``trigger_source`` and ``fill_model`` so the dashboard
+    can show the BOOTSTRAP badge next to the symbol name.
+    """
+    if not _db_available():
+        return []
+    conn = _connect()
+    try:
+        with conn.cursor() as cur:
+            # Check table exists before querying — graceful if Phase 20 never ran.
+            cur.execute("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.tables
+                    WHERE table_name = 'phase20_paper_trades'
+                )
+            """)
+            if not cur.fetchone()[0]:
+                return []
+            cur.execute("""
+                SELECT trade_id, symbol, fill_price, exit_price, quantity,
+                       realized_pnl, fill_ts, exit_ts, exit_rule,
+                       confidence, strategy_name, trigger_source, fill_model,
+                       stop_loss, target
+                FROM phase20_paper_trades
+                WHERE status = 'CLOSED'
+                ORDER BY exit_ts DESC NULLS LAST
+                LIMIT %s
+            """, (limit,))
+            rows = cur.fetchall()
+    finally:
+        conn.close()
+    result = []
+    for r in rows:
+        trade_id, symbol, fill_price, exit_price, qty, pnl, fill_ts, \
+            exit_ts, exit_rule, confidence, strategy, trigger_source, \
+            fill_model, stop_loss, target = r
+        entry = float(fill_price or 0)
+        ex    = float(exit_price or 0)
+        # Preserve a missing historical quantity as None. A stored quantity,
+        # including 0 from a legacy repair, must not be silently replaced with
+        # a placeholder in the dashboard.
+        try:
+            qty_i = int(qty) if qty is not None else None
+        except (TypeError, ValueError):
+            qty_i = None
+        pnl_f = float(pnl or 0)
+        pnl_pct = 0.0
+        if entry > 0 and ex > 0:
+            pnl_pct = round((ex - entry) / entry * 100, 4)
+        lesson = ""
+        if pnl_f < 0:
+            lesson = (f"Loss of ₹{abs(pnl_f):,.0f} ({abs(pnl_pct):.1f}%). "
+                      "Review stop-loss adherence.")
+        result.append({
+            "symbol":         symbol,
+            "action":         "EXIT",
+            "quantity":       qty_i,
+            "price":          ex,
+            "pnl":            pnl_f,
+            "buy_ts":         fill_ts,
+            "trade_ts":       exit_ts,
+            "reason":         exit_rule or "EXIT",
+            "strategy":       strategy or "UNKNOWN",
+            "confidence":     float(confidence or 0),
+            "entry_price":    entry,
+            "lesson_learned": lesson,
+            "exit_reason":    exit_rule or "EXIT",
+            # Provenance fields — used by dashboard BOOTSTRAP badge
+            "trigger_source": trigger_source,
+            "fill_model":     fill_model,
+            "trade_id":       trade_id,
         })
     return result
 

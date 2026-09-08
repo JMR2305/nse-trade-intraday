@@ -65,14 +65,14 @@ def get_drawdown() -> dict:
     if not is_enabled():
         return disabled_response()
     try:
-        from .performance_engine import load_performance_data, INITIAL_CAPITAL
+        from .performance_engine import load_performance_data, _initial_capital
         from .equity_curve import _points_from_history, _annotate_drawdown, build_equity_curves
         from .drawdown import compute_drawdown_stats
 
         d       = load_performance_data()
         pts     = _points_from_history(d["pnl_history"])
         _annotate_drawdown(pts)
-        stats   = compute_drawdown_stats(pts, INITIAL_CAPITAL)
+        stats   = compute_drawdown_stats(pts, _initial_capital())
 
         curves  = build_equity_curves(d["pnl_history"])
 
@@ -131,7 +131,7 @@ def get_portfolio() -> dict:
     if not is_enabled():
         return disabled_response()
     try:
-        from .performance_engine import load_performance_data, INITIAL_CAPITAL
+        from .performance_engine import load_performance_data, _initial_capital
         from .statistics import compute_sector_allocation
 
         d         = load_performance_data()
@@ -160,7 +160,7 @@ def get_portfolio() -> dict:
             "unrealised_pnl":  round(d["unrealised_pnl"], 2),
             "realised_pnl":    round(d["realised_pnl"], 2),
             "utilisation_pct": round((d["invested"] / total * 100) if total > 0 else 0.0, 2),
-            "initial_capital": round(INITIAL_CAPITAL, 2),
+            "initial_capital": round(_initial_capital(), 2),
             "open_positions":  opens_raw,
             "sector_allocation": sectors,
             "symbol_exposure":   sym_exposure,

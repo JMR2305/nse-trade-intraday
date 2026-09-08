@@ -17,19 +17,52 @@ paper trading — only the storage is separate.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
+try:
+    import fcntl as _fcntl
+    _HAVE_FCNTL = True
+except ImportError:          # Windows — not a supported backtest-worker platform
+    _HAVE_FCNTL = False
+
 from scan_state_store import _connect, db_available
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _RUNS_FILE = os.path.join(_DIR, "backtest_runs.json")
 _TRADES_FILE = os.path.join(_DIR, "backtest_trades.json")
+# Advisory lock file — patchable in tests: set backtest_portfolio._LOCK_FILE.
+_LOCK_FILE = os.path.join(_DIR, "backtest_runs.lock")
 
 _SCHEMA_READY = False
+
+
+@contextlib.contextmanager
+def _file_store_lock():
+    """Cross-process advisory lock for file-store queue admission/lifecycle.
+
+    Uses ``fcntl.flock`` (POSIX exclusive lock) so that two backtest worker
+    *processes* finishing at the same instant cannot both read the same QUEUED
+    row and both promote it, leaving the second QUEUED run without a worker.
+    The DB path uses ``pg_advisory_xact_lock(74230912)`` for the same purpose.
+
+    Falls back silently on non-POSIX platforms (e.g. Windows).
+    Not reentrant — do not call while already holding this lock.
+    """
+    if not _HAVE_FCNTL:
+        yield
+        return
+    # "a" mode: create if absent, never truncates — safe for concurrent opens.
+    with open(_LOCK_FILE, "a") as lf:
+        _fcntl.flock(lf, _fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            _fcntl.flock(lf, _fcntl.LOCK_UN)
 
 
 def _now_iso() -> str:
@@ -108,15 +141,19 @@ def _emergency_mark_failed(run_id: str, error_msg: str) -> None:
                 conn.close()
         except Exception:
             pass                        # DB unavailable even after retry
-    # File-store fallback (also the primary path when DATABASE_URL is absent)
+    # File-store fallback (also the primary path when DATABASE_URL is absent).
+    # _file_store_lock() serialises concurrent *process* calls so two workers
+    # failing at the same instant cannot race on the read-modify-write cycle
+    # and leave one run stuck as RUNNING.
     try:
-        rows = _load(_RUNS_FILE)
-        for r in rows:
-            if r["run_id"] == run_id and r.get("status") not in _guard:
-                r["status"] = "FAILED"
-                r["error"] = error_msg[:500]
-                r["completed_at"] = now
-        _save(_RUNS_FILE, rows)
+        with _file_store_lock():
+            rows = _load(_RUNS_FILE)
+            for r in rows:
+                if r["run_id"] == run_id and r.get("status") not in _guard:
+                    r["status"] = "FAILED"
+                    r["error"] = error_msg[:500]
+                    r["completed_at"] = now
+            _save(_RUNS_FILE, rows)
     except Exception:
         pass                            # truly best-effort — nothing more we can do
 
@@ -236,6 +273,13 @@ MAX_CONCURRENT_BACKTESTS = 2
 _STALE_RUNNING_THRESHOLD_MIN = 30   # RUNNING/CANCEL_REQUESTED with no progress
 _STALE_PENDING_THRESHOLD_MIN = 30   # PENDING with no worker claim
 
+# Watchdog TTL: a RUNNING run that has not completed within this many minutes
+# is assumed dead (OOM-killed, container restart, etc.) and is marked FAILED so
+# the queue can proceed.  The default covers the worst-case production run
+# (~6 min for 5-sym 15m 30d) with a generous safety margin; it can be overridden
+# per call for testing.
+WATCHDOG_TTL_MIN: int = 60
+
 
 def count_active_runs() -> int:
     """Count RUNNING + PENDING + CANCEL_REQUESTED runs."""
@@ -296,16 +340,17 @@ def create_run(config: Dict[str, Any]) -> str:
         finally:
             conn.close()
     else:
-        initial_status = ("QUEUED" if count_active_runs() >= MAX_CONCURRENT_BACKTESTS
-                          else "PENDING")
-        now = _now_iso()
-        rows = _load(_RUNS_FILE)
-        rows.append({"run_id": run_id, "created_at": now,
-                     "status": initial_status, "config": config, "progress": {},
-                     "metrics": None, "missed": None, "validation": None,
-                     "error": None, "started_at": None, "completed_at": None,
-                     "pending_at": now if initial_status == "PENDING" else None})
-        _save(_RUNS_FILE, rows)
+        with _file_store_lock():
+            initial_status = ("QUEUED" if count_active_runs() >= MAX_CONCURRENT_BACKTESTS
+                              else "PENDING")
+            now = _now_iso()
+            rows = _load(_RUNS_FILE)
+            rows.append({"run_id": run_id, "created_at": now,
+                         "status": initial_status, "config": config, "progress": {},
+                         "metrics": None, "missed": None, "validation": None,
+                         "error": None, "started_at": None, "completed_at": None,
+                         "pending_at": now if initial_status == "PENDING" else None})
+            _save(_RUNS_FILE, rows)
     return run_id
 
 
@@ -338,11 +383,12 @@ def update_run(run_id: str, **fields: Any) -> None:
         finally:
             conn.close()
         return
-    rows = _load(_RUNS_FILE)
-    for r in rows:
-        if r["run_id"] == run_id:
-            r.update(fields)
-    _save(_RUNS_FILE, rows)
+    with _file_store_lock():
+        rows = _load(_RUNS_FILE)
+        for r in rows:
+            if r["run_id"] == run_id:
+                r.update(fields)
+        _save(_RUNS_FILE, rows)
 
 
 def complete_run(run_id: str, **fields: Any) -> bool:
@@ -385,14 +431,15 @@ def complete_run(run_id: str, **fields: Any) -> bool:
         finally:
             conn.close()
     # File fallback: reload + conditional update in one write.
-    rows = _load(_RUNS_FILE)
-    applied = False
-    for r in rows:
-        if r["run_id"] == run_id and r.get("status") == "RUNNING":
-            r.update(fields)
-            applied = True
-    if applied:
-        _save(_RUNS_FILE, rows)
+    with _file_store_lock():
+        rows = _load(_RUNS_FILE)
+        applied = False
+        for r in rows:
+            if r["run_id"] == run_id and r.get("status") == "RUNNING":
+                r.update(fields)
+                applied = True
+        if applied:
+            _save(_RUNS_FILE, rows)
     return applied
 
 
@@ -421,16 +468,17 @@ def cancel_checkpoint_run(run_id: str) -> bool:
             return applied
         finally:
             conn.close()
-    rows = _load(_RUNS_FILE)
-    applied = False
-    for r in rows:
-        if r["run_id"] == run_id and r.get("status") == "CANCEL_REQUESTED":
-            r["status"] = "CANCELLED"
-            r["error"] = "Cancelled by operator"
-            r["completed_at"] = now.isoformat()
-            applied = True
-    if applied:
-        _save(_RUNS_FILE, rows)
+    with _file_store_lock():
+        rows = _load(_RUNS_FILE)
+        applied = False
+        for r in rows:
+            if r["run_id"] == run_id and r.get("status") == "CANCEL_REQUESTED":
+                r["status"] = "CANCELLED"
+                r["error"] = "Cancelled by operator"
+                r["completed_at"] = now.isoformat()
+                applied = True
+        if applied:
+            _save(_RUNS_FILE, rows)
     return applied
 
 
@@ -456,15 +504,16 @@ def claim_run(run_id: str) -> bool:
             return claimed
         finally:
             conn.close()
-    rows = _load(_RUNS_FILE)
-    claimed = False
-    for r in rows:
-        if r["run_id"] == run_id and r.get("status") == "PENDING":
-            r["status"] = "RUNNING"
-            r["started_at"] = now
-            claimed = True
-    if claimed:
-        _save(_RUNS_FILE, rows)
+    with _file_store_lock():
+        rows = _load(_RUNS_FILE)
+        claimed = False
+        for r in rows:
+            if r["run_id"] == run_id and r.get("status") == "PENDING":
+                r["status"] = "RUNNING"
+                r["started_at"] = now
+                claimed = True
+        if claimed:
+            _save(_RUNS_FILE, rows)
     return claimed
 
 
@@ -568,16 +617,21 @@ def promote_next_queued() -> Optional[str]:
             return None
         finally:
             conn.close()
-    # File fallback — fast path for dev/tests; no concurrent processes here.
-    if count_active_runs() >= MAX_CONCURRENT_BACKTESTS:
-        return None
-    rows = _load(_RUNS_FILE)
-    for r in rows:
-        if r.get("status") == "QUEUED":
-            r["status"] = "PENDING"
-            r["pending_at"] = _now_iso()
-            _save(_RUNS_FILE, rows)
-            return r["run_id"]
+    # File fallback — fast path for dev/tests.
+    # _file_store_lock() serialises concurrent *process* calls so two workers
+    # finishing at the same instant cannot both read the same QUEUED row and
+    # promote it twice (leaving the second QUEUED run without a worker).
+    # The DB path uses pg_advisory_xact_lock for the same guarantee.
+    with _file_store_lock():
+        if count_active_runs() >= MAX_CONCURRENT_BACKTESTS:
+            return None
+        rows = _load(_RUNS_FILE)
+        for r in rows:
+            if r.get("status") == "QUEUED":
+                r["status"] = "PENDING"
+                r["pending_at"] = _now_iso()
+                _save(_RUNS_FILE, rows)
+                return r["run_id"]
     return None
 
 
@@ -611,84 +665,92 @@ def revert_pending_to_queued(run_id: str) -> bool:
         finally:
             conn.close()
     # File fallback: reload + conditional update in one write.
-    rows = _load(_RUNS_FILE)
-    reverted = False
-    for r in rows:
-        if r["run_id"] == run_id and r.get("status") == "PENDING":
-            r["status"] = "QUEUED"
-            r["pending_at"] = None
-            reverted = True
-    if reverted:
-        _save(_RUNS_FILE, rows)
+    with _file_store_lock():
+        rows = _load(_RUNS_FILE)
+        reverted = False
+        for r in rows:
+            if r["run_id"] == run_id and r.get("status") == "PENDING":
+                r["status"] = "QUEUED"
+                r["pending_at"] = None
+                reverted = True
+        if reverted:
+            _save(_RUNS_FILE, rows)
     return reverted
 
 
 def _sweep_stale_runs_file() -> Dict[str, Any]:
-    """File-fallback implementation of sweep_stale_runs() for dev/test environments."""
+    """File-fallback implementation of sweep_stale_runs() for dev/test environments.
+
+    The entire body runs inside _file_store_lock() so that a concurrent
+    promote_next_queued() call (from another process finishing a run at the
+    same instant) cannot race on the same QUEUED rows.
+    """
     now = datetime.now(timezone.utc)
-    rows = _load(_RUNS_FILE)
     marked_stale: list = []
     promoted: list = []
 
-    for r in rows:
-        status = r.get("status")
-        if status in ("RUNNING", "CANCEL_REQUESTED"):
-            progress = r.get("progress") or {}
-            last_ts_str = (progress.get("progress_updated_at")
-                           or r.get("started_at")
-                           or r.get("created_at"))
-            try:
-                last_dt = datetime.fromisoformat(
-                    str(last_ts_str).replace("Z", "+00:00"))
-                if last_dt.tzinfo is None:
-                    last_dt = last_dt.replace(tzinfo=timezone.utc)
-                minutes = (now - last_dt).total_seconds() / 60.0
-            except Exception:
-                continue
-            if minutes >= _STALE_RUNNING_THRESHOLD_MIN:
-                r["status"] = "STALE"
-                r["error"] = (f"Run stalled — no progress for {round(minutes, 1)} minutes. "
-                              "Worker likely stopped. Retry required.")
-                marked_stale.append(r["run_id"])
+    with _file_store_lock():
+        rows = _load(_RUNS_FILE)
 
-        elif status == "PENDING":
-            # Use pending_at (set at admission/promotion) rather than
-            # created_at so a run that waited a long time in QUEUED is not
-            # immediately classified as stale the moment it is promoted.
-            pending_str = r.get("pending_at") or r.get("created_at")
-            if not pending_str:
-                continue
-            try:
-                pending_dt = datetime.fromisoformat(
-                    str(pending_str).replace("Z", "+00:00"))
-                if pending_dt.tzinfo is None:
-                    pending_dt = pending_dt.replace(tzinfo=timezone.utc)
-                minutes = (now - pending_dt).total_seconds() / 60.0
-            except Exception:
-                continue
-            if minutes >= _STALE_PENDING_THRESHOLD_MIN:
-                r["status"] = "STALE"
-                r["error"] = (f"Run stalled — PENDING with no worker for {round(minutes, 1)} minutes. "
-                              "Worker likely stopped. Retry required.")
-                marked_stale.append(r["run_id"])
+        for r in rows:
+            status = r.get("status")
+            if status in ("RUNNING", "CANCEL_REQUESTED"):
+                progress = r.get("progress") or {}
+                last_ts_str = (progress.get("progress_updated_at")
+                               or r.get("started_at")
+                               or r.get("created_at"))
+                try:
+                    last_dt = datetime.fromisoformat(
+                        str(last_ts_str).replace("Z", "+00:00"))
+                    if last_dt.tzinfo is None:
+                        last_dt = last_dt.replace(tzinfo=timezone.utc)
+                    minutes = (now - last_dt).total_seconds() / 60.0
+                except Exception:
+                    continue
+                if minutes >= _STALE_RUNNING_THRESHOLD_MIN:
+                    r["status"] = "STALE"
+                    r["error"] = (f"Run stalled — no progress for {round(minutes, 1)} minutes. "
+                                  "Worker likely stopped. Retry required.")
+                    marked_stale.append(r["run_id"])
 
-    _save(_RUNS_FILE, rows)
+            elif status == "PENDING":
+                # Use pending_at (set at admission/promotion) rather than
+                # created_at so a run that waited a long time in QUEUED is not
+                # immediately classified as stale the moment it is promoted.
+                pending_str = r.get("pending_at") or r.get("created_at")
+                if not pending_str:
+                    continue
+                try:
+                    pending_dt = datetime.fromisoformat(
+                        str(pending_str).replace("Z", "+00:00"))
+                    if pending_dt.tzinfo is None:
+                        pending_dt = pending_dt.replace(tzinfo=timezone.utc)
+                    minutes = (now - pending_dt).total_seconds() / 60.0
+                except Exception:
+                    continue
+                if minutes >= _STALE_PENDING_THRESHOLD_MIN:
+                    r["status"] = "STALE"
+                    r["error"] = (f"Run stalled — PENDING with no worker for {round(minutes, 1)} minutes. "
+                                  "Worker likely stopped. Retry required.")
+                    marked_stale.append(r["run_id"])
 
-    # Promote QUEUED runs into vacated slots.
-    # CANCEL_REQUESTED counts as occupied: the worker is still executing until
-    # its next checkpoint, so we must not over-subscribe the concurrency limit.
-    active_count = sum(1 for r in rows
-                       if r.get("status") in ("RUNNING", "PENDING",
-                                              "CANCEL_REQUESTED"))
-    slots = max(0, MAX_CONCURRENT_BACKTESTS - active_count)
-    queued = [r for r in rows if r.get("status") == "QUEUED"][:slots]
-    _promotion_ts = _now_iso()
-    for r in queued:
-        r["status"] = "PENDING"
-        r["pending_at"] = _promotion_ts  # start the stale clock from promotion, not creation
-        promoted.append(r["run_id"])
-    if queued:
         _save(_RUNS_FILE, rows)
+
+        # Promote QUEUED runs into vacated slots.
+        # CANCEL_REQUESTED counts as occupied: the worker is still executing
+        # until its next checkpoint, so we must not over-subscribe the limit.
+        active_count = sum(1 for r in rows
+                           if r.get("status") in ("RUNNING", "PENDING",
+                                                  "CANCEL_REQUESTED"))
+        slots = max(0, MAX_CONCURRENT_BACKTESTS - active_count)
+        queued = [r for r in rows if r.get("status") == "QUEUED"][:slots]
+        _promotion_ts = _now_iso()
+        for r in queued:
+            r["status"] = "PENDING"
+            r["pending_at"] = _promotion_ts  # stale clock from promotion, not creation
+            promoted.append(r["run_id"])
+        if queued:
+            _save(_RUNS_FILE, rows)
 
     return {
         "swept": len(marked_stale),
@@ -699,15 +761,30 @@ def _sweep_stale_runs_file() -> Dict[str, Any]:
 def sweep_stale_runs() -> Dict[str, Any]:
     """Server-side watchdog — auto-marks orphaned/stale runs and promotes queued ones.
 
-    Marks as STALE:
-    - RUNNING or CANCEL_REQUESTED with no progress heartbeat for 30+ minutes.
-    - PENDING with no worker claim for 30+ minutes (worker died before claiming).
+    Phase 1 — absolute TTL watchdog: RUNNING runs older than WATCHDOG_TTL_MIN
+    are marked FAILED (not STALE) so the queue slot is freed immediately and
+    the next QUEUED run can start.  This fires even when no run is finishing
+    (e.g. all slots are occupied by ghost processes that died silently).
 
-    Then promotes QUEUED → PENDING to fill any newly vacated concurrency slots.
+    Phase 2 — heartbeat stale sweep: RUNNING / CANCEL_REQUESTED runs with no
+    progress heartbeat for _STALE_RUNNING_THRESHOLD_MIN minutes are marked STALE.
+
+    Phase 3 — PENDING orphan sweep: PENDING with no worker claim for
+    _STALE_PENDING_THRESHOLD_MIN minutes are marked STALE.
+
+    Phase 4 — queue promotion: QUEUED runs are promoted to PENDING to fill
+    newly vacated concurrency slots.
 
     Designed to be called on every ``backtest_runs`` list request (sweep-on-read)
     so it runs automatically every 5 s while the Investigation Center is open.
     """
+    # Phase 1: absolute TTL watchdog — must run first so freed slots are
+    # visible to the heartbeat sweep and queue promotion below.
+    try:
+        sweep_watchdog_timeouts()
+    except Exception:
+        pass   # never let a watchdog failure abort the rest of the sweep
+
     if not db_available():
         return _sweep_stale_runs_file()
 
@@ -807,6 +884,126 @@ def sweep_stale_runs() -> Dict[str, Any]:
         "promoted": len(promoted),
         "promoted_runs": promoted,
     }
+
+
+def sweep_watchdog_timeouts(ttl_min: Optional[int] = None) -> Dict[str, Any]:
+    """Watchdog sweep — marks timed-out runs FAILED so the queue is never
+    permanently blocked by a dead worker process.
+
+    A run can stay RUNNING indefinitely when its worker is killed silently
+    (OOM, container restart, SIGKILL) without reaching an exception handler.
+    The heartbeat sweep in sweep_stale_runs() catches no-progress runs at 30
+    minutes but only marks them STALE — NOT FAILED — so queue slots are not
+    immediately freed.  This function enforces an absolute wall-clock TTL
+    anchored to ``started_at`` and writes FAILED (the terminal state
+    _spawn_next_queued treats as a vacancy signal).
+
+    Critically, this function targets **both** ``RUNNING`` and ``STALE`` rows
+    that have a ``started_at`` older than the TTL.  In the normal schedule
+    a ghost worker's row is first caught by the 30-minute heartbeat sweep
+    (RUNNING → STALE); this function then converts it to FAILED at the TTL
+    boundary.  Without targeting STALE as well, the watchdog would never see
+    the row because the heartbeat sweep fires first.
+
+    CANCEL_REQUESTED rows are excluded: the operator's cancellation is in
+    flight and the existing stale sweep manages that lifecycle.
+
+    Args:
+        ttl_min: Override the default WATCHDOG_TTL_MIN.  Values ≤ 0 are
+                 ignored and the default is used.  Intended for testing only.
+
+    Returns a dict with:
+        ``failed``      — number of runs marked FAILED
+        ``failed_runs`` — list of affected run_ids
+    """
+    effective_ttl = int(ttl_min) if (ttl_min is not None and int(ttl_min) > 0) else WATCHDOG_TTL_MIN
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=effective_ttl)
+    failed_runs: List[str] = []
+
+    def _watchdog_error(minutes: float) -> str:
+        return (
+            f"Watchdog timeout: run exceeded {effective_ttl} min TTL "
+            f"(ran for ~{round(minutes, 1)} min). "
+            "Worker process likely OOM-killed or container restarted. "
+            "Safe to retry."
+        )
+
+    if db_available():
+        conn = _connect_with_retry()
+        try:
+            _ensure_schema(conn)
+            # Target RUNNING and STALE rows with a started_at older than the
+            # cutoff.  STALE is included because the heartbeat sweep converts
+            # ghost RUNNING rows to STALE at 30 min — by 60 min they are STALE
+            # and would be missed if we only queried status = 'RUNNING'.
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"SELECT {', '.join(_RUN_COLS)} FROM backtest_runs"
+                    " WHERE status IN ('RUNNING', 'STALE')"
+                    "   AND started_at IS NOT NULL"
+                    "   AND started_at < %s",
+                    (cutoff,),
+                )
+                candidates = [_run_row_to_dict(r) for r in cur.fetchall()]
+
+            for r in candidates:
+                try:
+                    started = datetime.fromisoformat(
+                        str(r["started_at"]).replace("Z", "+00:00"))
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    minutes = (datetime.now(timezone.utc) - started).total_seconds() / 60.0
+                except Exception:
+                    minutes = float(effective_ttl)
+                reason = _watchdog_error(minutes)
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE backtest_runs"
+                        " SET status = 'FAILED', error = %s, completed_at = NOW()"
+                        " WHERE run_id = %s"
+                        "   AND status IN ('RUNNING', 'STALE')",
+                        (reason[:500], r["run_id"]),
+                    )
+                    if cur.rowcount == 1:
+                        failed_runs.append(r["run_id"])
+
+            conn.commit()
+        finally:
+            conn.close()
+    else:
+        # File-store fallback (dev / tests without DATABASE_URL).
+        # _file_store_lock() serialises this sweep with any concurrent
+        # promote_next_queued / _emergency_mark_failed call so a watchdog
+        # save cannot overwrite a promoted PENDING row with the stale QUEUED
+        # snapshot it read before the promotion was written.
+        now = datetime.now(timezone.utc)
+        with _file_store_lock():
+            rows = _load(_RUNS_FILE)
+            changed = False
+            for r in rows:
+                if r.get("status") not in ("RUNNING", "STALE"):
+                    continue
+                started_str = r.get("started_at")
+                if not started_str:
+                    continue
+                try:
+                    started = datetime.fromisoformat(
+                        str(started_str).replace("Z", "+00:00"))
+                    if started.tzinfo is None:
+                        started = started.replace(tzinfo=timezone.utc)
+                    minutes = (now - started).total_seconds() / 60.0
+                except Exception:
+                    continue
+                if minutes >= effective_ttl:
+                    r["status"] = "FAILED"
+                    r["error"] = _watchdog_error(minutes)[:500]
+                    r["completed_at"] = _now_iso()
+                    failed_runs.append(r["run_id"])
+                    changed = True
+            if changed:
+                _save(_RUNS_FILE, rows)
+
+    return {"failed": len(failed_runs), "failed_runs": failed_runs}
 
 
 def find_unclaimed_pending(older_than_min: float = 2.0) -> List[str]:

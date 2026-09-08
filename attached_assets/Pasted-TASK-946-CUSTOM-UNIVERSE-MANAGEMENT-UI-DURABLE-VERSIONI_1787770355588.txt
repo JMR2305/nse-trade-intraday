@@ -1,0 +1,716 @@
+TASK #946 — CUSTOM UNIVERSE MANAGEMENT UI
+DURABLE VERSIONING + KITE MAPPING VALIDATION + AUDIT HISTORY
+
+GOAL:
+
+Add a production-safe UI for managing the custom active trading universe
+without editing backend source code.
+
+CURRENT ACTIVE UNIVERSE:
+
+CUSTOM_LOW_PRICE_SECTOR
+
+Current active count:
+23
+
+IMPORTANT:
+
+The current natural-session certification baseline must remain stable.
+
+DO NOT:
+- change the active production universe during this task unless explicitly
+  approved through the new controlled workflow
+- modify Task #930 historical evidence
+- trigger Phase 5A/5B/5C
+- trigger manual scans
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- change portfolio/capital/ledger
+- delete historical universe versions
+- hard-code symbol membership into scan/trading logic
+
+==================================================
+1. FIRST — AUDIT CURRENT UNIVERSE AUTHORITY
+==================================================
+
+Before implementing anything, determine exactly where the current
+CUSTOM_LOW_PRICE_SECTOR membership is stored.
+
+Report:
+
+- database table(s)
+- settings/config records
+- environment variables
+- JSON/YAML defaults
+- Python constants
+- API configuration
+- any fallback/hard-coded lists
+
+Identify:
+
+AUTHORITATIVE_UNIVERSE_SOURCE =
+<source>
+
+Identify any remaining hard-coded symbol lists that could override or bypass
+the authoritative universe.
+
+Do NOT silently migrate or replace authority until this is proven.
+
+==================================================
+2. DESIGN PRINCIPLE
+==================================================
+
+The universe must be DATA, not code.
+
+Trading, scans, Phase 5A, Mission Control and readiness must resolve the active
+symbol set from one durable authoritative source.
+
+Do not maintain separate symbol lists for:
+
+- pre-open
+- live scans
+- strategies
+- readiness
+- Mission Control
+- execution
+
+All consumers must resolve the same active universe version.
+
+==================================================
+3. DURABLE UNIVERSE VERSIONING
+==================================================
+
+Implement durable PostgreSQL-backed universe definitions.
+
+Suggested structure:
+
+trading_universes
+
+Fields:
+
+id
+universe_key
+display_name
+version
+status
+effective_from
+effective_until
+created_at
+created_by
+approved_at
+approved_by
+notes
+
+Possible status:
+
+DRAFT
+PENDING_ACTIVATION
+ACTIVE
+SUPERSEDED
+CANCELLED
+
+Add child membership table:
+
+trading_universe_members
+
+Fields:
+
+id
+universe_id
+symbol
+exchange
+sector
+instrument_token
+mapping_status
+enabled
+added_at
+added_by
+removed_at
+removed_by
+notes
+
+Require uniqueness for:
+(universe_id, symbol)
+
+==================================================
+4. CURRENT 23-SYMBOL BASELINE
+==================================================
+
+Create/import the current production universe as the initial durable version.
+
+Example:
+
+CUSTOM_LOW_PRICE_SECTOR
+version = current baseline version
+
+It must contain the exact currently active approved symbols.
+
+Do not change membership during migration.
+
+Record the source from which these 23 were migrated.
+
+==================================================
+5. UI PAGE
+==================================================
+
+Add:
+
+MISSION CONTROL
+→ CONFIGURATION
+→ CUSTOM UNIVERSE
+
+or another appropriate navigation location.
+
+Page title:
+
+CUSTOM UNIVERSE MANAGEMENT
+
+Show:
+
+Universe name
+Current version
+Current status
+Effective date
+Active symbol count
+Mapping completeness
+Last changed by
+Last changed at
+
+==================================================
+6. SYMBOL TABLE
+==================================================
+
+For every symbol show:
+
+Symbol
+Exchange
+Sector
+Kite instrument token
+Mapping status
+Active/Inactive
+Added in version
+Removed in version
+Validation status
+
+Support:
+
+search
+sector filter
+mapping-status filter
+active/inactive filter
+
+==================================================
+7. ADD SYMBOL
+==================================================
+
+Add Symbol workflow:
+
+User enters/selects symbol.
+
+Before allowing it into a draft version:
+
+validate:
+- symbol exists
+- NSE tradable instrument
+- valid exchange/segment
+- valid Kite mapping
+- unique instrument token
+- not duplicate
+- not unsupported instrument type
+- symbol normalization succeeds
+
+Show validation result BEFORE save.
+
+If mapping fails:
+
+DO NOT permit activation.
+
+==================================================
+8. REMOVE SYMBOL
+==================================================
+
+Do NOT physically delete historical membership.
+
+Removing a symbol should create a new universe version where the symbol is:
+
+disabled / removed
+
+Preserve its historical membership.
+
+Require explicit confirmation:
+
+REMOVE <SYMBOL> FROM NEXT UNIVERSE VERSION
+
+==================================================
+9. DRAFT VERSION WORKFLOW
+==================================================
+
+Any add/remove/edit operation must create or update a DRAFT version.
+
+Editing the active universe directly is prohibited.
+
+UI should show:
+
+CURRENT ACTIVE VERSION
+
+and
+
+DRAFT VERSION
+
+side by side.
+
+Display:
+
+Current count
+Draft count
+
+Added symbols
+Removed symbols
+
+Sector-count changes
+Mapping changes
+
+==================================================
+10. VALIDATION BEFORE ACTIVATION
+==================================================
+
+Before a draft can become activation-ready require:
+
+- every enabled symbol has valid Kite mapping
+- no duplicate symbol
+- no duplicate instrument token
+- no missing normalized symbol
+- no malformed symbol
+- active count > 0
+- all required metadata available
+- provider compatibility proven
+- Phase 5A custom-universe compatibility proven
+- readiness denominator resolves from draft correctly
+
+Return:
+
+VALIDATION_PASS
+or
+VALIDATION_FAIL
+
+Activation button disabled on failure.
+
+==================================================
+11. EFFECTIVE-TIME SAFETY
+==================================================
+
+Changing the universe must NOT silently alter an already-running NSE session.
+
+Default rule:
+
+If activation is approved while market is open:
+effective_from = NEXT_TRADING_SESSION
+
+If approved before the session cutoff:
+it may become effective for the next eligible natural session.
+
+Do not swap active universe in the middle of:
+
+- Phase 5A collection
+- Phase 5B/5C lifecycle
+- canonical scan
+- strategy evaluation
+- order decision
+- open-position management
+
+==================================================
+12. SESSION SNAPSHOT / VERSION PINNING
+==================================================
+
+Every natural session must pin the active universe version.
+
+Store at minimum:
+
+universe_key
+universe_version
+universe_id
+expected_symbol_count
+exact expected symbol set/hash
+
+Associate this version with:
+
+Phase 5A session
+collection batch
+market scan
+strategy/signal batch
+paper trades
+future live trades
+
+This ensures historical reproducibility.
+
+==================================================
+13. ACTIVATION WORKFLOW
+==================================================
+
+Activation requires explicit typed confirmation.
+
+Example:
+
+ACTIVATE CUSTOM_LOW_PRICE_SECTOR V8
+
+Do not use a simple accidental one-click toggle.
+
+Activation should:
+
+1. validate the draft again
+2. create immutable activation audit entry
+3. set effective_from
+4. mark previous ACTIVE version SUPERSEDED only at effective time
+5. activate new version atomically
+6. leave historical sessions pinned to their original versions
+
+==================================================
+14. AUDIT HISTORY
+==================================================
+
+Create durable audit history.
+
+Record:
+
+timestamp
+actor
+action
+universe_key
+old_version
+new_version
+symbol
+change_type
+old_value
+new_value
+reason/notes
+request/correlation ID
+approval state
+
+Actions include:
+
+DRAFT_CREATED
+SYMBOL_ADDED
+SYMBOL_REMOVED
+SYMBOL_RESTORED
+VALIDATION_RUN
+ACTIVATION_REQUESTED
+ACTIVATION_APPROVED
+ACTIVATED
+CANCELLED
+
+No historical audit rows may be rewritten.
+
+==================================================
+15. UNIVERSE HISTORY UI
+==================================================
+
+Add read-only:
+
+UNIVERSE VERSION HISTORY
+
+Show:
+
+Version
+Status
+Effective from
+Effective until
+Symbol count
+Added
+Removed
+Created by
+Approved by
+
+Click version:
+
+show complete exact membership and change diff.
+
+==================================================
+16. CURRENT ACTIVE UNIVERSE API
+==================================================
+
+Expose one authoritative read endpoint such as:
+
+GET /api/universe/active
+
+Return:
+
+universe_key
+universe_id
+version
+status
+effective_from
+symbol_count
+symbols
+mapping_coverage
+exact_set_hash
+
+All runtime consumers should eventually resolve through the same authority
+layer, not duplicate lists.
+
+==================================================
+17. MANAGEMENT API
+==================================================
+
+Add controlled authenticated endpoints such as:
+
+GET  /api/universe
+GET  /api/universe/active
+GET  /api/universe/:id
+GET  /api/universe/:id/members
+GET  /api/universe/history
+
+POST /api/universe/draft
+POST /api/universe/:id/members
+DELETE/disable member through controlled versioned action
+POST /api/universe/:id/validate
+POST /api/universe/:id/request-activation
+POST /api/universe/:id/activate
+
+Writes must be authenticated and auditable.
+
+No anonymous/public mutation endpoints.
+
+==================================================
+18. KITE MAPPING VALIDATION
+==================================================
+
+When validating a universe:
+
+verify every enabled symbol against current Kite instrument mapping.
+
+Report:
+
+mapped
+missing
+duplicate_token
+invalid_exchange
+invalid_segment
+unsupported
+stale_mapping
+
+Activation blocked if mapping completeness != 100%.
+
+Do not silently fall back to Yahoo/NSE for mapping validity.
+
+==================================================
+19. PROVIDER COMPATIBILITY
+==================================================
+
+Validate the draft against:
+
+Phase 5A provider scope logic
+live Kite quote path
+canonical scan path
+historical OHLCV path
+
+Confirm adding/removing a symbol does not require code changes.
+
+CUSTOM universe must continue using provider scope:
+
+ALL
+
+==================================================
+20. READINESS DENOMINATOR
+==================================================
+
+Readiness must derive:
+
+expected_symbol_count
+
+from the ACTIVE universe version.
+
+No hard-coded:
+
+23
+50
+NIFTY50 count
+legacy watchlist count
+
+Any current fixed denominator must be identified and removed only if it is a
+duplicate authority.
+
+==================================================
+21. MISSION CONTROL
+==================================================
+
+Add compact display:
+
+ACTIVE UNIVERSE
+CUSTOM_LOW_PRICE_SECTOR
+Version Vx
+23 Symbols
+23/23 Kite Mapped
+
+Add link:
+
+MANAGE UNIVERSE
+
+When a future version is pending:
+
+NEXT VERSION
+Vx+1
+Effective: <date/session>
++2 / -1 symbols
+
+==================================================
+22. SAFETY WITH OPEN POSITIONS
+==================================================
+
+If a symbol is removed from the next universe while there is an open position
+in that symbol:
+
+do NOT orphan the position.
+
+Open-position management and exit logic must continue until position closes.
+
+Removal only prevents NEW entry eligibility after the new universe becomes
+effective.
+
+Document this explicitly.
+
+==================================================
+23. TESTS
+==================================================
+
+Add tests for:
+
+- current baseline migration
+- exact 23-symbol baseline preserved
+- create draft
+- add valid symbol
+- reject invalid symbol
+- reject missing Kite mapping
+- reject duplicate symbol
+- reject duplicate instrument token
+- remove symbol via new version
+- historical membership preserved
+- validation failure blocks activation
+- typed confirmation required
+- activation effective next session
+- mid-session active version cannot change
+- exact active version resolves consistently
+- Phase 5A gets new active set
+- canonical scan gets same active set
+- readiness denominator uses active universe count
+- historical sessions retain original universe version
+- open positions remain manageable after symbol removal
+- audit events immutable
+- API permissions
+- Mission Control rendering
+- no trading settings changed
+
+==================================================
+24. MIGRATION / SCHEMA SAFETY
+==================================================
+
+Schema changes must be additive.
+
+NO:
+DROP
+TRUNCATE
+destructive table replacement
+historical membership rewrite
+portfolio mutation
+ledger mutation
+
+If importing current universe membership:
+
+prove exact before/after symbol-set equality.
+
+==================================================
+25. DEPLOYMENT GATE
+==================================================
+
+Run:
+
+backend universe tests
+Phase 5A tests
+market-scan tests
+readiness tests
+Kite mapping tests
+Phase20 safety tests
+portfolio/ledger tests
+dashboard tests
+TypeScript
+Python compilation
+production build
+
+Require zero unexpected failures.
+
+==================================================
+26. INITIAL PRODUCTION DEPLOYMENT MODE
+==================================================
+
+DEPLOY MANAGEMENT FEATURE IN READ-ONLY / CHANGE-DISABLED MODE FIRST.
+
+The initial production release must allow:
+
+- viewing active universe
+- viewing mappings
+- viewing versions/history
+- creating/validating a draft if safe
+
+But do NOT permit the current active production universe to switch before the
+next natural Task #930 certification unless explicitly authorized.
+
+If necessary expose:
+
+ACTIVATION_LOCKED_FOR_CERTIFICATION = true
+
+Mission Control should explain:
+
+Universe activation temporarily locked while natural-session certification is
+pending.
+
+==================================================
+27. POST-DEPLOY VERIFICATION
+==================================================
+
+READ ONLY.
+
+Confirm:
+
+current active universe remains unchanged
+current count remains 23
+exact current symbol set unchanged
+mapping coverage 23/23
+Task #930 baseline unchanged
+automatic entries remain false
+controlled execution remains disabled
+live broker orders remain disabled
+portfolio/ledger unchanged
+
+Do not create a test activation in production.
+
+==================================================
+28. OUTPUT
+==================================================
+
+Create:
+
+TASK_946_CURRENT_UNIVERSE_AUTHORITY_AUDIT.md
+TASK_946_UNIVERSE_VERSIONING_DESIGN.md
+TASK_946_IMPLEMENTATION_REPORT.md
+TASK_946_TEST_REPORT.md
+TASK_946_PRODUCTION_DEPLOYMENT_VERIFICATION.md
+
+FINAL VERDICT:
+
+A. PASS — VERSIONED CUSTOM UNIVERSE MANAGEMENT READY
+B. CURRENT AUTHORITY AMBIGUOUS
+C. MIGRATION / EXACT-SET FAILURE
+D. KITE MAPPING VALIDATION FAILURE
+E. VERSIONING / ACTIVATION SAFETY FAILURE
+F. SESSION-PINNING FAILURE
+G. TEST FAILURE
+H. SAFETY REGRESSION
+
+FINAL RULE:
+
+Universe membership must become versioned durable data, not duplicated
+hard-coded trading logic.
+
+Do not change the currently certified 23-symbol production baseline while
+Task #930 natural-session certification is still pending.

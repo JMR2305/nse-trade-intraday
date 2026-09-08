@@ -1,0 +1,488 @@
+GENERATE UPDATED APEXQUANT AI SOP + TOMORROW TRADE READINESS CHECK
+
+Create a fully updated ApexQuant AI SOP document covering all recent changes and tomorrow’s trade readiness.
+
+Output file name:
+APEXQUANT_AI_SOP_v6.0_TOMORROW_TRADE_READINESS.md
+
+Use these as controlling/current references if present:
+- APEXQUANT_AI_SOP_v5.0.html
+- APEXQUANT_ACTUAL_POST_PUBLISH_VERIFICATION_18AUG.md
+- APEXQUANT_INTRADAY_EOD_SQUAREOFF_FIX_REPORT.md
+- APEXQUANT_DRREDDY_EOD_SQUAREOFF_FINAL_PROOF.md, if already generated
+- APEXQUANT_BOOTSTRAP_CAP_15000_UPDATE_REPORT.md, if already generated
+- APEXQUANT_FINAL_PUBLISH_AND_BOOTSTRAP_TRADE_STATUS.md
+- Any latest production DB state, pipeline_events, phase20_settings, scan_state, phase20_paper_trades, paper_portfolio
+
+Do not enable live orders.
+Do not change thresholds unless explicitly asked.
+Do not call broker order APIs.
+PAPER ONLY.
+This is documentation + verification only.
+
+GOAL:
+Generate one complete updated SOP that explains exactly how ApexQuant AI works now, including all latest changes, trade flow, conditions, timing, exits, scan intervals, backtesting criteria, safety controls, and whether the system is fully ready for tomorrow’s trade session.
+
+SECTION 1 — EXECUTIVE SUMMARY
+
+Include:
+- Current project version/date.
+- Current production URL.
+- Current mode: PAPER ONLY.
+- Live orders status.
+- Kite LTP overlay status.
+- Bootstrap mode status.
+- Bootstrap cap status: confirm whether cap is now ₹15,000.
+- DRREDDY BOOTSTRAP_AUTO trade status.
+- EOD square-off status.
+- Task #807 / #808 / #809 / #818 status if applicable.
+- Whether production is running the latest published build.
+- Overall readiness verdict for tomorrow:
+  READY / READY WITH WARNINGS / BLOCKED.
+
+SECTION 2 — CURRENT PRODUCTION STATE
+
+Query/verify production and document:
+- /api/healthz status.
+- Production build timestamp.
+- Market state.
+- phase20_settings values.
+- bootstrap_paper_enabled.
+- auto_paper_entries.
+- auto_paper_entries_confirmed_at.
+- bootstrap max cap.
+- scan interval.
+- circuit breaker state.
+- current cash.
+- open positions.
+- closed trades.
+- realized P&L.
+- unrealized P&L.
+- any EXIT_PENDING trades.
+- any BOOTSTRAP_AUTO trades.
+- latest scan_id and scan status.
+- latest scan coverage.
+
+SECTION 3 — SYSTEM ARCHITECTURE
+
+Explain the full architecture clearly:
+
+1. Data acquisition layer
+   - yfinance daily bars
+   - Kite LTP overlay
+   - what each source is used for
+   - indicator source vs execution price source
+
+2. Scan engine
+   - universe
+   - scan cadence
+   - market hours
+   - scan lock
+   - stale-data handling
+   - LTIM missing handling
+
+3. Signal engine
+   - BUY / WATCH / IGNORE
+   - confidence
+   - opportunity score
+   - low_evidence
+   - strategy selection
+   - market regime
+
+4. Risk and execution layer
+   - R:R gates
+   - slippage
+   - stop loss
+   - target
+   - position sizing
+   - per-stock exposure cap
+   - bootstrap cap
+   - circuit breaker
+   - duplicate position guard
+
+5. Paper execution layer
+   - P20 trade IDs
+   - trigger_source
+   - fill_model
+   - ORDER_SUBMITTED / ORDER_EXECUTED / ORDER_REJECTED events
+   - no broker order calls
+
+6. Exit management layer
+   - stop loss
+   - target
+   - trailing stop if enabled
+   - time exit
+   - market close exit
+   - post-close force exit
+   - stale data safety exit
+   - realized P&L calculation
+
+7. Learning / analytics layer
+   - paper trade history
+   - low evidence
+   - bootstrap purpose
+   - when bootstrap auto-disables
+   - Operator Analytics / Mission Control / AI Paper Trader pages
+
+SECTION 4 — FULL TRADE FLOW
+
+Document the exact trade lifecycle step by step:
+
+A. Scan starts
+B. Symbols fetched
+C. Indicators calculated
+D. Kite LTP overlay applied
+E. Strategy/risk/AI decision generated
+F. Candidate becomes BUY / WATCH / IGNORE
+G. Bootstrap eligibility checked if normal BUY is blocked by low evidence
+H. Bootstrap candidate ranking
+I. Pre-trade risk re-check
+J. Slippage-adjusted R:R check
+K. Position sizing
+L. Paper row created
+M. Portfolio cash updated
+N. Trade enters OPEN
+O. Exit engine evaluates every scan
+P. Stop/target/EOD rule fires
+Q. Exit price stamped
+R. Realized P&L computed
+S. Trade becomes CLOSED
+T. Analytics/learning updated
+
+For every step, include:
+- file/function if known
+- gate/condition
+- pass/fail behavior
+- event emitted
+- DB table affected
+
+SECTION 5 — ENTRY CRITERIA
+
+List all entry criteria for:
+
+A. Normal BUY paper trade
+- confidence threshold
+- opportunity threshold
+- R:R threshold
+- data quality
+- quote reliability
+- market hours
+- circuit breaker
+- duplicate position
+- exposure cap
+- paper mode
+- Kite LTP requirement if applicable
+
+B. BOOTSTRAP_AUTO trade
+- bootstrap_paper_enabled=true
+- auto_paper_entries=true
+- auto_paper_entries_confirmed_at set
+- closed trade count below bootstrap cutoff
+- candidate must pass bootstrap eligibility
+- low_evidence handling
+- all hard gates pass
+- Kite LTP / quote reliable
+- max notional cap, now verify ₹15,000
+- per-stock exposure cap still applies
+- only paper execution
+- one trade per scan / duplicate guard
+
+C. Rejection conditions
+- R:R insufficient
+- target missing
+- confidence too low
+- opportunity too low
+- Kite LTP unavailable
+- quote unreliable
+- circuit breaker tripped
+- duplicate position
+- cap quantity zero
+- stale data
+- market closed
+
+SECTION 6 — POSITION SIZING CRITERIA
+
+Explain:
+- old bootstrap cap ₹1,500
+- new requested cap ₹15,000
+- confirm final implemented cap from code/settings/UI
+- how quantity is calculated
+- how slippage affects fill
+- how per-stock exposure cap limits quantity
+- how portfolio cash limits quantity
+- no fractional shares
+- example using DRREDDY:
+  fill around ₹1,186.98
+  ₹1,500 cap = 1 share
+  ₹15,000 cap = about 12 raw shares
+  exposure cap may reduce final quantity
+- confirm existing DRREDDY trade was not mutated unless explicitly changed
+
+SECTION 7 — EXIT CRITERIA
+
+Document every exit rule:
+
+- STOP_LOSS_HIT
+- TARGET_HIT
+- TRAILING_STOP, if active
+- TIME_EXIT
+- MARKET_CLOSE_EXIT
+- POST_CLOSE_FORCE_EXIT
+- STALE_DATA_SAFETY
+- PORTFOLIO_RISK_REDUCTION
+- SECTOR_CAP_BREACH, if implemented
+
+For each exit rule include:
+- when it triggers
+- required price source
+- whether Kite LTP is preferred
+- fallback behavior
+- event emitted
+- DB fields updated
+- status transition
+- realized P&L formula
+- portfolio cash update
+
+Specifically include latest EOD square-off rule:
+- MARKET_CLOSE_EXIT must be unconditional from 15:20 IST.
+- POST_CLOSE_FORCE_EXIT must run once after market close.
+- It must apply to BOOTSTRAP_AUTO, AUTO, and MANUAL paper trades.
+- It must not require square_off_before_close=true.
+- It must emit MARKET_CLOSE_EXIT_BLOCKED if no reliable price is available.
+- It must never silently carry intraday positions overnight.
+
+SECTION 8 — TIMING AND DAILY OPERATING SCHEDULE
+
+Create a full daily schedule:
+
+Before market open:
+- 08:45 / pre-open checks, if applicable
+- verify production URL
+- verify /api/healthz
+- verify Kite LTP overlay
+- verify bootstrap settings
+- verify circuit breaker
+- verify current open positions
+
+Market open:
+- 09:15 market open
+- first scan around 09:15–09:20
+- bootstrap / normal trade checks
+
+During market:
+- scan interval, currently verify actual value: 4 or 5 minutes
+- what each scan does
+- how Mission Control should look
+- what warnings matter
+- LTIM handling
+
+Pre-close:
+- 15:20 mandatory MARKET_CLOSE_EXIT
+- verify all open intraday paper positions close
+
+Market close:
+- 15:30 market close
+- POST_CLOSE_FORCE_EXIT once-per-day safety net
+- portfolio finalization
+- realized P&L check
+
+Post-close:
+- generate daily report
+- verify no OPEN intraday positions
+- verify no EXIT_PENDING stale positions
+- verify cash/P&L
+- review errors
+
+SECTION 9 — SCAN INTERVALS AND DATA FRESHNESS
+
+Document:
+- scan cadence from settings
+- expected scans per full session
+- stale threshold
+- freshness status
+- what DELAYED means
+- what FRESH means
+- when BUY recommendations are disabled
+- how missing symbols are handled
+- LTIM provider issue
+- weekend/holiday gap handling
+- Yahoo daily bars limitation
+- Kite LTP overlay role
+
+SECTION 10 — BACKTESTING CRITERIA
+
+Document:
+- what backtesting engine does
+- what data source backtests use
+- how backtest/replay events are separated from live paper analytics
+- BTT/Replay guardrail
+- emit_replay usage
+- BTT events must not pollute live ORDER_* counts
+- backtest criteria and limitations
+- whether backtest evidence contributes to low_evidence
+- whether paper trades reduce low_evidence or not
+- what minimum evidence threshold is used
+- how bootstrap helps collect evidence
+- what is still not true intraday backtesting due daily bars
+
+SECTION 11 — SAFETY CONTROLS
+
+Include proof/checklist:
+- LIVE_EXECUTION_ENABLED=false
+- live_order_placement_enabled=false
+- no Kite place_order / modify_order / cancel_order
+- all fills are paper-only
+- P20 trade IDs
+- BTT guardrail
+- circuit breaker
+- max daily loss
+- max orders/day
+- max order value
+- exposure caps
+- duplicate-position rule
+- one bootstrap per scan
+- kv_claim_once guards
+- no hidden live execution path
+
+SECTION 12 — RECENT CHANGES LOG
+
+Include all recent changes in chronological order:
+
+- Kite LTP overlay implemented
+- stale scan snapshot fix
+- BTT/replay event guardrail
+- bootstrap low-evidence deadlock fix
+- bootstrap enabled in production
+- bootstrap UI enable button
+- API key dev/prod mismatch identified
+- first BOOTSTRAP_AUTO trade created: DRREDDY
+- _build_row NameError fixed
+- fallback candidate loop added
+- create_paper_entry try-except added
+- deploy image-size cleanup
+- Task #807 force-close stale EXIT_PENDING positions
+- Task #808 exports cleanup
+- Task #809 bootstrap eligibility banner
+- EOD square-off fix
+- bootstrap cap changed/requested to ₹15,000, confirm final status
+
+SECTION 13 — CURRENT OPEN TRADE REVIEW
+
+Check all current paper trades.
+
+For each trade report:
+- trade_id
+- symbol
+- status
+- trigger_source
+- fill_model
+- fill_price
+- qty
+- stop_loss
+- target
+- current LTP/latest price
+- unrealized P&L
+- exit_rule if any
+- exit_price
+- realized_pnl
+- created_at
+- updated_at
+- whether it should be closed before tomorrow
+- whether it is safe to carry
+
+Specifically verify DRREDDY:
+- trade_id P20-3468fb2a24
+- whether still OPEN
+- whether EOD square-off already closed it
+- if CLOSED, give exit_price and realized_pnl
+- if OPEN, explain why and what will close it tomorrow
+
+SECTION 14 — TOMORROW READINESS CHECK
+
+Final checklist for tomorrow’s trade:
+
+A. Deployment readiness
+- latest build published
+- health check 200
+- production DB connected
+- no old build serving
+
+B. Settings readiness
+- bootstrap_paper_enabled
+- cap ₹15,000
+- auto paper entries confirmed
+- scan interval
+- circuit breaker clear
+- live orders disabled
+
+C. Data readiness
+- Kite LTP overlay live
+- yfinance available
+- latest scan fresh
+- LTIM warning understood
+
+D. Portfolio readiness
+- no unwanted OPEN overnight position
+- if DRREDDY remains OPEN, explain risk and expected exit
+- cash reconciled
+- P&L reconciled
+
+E. Execution readiness
+- bootstrap can create trades
+- position sizing correct
+- EOD square-off active
+- no live broker order path
+
+F. Monitoring readiness
+- Mission Control
+- AI Paper Trader
+- Operator Analytics
+- Live Data Health
+- System Readiness
+
+Final verdict:
+- READY FOR TOMORROW
+- READY WITH WARNINGS
+- BLOCKED
+
+If not READY, list exact blockers and operator actions.
+
+SECTION 15 — OPERATOR ACTIONS BEFORE TOMORROW
+
+Give a clear checklist:
+1. Publish if not already published.
+2. Confirm production health.
+3. Confirm EOD square-off code live.
+4. Confirm bootstrap cap ₹15,000 live.
+5. Confirm DRREDDY status.
+6. Confirm Kite LTP overlay.
+7. Confirm no live orders.
+8. Check first scan tomorrow around 09:20.
+9. Watch for BOOTSTRAP_AUTO trade.
+10. Watch EOD square-off at 15:20.
+
+SECTION 16 — OUTPUT REQUIREMENTS
+
+Generate the SOP as a clean markdown file:
+
+APEXQUANT_AI_SOP_v6.0_TOMORROW_TRADE_READINESS.md
+
+Also create a short companion checklist:
+
+APEXQUANT_2026_08_19_OPERATOR_CHECKLIST.md
+
+The SOP must include:
+- Tables where useful
+- Exact DB/API evidence where available
+- Clear READY/BLOCKED verdict
+- No fabricated values
+- If a value is unknown, say UNKNOWN and list how to verify
+- All safety confirmations
+- All recent changes
+- Clear tomorrow morning action plan
+
+Final response should summarize:
+1. SOP generated file path.
+2. Checklist generated file path.
+3. Tomorrow readiness verdict.
+4. Any blockers.

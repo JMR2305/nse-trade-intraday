@@ -1,0 +1,1046 @@
+TASK #961 — COMPLETE PRODUCTION UNIVERSE AUTHORITY RESTORATION
+PUBLISH TASK #960 + MIGRATE EXACT 23-SYMBOL BASELINE + VERIFY ALL CONSUMERS
++ PREPARE NEXT NATURAL CERTIFICATION
+
+OBJECTIVE:
+
+Complete the entire outstanding production restoration in ONE controlled task.
+
+Do NOT stop after:
+- reviewing code
+- running tests
+- publishing
+- creating schema
+- producing migration readiness
+- creating a draft
+- writing reports
+
+This task is complete only when production has a proven durable ACTIVE
+versioned universe for the exact existing 23-symbol CUSTOM_LOW_PRICE_SECTOR
+baseline, all dependent runtime consumers resolve that authority correctly,
+safety remains unchanged, and the next natural-session certification gate is
+ready.
+
+CURRENT IMPLEMENTATION STATUS:
+
+Task #960:
+IMPLEMENTED
+MERGED
+AUTOMATED TESTS PASSED
+
+Production migration:
+NOT YET EXECUTED
+
+Current production problem before restoration:
+
+configured universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+custom master membership =
+23
+
+versioned revisions =
+0
+
+ACTIVE revisions =
+0
+
+runtime session pins =
+0
+
+scanner coverage =
+revision_not_found
+
+pre-open =
+UNIVERSE_UNAVAILABLE
+
+scanner_coverage_ok =
+false
+
+open positions =
+0
+
+EXIT_PENDING =
+0
+
+automatic trading controls remain disabled
+
+TASK #960 IMPLEMENTATION ALREADY PROVIDES:
+
+- guarded baseline migration
+- authoritative source = custom_universe_master
+- exact approved 23-symbol requirement
+- exact set hash validation
+- full Kite mapping validation
+- zero-open-position safety requirement
+- Phase 20 safety validation
+- typed migration confirmation
+- atomic creation of version 1
+- immutable BASELINE_MIGRATION audit
+- next-natural-session effective time
+- authenticated readiness endpoint
+- authenticated migration endpoint
+- safe repeat/idempotency checks
+
+EXPECTED EXACT SET HASH:
+
+22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016
+
+REQUIRED TYPED CONFIRMATION:
+
+MIGRATE CUSTOM_LOW_PRICE_SECTOR BASELINE 23
+
+==================================================
+NON-NEGOTIABLE SAFETY
+==================================================
+
+DO NOT:
+
+- change the 23-symbol membership
+- add symbols
+- remove symbols
+- substitute symbols
+- change sectors
+- change strategy logic
+- change provider policy
+- change freshness thresholds
+- change Task #947 timing contract
+- change readiness semantics merely to get green
+- bypass versioned universe authority
+- fall back to historical cached universe data
+- fall back to hard-coded symbol lists
+- fall back to legacy DEFAULT_WATCHLIST
+- fall back to NIFTY50
+- enable automatic paper entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker execution
+- place broker orders
+- reset portfolio
+- reset ledger
+- reset paper capital
+- alter historical Task #930 sessions
+- replay/backfill/retry prior pre-open sessions
+- trigger a manual Phase 5A/5B/5C
+- trigger a manual market scan
+- manufacture Kite fallback incidents
+- retroactively attach a new universe revision to historical sessions
+
+==================================================
+PHASE 1 — EXACT CURRENT PRODUCTION IDENTITY
+==================================================
+
+Before any write:
+
+READ ONLY verify:
+
+environment
+git_commit
+build_id
+deployment_id
+runtime timestamp
+
+Report:
+
+CURRENT_PRODUCTION_COMMIT
+CURRENT_PRODUCTION_BUILD
+CURRENT_WORKSPACE_HEAD
+TASK_960_MERGE_COMMIT
+
+Prove Task #960 is included in the intended release commit.
+
+If current workspace contains unrelated runtime changes:
+
+STOP publishing arbitrary HEAD.
+
+Create a clean release containing only:
+- already-approved production baseline
+- Task #947
+- Task #938 approved cache-race fix
+- Task #960
+- necessary tests/schema/runtime support
+
+Exclude:
+- stale certification artifacts
+- unrelated experimentation
+- obsolete reports from runtime release scope
+
+==================================================
+PHASE 2 — PRE-PUBLISH SOURCE AUDIT
+==================================================
+
+Confirm Task #960 implementation includes:
+
+custom_universe_baseline_migration.py
+
+and proves:
+
+1. reads membership only from custom_universe_master
+2. requires exactly 23 approved symbols
+3. validates exact set hash
+4. validates Kite mappings
+5. requires NSE exchange
+6. requires cash segment
+7. requires EQ instrument type
+8. requires positive instrument token
+9. requires unique instrument token
+10. requires mapping_status = MAPPED
+11. rejects stale/incomplete instrument reference data
+12. requires zero OPEN
+13. requires zero EXIT_PENDING
+14. validates safe Phase20 settings
+15. requires exact typed confirmation
+16. creates revision atomically
+17. creates immutable migration audit
+18. effective time is next eligible natural trading session
+19. repeat invocation is idempotent only when existing state is identical and valid
+20. conflicting revision state fails closed
+
+==================================================
+PHASE 3 — FULL REGRESSION GATE
+==================================================
+
+Run ALL relevant suites before production publish.
+
+At minimum:
+
+A. Universe/versioning/migration
+B. Scanner coverage
+C. Phase 5A
+D. Pre-open scheduler/lifecycle
+E. Task #947 freeze timing/final-proof window
+F. Task #938 cache-race regression
+G. Readiness
+H. Kite mapping
+I. Market data authority / fallback incidents
+J. Phase20 safety
+K. Portfolio/ledger
+L. API
+M. Dashboard
+N. TypeScript
+O. Python compilation
+P. API production build
+Q. Dashboard production build
+
+Reference already-known successful Task #960 evidence:
+
+focused migration/versioning/runtime = 77 passed
+broader Python safety = 445 passed
+API Vitest = 168 passed
+Dashboard Vitest = 1007 passed
+TypeScript = passed
+Python compile = passed
+API build = passed
+Dashboard build = passed
+E2E readiness = passed
+architecture review = PASS
+
+Require zero unexpected failures.
+
+Do not waive a failed production-safety test.
+
+==================================================
+PHASE 4 — SCHEMA / MIGRATION SAFETY
+==================================================
+
+Inspect schema requirements.
+
+Require additive-only changes.
+
+NO:
+
+DROP
+TRUNCATE
+destructive recreation
+historical rewrite
+portfolio mutation
+ledger mutation
+
+Verify all required versioning/audit tables and constraints exist.
+
+Do not execute baseline membership migration yet.
+
+==================================================
+PHASE 5 — CREATE EXACT APPROVED RELEASE
+==================================================
+
+After all checks pass:
+
+APPROVED_RELEASE_COMMIT =
+<full SHA>
+
+EXPECTED_BUILD_ID =
+apexquant-<first12>
+
+List exact runtime files changed from current production.
+
+Prove there are no unintended trading/execution changes.
+
+==================================================
+PHASE 6 — CONTROLLED PRODUCTION PUBLISH
+==================================================
+
+Publish ONLY:
+
+APPROVED_RELEASE_COMMIT
+
+Do not publish arbitrary workspace HEAD.
+
+After publish verify:
+
+environment = production
+
+git_commit =
+APPROVED_RELEASE_COMMIT
+
+build_id =
+EXPECTED_BUILD_ID
+
+deployment_id =
+present
+
+UI/API identity =
+MATCH where exposed
+
+If identity mismatch:
+
+STOP.
+
+Do not run migration.
+
+==================================================
+PHASE 7 — PRE-MIGRATION PRODUCTION READINESS
+==================================================
+
+Use authenticated READ-ONLY readiness endpoint:
+
+GET /api/universe/v1/baseline-migration
+
+Do NOT infer readiness from development.
+
+Read PRODUCTION data.
+
+Require:
+
+candidate count = 23
+
+candidate exact symbol set =
+approved 23
+
+exact set hash =
+22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016
+
+Kite mappings =
+23/23
+
+missing mapping =
+0
+
+duplicate token =
+0
+
+invalid exchange =
+0
+
+invalid segment =
+0
+
+invalid instrument type =
+0
+
+stale reference mapping =
+0
+
+OPEN positions =
+0
+
+EXIT_PENDING =
+0
+
+Phase20 settings =
+safe
+
+existing custom versioned revisions =
+0
+OR a proven idempotent identical migration state
+
+ready =
+true
+
+If ready=false:
+
+STOP BEFORE MUTATION.
+
+Return the exact blocking condition.
+
+Do NOT weaken validation.
+
+==================================================
+PHASE 8 — EXECUTE GUARDED BASELINE MIGRATION
+==================================================
+
+ONLY if production readiness = true:
+
+execute the authenticated production migration using EXACT confirmation:
+
+MIGRATE CUSTOM_LOW_PRICE_SECTOR BASELINE 23
+
+Perform exactly one guarded migration request.
+
+Do not retry blindly.
+
+Capture:
+
+request/correlation ID
+actor
+timestamp
+migration result
+revision ID
+revision version
+status
+effective_from
+symbol count
+set hash
+mapping coverage
+audit-event ID
+
+==================================================
+PHASE 9 — PROVE ATOMIC VERSION CREATION
+==================================================
+
+After migration:
+
+Require one valid durable baseline revision for:
+
+CUSTOM_LOW_PRICE_SECTOR
+
+Expected:
+
+version =
+1 / V1 equivalent
+
+membership =
+23
+
+exact set hash =
+expected hash
+
+status =
+ACTIVE or scheduled-for-next-session state according to the designed effective-time contract
+
+effective_from =
+next eligible natural trading session
+
+No partial membership.
+
+No second conflicting ACTIVE revision.
+
+No empty interval.
+
+No duplicate member.
+
+No duplicate token.
+
+==================================================
+PHASE 10 — VERIFY IMMUTABLE MIGRATION AUDIT
+==================================================
+
+Confirm append-only audit contains:
+
+action =
+BASELINE_MIGRATION
+
+source authority =
+custom_universe_master
+
+destination revision =
+new version
+
+symbol count =
+23
+
+exact set hash =
+expected hash
+
+mapping completeness =
+23/23
+
+previous configured universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+actor
+timestamp
+reason
+safety evidence
+
+Do not alter or backdate audit evidence.
+
+==================================================
+PHASE 11 — AUTHORITATIVE ACTIVE-UNIVERSE READ
+==================================================
+
+READ ONLY query the authoritative universe API.
+
+Require response includes:
+
+universe_key =
+CUSTOM_LOW_PRICE_SECTOR
+
+revision/version =
+present
+
+symbol_count =
+23
+
+exact symbol set =
+approved set
+
+set hash =
+expected hash
+
+mapping coverage =
+23/23
+
+status =
+valid current/next-effective state
+
+List all 23 returned symbols and compare exact set equality.
+
+No count-only validation.
+
+==================================================
+PHASE 12 — VERIFY ALL RUNTIME CONSUMERS
+==================================================
+
+This is mandatory.
+
+Do NOT stop merely because /api/universe/active looks correct.
+
+Verify the SAME durable universe revision is consumed by:
+
+1. canonical scanner
+2. scanner readiness denominator
+3. Phase 5A
+4. Phase 5B/5C context where applicable
+5. pre-open scheduler
+6. market-data coverage
+7. Mission Control
+8. strategy context
+9. signal generation
+10. advisory/multi-bot universe resolution
+11. future paper-entry eligibility
+12. future broker-execution eligibility
+
+For every consumer where exposed report:
+
+UNIVERSE_KEY
+UNIVERSE_REVISION_ID
+UNIVERSE_VERSION
+EXPECTED_SYMBOL_COUNT
+EXACT_SET_HASH
+
+All must agree.
+
+No runtime consumer may retain an independent hard-coded 23-symbol list.
+
+==================================================
+PHASE 13 — SCANNER AUTHORITY RESTORATION
+==================================================
+
+READ ONLY.
+
+Require:
+
+revision_not_found =
+false
+
+scanner expected count =
+23
+
+scanner universe revision =
+new durable revision
+
+scanner_coverage_ok =
+true
+
+No NIFTY50 denominator.
+
+No legacy 50 denominator.
+
+No DEFAULT_WATCHLIST fallback.
+
+Do NOT manually run a scan.
+
+==================================================
+PHASE 14 — PRE-OPEN AUTHORITY RESTORATION
+==================================================
+
+READ ONLY.
+
+Require pre-open authority no longer reports:
+
+UNIVERSE_UNAVAILABLE
+
+It must resolve:
+
+CUSTOM_LOW_PRICE_SECTOR
+version/revision present
+23 expected symbols
+provider custom-universe scope capable of ALL
+
+Do NOT run Phase 5A.
+
+==================================================
+PHASE 15 — TASK #947 PRESERVATION
+==================================================
+
+Verify the deployed Task #947 contract remains intact:
+
+automatic collection:
+09:00 <= time < 09:12 IST
+
+no automatic collection:
+09:12 <= time < 09:15 IST
+
+final-proof candidate:
+09:08 <= completed_at < 09:12 IST
+
+automatic origin:
+SCHEDULED
+
+manual/refresh origin:
+MANUAL
+
+freeze:
+09:15 uses exact verified final-proof batch
+
+freshness:
+age < 300 seconds
+age >= 300 seconds = stale
+
+Do NOT modify these semantics.
+
+==================================================
+PHASE 16 — TASK #941/#942 PRESERVATION
+==================================================
+
+Verify:
+
+custom-universe NSE provider scope =
+ALL
+
+provider cache isolated by query scope
+
+23 expected symbols receive immutable outcome accounting
+
+missing provider rows are not fabricated
+
+NSE timestamps use Asia/Kolkata
+
+MATCH requires exact parity
+
+freeze checks exact batch/outcomes/liveness
+
+Pre-Open UI separates:
+SESSION STATE
+from
+CERTIFIED COLLECTION STATE
+
+==================================================
+PHASE 17 — DATA AUTHORITY / FALLBACK INCIDENT FEATURE
+==================================================
+
+Verify Mission Control still exposes current-price authority.
+
+Healthy current-price provider should be:
+
+ZERODHA_KITE
+
+Historical OHLCV may remain:
+
+YFINANCE
+
+Confirm durable fallback incident feature remains available:
+
+GET /api/market-data/incidents/active
+GET /api/market-data/incidents
+GET /api/market-data/incidents/:id
+
+Do NOT create a synthetic incident in production.
+
+==================================================
+PHASE 18 — KITE HEALTH
+==================================================
+
+READ ONLY.
+
+Verify:
+
+connected
+token valid
+token expired = false
+mock = false
+
+Mapping coverage =
+23/23
+
+If market is open and read-only current quote health exists:
+
+provider =
+ZERODHA_KITE
+
+coverage =
+23/23
+
+fallback =
+0
+
+stale =
+0
+
+synthetic =
+0
+
+unavailable =
+0
+
+Do not trigger a new scan just to populate these values.
+
+==================================================
+PHASE 19 — PORTFOLIO / LEDGER SAFETY
+==================================================
+
+Verify:
+
+portfolio source =
+phase20_ledger
+
+initial capital =
+₹100,000
+
+cash =
+current canonical value
+
+equity =
+current canonical value
+
+realized P&L =
+preserved
+
+unrealized P&L =
+current
+
+open positions =
+0
+
+EXIT_PENDING =
+0
+
+historical closed paper trades =
+6
+
+/api/portfolio
+and
+/api/portfolio/snapshot
+
+must agree.
+
+No reset.
+
+No migration-induced portfolio mutation.
+
+==================================================
+PHASE 20 — EXECUTION SAFETY
+==================================================
+
+Require:
+
+automatic paper entries =
+false
+
+entry confirmation =
+null
+
+bootstrap =
+false
+
+automatic exits =
+true
+
+controlled execution =
+disabled
+
+execution_allowed =
+false
+
+broker mode =
+PAPER_TRADING / RESEARCH ONLY
+
+live broker order placement =
+disabled
+
+No universe migration may change any of these.
+
+==================================================
+PHASE 21 — HISTORICAL EVIDENCE PRESERVATION
+==================================================
+
+Verify prior failed certification evidence remains immutable.
+
+Do NOT:
+
+retry
+replay
+backfill
+relabel
+attach new revision retroactively
+alter batch IDs
+alter freeze pointers
+
+The new universe version applies prospectively only.
+
+==================================================
+PHASE 22 — EFFECTIVE-TIME VERIFICATION
+==================================================
+
+Because Task #960 intentionally schedules the baseline version for the next
+natural trading session:
+
+prove:
+
+effective_from =
+next eligible natural trading session at 09:00 IST
+
+Do not retroactively make today's already-running session use the version.
+
+If current market session is already underway:
+report that today's session remains uncertifiable under the new revision.
+
+==================================================
+PHASE 23 — NEXT NATURAL-SESSION PRECHECK
+==================================================
+
+Prepare but DO NOT trigger the next natural session.
+
+Before that session require:
+
+production identity stable
+
+active/effective universe revision =
+V1 / revision ID
+
+exact active set =
+23 approved symbols
+
+mapping coverage =
+23/23
+
+scanner_coverage_ok =
+true
+
+pre-open universe available
+
+Task #947 timing present
+
+provider custom scope =
+ALL
+
+automatic entries =
+false
+
+no manual Phase5A invocation
+
+==================================================
+PHASE 24 — NEXT NATURAL TASK #930 CERTIFICATION CONTRACT
+==================================================
+
+The next natural session must prove:
+
+origin =
+SCHEDULED
+
+active universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+active revision =
+new durable version
+
+expected =
+23
+
+provider scope =
+ALL
+
+09:08–<09:12 final-proof batch exists
+
+returned =
+23
+
+normalized live =
+23
+
+persisted live =
+23
+
+immutable outcomes =
+23
+
+missing =
+0
+
+duplicate =
+0
+
+malformed =
+0
+
+unexpected =
+0
+
+failed =
+0
+
+all source_status =
+LIVE
+
+all is_stale =
+false at ingestion
+
+all timestamps valid
+all age < 300 at ingestion
+
+persistence_status =
+MATCH
+
+verified batch =
+final-proof batch
+
+NO automatic Phase 5A collection after 09:12
+
+09:15 frozen batch =
+same final-proof batch
+
+natural downstream lifecycle only
+
+natural canonical scan only
+
+Kite current-price provenance correctly reported
+
+safety unchanged
+
+==================================================
+PHASE 25 — NO INTERMEDIATE STOP RULE
+==================================================
+
+DO NOT finish the task with statements such as:
+
+"implementation complete"
+"ready to publish"
+"migration ready"
+"user must now migrate"
+"schema created"
+"tests passed"
+
+unless an actual safety gate prevents production mutation.
+
+If every prerequisite passes, continue through:
+
+PUBLISH
+→ PRODUCTION READINESS
+→ GUARDED MIGRATION
+→ POST-MIGRATION VERIFICATION
+→ ALL-CONSUMER AUTHORITY CHECK
+→ SAFETY CHECK
+→ NEXT NATURAL SESSION GATE
+
+Only stop early on a genuine fail-closed blocker.
+
+If stopped:
+identify ONE exact blocker and the smallest corrective action.
+
+==================================================
+PHASE 26 — OUTPUT
+==================================================
+
+Create:
+
+TASK_961_RELEASE_AND_MIGRATION_SCOPE.md
+
+TASK_961_PRODUCTION_PREMIGRATION_READINESS.md
+
+TASK_961_BASELINE_MIGRATION_EXECUTION.md
+
+TASK_961_VERSIONED_UNIVERSE_AUTHORITY_PROOF.md
+
+TASK_961_RUNTIME_CONSUMER_AUTHORITY_MATRIX.csv
+
+TASK_961_SCANNER_AND_PREOPEN_RECOVERY.md
+
+TASK_961_KITE_AND_DATA_AUTHORITY_CHECK.md
+
+TASK_961_SAFETY_PORTFOLIO_LEDGER_CHECK.md
+
+TASK_961_NEXT_NATURAL_SESSION_GATE.md
+
+TASK_961_FINAL_COMPLETION_SUMMARY.md
+
+==================================================
+FINAL VERDICT
+==================================================
+
+Return exactly one:
+
+A. PASS — PRODUCTION UNIVERSE AUTHORITY FULLY RESTORED,
+   ALL CONSUMERS VERIFIED, NEXT NATURAL SESSION READY
+
+B. RELEASE / DEPLOYMENT IDENTITY FAILURE
+
+C. PRODUCTION MIGRATION READINESS FAILURE
+
+D. EXACT 23-SYMBOL / SET-HASH FAILURE
+
+E. KITE MAPPING FAILURE
+
+F. VERSIONED MIGRATION FAILURE
+
+G. ACTIVE/EFFECTIVE REVISION FAILURE
+
+H. SCANNER / PRE-OPEN AUTHORITY FAILURE
+
+I. RUNTIME CONSUMER AUTHORITY MISMATCH
+
+J. TASK #947 REGRESSION
+
+K. DATA AUTHORITY / INCIDENT REGRESSION
+
+L. PORTFOLIO / LEDGER REGRESSION
+
+M. SAFETY REGRESSION
+
+N. TEST FAILURE
+
+FINAL SUCCESS CONDITION:
+
+Do not call Task #961 complete merely because code is implemented.
+
+Success requires the complete chain:
+
+TASK #960 DEPLOYED
++
+PRODUCTION READINESS PASSED
++
+EXACT GUARDED MIGRATION EXECUTED
++
+23-SYMBOL VERSIONED AUTHORITY CREATED
++
+MAPPING 23/23
++
+SCANNER AUTHORITY RESTORED
++
+PRE-OPEN AUTHORITY RESTORED
++
+ALL RUNTIME CONSUMERS RESOLVE SAME VERSION
++
+SAFETY UNCHANGED
++
+NEXT NATURAL CERTIFICATION READY.

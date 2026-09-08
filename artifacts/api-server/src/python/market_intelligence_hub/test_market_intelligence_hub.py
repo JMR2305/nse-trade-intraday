@@ -16,8 +16,23 @@ Tests cover:
   - Export (3)
 """
 import sys, os, unittest
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+@pytest.fixture(autouse=True)
+def _real_package_per_test():
+    """Never consume a package object imported under another test's stubs."""
+    saved = dict(sys.modules)
+    try:
+        for name in list(sys.modules):
+            if name == "market_intelligence_hub" or name.startswith("market_intelligence_hub."):
+                sys.modules.pop(name, None)
+        yield
+    finally:
+        sys.modules.clear()
+        sys.modules.update(saved)
 
 
 # ---------------------------------------------------------------------------

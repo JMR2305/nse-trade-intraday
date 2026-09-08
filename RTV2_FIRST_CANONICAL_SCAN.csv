@@ -1,0 +1,24 @@
+field,observed,required,status,notes
+scan_id,NOT_OBSERVED,present,PENDING,No current-day canonical scan has run.
+start_timestamp,NOT_OBSERVED,present,PENDING,Open-session observation has not started.
+finish_timestamp,NOT_OBSERVED,present,PENDING,Open-session observation has not started.
+scheduler_source,NOT_OBSERVED,SCHEDULER,PENDING,Only closed-market SYSTEM_HEARTBEAT rows are present today.
+python_command,NOT_OBSERVED,record exact command,PENDING,No canonical scan execution observed.
+universe_mode,NOT_OBSERVED,CUSTOM_LOW_PRICE_SECTOR,PENDING,Cannot infer from the historical scan.
+requested_symbols,NOT_OBSERVED,23,PENDING,No current-day canonical request observed.
+received_symbols,NOT_OBSERVED,23,PENDING,No current-day canonical response observed.
+exact_symbol_list,NOT_OBSERVED,"BANKBARODA,BANKINDIA,CANBK,FEDERALBNK,IDFCFIRSTB,KTKBANK,MAHABANK,PNB,UNIONBANK,COALINDIA,GAIL,HUDCO,IRCON,IRFC,MRPL,NBCC,NMDC,NTPC,PFC,RECLTD,RVNL,SAIL,WIPRO",PENDING,Will compare only against the RTV1H active list after the natural scan.
+provider,NOT_OBSERVED,Kite/live execution provider as required,PENDING,No current-day canonical scan provider recorded.
+errors,NOT_OBSERVED,none,PENDING,No scan execution to inspect.
+recommendations_signals,NOT_OBSERVED,record payload,PENDING,No current-day recommendations or signals observed.
+today_scan_history,0 canonical scans; closed-market heartbeats only,no legacy scheduled 50-symbol scan,OBSERVED,Historical 50-symbol scan remains allowed history; today has no canonical scan yet.
+historical_latest_scan,76e307f291e7,not today,HISTORICAL_ONLY,Preserved historical context; not treated as today's scan.
+continuation_scan_id,fb88f7199f27,natural scheduled scan id,NON_CERTIFYING,Generated during GET /api/live-data/recommendations; must not be used as scheduled-scan proof.
+continuation_snapshot_ts,2026-08-24T03:50:49Z,natural scheduled timestamp,NON_CERTIFYING,Timestamp aligns with the recommendation request after the market-open cache miss.
+continuation_trigger,GET /api/live-data/recommendations -> getP7Scan(false) -> phase7_scan,SCHEDULER,OBSERVATION_BOUNDARY_FAILURE,Source implementation spawns a scan when market is OPEN and cache is empty.
+universe_mode,CUSTOM_LOW_PRICE_SECTOR,CUSTOM_LOW_PRICE_SECTOR,MATCHED_NON_CERTIFYING,Output used the current custom universe.
+requested_received,23/23,23/23,MATCHED_NON_CERTIFYING,"All expected symbols appear in output, but trigger was not natural scheduler evidence."
+exact_membership,"BANKBARODA,BANKINDIA,CANBK,COALINDIA,FEDERALBNK,GAIL,HUDCO,IDFCFIRSTB,IRCON,IRFC,KTKBANK,MAHABANK,MRPL,NBCC,NMDC,NTPC,PFC,PNB,RECLTD,RVNL,SAIL,UNIONBANK,WIPRO","BANKBARODA,BANKINDIA,CANBK,COALINDIA,FEDERALBNK,GAIL,HUDCO,IDFCFIRSTB,IRCON,IRFC,KTKBANK,MAHABANK,MRPL,NBCC,NMDC,NTPC,PFC,PNB,RECLTD,RVNL,SAIL,UNIONBANK,WIPRO",MATCHED_NON_CERTIFYING,Exact 23-symbol membership matched RTV1H active universe.
+provider,kite_live_ltp execution overlay + yfinance_daily_bars indicators,Kite execution-grade price,MATCHED_NON_CERTIFYING,23/23 Kite live execution overlays; analytical OHLCV remained yfinance daily bars.
+errors,0,0,MATCHED_NON_CERTIFYING,No symbol errors in output.
+recommendations,BUY=0; WATCH=6; IGNORE=17,record,OBSERVED_NON_CERTIFYING,No paper orders; output is advisory only.

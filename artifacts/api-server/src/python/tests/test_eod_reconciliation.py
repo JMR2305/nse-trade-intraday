@@ -10,6 +10,7 @@ from __future__ import annotations
 import sys
 import types
 import unittest
+import pytest
 from unittest.mock import MagicMock, patch
 
 
@@ -63,7 +64,19 @@ def _stub_dependencies() -> None:
     bc_mod.get_broker_client = MagicMock(side_effect=RuntimeError("no broker in tests"))
 
 
-_stub_dependencies()
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    global recon
+    previous = recon
+    with patch.dict(sys.modules):
+        _stub_dependencies()
+        # A fresh SUT binds only this test's dependencies, never cached fakes.
+        sys.modules.pop("eod_reconciliation", None)
+        recon = importlib.import_module("eod_reconciliation")
+        try:
+            yield
+        finally:
+            recon = previous
 
 # Now safe to import
 import importlib

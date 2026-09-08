@@ -266,6 +266,37 @@ test.describe("Mission Map — 375 px phone horizontal scroll", () => {
       "Scroll container must be scrollable (scrollWidth > clientWidth) at 375 px when boxes are wider than 82 px",
     ).toBe(true);
   });
+
+  // ── New test: slow API — skeleton clears and flow appears ─────────────────
+  //
+  // Task 711 — the existing tests use an instant mock.  In practice the replay
+  // snapshot can take 30–45 s.  This test delays the endpoint by 4 s so the
+  // Widget has time to render its skeleton pulse before the data arrives, then
+  // confirms that mc-mission-map-flow becomes visible once the query resolves.
+  // The LIFO route registration means this handler wins over the beforeEach one.
+
+  test("mc-mission-map-flow appears after a slow API response (4 s delay)", async ({
+    page,
+  }) => {
+    // Register a delayed handler — takes LIFO precedence over the instant
+    // handler registered in beforeEach for the same URL pattern.
+    await page.route("**/api/replay/sessions/latest**", async (route) => {
+      await new Promise<void>((resolve) => setTimeout(resolve, 4_000));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_REPLAY),
+      });
+    });
+
+    await gotoMissionControlFull(page);
+
+    // Allow 4 s delay + ~5 s for navigation / React Query / render = 12 s.
+    // The skeleton is visible during the delay; after the query resolves the
+    // Widget replaces it with the flow div.
+    const flow = page.getByTestId("mc-mission-map-flow");
+    await expect(flow).toBeVisible({ timeout: 12_000 });
+  });
 });
 
 // ── 320 px viewport — label truncation inside stage boxes ────────────────────

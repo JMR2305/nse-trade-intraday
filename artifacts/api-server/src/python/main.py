@@ -98,30 +98,37 @@ def _load_portfolio_with_live_prices() -> dict:
 
 def cmd_portfolio() -> dict:
     """Canonical portfolio (phase20 ledger) mapped to the legacy response shape."""
-    from canonical_portfolio import build_canonical_portfolio
+    from canonical_portfolio import (
+        build_canonical_portfolio,
+        canonical_financial_contract,
+    )
     c = build_canonical_portfolio()
-    total_pnl = round((c["realized_pnl"] or 0.0) + (c["unrealized_pnl"] or 0.0), 2)
-    cap = c["initial_capital"] or 0.0
-    # pnl_history retained from the legacy state store for chart continuity
-    try:
-        from paper_trader import _load_state
-        pnl_history = (_load_state() or {}).get("pnl_history", [])
-    except Exception:
-        pnl_history = []
+    contract = canonical_financial_contract(c)
+    calculated_at = c.get("calculated_at") or datetime.now().astimezone().isoformat()
     return {
-        "cash": c["cash"],
-        "total_value": c["equity"],
-        "invested_value": c["invested_value"],
-        "total_pnl": total_pnl,
-        "total_pnl_pct": round(100.0 * total_pnl / cap, 2) if cap else 0.0,
-        "positions": c["positions"],
-        "pnl_history": pnl_history,
-        "initial_capital": cap,
-        "realized_pnl": c["realized_pnl"],
-        "unrealized_pnl": c["unrealized_pnl"],
-        "scan_id": c["scan_id"],
-        "portfolio_version": c["portfolio_version"],
-        "source": c["source"],
+        **contract,
+        "total_pnl_pct": round(
+            100.0 * contract["total_pnl"] / contract["initial_capital"], 2
+        ) if contract["initial_capital"] else 0.0,
+        # The legacy paper-trader history can have a different capital basis.
+        # Do not let it reintroduce an old portfolio view beside canonical
+        # ledger balances. A canonical equity history can be added later when
+        # it is recorded from the ledger itself.
+        "pnl_history": [],
+        "utilization_pct": round(
+            (contract["current_market_value"] / contract["equity"] * 100.0)
+            if contract["equity"] > 0 else 0.0,
+            2,
+        ),
+        "largest_position_pct": round(
+            (max((float(p.get("market_value") or 0.0)
+                 for p in contract["positions"]), default=0.0)
+             / contract["equity"] * 100.0)
+            if contract["equity"] > 0 else 0.0,
+            2,
+        ),
+        "calculated_at": calculated_at,
+        "source_timestamp": calculated_at,
     }
 
 
@@ -331,7 +338,7 @@ def cmd_strategies() -> list:
 
 
 def cmd_market_scan() -> dict:
-    """Sprint 1.5 — full NIFTY 50 universe scan (paper trading, no real orders)."""
+    """Configured scanner universe (paper trading only; no real orders)."""
     from market_scanner import run_market_scan
     state = _load_state()
     cash = state.get("cash", 5000.0)
@@ -932,19 +939,82 @@ def main():
             _force = len(args) > 2 and args[2] == "force"
             result = {"success": True, **get_quotes(_syms, force=_force)}
         elif command == "live_health_v2":
+            from config import get_active_intraday_universe
             from market_hours import market_status
             from live_quote_service import provider_status
             from live_scan_engine import load_cached_scan
+            from kite_instrument_cache import get_cached_instruments
+            from kite_session_manager import cached_session_metadata
+            from market_data_health import build_market_data_health
             _cached = load_cached_scan()
+            _market = market_status()
+            _quote_provider = provider_status()
+            _session = cached_session_metadata()
+            _active_mode = get_active_intraday_universe().value
+            _current_universe = None
+            _current_instruments = get_cached_instruments()
+            if _active_mode == "CUSTOM_LOW_PRICE_SECTOR":
+                from custom_universe_store import (
+                    get_active_symbol_metadata,
+                    get_active_symbols,
+                )
+                _current_universe = get_active_symbols()
+                _current_metadata = get_active_symbol_metadata()
+                # Coverage is authoritative only when the current custom-master
+                # row itself has a durable mapping, never when an unrelated
+                # global cache happens to contain the same symbol.
+                _current_instruments = [
+                    {"symbol": symbol, "token": _current_metadata.get(symbol, {}).get("instrument_token")}
+                    for symbol in _current_universe
+                ]
             result = {
                 "success": True,
-                "market": market_status(),
-                "quote_provider": provider_status(),
+                "market": _market,
+                "quote_provider": _quote_provider,
                 "scan_provider_health": _cached.get("provider_health") if _cached else None,
                 "scan_id": _cached.get("scan_id") if _cached else None,
                 "snapshot_ts": _cached.get("snapshot_ts") if _cached else None,
+                # Derived entirely from cache files and recorded session
+                # metadata; this health command never forces quote/profile IO.
+                "market_data_readiness": build_market_data_health(
+                    _cached,
+                    _session,
+                    _current_instruments,
+                    current_universe=_current_universe,
+                    active_universe=_active_mode,
+                    market_state=_market.get("state"),
+                ),
+                "kite_session": _session,
                 "label": "PAPER / LIVE DATA VALIDATION",
             }
+        elif command == "market_data_incidents":
+            from market_data_incidents import list_incidents
+            _status = str(args[1]).upper() if len(args) > 1 else ""
+            _severity = str(args[2]).upper() if len(args) > 2 else ""
+            _limit = int(args[3]) if len(args) > 3 else 100
+            result = {"success": True, **list_incidents(_status, _severity, _limit)}
+        elif command == "market_data_incident_active":
+            from market_data_incidents import classify_health, current_health, list_incidents
+            _active = list_incidents("ACTIVE", None, 1)
+            _health = current_health()
+            _classification = classify_health(_health)
+            result = {
+                "success": True, "incident": (_active.get("incidents") or [None])[0],
+                "storage_available": _active.get("storage_available", False),
+                # A null incident means only that no durable episode is open.
+                # This distinct state prevents UI consumers from treating a
+                # fresh deployment or missing scan evidence as verified health.
+                "authority_state": (
+                    "VERIFIED_HEALTHY"
+                    if not _classification["affected"]
+                    else "AWAITING_DURABLE_INCIDENT_EVIDENCE"
+                ),
+                "market_data_readiness": _health,
+                "read_only": True,
+            }
+        elif command == "market_data_incident_detail" and len(args) > 1:
+            from market_data_incidents import get_incident
+            result = {"success": True, **get_incident(args[1])}
         elif command == "diagnostic_bundle":
             from phase11_diagnostics import build_diagnostic_bundle
             result = {"success": True, "bundle": build_diagnostic_bundle()}
@@ -960,15 +1030,48 @@ def main():
         elif command == "phase7_scan":
             from live_scan_engine import get_or_run_scan
             import time as _time
-            force = len(args) > 1 and args[1] == "force"
+            force = "force" in args[1:]
+            origin_arg = next(
+                (arg.split("=", 1)[1] for arg in args[1:]
+                 if arg.startswith("origin=")),
+                "MANUAL",
+            )
+            trigger_origin = origin_arg.upper()
+            if trigger_origin not in {
+                "SCHEDULED", "MANUAL", "API_TRIGGERED", "RECOVERY", "BACKFILL", "UNKNOWN",
+            }:
+                trigger_origin = "UNKNOWN"
+            provenance_arg = next(
+                (arg.split("=", 1)[1] for arg in args[1:]
+                 if arg.startswith("provenance=")),
+                "",
+            )
+            provenance = {}
+            if provenance_arg:
+                try:
+                    parsed_provenance = json.loads(provenance_arg)
+                    if isinstance(parsed_provenance, dict):
+                        provenance = parsed_provenance
+                except (TypeError, ValueError):
+                    # Provenance is audit enrichment only. An invalid caller
+                    # value must not make a canonical scan fail.
+                    provenance = {}
             _scan_t0 = _time.time()
-            result = get_or_run_scan(max_age_s=600, force=force)
+            result = get_or_run_scan(
+                max_age_s=600, force=force, trigger_origin=trigger_origin,
+            )
             result["success"] = True
-            # Phase 20: record MANUAL scan runs in the durable history.
+            # Phase 20: record explicit/manual scan runs in the durable
+            # history with the safe provenance supplied by the API boundary.
             if not result.get("_from_cache"):
                 try:
                     from phase20_scheduler import record_manual_scan
-                    record_manual_scan(result, _time.time() - _scan_t0)
+                    record_manual_scan(
+                        result,
+                        _time.time() - _scan_t0,
+                        provenance=provenance,
+                        trigger_origin=trigger_origin,
+                    )
                 except Exception:
                     pass
                 # Phase 22: manual scans get the same post-scan regeneration
@@ -999,9 +1102,20 @@ def main():
                     "symbols_unavailable": _health.get("symbols_unavailable"),
                     "missing_symbols": _health.get("unavailable_symbols") or [],
                     "stale_symbols": _health.get("stale_symbols") or [],
+                    "trigger_origin": trigger_origin,
+                    "provenance": provenance,
                 }
             except Exception:
                 pass
+        elif command == "scan_snapshot":
+            # Read-only durable snapshot access. The Node dashboard uses this
+            # after close so a cold in-process cache never starts a fresh
+            # full-universe scan merely to render recommendations.
+            from scan_state_store import load_latest_snapshot
+            result = load_latest_snapshot() or {
+                "success": False,
+                "error": "No successful canonical scan snapshot is available.",
+            }
         elif command == "scan_status":
             # Delegate entirely to scan_state_store.build_scan_status_response()
             # so that both this path and the unit tests exercise the same code.
@@ -1013,6 +1127,221 @@ def main():
             from scan_state_store import build_scan_history_response
             _hist_limit = max(1, min(50, int(args[1]) if len(args) > 1 else 10))
             result = build_scan_history_response(limit=_hist_limit)
+
+        # ── Local OHLCV cache commands ────────────────────────────────────────
+        elif command == "ohlcv_cache_status":
+            # Return per-symbol cache status and overall summary.
+            from config import NIFTY_50 as _n50
+            from ohlcv_cache_store import get_overall_cache_summary
+            result = {"success": True, **get_overall_cache_summary(list(_n50))}
+
+        elif command == "ohlcv_backfill":
+            # Backfill 6-month OHLCV history for all NIFTY 50 symbols.
+            # Optional arg: force=1 to re-fetch even fresh symbols.
+            from config import NIFTY_50 as _n50
+            from ohlcv_cache_store import ensure_tables, backfill_all_symbols
+            ensure_tables()
+            _force = len(args) > 1 and args[1] in ("1", "true", "force")
+            result = backfill_all_symbols(list(_n50), force=_force)
+
+        elif command == "ohlcv_postmarket_refresh":
+            # Maintenance command is deliberately routed through the same
+            # market-state/per-day/retry guard as the scheduler. It cannot
+            # become an accidental ungated full refresh.
+            from market_hours import market_status
+            from post_market_data_refresh import maybe_run_postmarket_refresh
+            from phase20_scheduler import record_system_job
+            import time as _time
+            _refresh_started = _time.time()
+            _market = market_status()
+            _state = str(_market.get("state") or "UNKNOWN").upper()
+            _refresh_start_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            result = maybe_run_postmarket_refresh(_state)
+            if result is None:
+                result = {
+                    "success": True, "ran": False,
+                    "reason": "Post-market cache refresh is not due or market is not post-close",
+                    "market_state": _state,
+                }
+            elif result.get("ran"):
+                record_system_job(
+                    "POSTMARKET_CACHE_REFRESH", market_state=_state, trigger="MANUAL",
+                    started_at=_refresh_start_iso,
+                    duration_s=float(result.get("duration_seconds") or (
+                        _time.time() - _refresh_started)),
+                    status=str(result.get("status") or (
+                        "SUCCESS" if result.get("success") else "FAILED")),
+                    symbols_requested=result.get("symbols_requested"),
+                    symbols_received=result.get("symbols_updated"),
+                    error=result.get("error"),
+                    details=result,
+                )
+
+        # ── Custom low-price IT/Infra/Bank universe ─────────────────────────
+        elif command == "universe_custom_status":
+            from custom_universe_store import get_status
+            result = get_status()
+        elif command == "universe_custom_symbols":
+            from custom_universe_store import get_all_symbols
+            result = {"success": True, "symbols": get_all_symbols()}
+        elif command == "universe_custom_refresh":
+            from low_price_universe_refresh import refresh_low_price_sector_universe
+            result = refresh_low_price_sector_universe()
+        elif command == "universe_custom_upsert":
+            # Operator-approved direct upsert of a symbol row list.
+            # Accepts {"rows": [...]} as sys.argv[2] (JSON string).
+            from custom_universe_store import upsert_symbols
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            rows = payload.get("rows", [])
+            result = upsert_symbols(rows)
+        elif command == "universe_custom_report":
+            from low_price_universe_report import get_report
+            result = get_report()
+        elif command == "universe_custom_hydrate_instruments":
+            # Reference-data-only hydration. It cannot change membership or
+            # selection fields, fails closed on missing/duplicate mappings,
+            # and requires a separate explicit metadata-only approval.
+            from custom_universe_store import hydrate_active_instrument_metadata
+            from kite_instrument_cache import cache_status, get_cached_instruments
+            cache = cache_status()
+            result = hydrate_active_instrument_metadata(
+                get_cached_instruments(),
+                cache.get("date"),
+                approved="--approve-metadata-only-hydration" in sys.argv,
+            )
+        elif command == "universe_version_schema":
+            from universe_version_store import ensure_schema
+            result = {"success": ensure_schema()}
+        elif command == "universe_version_seed":
+            from universe_version_store import seed_baseline
+            result = seed_baseline()
+        elif command == "universe_version_resolve":
+            from universe_version_store import resolve_enabled_symbols
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = resolve_enabled_symbols(
+                universe_key=payload.get("universe_key", "CUSTOM_LOW_PRICE_SECTOR"),
+                version=payload.get("version"),
+                revision_id=payload.get("revision_id"),
+                effective_at=payload.get("effective_at"),
+            )
+        elif command == "universe_version_diff":
+            from universe_version_store import compare_revisions
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = compare_revisions(
+                int(payload["left_version"]),
+                int(payload["right_version"]),
+                universe_key=payload.get("universe_key", "CUSTOM_LOW_PRICE_SECTOR"),
+            )
+        elif command == "universe_management_schema":
+            from universe_management import ensure_schema
+            result = {"success": ensure_schema()}
+        elif command == "universe_management_active":
+            from universe_management import active_view
+            result = active_view()
+        elif command == "universe_management_revisions":
+            from universe_management import list_revisions
+            result = list_revisions()
+        elif command == "universe_management_revision":
+            from universe_management import get_revision_view, latest_validation
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            version = int(payload["version"]) if payload.get("version") is not None else None
+            revision = get_revision_view(version=version, revision_id=payload.get("revision_id"))
+            if revision:
+                revision["latest_validation"] = latest_validation(revision["version"])
+            result = {"success": bool(revision), "revision": revision}
+        elif command == "universe_management_diff":
+            from universe_management import diff_versions
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = diff_versions(int(payload["left_version"]), int(payload["right_version"]))
+        elif command == "universe_management_mapping":
+            from universe_management import mapping_coverage
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = mapping_coverage(int(payload["version"]))
+        elif command == "universe_baseline_migration_readiness":
+            from custom_universe_baseline_migration import readiness
+            result = readiness()
+        elif command == "universe_baseline_migration_execute":
+            from custom_universe_baseline_migration import execute
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = execute(
+                confirmation=str(payload.get("confirmation") or ""),
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+            )
+        elif command == "universe_management_audit":
+            from universe_management import audit_history
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            limit = int(payload.get("limit", 200))
+            result = audit_history(limit)
+        elif command == "universe_management_draft":
+            from universe_management import create_draft
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = create_draft(
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+                base_version=payload.get("base_version"),
+                notes=payload.get("notes"),
+            )
+        elif command == "universe_management_edit":
+            from universe_management import edit_draft
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = edit_draft(
+                version=int(payload["version"]),
+                operation=payload.get("operation"),
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+                expected_hash=payload.get("expected_hash"),
+                member=payload.get("member"),
+                symbol=payload.get("symbol"),
+                metadata=payload.get("metadata"),
+            )
+        elif command == "universe_management_validate":
+            from universe_management import validate_draft
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            result = validate_draft(
+                version=int(payload["version"]),
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+            )
+        elif command == "universe_management_activation_request":
+            from universe_management import request_activation
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            version = int(payload["version"])
+            result = request_activation(
+                version=version,
+                confirmation=str(payload.get("confirmation") or ""),
+                expected_confirmation=f"ACTIVATE {version}",
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+            )
+        elif command == "universe_management_activate":
+            from universe_management import activate
+            payload = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
+            version = int(payload["version"])
+            result = activate(
+                version=version,
+                confirmation=str(payload.get("confirmation") or ""),
+                expected_confirmation=f"ACTIVATE {version}",
+                actor=str(payload.get("actor") or "authenticated_operator"),
+                correlation_id=payload.get("correlation_id"),
+            )
+
+        elif command == "pre_market_data_readiness":
+            # Run pre-market data readiness check and return verdict.
+            from pre_market_data_readiness import run_pre_market_readiness_check
+            result = {"success": True, **run_pre_market_readiness_check()}
+
+        elif command == "company_master_bootstrap":
+            # Seed nifty50_company_master from config.SECTOR_MAP.
+            from nifty50_company_master_store import ensure_table, bootstrap_from_config
+            ensure_table()
+            result = bootstrap_from_config()
+
+        elif command == "company_master_list":
+            # Return all company master entries.
+            from nifty50_company_master_store import get_all
+            result = {"success": True, "rows": get_all()}
+
         elif command == "scheduled_scan_tick":
             # Phase 20: market-hours auto-scan tick with durable settings,
             # scheduler health, scan-run history, and paper management.
@@ -1021,10 +1350,132 @@ def main():
             from phase20_scheduler import run_tick
             result = run_tick()
 
+        elif command == "phase20_startup_overnight_check":
+            # Cold-start safety net: close OPEN paper positions that carried
+            # overnight because the server was down during POST_CLOSE/CLOSED.
+            # Idempotent via kv_claim_once("startup_overnight_check:<today>").
+            # Never raises; emits MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED events.
+            from phase20_scheduler import check_overnight_carry_on_startup
+            result = check_overnight_carry_on_startup()
+
+        elif command == "ohlcv_cold_start_check":
+            # Cold-start OHLCV cache check: if the daily_ohlcv_cache table is
+            # empty (fresh production deployment), trigger an automatic 8-month
+            # backfill now so the first scheduled scan uses the local cache
+            # instead of spending 7-22 minutes on a live yfinance bulk download.
+            # Idempotent — backfill skips symbols that already have fresh cache.
+            # Never raises; logs a prominent WARNING when cache is cold.
+            from phase20_scheduler import check_cold_cache_on_startup
+            result = check_cold_cache_on_startup()
+
         # ── Phase 20 — settings / scheduler health / history / paper engine ──
         elif command == "phase20_settings":
-            from phase20_store import get_settings
-            result = {"success": True, "settings": get_settings()}
+            from phase20_store import (
+                get_settings,
+                operating_universe_verification,
+            )
+            settings = get_settings()
+            result = {
+                "success": True,
+                "settings": settings,
+                # Read-only verification: this does not alter the active
+                # universe, strategy, thresholds, or paper-trading state.
+                "universe_verification": operating_universe_verification(settings),
+            }
+        elif command == "phase20_capital_migration_status":
+            from paper_capital_migration import get_paper_capital_migration_status
+            result = get_paper_capital_migration_status()
+        elif command == "phase20_capital_migration":
+            from paper_capital_migration import migrate_paper_capital_to_100000
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            result = migrate_paper_capital_to_100000(
+                confirmation_text=_payload.get("confirmation_text"),
+                reviewed_by=str(_payload.get("reviewed_by") or "operator")[:100],
+            )
+        elif command == "phase20_bootstrap_status":
+            # Aggregate bootstrap mode readiness into a single lightweight response.
+            # Gate predicates mirror run_bootstrap_auto_entry() in phase20_executor.py
+            # in priority order so the UI accurately reflects why entries are blocked.
+            # No yfinance calls — safe to poll every 60 s.
+            #
+            # Short-circuit: when bootstrap is disabled we return a minimal stub that
+            # skips the closed-trade count query and circuit-breaker evaluation.
+            # Note: get_settings() still reads from the settings DB row — but it does
+            # not spawn the two heavier operations (breaker eval + trade count).  All
+            # expensive work is gated on bootstrap_paper_enabled=True.
+            from phase20_store import get_settings as _p20_gs
+            _s = _p20_gs()  # already normalises auto_paper_entries=False when unconfirmed
+            if not _s.get("bootstrap_paper_enabled", False):
+                result = {"success": True, "bootstrap_paper_enabled": False}
+            else:
+                # Delegate to the extracted helper so the gate logic is
+                # unit-testable without importing the full main.py entry-point.
+                from scan_state_store import load_latest_snapshot as _load_snap
+                from phase20_executor import (
+                    _BOOTSTRAP_MAX_CLOSED_TRADES as _BS_MAX,
+                    _BOOTSTRAP_MAX_ORDER_VALUE as _BS_MAX_ORDER,
+                    _with_db as _bs_with_db,
+                )
+                from phase20_bootstrap_status import build_bootstrap_status_payload as _build_bs
+
+                def _eval_cb_safe(settings_arg):
+                    """circuit-breaker evaluate — fail-closed (unreadable = tripped)."""
+                    try:
+                        from phase20_circuit_breaker import evaluate_and_maybe_trip as _ev
+                        return _ev(settings_arg)
+                    except Exception as _cbe:
+                        return {"tripped": True, "reasons": [
+                            {"code": "STATE_UNREADABLE",
+                             "detail": f"breaker state unreadable: {_cbe!s:.80}"}]}
+
+                def _count_closed() -> int:
+                    """Count CLOSED paper trades — falls back to 0 on DB error."""
+                    def _q(conn) -> int:
+                        with conn.cursor() as _cur:
+                            _cur.execute(
+                                "SELECT COUNT(*) FROM phase20_paper_trades WHERE status='CLOSED'"
+                            )
+                            return int(_cur.fetchone()[0])
+                    try:
+                        return _bs_with_db(_q, lambda: 0)
+                    except Exception:
+                        return 0
+
+                result = _build_bs(
+                    settings=_s,
+                    snapshot=_load_snap(),
+                    evaluate_circuit_breaker=_eval_cb_safe,
+                    get_closed_trades=_count_closed,
+                    bootstrap_max_closed_trades=_BS_MAX,
+                    bootstrap_max_order_value=_BS_MAX_ORDER,
+                )
+        elif command == "phase20_eod_status":
+            # Read-only EOD square-off status: countdown to 15:20 IST, active
+            # window flag, today's force-close results, and any blocked events.
+            # No yfinance calls — safe to poll frequently.
+            from phase20_eod_status import build_eod_status_payload as _build_eod
+            result = _build_eod()
+        elif command == "phase20_eod_outcomes":
+            # Read-only query of durable per-trade EOD outcome records.
+            # args: [session_date_or_empty, limit_str]
+            # Paper/research only — no mutation, no broker calls.
+            from phase20_eod_outcomes import get_eod_outcomes as _get_eod_out
+            _eod_date = args[1] if len(args) > 1 and args[1] else None
+            _eod_limit = min(500, max(1, int(args[2]))) if len(args) > 2 and args[2].isdigit() else 100
+            _rows = _get_eod_out(session_date=_eod_date, limit=_eod_limit)
+            result = {"success": True, "outcomes": _rows, "count": len(_rows)}
+        elif command == "phase20_force_eod_close_now":
+            # Emergency: run eod_force_close_open_positions immediately,
+            # bypassing the kv_claim_once date guard (for use when the claim
+            # was already consumed by a failed earlier attempt).
+            # Paper-only — no live broker calls.
+            from phase20_store import get_settings as _gset
+            from phase20_exits import eod_force_close_open_positions
+            result = {
+                "success": True,
+                "label": "PAPER / RESEARCH ONLY",
+                "eod_force_close": eod_force_close_open_positions(_gset()),
+            }
         elif command == "phase20_settings_update":
             from phase20_store import update_settings
             _payload = json.loads(args[1]) if len(args) > 1 else {}
@@ -1122,6 +1573,15 @@ def main():
                 _activity["kite"] = None
             result = {"success": True, "scheduler": get_scheduler_health(),
                       "activity": _activity}
+        elif command == "phase20_scheduler_started":
+            # Record the scheduler process start time (called once at boot from
+            # scanScheduler.ts). Powers the cadence "since last restart" count.
+            from datetime import datetime as _ps_dt, timezone as _ps_tz
+            from phase20_store import update_scheduler_state as _ps_upd
+            _ps_now = _ps_dt.now(_ps_tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            _ps_upd(process_start_at=_ps_now)
+            result = {"success": True, "process_start_at": _ps_now}
+
         elif command == "phase20_cadence_stats":
             # Today's scan cadence metrics derived from pipeline_events.
             from datetime import datetime as _dt, timezone as _tz, timedelta as _td
@@ -1131,19 +1591,15 @@ def main():
             _cs_settings = _cs_gs()
             _cs_interval = int(_cs_settings.get("scan_interval_minutes", 5))
             _cs_now = _dt.now(_tz.utc)
-            _cs_today = _cs_now.date()
-            _cs_mkt_open = _dt(_cs_today.year, _cs_today.month, _cs_today.day,
-                               3, 45, 0, tzinfo=_tz.utc)
-            _cs_mkt_close = _dt(_cs_today.year, _cs_today.month, _cs_today.day,
-                                10, 0, 0, tzinfo=_tz.utc)
-            _cs_day_start = _dt(_cs_today.year, _cs_today.month, _cs_today.day,
-                                0, 0, 0, tzinfo=_tz.utc)
-            _cs_day_end = _cs_day_start + _td(days=1)
+            # IST day boundary — same logic as count_scans_today_ist.
+            from scan_state_store import ist_day_bounds_utc as _cs_bounds
+            _cs_day_start, _cs_day_end = _cs_bounds(_cs_now)
             _cs_out: dict = {
                 "configured_interval_minutes": _cs_interval,
                 "scheduling_mode": "START_TO_START",
                 "expected_scans_today": round(375 / _cs_interval),
                 "completed_scans_today": 0,
+                "session_scans_today": 0,
                 "skipped_scans_today": 0,
                 "avg_gap_minutes": None,
                 "min_gap_minutes": None,
@@ -1155,44 +1611,67 @@ def main():
                 "next_due": None,
                 "market_minutes": 375,
             }
+            _cs_proc_start = None
             try:
+                # get_scheduler_health() returns a FLAT dict (no "state" wrapper).
                 _cs_health = _cs_sh()
-                _cs_out["next_due"] = (_cs_health.get("state") or {}).get("next_due_at")
-                _cs_out["scheduler_status"] = (_cs_health.get("state") or {}).get("status")
+                _cs_out["next_due"] = _cs_health.get("next_due_at")
+                _cs_out["scheduler_status"] = _cs_health.get("status")
+                # "Since last restart" boundary: the scheduler records its own
+                # process start time at boot (phase20_scheduler_started).
+                _v = _cs_health.get("process_start_at")
+                if _v:
+                    try:
+                        _cs_proc_start = _dt.fromisoformat(
+                            str(_v).replace("Z", "+00:00"))
+                    except Exception:
+                        pass
             except Exception:
                 pass
+            if _cs_proc_start is None:
+                # No recorded restart timestamp — fall back to the IST day start
+                # (session count degrades to the full-day count).
+                _cs_proc_start = _cs_day_start
             if _cs_dba():
                 _cs_c = _cs_conn()
                 _cs_cur = _cs_c.cursor()
+                # Authoritative full-day count: SCAN_COMPLETED within the IST day.
+                _cs_cur.execute(
+                    "SELECT scan_id, ts FROM pipeline_events "
+                    "WHERE event_type=%s AND ts>=%s AND ts<%s ORDER BY ts",
+                    ("SCAN_COMPLETED", _cs_day_start, _cs_day_end))
+                _cs_comps_rows = _cs_cur.fetchall()
+                # Session count: SCAN_COMPLETED since the scheduler/process start.
+                _cs_cur.execute(
+                    "SELECT COUNT(*) FROM pipeline_events "
+                    "WHERE event_type=%s AND ts>=%s AND ts<%s",
+                    ("SCAN_COMPLETED", max(_cs_proc_start, _cs_day_start), _cs_day_end))
+                _cs_session_count = _cs_cur.fetchone()[0]
+                # Start times only used to derive per-scan durations.
                 _cs_cur.execute(
                     "SELECT scan_id, ts FROM pipeline_events "
                     "WHERE event_type=%s AND ts>=%s AND ts<%s ORDER BY ts",
                     ("SCAN_STARTED", _cs_day_start, _cs_day_end))
-                _cs_starts = _cs_cur.fetchall()
-                _cs_cur.execute(
-                    "SELECT scan_id, ts FROM pipeline_events "
-                    "WHERE event_type IN (%s,%s) AND ts>=%s AND ts<%s ORDER BY ts",
-                    ("SCAN_COMPLETED", "SCAN_FAILED", _cs_day_start, _cs_day_end))
-                _cs_comps = {r[0]: r[1] for r in _cs_cur.fetchall()}
+                _cs_starts = {r[0]: r[1] for r in _cs_cur.fetchall()}
                 _cs_cur.execute(
                     "SELECT COUNT(*) FROM pipeline_events "
                     "WHERE event_type=%s AND ts>=%s AND ts<%s",
                     ("SCAN_SKIPPED_BUSY", _cs_day_start, _cs_day_end))
                 _cs_skip_count = _cs_cur.fetchone()[0]
                 _cs_c.close()
-                # Filter to market-hours only (03:45–10:00 UTC)
-                _cs_mh = [r for r in _cs_starts
-                          if _cs_mkt_open <= r[1] < _cs_mkt_close]
-                _cs_times = [r[1] for r in _cs_mh]
+                # Gap metrics from completion timestamps (what operators see).
+                _cs_times = [r[1] for r in _cs_comps_rows]
                 _cs_gaps = [(_cs_times[i+1]-_cs_times[i]).total_seconds()/60
                             for i in range(len(_cs_times)-1)]
                 _cs_durs = []
-                for _sid, _st in [(r[0], r[1]) for r in _cs_mh]:
-                    if _sid in _cs_comps:
-                        _d = (_cs_comps[_sid]-_st).total_seconds()
+                for _sid, _ct in _cs_comps_rows:
+                    _st = _cs_starts.get(_sid)
+                    if _st is not None:
+                        _d = (_ct-_st).total_seconds()
                         if 0 < _d < 600:
                             _cs_durs.append(_d)
-                _cs_out["completed_scans_today"] = len(_cs_mh)
+                _cs_out["completed_scans_today"] = len(_cs_comps_rows)
+                _cs_out["session_scans_today"] = int(_cs_session_count)
                 _cs_out["skipped_scans_today"] = int(_cs_skip_count)
                 if _cs_gaps:
                     _sg = sorted(_cs_gaps)
@@ -1222,6 +1701,46 @@ def main():
             from phase20_gates import evaluate_entries
             result = evaluate_entries()
             result["success"] = True
+        elif command == "phase20_exit_pending_alert":
+            # Returns EXIT_PENDING trades with their age in hours so the
+            # dashboard can show an alert when positions have been stuck
+            # for more than 24 hours (e.g. Kite LTP offline for days).
+            from phase20_executor import get_ledger as _ep_gl
+            from datetime import datetime as _ep_dt, timezone as _ep_tz
+            _ep_now = _ep_dt.now(_ep_tz.utc)
+            _ep_rows: list = []
+            for _ep_t in _ep_gl(500):
+                if _ep_t.get("status") != "EXIT_PENDING":
+                    continue
+                # Age is computed from exit_ts (when it moved to EXIT_PENDING)
+                # falling back to fill_ts if exit_ts was not recorded.
+                _ep_ts_str = _ep_t.get("exit_ts") or _ep_t.get("fill_ts")
+                _ep_age_h: float = 0.0
+                if _ep_ts_str:
+                    try:
+                        _ep_ts_dt = _ep_dt.fromisoformat(
+                            str(_ep_ts_str).replace("Z", "+00:00"))
+                        _ep_age_h = (_ep_now - _ep_ts_dt).total_seconds() / 3600.0
+                    except Exception:
+                        pass
+                _ep_rows.append({
+                    "trade_id": _ep_t.get("trade_id"),
+                    "symbol": _ep_t.get("symbol"),
+                    "fill_ts": _ep_t.get("fill_ts"),
+                    "exit_ts": _ep_t.get("exit_ts"),
+                    "exit_rule": _ep_t.get("exit_rule"),
+                    "age_hours": round(_ep_age_h, 1),
+                    "age_days": round(_ep_age_h / 24.0, 1),
+                })
+            _ep_stale = [r for r in _ep_rows if r["age_hours"] > 24]
+            result = {
+                "success": True,
+                "exit_pending_count": len(_ep_rows),
+                "stale_count": len(_ep_stale),   # stuck > 24 h
+                "positions": _ep_rows,
+                "stale_positions": _ep_stale,
+                "has_stale": len(_ep_stale) > 0,
+            }
         elif command == "phase20_ledger":
             from phase20_executor import get_ledger
             _limit = int(args[1]) if len(args) > 1 else 200
@@ -1234,6 +1753,41 @@ def main():
             from phase20_exits import manage_open_positions
             result = manage_open_positions(_p20gs())
             result["success"] = True
+        elif command == "phase20_force_close_stale":
+            # Force-close ALL EXIT_PENDING positions immediately, regardless of
+            # how long they have been stuck.  This is the operator escape hatch
+            # for positions like the Aug 4–7 TRENT/DIVISLAB/GRASIM/BAJFINANCE
+            # trades that went to EXIT_PENDING but never received a fresh quote.
+            #
+            # Internally calls _resolve_timeout_exit_pending with max_holding_days=0
+            # so every EXIT_PENDING row (no matter how old) is processed in the
+            # same scan cycle.  Price source preference: Kite LTP > yfinance
+            # daily close > fill_price_fallback (fill price) so the ledger is
+            # always stamped with a real or best-available price — never NULL.
+            from phase20_store import get_settings as _p20gs
+            from phase20_exits import _resolve_timeout_exit_pending
+            from phase15_scan_context import build_scan_context as _bsc
+            _fc_ctx = _bsc()
+            _fc_symbols_ctx = _fc_ctx.get("symbols") or {}
+            _fc_scan_id = _fc_ctx.get("scan_id")
+            _fc_settings = dict(_p20gs())
+            # Override max_holding_days to 0 so every EXIT_PENDING trade is
+            # eligible regardless of how long it has been pending.
+            _fc_settings["max_holding_days"] = 0
+            _fc_closed = _resolve_timeout_exit_pending(
+                _fc_settings, _fc_symbols_ctx, _fc_scan_id)
+            result = {
+                "success": True,
+                "force_closed": _fc_closed,
+                "force_closed_count": len(_fc_closed),
+                "scan_id": _fc_scan_id,
+                "note": (
+                    "Force-closed all EXIT_PENDING positions using best-available "
+                    "price (Kite LTP > yfinance close > fill_price_fallback). "
+                    "Use this command when positions are permanently stranded due "
+                    "to a prolonged Kite LTP outage."
+                ),
+            }
         elif command == "phase20_entry_tick":
             from phase20_store import get_settings as _p20gs
             from phase20_executor import run_auto_entries
@@ -1461,8 +2015,9 @@ def main():
             # phase20 paper ledger (same source Replay/Portfolio use).
             from broker_client import get_broker_client
             from execution_engine import get_execution_mode
-            from portfolio_store import INITIAL_CAPITAL as _init_cap
+            from portfolio_store import get_initial_capital as _get_init_cap
             from scan_state_store import _connect as _ss_connect
+            _init_cap = float(_get_init_cap())
             _client = get_broker_client()
             _conn8  = _client.test_connection()
             _rows = []
@@ -2331,6 +2886,13 @@ def main():
                 "capital": float(p.get("capital") or 100000.0),
                 "symbols": p.get("symbols"),
                 "universe": p.get("universe") or "configured",
+                # Preserve the explicit custom-universe request rather than
+                # collapsing it into the legacy generic universe field.
+                "universe_mode": p.get("universe_mode"),
+                "as_of_date": p.get("as_of_date") or p.get("end"),
+                "allow_current_universe_fallback": (
+                    p.get("allow_current_universe_fallback") is True
+                ),
             }
             # Capital-deployment settings (optional; defaults preserve
             # historical behaviour — scale-in OFF, 1% risk, 25% cap).
@@ -2341,38 +2903,59 @@ def main():
             if not cfg["start"] or not cfg["end"]:
                 result = {"ok": False, "error": "start and end dates required"}
             else:
-                rid = _bp.create_run(cfg)
-                run_status = _bp.get_run_status(rid)
-                if run_status == "QUEUED":
-                    # At concurrency cap — worker will be spawned when a slot opens
-                    result = {"ok": True, "run_id": rid, "status": "QUEUED",
-                              "log": None,
-                              "label": ("BACKTEST — QUEUED "
-                                        f"(max {_bp.MAX_CONCURRENT_BACKTESTS} concurrent runs; "
-                                        "will start automatically when a slot opens)")}
+                # Fail historical custom-universe requests closed before
+                # creating a queued run that can never obtain valid evidence.
+                rid = None
+                if str(cfg.get("universe_mode") or cfg.get("universe") or "").upper() == "CUSTOM_LOW_PRICE_SECTOR" \
+                        and not cfg.get("symbols"):
+                    from backtest_runner import resolve_universe as _resolve_universe
+                    if not _resolve_universe(cfg):
+                        result = {
+                            "ok": False,
+                            "error": (
+                                "No historical custom-universe snapshot exists "
+                                "for this as-of date. Select a date with a "
+                                "snapshot or explicitly opt in to current "
+                                "membership fallback."
+                            ),
+                            "universe_evidence": cfg.get("universe_evidence"),
+                        }
+                    else:
+                        rid = _bp.create_run(cfg)
                 else:
-                    log_path = f"/tmp/backtest_{rid}.log"
-                    try:
-                        with open(log_path, "ab") as lf:
-                            subprocess.Popen(
-                                [sys.executable, os.path.abspath(__file__),
-                                 "backtest_exec", json.dumps({"run_id": rid})],
-                                stdout=lf, stderr=lf,
-                                cwd=os.path.dirname(os.path.abspath(__file__)),
-                                start_new_session=True)
-                        result = {"ok": True, "run_id": rid, "status": "PENDING",
-                                  "log": log_path,
-                                  "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
-                    except Exception as _spawn_err:
-                        # Atomic conditional revert: single DB UPDATE WHERE
-                        # status='PENDING' — safe if a worker already claimed it.
+                    rid = _bp.create_run(cfg)
+                if rid is not None:
+                    run_status = _bp.get_run_status(rid)
+                    if run_status == "QUEUED":
+                        # At concurrency cap — worker will be spawned when a slot opens
+                        result = {"ok": True, "run_id": rid, "status": "QUEUED",
+                                  "log": None,
+                                  "label": ("BACKTEST — QUEUED "
+                                            f"(max {_bp.MAX_CONCURRENT_BACKTESTS} concurrent runs; "
+                                            "will start automatically when a slot opens)")}
+                    else:
+                        log_path = f"/tmp/backtest_{rid}.log"
                         try:
-                            _bp.revert_pending_to_queued(rid)
-                        except Exception:
-                            pass
-                        result = {"ok": False, "run_id": rid, "status": "QUEUED",
-                                  "error": (f"Spawn failed ({_spawn_err}); "
-                                            "run reverted to QUEUED for auto-retry")}
+                            with open(log_path, "ab") as lf:
+                                subprocess.Popen(
+                                    [sys.executable, os.path.abspath(__file__),
+                                     "backtest_exec", json.dumps({"run_id": rid})],
+                                    stdout=lf, stderr=lf,
+                                    cwd=os.path.dirname(os.path.abspath(__file__)),
+                                    start_new_session=True)
+                            result = {"ok": True, "run_id": rid, "status": "PENDING",
+                                      "log": log_path,
+                                      "label": "BACKTEST — SIMULATED, ISOLATED FROM LIVE"}
+                        except Exception as _spawn_err:
+                            # Atomic conditional revert: single DB UPDATE WHERE
+                            # status='PENDING' — safe if a worker already claimed it.
+                            try:
+                                _bp.revert_pending_to_queued(rid)
+                            except Exception:
+                                pass
+                            result = {"ok": False, "run_id": rid, "status": "QUEUED",
+                                      "error": (f"Spawn failed ({_spawn_err}); "
+                                                "run reverted to QUEUED for auto-retry")}
         elif command == "backtest_exec":
             from backtest_runner import execute_run
             p = json.loads(sys.argv[2]) if len(sys.argv) > 2 else {}
@@ -3065,6 +3648,20 @@ def main():
             from kite_instrument_cache import refresh
             force = "--force" in sys.argv
             result = refresh(force=force)
+            if result.get("success") and "--approve-metadata-only-hydration" in sys.argv:
+                from custom_universe_store import hydrate_active_instrument_metadata
+                from kite_instrument_cache import cache_status, get_cached_instruments
+                cache = cache_status()
+                result["custom_universe_hydration"] = hydrate_active_instrument_metadata(
+                    get_cached_instruments(), cache.get("date"), approved=True
+                )
+            elif result.get("success"):
+                result["custom_universe_hydration"] = {
+                    "success": False,
+                    "skipped": True,
+                    "error": "metadata_hydration_approval_required",
+                    "confirmation_required": "HYDRATE_INSTRUMENT_METADATA_ONLY",
+                }
         elif command == "kite_instrument_cache_status":
             from kite_instrument_cache import cache_status
             result = {"success": True, **cache_status()}
@@ -4083,8 +4680,8 @@ def main():
             # before lazy-init has populated the AgentRegistry in this subprocess.
             from ops_centre import get_agent_list_canonical as _f; result = _f()
         elif command == "agent_detail":
-            agent_id_arg = args[0] if args else ""
-            from supervisor_agent.shared_services import get_agent_detail as _f; result = _f(agent_id_arg)
+            agent_id_arg = args[1] if len(args) > 1 else ""
+            from ops_centre import get_agent_detail_canonical as _f; result = _f(agent_id_arg)
         elif command == "agent_supervisor_alerts":
             from supervisor_agent.shared_services import get_supervisor_alerts as _f; result = _f()
         elif command == "agent_market_data_snapshot":
@@ -4183,11 +4780,13 @@ def main():
         elif command == "daily_session_verify_agents":
             from daily_session_manager import verify_agents as _f; result = _f()
         elif command == "daily_session_enable_autonomous":
-            # Convenience: enable auto entries for the current session.
-            from phase20_store import update_settings, CONFIRMATION_TEXT
-            result = update_settings(
-                {"auto_paper_entries": True, "auto_scan_enabled": True, "auto_paper_exits": True},
-                confirmation_text=CONFIRMATION_TEXT,
+            # Explicit operator activation only: Phase 22 requires both its
+            # readiness checklist and the caller's exact typed confirmation.
+            _payload = json.loads(args[1]) if len(args) > 1 else {}
+            from phase22_activation import enable_paper_automation as _f
+            result = _f(
+                str(_payload.get("confirmation_text") or ""),
+                user=_payload.get("user"),
             )
         elif command == "daily_session_disable_autonomous":
             from phase20_store import update_settings

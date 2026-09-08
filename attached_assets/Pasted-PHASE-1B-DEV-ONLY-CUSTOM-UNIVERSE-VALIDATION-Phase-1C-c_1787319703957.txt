@@ -1,0 +1,143 @@
+PHASE 1B — DEV-ONLY CUSTOM UNIVERSE VALIDATION
+
+Phase 1C capital migration is complete and accepted:
+- production initial_capital = ₹1,00,000
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- active universe still NIFTY_50
+- positions=[]
+- no live orders
+
+Start Phase 1B in DEV ONLY.
+
+Do not write to production custom_universe_master.
+Do not switch production active universe.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change thresholds.
+Do not touch Phase 20 executor/scheduler/exits/EOD safety files.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Operator universe decision:
+Use Option B — ₹20 to ₹500 moderate low-price universe.
+
+Initial conservative dev-only symbol list:
+- WIPRO
+- IRFC
+- NBCC
+- NMDC
+- IRCON
+- HUDCO
+- GAIL
+- SAIL
+- MRPL
+- IDFCFIRSTB
+- PNB
+- CANBK
+- BANKINDIA
+- MAHABANK
+- UNIONBANK
+- RVNL
+- BANKBARODA
+- RECLTD
+- NTPC
+- KTKBANK
+- FEDERALBNK
+- PFC
+- COALINDIA
+
+Exclude for now:
+- IOB
+- UCOBANK
+Reason: very low absolute price and spread/slippage risk.
+Do not include LTIM, HCLTECH, RATEGAIN, TANLA, PERSISTENT, COFORGE, MPHASIS, or LT because they do not fit the selected ₹20–₹500 low-price universe for this phase.
+
+TASK 1 — DEV-ONLY KITE/YFINANCE MAPPING VERIFICATION
+
+For every symbol in the dev-only list, verify:
+- yahoo_symbol
+- kite_symbol
+- instrument_token if available
+- sector
+- sub_sector
+- latest price / price band
+- whether OHLCV/yfinance data is available
+- whether Kite LTP overlay can resolve it
+- whether it is suitable for scan inclusion
+
+Produce a table:
+symbol | sector | yahoo_symbol | kite_symbol | instrument_token | price | mapping_status | include/exclude | reason
+
+TASK 2 — ADD CUSTOM UNIVERSE TESTS BEFORE DB POPULATION
+
+Create or update:
+
+tests/unit/test_custom_universe_store.py
+
+Required tests:
+1. upsert idempotency
+2. active-only filtering
+3. membership history append-only snapshot
+4. CUSTOM_LOW_PRICE_SECTOR uses only custom symbols
+5. empty custom universe blocks scan safely
+6. invalid Kite/yfinance mapping is reported, not silently used
+7. Phase 0C safety suite still passes
+
+Run:
+python3 -m pytest tests/unit/test_custom_universe_store.py -v
+python3 -m pytest tests/unit/test_phase0c_safety_fixes.py -v
+
+TASK 3 — POPULATE DEV CUSTOM UNIVERSE ONLY
+
+After tests pass, populate only the DEV database:
+- custom_universe_master
+- custom_universe_membership_history
+
+Do not write to production.
+
+Use idempotent upsert only.
+
+TASK 4 — DEV VERIFICATION
+
+Verify on dev:
+1. GET /api/universe/custom/symbols
+   - returns the approved list
+   - all expected symbols active
+   - excluded symbols absent or inactive
+
+2. GET /api/universe/custom/status
+   - symbol count matches
+   - sector counts correct
+
+3. Test CUSTOM_LOW_PRICE_SECTOR scan resolution in dev
+   - must use only custom symbols
+   - must not silently fall back to NIFTY_50
+   - empty custom universe must block safely
+
+4. Confirm:
+   - dev auto_paper_entries=false
+   - dev bootstrap_paper_enabled=false
+   - no dev trades created
+   - no live orders
+
+TASK 5 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE1B_DEV_CUSTOM_UNIVERSE_VALIDATION_REPORT.md
+
+Include:
+1. Final approved dev-only symbol list.
+2. Mapping verification table.
+3. Included/excluded symbols and reasons.
+4. Test file created/updated.
+5. Test results.
+6. Dev DB population evidence.
+7. Custom universe symbols/status responses.
+8. Scan-resolution proof.
+9. Confirmation production was not changed.
+10. Confirmation auto entries/bootstrap remain disabled.
+11. Confirmation no live orders.
+12. Recommendation whether this exact list is safe for Phase 1D production population.

@@ -11,6 +11,7 @@ Rule: paper-entry provider gates must key off `kite_session_verified()` (an auth
 ## Durable tokens on Autoscale
 Rule: anything that must survive a redeploy (e.g. the Kite access token) goes in Postgres (phase20 kv) with the local file only as a warm cache.
 **Why:** Autoscale instances have ephemeral disks; file-only tokens silently vanish on deploy, downgrading the provider without any error.
+**How to apply:** treat shared state as authoritative; a local warm cache or retained client must never extend a logged-out session.
 
 ## Scan lock lease safety
 Rules that keep scheduled scans overlap-free:

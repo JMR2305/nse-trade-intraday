@@ -453,3 +453,395 @@ uri = "file://APEXQUANT_AI_SOP_v4.3.html"
 type = "text"
 title = "ApexQuant AI — Full Project SOP v4.3"
 description = "Updated 2026-08-16. BTT guardrail, exploration fixes, 18/18 tests, full architecture and pre-market checklist."
+
+[[outputs]]
+id = "4b_4FEZ0kqcq8d5Fnmqnq"
+uri = "file://APEXQUANT_AI_SOP_v5.0.html"
+type = "text"
+title = "ApexQuant AI — SOP v5.0"
+description = "Full operator guide updated 2026-08-18. Covers Bootstrap Mode activation, secrets management, Kite auth, daily checklist, and troubleshooting."
+
+[[outputs]]
+id = "dkufmAX2h3F7Q9m1cWYRm"
+uri = "file://APEXQUANT_FIRST_BOOTSTRAP_AUTO_TRADE_PROOF.md"
+type = "text"
+title = "ApexQuant — First Bootstrap Trade Proof"
+description = "Production verification report (2026-08-18 09:30 IST). All 10 tasks completed."
+
+[[outputs]]
+id = "3FNK_tPfrZ9dKiZdyRbPR"
+uri = "file://APEXQUANT_BOOTSTRAP_FALLBACK_CANDIDATE_FIX_AND_FIRST_TRADE_PROOF.md"
+type = "text"
+title = "Bootstrap Fallback Fix & First Trade Proof"
+description = "Fix implemented (45/45 tests), not yet deployed. Re-publish required for DRREDDY fallback to fire."
+
+[[outputs]]
+id = "DDMJJrl0pBVhboqTkQs7d"
+uri = "file://TODAYS_TRADE_EXIT_QUALITY_AUDIT.md"
+type = "text"
+title = "Today's Trade Exit Quality Audit"
+description = "Read-only production-ledger audit of 20 August paper trades, exit quality, late-entry controls, P&L, and quantity evidence."
+
+[[outputs]]
+id = "Kg0NKA4E0q0yADSUR8bUe"
+uri = "file://APEXQUANT_PHASE0C_CRITICAL_SAFETY_FIX_IMPLEMENTATION_REPORT.md"
+type = "text"
+title = "Phase 0C Critical Safety Fix — Implementation & Verification Report"
+description = "Full implementation report covering all 6 safety fixes, 17/17 tests, and the 2026-08-21 13:35 IST production verification findings."
+
+[[outputs]]
+id = "n6CmXc4mdz3UY7lRgQ633"
+uri = "file://APEXQUANT_PHASE0C_CORRECTED_SAFETY_ACCEPTANCE_REPORT.md"
+type = "text"
+title = "Phase 0C — Corrected Safety Acceptance Report"
+description = "All 5 issues resolved: safe state corrected & re-paused (both envs), 22/22 tests, DEV IMPLEMENTED ONLY status, bootstrap claim-order proof (Test 18), malformed timestamp fail-closed fix + proof (Tests 19–22)."
+
+[[outputs]]
+id = "IjMoImbKCU8fQHcXJsCmW"
+uri = "file://APEXQUANT_PHASE0D_PRODUCTION_DEPLOYMENT_AND_SAFETY_VERIFICATION_REPORT.md"
+type = "text"
+title = "Phase 0D — Production Deployment & Safety Verification Report"
+description = "Pre-deploy snapshot, EOD outcomes route wired (HTTP 200 on dev), APEXQUANT_BUILD_ID set, 22/22 tests pass, watch plan for next session. Awaiting publish to production."
+
+[[outputs]]
+id = "dmAKs5X-tLEo8nA7DDbyM"
+uri = "file://APEXQUANT_PHASE0D_POST_PUBLISH_PRODUCTION_VERIFICATION_REPORT.md"
+type = "text"
+title = "Phase 0D — Post-Publish Production Verification Report"
+description = "All checks passed. Phase 0C/0D safety build confirmed live on production. eod-outcomes HTTP 200, entries=false, 0 positions, build_id set, no trades changed, no live orders."
+
+[[outputs]]
+id = "O5YK0Vl1agJCT3mKH_3vQ"
+uri = "file://APEXQUANT_PHASE1_CAPITAL_UNIVERSE_LTIM_BRANCH_PLAN.md"
+type = "text"
+title = "Phase 1 — Capital / Universe / LTIM Branch Plan"
+description = "Capital migration ready (CONFIRMATION_REQUIRED, ₹5L→₹1L, no code changes). Custom universe infrastructure built but table empty — needs population. LTIM already inactive in NIFTY_50. Execution order: symbol list → populate → capital migrate → universe switch → verify."
+
+[[outputs]]
+id = "i_u-9AOwsYnATKeR4lnQK"
+uri = "file://APEXQUANT_PHASE1_REVISED_CAPITAL_UNIVERSE_EXECUTION_PLAN.md"
+type = "text"
+title = "Phase 1 Revised — Capital / Universe Execution Plan"
+description = "All 5 issues addressed. Live prices verified. Candidate table by band. Capital checklist. Phase 1A–1E separation. UI proof with file:line. Test plan. 3 operator decisions required before execution."
+
+[[outputs]]
+id = "z-_0OLSCA4lWJqMimS9rV"
+uri = "file://APEXQUANT_PHASE1C_CAPITAL_MIGRATION_EVIDENCE_REPORT.md"
+type = "text"
+title = "Phase 1C — Capital Migration Evidence Report"
+description = "All 20 checks passed. ₹5,00,000 → ₹1,00,000 applied at 12:20:38 UTC. 6 closed trades and −₹278.74 P&L preserved. Auto entries, bootstrap, and universe unchanged."
+
+[[outputs]]
+id = "3YQ8s9XTWdOvroQHfza33"
+uri = "file://APEXQUANT_PHASE1B_DEV_CUSTOM_UNIVERSE_VALIDATION_REPORT.md"
+type = "text"
+title = "Phase 1B — Dev Custom Universe Validation Report"
+description = "18/18 tests pass. 23 symbols (1 IT + 13 Infra + 9 Bank) populated in dev DB. IOB and UCOBANK excluded with documented reasons. Empty-universe safety proven. Phase 0C gate passes. Safe for Phase 1D production population."
+
+[[outputs]]
+id = "QPNclAJ29pbJ8TAf82SQx"
+uri = "file://APEXQUANT_PHASE1D_PRODUCTION_CUSTOM_UNIVERSE_POPULATION_REPORT.md"
+type = "text"
+title = "Phase 1D — Production Custom Universe Population Report"
+description = "25/25 upserted. 23 active (IT=1, Infra=13, Bank=9) + 2 inactive audit rows. price_filter fixed to 20–500. 40/40 tests pass. Active universe remains NIFTY_50. Phase 1E safe to proceed."
+
+[[outputs]]
+id = "Y03DdfSYUAcnVI9pho2qN"
+uri = "file://APEXQUANT_PHASE1E_ACTIVE_UNIVERSE_SWITCH_REPORT.md"
+type = "text"
+title = "Phase 1E — Active Universe Switch Report"
+description = "CUSTOM_LOW_PRICE_SECTOR is now the active production universe. 23 symbols, NIFTY_50 retired. All safety flags unchanged. 40/40 tests pass."
+
+[[outputs]]
+id = "cv54sqRRwicNhF1J2R0Aq"
+uri = "file://APEXQUANT_PHASE1F_PRE_AUTO_ENTRY_HARDENING_AND_WATCH_REPORT.md"
+type = "text"
+title = "Phase 1F — Pre-Auto-Entry Hardening and Watch Report (Final)"
+description = "Token gate live on dev. 7/7 security tests pass. 40/40 Python pass. 124/125 TS pass. UNIVERSE_ADMIN_TOKEN secret set. One action: publish to activate the gate in production."
+
+[[outputs]]
+id = "KbVlMoZx4tVVAChfEORVn"
+uri = "file://APEXQUANT_PHASE1F_POST_PUBLISH_SECURITY_GATE_VERIFICATION_REPORT.md"
+type = "text"
+title = "Phase 1F — Post-Publish Security Gate Verification Report"
+description = "All 8 production checks passed. Security blocker resolved. One condition remaining: Monday 2026-08-25 session watch before auto entries can be enabled."
+
+[[outputs]]
+id = "Dc2CYn1x87NxWapYraBJS"
+uri = "file://APEXQUANT_PHASE1G_FIRST_CUSTOM_UNIVERSE_SESSION_WATCH_REPORT.md"
+type = "text"
+title = "Phase 1G — First Custom-Universe Session Watch Report"
+description = "Pre-session preparation complete: NSE watch date corrected to Monday 2026-08-24, WIPRO metadata restored, sector counts now 9 BANK / 13 INFRA / 1 IT. Auto entries remain disabled pending scan and EOD evidence."
+
+[[outputs]]
+id = "ZUjx0O9AvUlcuU-Lo0kz0"
+uri = "file://docs/phase4a-summary.md"
+type = "text"
+title = "Phase 4A Summary"
+description = "Controlled paper-entry framework summary: disabled-by-default safety controls, readiness requirements, dry-run behavior, tests, known gaps, and downstream dependencies."
+
+[[outputs]]
+id = "n6nfpNBhp5pI2mFZfvMcE"
+uri = "file://APEXQUANT_PHASE4B_CONTROLLED_PAPER_ENTRY_SAFETY_REVIEW.md"
+type = "text"
+title = "Phase 4B Controlled Paper-Entry Safety Review"
+description = "Independent Phase 4B verification report covering fail-closed controls, readiness, dry-run and bridge isolation, API behavior, protected files, tests, and the SAFE FOR MONDAY REVIEW verdict."
+
+[[outputs]]
+id = "VqdR2t6Wie0xiapb7Kbzd"
+uri = "file://APEXQUANT_PHASE4C_WEEKEND_FREEZE_AND_MONDAY_MERGE_PLAN.md"
+type = "text"
+title = "Phase 4C Weekend Freeze and Monday Merge Plan"
+description = "Final Monday execution plan covering the branch map, weekend freeze, exact IST sequence, conditional merge order, test commands, rollback plan, GO/NO-GO gates, and explicit no-merge/no-deploy confirmations."
+
+[[outputs]]
+id = "DOjgYqQtu1yVaY_TFVIaN"
+uri = "file://RTV0_RUNTIME_BASELINE_REPORT.md"
+type = "text"
+title = "RTV-0 Runtime Baseline Report"
+description = "Read-only runtime truth baseline with findings and Monday live-session gates."
+
+[[outputs]]
+id = "xjptedEIpNeBlL_MCSu_7"
+uri = "file://RTV0_MARKET_DATA_PROVENANCE.csv"
+type = "table"
+title = "RTV-0 Market Data Provenance"
+description = "50-symbol active-universe provenance, freshness, fallback, and Kite-token coverage."
+
+[[outputs]]
+id = "QJMWEhFJbZ2BLh6y7iN_J"
+uri = "file://RTV0_RUNTIME_DATABASE_INVENTORY.csv"
+type = "table"
+title = "RTV-0 Runtime Database Inventory"
+description = "Observed 74-table development-runtime inventory with counts and timestamps."
+
+[[outputs]]
+id = "HwiAB4eOsEkmokvZbHvvf"
+uri = "file://RTV0_PORTFOLIO_RECONCILIATION.csv"
+type = "table"
+title = "RTV-0 Portfolio Reconciliation"
+description = "Canonical, legacy, broker, and snapshot portfolio comparison."
+
+[[outputs]]
+id = "W_YhBoAAdvI3M9qgF_noG"
+uri = "file://RTV0_RUNTIME_AUTHORITY_MAP.md"
+type = "text"
+title = "RTV-0 Runtime Authority Map"
+description = "Observed source-of-truth map, concurrency classification, and topology."
+
+[[outputs]]
+id = "OyycAQiA8vJXXyTS0yZtw"
+uri = "file://RTV2A_SUMMARY.md"
+type = "text"
+title = "RTV-2A Summary"
+description = "Shareable summary of Phase 5A persistence, exact collection-batch safety, validation evidence, and the natural-session certification gate."
+
+[[outputs]]
+id = "R0_vY7hCeB0taJ26SSdzx"
+uri = "file://RTV2B_CONTROLLED_DEPLOYMENT_REPORT.md"
+type = "text"
+title = "RTV-2B Controlled Deployment Report"
+description = "Blocked deployment verdict, source-scope evidence, current production identity, and required resolution."
+
+[[outputs]]
+id = "2bfWUSVW1t5rBiKeTNGWd"
+uri = "file://RTV2B_SCHEMA_SAFETY.md"
+type = "text"
+title = "RTV-2B Schema Safety"
+description = "Additive schema statement classification and publish-time schema-diff result."
+
+[[outputs]]
+id = "KvCY-sIlQSrnkPqeVL9Jk"
+uri = "file://RTV2B_RUNTIME_IDENTITY_AND_SAFETY.md"
+type = "text"
+title = "RTV-2B Runtime Identity and Safety"
+description = "Current production identity and read-only safety observations recorded before the stop."
+
+[[outputs]]
+id = "cecBA_Sl-pBgkajdz1Y3p"
+uri = "file://RTV2B_NEXT_NATURAL_SESSION_GATE.md"
+type = "text"
+title = "RTV-2B Next Natural-Session Gate"
+description = "Conditions required before natural-session certification can resume."
+
+[[outputs]]
+id = "3fRqnkUa8gMY1llQDJR9C"
+uri = "file://RTV3_NATURAL_SESSION_CERTIFICATION.md"
+type = "text"
+title = "RTV-3 Natural Session Certification"
+description = "Updated production-only certification record with final verdict B. PHASE 5A PERSISTENCE FAILURE."
+
+[[outputs]]
+id = "-dEAaT0rpypb3vpjci3Kh"
+uri = "file://RTV3_PREOPEN_BATCH_EVIDENCE.csv"
+type = "table"
+title = "RTV-3 Pre-open Batch Evidence"
+description = "Appended natural scheduler batch: provider and persisted counts were 10, below the required 23."
+
+[[outputs]]
+id = "H-YaZrAJdxlObNPqF0_oh"
+uri = "file://RTV3_SCHEDULED_SCAN_EVIDENCE.csv"
+type = "table"
+title = "RTV-3 Scheduled Scan Evidence"
+description = "Records that no current-session scan was accepted after the Phase 5A shortfall."
+
+[[outputs]]
+id = "fKHkwbxicl-M02_IVZxGu"
+uri = "file://RTV3_KITE_LIVE_PROVENANCE.csv"
+type = "table"
+title = "RTV-3 Kite Live Provenance"
+description = "Records current-session provenance as not evaluated after the Phase 5A stop condition."
+
+[[outputs]]
+id = "KDQsIT74p02ysPnT3qrCG"
+uri = "file://RTV3_READINESS_TRANSITION.csv"
+type = "table"
+title = "RTV-3 Readiness Transition"
+description = "Records the post-Phase 5A failure readiness state."
+
+[[outputs]]
+id = "eMaPszMLoTH4dxP-4Dubk"
+uri = "file://RTV3_SAFETY_AND_LEDGER_RECONCILIATION.md"
+type = "text"
+title = "RTV-3 Safety and Ledger Reconciliation"
+description = "Appended safety and canonical portfolio parity evidence at the Phase 5A failure checkpoint."
+
+[[outputs]]
+id = "DDiy9lIsFZNLiWYgwAJY8"
+uri = "file://OPEN_TASKS.md"
+type = "text"
+title = "Open Project Tasks"
+description = "Complete live snapshot of 241 open project tasks with status, dependencies, blockers, and brief comments."
+
+[[outputs]]
+id = "wGqBAxyC7c1TvoJdsYdHk"
+uri = "file://RTV3D_TEST_RECONCILIATION_AND_SCOPE.md"
+type = "text"
+title = "RTV-3D Test Reconciliation and Scope"
+description = "Clean release scope, approved RTV-2E reconciliation, full test gate, and additive-only schema evidence."
+
+[[outputs]]
+id = "rA35jT8oyIjyZ7k666KBV"
+uri = "file://RTV3D_CONTROLLED_DEPLOYMENT_REPORT.md"
+type = "text"
+title = "RTV-3D Controlled Deployment Report"
+description = "Production deployment identity, safety summary, and Task #920 readiness."
+
+[[outputs]]
+id = "atkxVeHKk8n8er8ekLm-i"
+uri = "file://RTV3D_RUNTIME_IDENTITY_AND_SAFETY.md"
+type = "text"
+title = "RTV-3D Runtime Identity and Safety"
+description = "Read-only production verification of identity, safety controls, portfolio parity, mappings, and Kite status."
+
+[[outputs]]
+id = "TT6n0oKZhRvEaCY1yw2iD"
+uri = "file://RTV3D_NEXT_NATURAL_SESSION_GATE.md"
+type = "text"
+title = "RTV-3D Next Natural Session Gate"
+description = "Required evidence and prohibitions for the next scheduled NSE-session validation."
+
+[[outputs]]
+id = "pyrlGkZxLLt_ruUwXFG3w"
+uri = "file://RTV3E_MIDDAY_PRODUCTION_HEALTH_AUDIT.md"
+type = "text"
+title = "RTV-3E Midday Production Health Audit"
+description = "Read-only production health audit covering identity, service health, custom-universe mappings, Kite, safety controls, portfolio parity, scheduler activity, and Task #920 protection."
+
+[[outputs]]
+id = "2GQOILapoVd8TwtBz30Xv"
+uri = "file://PRE_TOMORROW_FINAL_READINESS_AUDIT.md"
+type = "text"
+title = "Pre-Tomorrow Final Readiness Audit"
+description = "Read-only production audit with the next natural-session certification gate and final readiness classification."
+
+[[outputs]]
+id = "1Kl2w4tzdIsc3Wq3CPxXI"
+uri = "file://OBSERVABILITY-HARDENING-FINAL-VALIDATION-CONTROLLED-DEP.md"
+type = "text"
+title = "Observability Hardening Final Validation Summary"
+description = "Final validation outcome, deployment decision, completed checks, safety controls, and open issues."
+
+[[outputs]]
+id = "g3-OYdbnOXRLoX1_ZvOG7"
+uri = "file://TASK_935_FRONTEND_VALIDATION_AND_RELEASE_REPORT.md"
+type = "text"
+title = "Task #935 Frontend Validation and Release Report"
+description = "Completed validation results, the Vitest harness fix, the blocked release verdict, and next steps."
+
+[[outputs]]
+id = "OVPUVdMN9BEKNJ9LiWFe-"
+uri = "file://TASK_941_DETAILED_SUMMARY.md"
+type = "text"
+title = "Task 941 Detailed Summary"
+description = "Complete handoff covering the Phase 5A universe-accounting fixes, provenance rules, failure paths, validation evidence, safety boundaries, and next-session gate."
+
+[[outputs]]
+id = "5F-1DtBJfeMgzdkoAmm4O"
+uri = "file://TASK_944_POST_PUBLISH_RUNTIME_VERIFICATION.md"
+type = "text"
+title = "Task #944 Post-Publish Runtime Verification"
+description = "Read-only production identity, Task #941/#942 runtime, schema, safety, Kite, no-mutation, and final decision report."
+
+[[outputs]]
+id = "Uyy7SkLvj6YixCeUOQWWn"
+uri = "file://TASK_944_RUNTIME_IDENTITY_AND_SAFETY.md"
+type = "text"
+title = "Task #944 Runtime Identity and Safety"
+description = "Published production identity, additive schema, portfolio/ledger, execution, and live market-data safety baseline."
+
+[[outputs]]
+id = "C5f9G_kqJDWUxdTREL_pR"
+uri = "file://TASK_944_HISTORICAL_3_SYMBOL_RECONCILIATION.md"
+type = "text"
+title = "Task #944 Historical 3-Symbol Reconciliation"
+description = "Immutable August 26 production evidence and reconciliation of COALINDIA, NTPC, and WIPRO versus the stale GAIL narrative."
+
+[[outputs]]
+id = "XddOAouQDD9qVVXDaufwx"
+uri = "file://TASK_944_NEXT_NATURAL_SESSION_GATE.md"
+type = "text"
+title = "Task #944 Next Natural Session Gate"
+description = "Read-only criteria and preservation rules for the next naturally scheduled NSE pre-open certification."
+
+[[outputs]]
+id = "iExoLmFakt90KuWvZAR5r"
+uri = "file://TASK_930_2026_08_27_NATURAL_PREOPEN_CERTIFICATION.md"
+type = "text"
+title = "Task #930 natural pre-open certification"
+description = "Read-only production certification record with the fail-closed Phase 5A coverage verdict."
+
+[[outputs]]
+id = "FN4ugIZQ-X_an3Gi8ROk5"
+uri = "file://TASK_930_2026_08_27_SYMBOL_OUTCOME_MATRIX.csv"
+type = "table"
+title = "Task #930 symbol outcome matrix"
+description = "All 23 expected universe symbols and their final observed pre-open eligibility evidence."
+
+[[outputs]]
+id = "uA4THSBHlDbZRMFqC8jAd"
+uri = "file://TASK_930_2026_08_27_BATCH_AND_FREEZE_EVIDENCE.md"
+type = "text"
+title = "Task #930 batch and freeze evidence"
+description = "Scheduled collection and withheld-freeze proof for the failed natural session."
+
+[[outputs]]
+id = "asc-jQ0FQxR5PJdyOD0aV"
+uri = "file://TASK_930_2026_08_27_DATA_AUTHORITY_INCIDENT_CHECK.md"
+type = "text"
+title = "Task #930 data authority check"
+description = "Read-only data-authority findings and the parts not reached after the stop rule."
+
+[[outputs]]
+id = "NdQkiAx5v4Cx-ryBATMW6"
+uri = "file://TASK_930_2026_08_27_SAFETY_AND_PORTFOLIO_CHECK.md"
+type = "text"
+title = "Task #930 safety and portfolio check"
+description = "Paper-only safety and ledger-consistency evidence for the observation window."
+
+[[outputs]]
+id = "GrVxrc47Ctefn-okoPZwn"
+uri = "file://TASK_960_RECENT_IMPLEMENTATION_AND_OUTCOME.md"
+type = "text"
+title = "Task 960 Recent Implementation and Outcome"
+description = "Summary of the guarded custom-universe authority implementation, validation results, safety protections, and production status."

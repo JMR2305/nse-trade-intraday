@@ -70,8 +70,10 @@ artifacts/api-server/src/python/phase9_alerts.json
 artifacts/api-server/src/python/phase9_last_regime.json
 artifacts/api-server/src/python/phase9_last_sector.json
 artifacts/api-server/src/python/signals_cache.json
+artifacts/api-server/src/python/state.json
 
 # Auto-generated runtime exports/reports
+exports/
 artifacts/api-server/src/python/Phase16_Validation_Report.md
 artifacts/api-server/src/python/exports/
 artifacts/api-server/src/python/phase16_exports/
@@ -87,3 +89,4 @@ artifacts/api-server/src/python/symbol_validation_log.json
 
 # Transient pre-open session state
 artifacts/api-server/src/python/.preopen_*_tick_state.json
+artifacts/api-server/src/python/phase21_calibration.json

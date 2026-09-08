@@ -54,32 +54,183 @@ router.get("/agent-framework/diagnostics", handle("agent_framework_diagnostics",
 // Without coalescing, every tab on Agent Operations spawns its own subprocess.
 // 30 s Node.js cache + in-flight coalescing keeps it snappy after warm-up.
 const AGENTS_LIST_TTL = 30_000;
-let agentsListCache:    { data: unknown; ts: number } | null = null;
-let agentsListInFlight: Promise<unknown> | null = null;
+const AGENT_DETAIL_TTL = 30_000;
+type AgentListResponse = {
+  available?: boolean;
+  agents?: unknown[];
+  count?: number;
+  [key: string]: unknown;
+};
 
-router.get("/agent-framework/agents", async (_req: any, res: any) => {
+type AgentDetailResponse = {
+  available?: boolean;
+  agent_id?: string;
+  [key: string]: unknown;
+};
+
+let agentsListCache:    { data: AgentListResponse; ts: number } | null = null;
+let agentsListInFlight: Promise<AgentListResponse> | null = null;
+const agentDetailCache = new Map<string, { data: AgentDetailResponse; ts: number }>();
+
+function isAgentListResponse(data: unknown): data is AgentListResponse {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  const response = data as AgentListResponse;
+  return typeof response.available === "boolean" && Array.isArray(response.agents);
+}
+
+function unavailableAgentList(message: string): AgentListResponse {
+  return {
+    available: false,
+    advisory_only: true,
+    status: "UNAVAILABLE",
+    recoverable: true,
+    message,
+    agents: [],
+    count: 0,
+    healthy_count: 0,
+    overall_health: { status: "unknown", score: 0 },
+  };
+}
+
+function staleAgentList(
+  cached: AgentListResponse,
+  message: string,
+): AgentListResponse {
+  return {
+    ...cached,
+    status: "DEGRADED",
+    recoverable: true,
+    stale: true,
+    message,
+  };
+}
+
+function initializingAgentDetail(agentId: string, message: string): AgentDetailResponse {
+  return {
+    available: false,
+    advisory_only: true,
+    agent_id: agentId,
+    status: "INITIALIZING",
+    recoverable: true,
+    message,
+  };
+}
+
+function staleAgentDetail(
+  cached: AgentDetailResponse,
+  message: string,
+): AgentDetailResponse {
+  return {
+    ...cached,
+    status: "DEGRADED",
+    recoverable: true,
+    stale: true,
+    message,
+  };
+}
+
+function recoverableAgentDetail(agentId: string): AgentDetailResponse {
+  const cached = agentDetailCache.get(agentId);
+  if (cached) {
+    if (Date.now() - cached.ts < AGENT_DETAIL_TTL) {
+      return staleAgentDetail(
+        cached.data,
+        "Showing the last known agent detail while the Agent Framework recovers. Retrying automatically.",
+      );
+    }
+    agentDetailCache.delete(agentId);
+  }
+  return initializingAgentDetail(
+    agentId,
+    "The Agent Framework is still initialising this agent. Retrying automatically.",
+  );
+}
+
+function isTerminalAgentDetail(data: unknown): data is AgentDetailResponse {
+  const status = (data as AgentDetailResponse | undefined)?.status;
+  return Boolean(
+    data &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    (status === "DISABLED" || status === "NOT_FOUND"),
+  );
+}
+
+function isCurrentAgentDetail(data: unknown): data is AgentDetailResponse {
+  return Boolean(
+    data &&
+    typeof data === "object" &&
+    !Array.isArray(data) &&
+    (data as AgentDetailResponse).available === true,
+  );
+}
+
+router.get("/agent-framework/agents", async (req: any, res: any) => {
   try {
     if (agentsListCache && Date.now() - agentsListCache.ts < AGENTS_LIST_TTL) {
       res.json(agentsListCache.data);
       return;
     }
     if (!agentsListInFlight) {
-      agentsListInFlight = runPython(["agent_list"], 30_000)
-        .then((d) => { agentsListCache = { data: d, ts: Date.now() }; return d; })
+      agentsListInFlight = runPython(["agent_list"], 45_000)
+        .then((data) => {
+          if (!isAgentListResponse(data)) {
+            throw new Error("Agent Framework returned an invalid status response");
+          }
+          const response = data;
+          agentsListCache = { data: response, ts: Date.now() };
+          return response;
+        })
         .finally(() => { agentsListInFlight = null; });
     }
     res.json(await agentsListInFlight);
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    const message = agentsListCache
+      ? "Showing the last known agent state while the Agent Framework recovers. Retrying automatically."
+      : "The Agent Framework is still initialising. Retrying automatically.";
+    req.log?.warn({ err: e.message }, "Agent Framework status temporarily unavailable");
+    res.json(
+      agentsListCache
+        ? staleAgentList(agentsListCache.data, message)
+        : unavailableAgentList(message),
+    );
   }
 });
 
+/** Isolates route-level cache state between focused integration tests. */
+export function resetAgentListCacheForTest(): void {
+  agentsListCache = null;
+  agentsListInFlight = null;
+}
+
+/** Isolates per-agent detail cache state between focused integration tests. */
+export function resetAgentDetailCacheForTest(): void {
+  agentDetailCache.clear();
+}
+
+/** Forces an expired entry so focused tests can cover stale-cache recovery. */
+export function expireAgentListCacheForTest(): void {
+  if (agentsListCache) agentsListCache.ts = 0;
+}
+
+/** Forces all per-agent detail entries to expire for focused tests. */
+export function expireAgentDetailCacheForTest(): void {
+  for (const cached of agentDetailCache.values()) cached.ts = 0;
+}
+
 router.get("/agent-framework/agents/:agentId", async (req: any, res: any) => {
+  const agentId = req.params.agentId as string;
   try {
-    const agentId = req.params.agentId as string;
-    res.json(await runPython(["agent_detail", agentId], 30_000));
+    const data = await runPython(["agent_detail", agentId], 30_000) as AgentDetailResponse;
+    if (isCurrentAgentDetail(data) || isTerminalAgentDetail(data)) {
+      agentDetailCache.set(agentId, { data, ts: Date.now() });
+      res.json(data);
+      return;
+    }
+    res.json(recoverableAgentDetail(agentId));
   } catch (e: any) {
-    res.status(500).json({ error: e.message });
+    req.log?.warn({ agentId, err: e.message }, "Agent detail temporarily unavailable");
+    res.json(recoverableAgentDetail(agentId));
   }
 });
 

@@ -21,15 +21,30 @@ Covers:
 import ast
 import os
 import unittest
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from unittest.mock import patch
+
+# Load the real native-extension dependency before per-test module snapshots.
+# Late import through patch() otherwise unloads/reimports NumPy at teardown.
+import live_scan_engine
 
 import phase20_store as store
 from phase20_store import DEFAULT_SETTINGS
+from universe_version_store import exact_set_hash
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 # ── Shared gate-evaluation harness (same pattern as test_phase20.TestGates) ──
+
+def _universe_context():
+    return {
+        "natural_session": "2026-08-31", "universe_key": "TEST_ONLY",
+        "universe_id": 1, "version": 1,
+        "exact_set_hash": exact_set_hash(["TCS"]), "symbol_count": 1,
+    }
+
 
 def _ctx(**overrides):
     sym = {
@@ -40,6 +55,7 @@ def _ctx(**overrides):
         "all_gates_passed": True, "strategy_id": "s1",
         "strategy_name": "Trend", "regime": "Bullish", "error": None,
         "expected_holding_days": 5,
+        "universe_context": _universe_context(),
     }
     sym.update(overrides.pop("symbol_overrides", {}))
     ctx = {"available": True, "scan_id": "abc123", "snapshot_ts": "t",
@@ -65,7 +81,8 @@ def _evaluate(ctx=None, market_state="OPEN", provider="Zerodha Kite Connect",
          patch("phase15_scan_context.build_scan_context", return_value=ctx), \
          patch("market_hours.market_status", return_value={"state": market_state}), \
          patch("scan_state_store.load_latest_meta",
-               return_value={"scan_id": ctx.get("scan_id"), "provider": provider}), \
+               return_value={"scan_id": ctx.get("scan_id"), "provider": provider,
+                             "universe_context": _universe_context()}), \
          patch("scan_state_store.load_latest_snapshot",
                return_value={"scan_id": ctx.get("scan_id"),
                              "safety": {"kite_connected": True,
@@ -304,8 +321,16 @@ class TestOpenAlert(unittest.TestCase):
         self.assertTrue(out["session_alert"]["alerted"])
         self.assertEqual(notifications,
                          [("SESSION_INIT_FAILED", "CRITICAL")])
-        claim.assert_called_once_with(
-            f"session_init_open_alert:{dsm._today_ist()}")
+        alert_key = f"session_init_open_alert:{dsm._today_ist()}"
+        claimed_keys = [
+            call.args[0] for call in claim.call_args_list
+            if call.args
+        ]
+        self.assertIn(alert_key, claimed_keys)
+        self.assertTrue(any(
+            str(key).startswith("system_heartbeat:")
+            for key in claimed_keys
+        ))
 
     def test_run_tick_disabled_no_alert_when_initialised(self):
         """OPEN + disabled scans + session INITIALISED today → no alert."""
@@ -449,6 +474,14 @@ class TestRunTickOpenAlertE2E(unittest.TestCase):
     SESSION_INIT_FAILED notification across consecutive ticks, and no alert
     when the OPEN retry succeeds. Exercises the FRESH branch (scan_age small)
     so the session_alert key must survive into the tick result."""
+
+    def setUp(self):
+        instant = datetime(2026, 9, 3, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        for target, value in (("market_hours.now_ist", instant),
+                              ("daily_session_manager._today_ist", instant.date().isoformat())):
+            clock = patch(target, return_value=value)
+            clock.start()
+            self.addCleanup(clock.stop)
 
     def _tick(self, sched, kv, claims, notifications):
         """Run one real run_tick() with a shared KV/claim/notification world."""
@@ -716,6 +749,7 @@ class TestEndToEndPaperFlow(unittest.TestCase):
                         [g for g in ev["global_gates"] if not g["passed"]])
         self.assertEqual(ev["eligible_count"], 1)
         cand = ev["candidates"][0]
+        self.assertEqual(cand["universe_context"], _universe_context())
         self.assertTrue(cand["eligible"])
         self.assertEqual(cand["failed_gates"], [])
         qty = int(cand["sizing"]["quantity"])
@@ -754,6 +788,7 @@ class TestEndToEndPaperFlow(unittest.TestCase):
                                             trigger_source="TEST")
             self.assertTrue(created["created"], created)
             trade_id = created["trade_id"]
+            self.assertEqual(ledger_rows[trade_id]["evidence"]["universe"], _universe_context())
             self.assertEqual(created["symbol"], "TCS")
             self.assertEqual(len(buys), 1)          # position opened
             self.assertEqual(buys[0][0], "TCS")

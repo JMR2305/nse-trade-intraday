@@ -1906,6 +1906,7 @@ def get_agent_list_canonical() -> Dict[str, Any]:
     return {
         "available":     True,
         "advisory_only": True,
+        "generated_at":  result.get("generated_at"),
         "agents":        rows,
         "count":         len(rows),
         "healthy_count": active,
@@ -1913,6 +1914,49 @@ def get_agent_list_canonical() -> Dict[str, Any]:
             "status": "healthy" if active == len(rows) else "degraded" if active > 0 else "critical",
             "score":  float(result.get("health_pct", 0)),
         },
+    }
+
+
+def get_agent_detail_canonical(agent_id: str) -> Dict[str, Any]:
+    """
+    Return a single Agent Operations detail record from the canonical collectors.
+
+    The API server launches a fresh Python process per request, so AgentRegistry
+    is empty for a detail request even when the canonical agent list is healthy.
+    This intentionally derives detail from the same source as that list.
+    """
+    listing = get_agent_list_canonical()
+    if not listing.get("available"):
+        return {
+            "available":     False,
+            "advisory_only": True,
+            "status":        "UNAVAILABLE",
+            "message":       "Canonical agent status is temporarily unavailable.",
+        }
+
+    detail = next(
+        (row for row in listing.get("agents", []) if row.get("agent_id") == agent_id),
+        None,
+    )
+    if detail is None:
+        return {
+            "available":     False,
+            "advisory_only": True,
+            "status":        "NOT_FOUND",
+            "message":       f"Agent '{agent_id}' not found in the canonical agent snapshot.",
+        }
+
+    health = detail.get("overall_health", {})
+    return {
+        **detail,
+        "available":              True,
+        "advisory_only":          True,
+        "read_only":              True,
+        "health_status":          str(health.get("status", "unknown")).upper(),
+        "latest_snapshot_ts":     listing.get("generated_at"),
+        "latest_snapshot_seq":    None,
+        "allowed_transitions":    [],
+        "detail_source":          "canonical_ops_snapshot",
     }
 
 

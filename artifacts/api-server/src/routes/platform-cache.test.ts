@@ -110,6 +110,26 @@ describe("Platform cache — Node.js cache invalidation (Task #325)", () => {
     return { status: res.status, body };
   }
 
+  async function concurrentRequests(route: string, command: string, payload: unknown, count: number) {
+    const proc = Object.assign(new EventEmitter(), {
+      stdout: new EventEmitter(), stderr: new EventEmitter(), kill: vi.fn(),
+    });
+    mockSpawn.mockImplementation((_bin: string, args: string[]) =>
+      args[1] === command ? proc : defaultSpawnImpl(_bin, args));
+    let arrived = 0;
+    const onRequest = (req: import("node:http").IncomingMessage) => {
+      if (req.url === route && ++arrived === count) {
+        setImmediate(() => {
+          proc.stdout.emit("data", Buffer.from(JSON.stringify(payload)));
+          proc.emit("close", 0);
+        });
+      }
+    };
+    server.prependListener("request", onRequest);
+    try { return await Promise.all(Array.from({ length: count }, () => get(route))); }
+    finally { server.off("request", onRequest); }
+  }
+
   beforeAll(async () => {
     // Apply default spawn implementation before the app module loads.
     mockSpawn.mockImplementation(defaultSpawnImpl);
@@ -238,11 +258,7 @@ describe("Platform cache — Node.js cache invalidation (Task #325)", () => {
 
   it("coalesces concurrent /ops-centre/snapshot requests into a single Python spawn", async () => {
     // Fire 3 concurrent snapshot requests; only one Python process should be spawned.
-    const [r1, r2, r3] = await Promise.all([
-      get("/api/ops-centre/snapshot"),
-      get("/api/ops-centre/snapshot"),
-      get("/api/ops-centre/snapshot"),
-    ]);
+    const [r1, r2, r3] = await concurrentRequests("/api/ops-centre/snapshot", "ops_centre_snapshot", SNAPSHOT_PAYLOAD, 3);
 
     expect(r1.status).toBe(200);
     expect(r2.status).toBe(200);
@@ -272,11 +288,7 @@ describe("Platform cache — Node.js cache invalidation (Task #325)", () => {
   it("coalesces concurrent /opportunity-scan requests into a single Python spawn", async () => {
     // Three operators click Refresh at the same time — only one Python process
     // should be spawned regardless of concurrency.
-    const [r1, r2, r3] = await Promise.all([
-      get("/api/opportunity-scan"),
-      get("/api/opportunity-scan"),
-      get("/api/opportunity-scan"),
-    ]);
+    const [r1, r2, r3] = await concurrentRequests("/api/opportunity-scan", "opportunity_scan", OPPORTUNITY_SCAN_PAYLOAD, 3);
 
     expect(r1.status).toBe(200);
     expect(r2.status).toBe(200);

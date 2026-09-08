@@ -1,18 +1,73 @@
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
+import { readFileSync } from "node:fs";
 import { rm } from "node:fs/promises";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(artifactDir, "../..");
+const RETIRED_BUILD_IDS = new Set([
+  "apexquant-v1.0.0",
+  "apexquant-phase0c-20260821",
+]);
+
+export function sourceGitCommit(env = process.env, root = projectRoot) {
+  const configured = [
+    env.APEXQUANT_GIT_COMMIT,
+    env.REPLIT_GIT_COMMIT,
+    env.GIT_COMMIT,
+    env.SOURCE_COMMIT,
+  ].map((value) => value?.trim()).find(Boolean);
+  if (configured) return configured;
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    try {
+      return readFileSync(path.join(root, ".apexquant-source-commit"), "utf8").trim();
+    } catch {
+      return "";
+    }
+  }
+}
+
+export function resolveBuildIdentity(env = process.env, root = projectRoot) {
+  const gitCommit = sourceGitCommit(env, root);
+  if (!/^[0-9a-f]{40}$/i.test(gitCommit)) {
+    throw new Error(
+      "Unable to resolve an exact source commit for the API build. " +
+      "Set APEXQUANT_GIT_COMMIT (or provide an available Git checkout) before publishing."
+    );
+  }
+  const configuredBuildId = env.APEXQUANT_BUILD_ID?.trim();
+  const derivedBuildId = `apexquant-${gitCommit.slice(0, 12)}`;
+  if (configuredBuildId && configuredBuildId !== derivedBuildId) {
+    const retired = RETIRED_BUILD_IDS.has(configuredBuildId);
+    throw new Error(
+      `Invalid API build identity "${configuredBuildId}". ` +
+      (retired
+        ? "The supplied label is retired; "
+        : "Generic or overridden labels are not allowed; ") +
+      `the API build must be derived as "${derivedBuildId}" from the source commit.`
+    );
+  }
+  const buildId = derivedBuildId;
+  return { gitCommit, buildId };
+}
 
 async function buildAll() {
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
+  const { gitCommit, buildId } = resolveBuildIdentity();
 
   await esbuild({
     entryPoints: [path.resolve(artifactDir, "src/index.ts")],
@@ -22,6 +77,13 @@ async function buildAll() {
     outdir: distDir,
     outExtension: { ".js": ".mjs" },
     logLevel: "info",
+    // Embed the source identity in the production bundle. The runtime health
+    // contract can therefore identify the code even when the deployed image
+    // does not contain a .git directory.
+    define: {
+      "process.env.APEXQUANT_GIT_COMMIT": JSON.stringify(gitCommit),
+      "process.env.APEXQUANT_BUILD_ID": JSON.stringify(buildId),
+    },
     // Some packages may not be bundleable, so we externalize them, we can add more here as needed.
     // Some of the packages below may not be imported or installed, but we're adding them in case they are in the future.
     // Examples of unbundleable packages:
@@ -120,7 +182,9 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   });
 }
 
-buildAll().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  buildAll().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

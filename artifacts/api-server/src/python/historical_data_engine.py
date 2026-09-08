@@ -63,6 +63,13 @@ def _ensure_schema(conn) -> None:
             )
             """
         )
+        # Add source column if not present (existing rows default to 'yfinance').
+        cur.execute(
+            """
+            ALTER TABLE backtest_candles
+            ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'yfinance'
+            """
+        )
         cur.execute(
             """
             CREATE TABLE IF NOT EXISTS backtest_candle_meta (
@@ -175,15 +182,18 @@ def _store_candles(symbol: str, interval: str,
                 cur.executemany(
                     """
                     INSERT INTO backtest_candles
-                        (symbol, interval, ts, open, high, low, close, volume)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                        (symbol, interval, ts, open, high, low, close, volume,
+                         source)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
                     ON CONFLICT (symbol, interval, ts) DO UPDATE SET
                         open=EXCLUDED.open, high=EXCLUDED.high,
                         low=EXCLUDED.low, close=EXCLUDED.close,
-                        volume=EXCLUDED.volume
+                        volume=EXCLUDED.volume,
+                        source=EXCLUDED.source
                     """,
                     [(symbol.upper(), interval, c["ts"], c["open"], c["high"],
-                      c["low"], c["close"], int(c.get("volume") or 0))
+                      c["low"], c["close"], int(c.get("volume") or 0),
+                      str(c.get("source") or "yfinance"))
                      for c in candles],
                 )
             conn.commit()
@@ -193,22 +203,29 @@ def _store_candles(symbol: str, interval: str,
     data = _file_load(symbol, interval)
     book = data.setdefault("candles", {})
     for c in candles:
-        book[str(c["ts"])] = {k: c[k] for k in
-                              ("open", "high", "low", "close", "volume")}
+        book[str(c["ts"])] = {
+            "open": c["open"], "high": c["high"], "low": c["low"],
+            "close": c["close"], "volume": c.get("volume") or 0,
+            "source": str(c.get("source") or "yfinance"),
+        }
     _file_save(symbol, interval, data)
     return len(candles)
 
 
 def get_candles(symbol: str, interval: str, start: str, end: str
                 ) -> List[Dict[str, Any]]:
-    """Read cached candles in [start, end] (ISO dates/timestamps), ts asc."""
+    """Read cached candles in [start, end] (ISO dates/timestamps), ts asc.
+
+    Each returned candle includes a ``source`` field ('yfinance' | 'mock').
+    Callers can inspect this to detect synthetic fallback data.
+    """
     if db_available():
         conn = _connect()
         try:
             _ensure_schema(conn)
             with conn.cursor() as cur:
                 cur.execute(
-                    "SELECT ts, open, high, low, close, volume"
+                    "SELECT ts, open, high, low, close, volume, source"
                     " FROM backtest_candles"
                     " WHERE symbol=%s AND interval=%s AND ts>=%s"
                     "   AND ts < (%s::date + 1)"
@@ -217,7 +234,8 @@ def get_candles(symbol: str, interval: str, start: str, end: str
                 )
                 return [
                     {"ts": r[0].isoformat(), "open": r[1], "high": r[2],
-                     "low": r[3], "close": r[4], "volume": int(r[5] or 0)}
+                     "low": r[3], "close": r[4], "volume": int(r[5] or 0),
+                     "source": str(r[6] or "yfinance")}
                     for r in cur.fetchall()
                 ]
         finally:
@@ -227,7 +245,10 @@ def get_candles(symbol: str, interval: str, start: str, end: str
     end_key = end[:10] + "T99"       # inclusive end date
     for ts, c in sorted(data.get("candles", {}).items()):
         if ts >= start and ts <= end_key:
-            out.append({"ts": ts, **c})
+            # Older file-cache entries without a source field default to 'yfinance'
+            row = {"ts": ts, **c}
+            row.setdefault("source", "yfinance")
+            out.append(row)
     return out
 
 
@@ -256,6 +277,7 @@ def _download(symbol: str, native_interval: str, start: date, end: date
                 "open": float(o), "high": float(h),
                 "low": float(l), "close": float(c),
                 "volume": int(row.get("Volume") or 0),
+                "source": "yfinance",
             })
         return candles, None
     except Exception as exc:
@@ -282,6 +304,15 @@ def _resample_10m(five: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out = []
     for b in order:
         grp = buckets[b]
+        # Conservative provenance: if ANY constituent 5m candle is synthetic the
+        # aggregated 10m bucket is also synthetic.  This prevents mock data from
+        # being re-labelled 'yfinance' after resampling and bypassing the guard
+        # in backtest_runner._has_mock().
+        bucket_source = (
+            "mock"
+            if any(str(g.get("source") or "").lower() == "mock" for g in grp)
+            else "yfinance"
+        )
         out.append({
             "ts": b,
             "open": grp[0]["open"],
@@ -289,6 +320,7 @@ def _resample_10m(five: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             "low": min(g["low"] for g in grp),
             "close": grp[-1]["close"],
             "volume": sum(int(g.get("volume") or 0) for g in grp),
+            "source": bucket_source,
         })
     return out
 

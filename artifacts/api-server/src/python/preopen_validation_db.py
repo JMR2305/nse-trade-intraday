@@ -211,6 +211,16 @@ def _with_db(fn, fallback=None):
 
 # ── Session CRUD ──────────────────────────────────────────────────────────────
 
+def _forward_session_status(existing: str, incoming: Optional[str]) -> str:
+    """Mirror the SQL upsert lifecycle guard for focused policy tests."""
+    incoming = incoming or "PENDING"
+    if existing in ("COMPLETE", "NO_CANDIDATES"):
+        return existing
+    if incoming == "PENDING" and existing != "PENDING":
+        return existing
+    return incoming
+
+
 def upsert_validation_session(session: dict) -> None:
     def to_db(conn):
         with conn.cursor() as cur:
@@ -220,27 +230,38 @@ def upsert_validation_session(session: dict) -> None:
                      total_candidates, valid_candidates, excluded_candidates,
                      classified_candidates, data_quality_pct, metrics_computed,
                      daily_report_path, updated_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                VALUES (%s,%s,%s,COALESCE(%s, 'PENDING'),%s,%s,%s,%s,%s,%s,%s,NOW())
                 ON CONFLICT (session_id) DO UPDATE SET
-                    status=EXCLUDED.status,
-                    total_candidates=EXCLUDED.total_candidates,
-                    valid_candidates=EXCLUDED.valid_candidates,
-                    excluded_candidates=EXCLUDED.excluded_candidates,
-                    classified_candidates=EXCLUDED.classified_candidates,
-                    data_quality_pct=EXCLUDED.data_quality_pct,
-                    metrics_computed=EXCLUDED.metrics_computed,
-                    daily_report_path=EXCLUDED.daily_report_path,
+                    phase5a_session_id=COALESCE(EXCLUDED.phase5a_session_id, preopen_validation_sessions.phase5a_session_id),
+                    -- EOD terminal outcomes are immutable.  Partial
+                    -- checkpoint writes may update their supplied counts but
+                    -- must not reopen COMPLETE/NO_CANDIDATES sessions.
+                    status=CASE
+                        WHEN preopen_validation_sessions.status IN ('COMPLETE', 'NO_CANDIDATES')
+                            THEN preopen_validation_sessions.status
+                        WHEN EXCLUDED.status = 'PENDING'
+                             AND preopen_validation_sessions.status <> 'PENDING'
+                            THEN preopen_validation_sessions.status
+                        ELSE EXCLUDED.status
+                    END,
+                    total_candidates=COALESCE(EXCLUDED.total_candidates, preopen_validation_sessions.total_candidates),
+                    valid_candidates=COALESCE(EXCLUDED.valid_candidates, preopen_validation_sessions.valid_candidates),
+                    excluded_candidates=COALESCE(EXCLUDED.excluded_candidates, preopen_validation_sessions.excluded_candidates),
+                    classified_candidates=COALESCE(EXCLUDED.classified_candidates, preopen_validation_sessions.classified_candidates),
+                    data_quality_pct=COALESCE(EXCLUDED.data_quality_pct, preopen_validation_sessions.data_quality_pct),
+                    metrics_computed=COALESCE(EXCLUDED.metrics_computed, preopen_validation_sessions.metrics_computed),
+                    daily_report_path=COALESCE(EXCLUDED.daily_report_path, preopen_validation_sessions.daily_report_path),
                     updated_at=NOW()
             """, [
                 session.get("session_id"), session.get("trading_date"),
                 session.get("phase5a_session_id"),
-                session.get("status", "PENDING"),
-                session.get("total_candidates", 0),
-                session.get("valid_candidates", 0),
-                session.get("excluded_candidates", 0),
-                session.get("classified_candidates", 0),
-                session.get("data_quality_pct", 0.0),
-                session.get("metrics_computed", False),
+                session.get("status"),
+                session.get("total_candidates"),
+                session.get("valid_candidates"),
+                session.get("excluded_candidates"),
+                session.get("classified_candidates"),
+                session.get("data_quality_pct"),
+                session.get("metrics_computed"),
                 session.get("daily_report_path"),
             ])
         conn.commit()

@@ -26,12 +26,13 @@ import sys
 import json
 import time
 import unittest
+import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
+from task974_test_isolation import isolated_imports
 
 # ── Path + flag setup ─────────────────────────────────────────────────────────
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-os.environ["OBSERVABILITY_CENTER_ENABLED"] = "true"
 
 # ── Stub Phase 7 snapshot functions (prevent real yfinance / DB calls) ─────────
 def _snap(name: str) -> dict:
@@ -48,22 +49,29 @@ _macro_mock  = MagicMock(); _macro_mock.get_macro_intelligence_snapshot.return_v
 _xai_mock    = MagicMock(); _xai_mock.get_explainable_ai_snapshot.return_value        = _snap("xai")
 _rl_mock     = MagicMock(); _rl_mock.get_research_lab_snapshot.return_value           = _snap("research_lab")
 
-for _m, _path in [
-    (_market_mock, "market_intelligence_hub.shared_services"),
-    (_event_mock,  "event_intelligence.shared_services"),
-    (_macro_mock,  "macro_intelligence.shared_services"),
-    (_xai_mock,    "explainable_ai.shared_services"),
-    (_rl_mock,     "research_lab.shared_services"),
-]:
-    sys.modules.setdefault(_path, _m)
-
 # Stub scan_state_store
 _scan_state_mock = MagicMock()
 _scan_state_mock.get_latest_snapshot.return_value = {
     "scan_id": "test_scan_001", "snapshot_ts": datetime.now(timezone.utc).isoformat(),
     "status": "COMPLETED",
 }
-sys.modules.setdefault("scan_state_store", _scan_state_mock)
+
+
+@pytest.fixture(autouse=True)
+def _scoped_snapshot_dependencies():
+    # Never publish these doubles during collection: later analysis agents
+    # must resolve the real regime provider, not MagicMock._get_regime.
+    stubs = {
+        "market_intelligence_hub.shared_services": _market_mock,
+        "event_intelligence.shared_services": _event_mock,
+        "macro_intelligence.shared_services": _macro_mock,
+        "explainable_ai.shared_services": _xai_mock,
+        "research_lab.shared_services": _rl_mock,
+        "scan_state_store": _scan_state_mock,
+    }
+    with isolated_imports(stubs, target_packages=("observability_center",),
+                          environment={"OBSERVABILITY_CENTER_ENABLED": "true"}):
+        yield
 
 
 # ══════════════════════════════════════════════════════════════════════════════

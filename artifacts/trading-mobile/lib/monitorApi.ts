@@ -464,3 +464,44 @@ export function useBrokerStatus() {
     refetchInterval: 120_000,
   });
 }
+
+// ---------- Phase 11 Recommendation Queue ----------
+
+export interface Phase11Rec {
+  symbol: string;
+  action: string;
+  confidence: number;
+  risk_level?: string;
+  expected_return?: number;
+  estimated_holding?: string;
+  entry?: number;
+  stop_loss?: number;
+  target?: number;
+  reasoning?: string;
+  strategy?: string;
+}
+
+export interface Phase11RecQueue {
+  items: Phase11Rec[];
+  count: number;
+  advisory_only?: boolean;
+  paper_only?: boolean;
+  as_of?: string;
+  /** True when the latest scan is from a previous trading day.
+   *  The backend returns an empty items list in this case. */
+  session_mismatch?: boolean;
+  /** Human-readable reason string from the backend, when session_mismatch=true. */
+  session_message?: string;
+  /** IST timestamp of the next expected scan, when session_mismatch=true. */
+  next_scan_expected_ist?: string;
+}
+
+export function usePhase11Recommendations() {
+  return useQuery<Phase11RecQueue>({
+    queryKey: ["phase11", "recommendations"],
+    queryFn: () => apiJson<Phase11RecQueue>("/phase11/recommendations"),
+    // Poll every 2 minutes — the backend is cached so this is cheap.
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+  });
+}

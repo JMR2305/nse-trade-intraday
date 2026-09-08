@@ -9,10 +9,24 @@ import {
   _resetInMemoryHealthStateOnlyForTests,
   type OpsHealthSnapshot,
 } from "./pushNotifier";
-import { ensureAlertDeliveriesTable } from "./alertQueue";
+import { ensureAlertDeliveriesTable, processDueDeliveries } from "./alertQueue";
+
+// This suite must never borrow a developer or production DATABASE_URL.
+vi.hoisted(() => {
+  const raw = process.env.TASK967_TEST_DATABASE_URL;
+  if (!raw) throw new Error("Disposable PostgreSQL required: set TASK967_TEST_DATABASE_URL");
+  const url = new URL(raw);
+  if (!["postgres:", "postgresql:"].includes(url.protocol) || url.search || url.hash ||
+      !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) ||
+      !/^\/task967_disposable(?:_[a-z0-9_]+)?$/.test(url.pathname)) {
+    throw new Error("Only an explicitly named local task967_disposable database is accepted");
+  }
+  // Runs before static imports: the real workspace DB adapter reads only this
+  // validated URL, resolving pg from its own declared package dependencies.
+  process.env.DATABASE_URL = raw;
+});
 
 const TEST_TOKEN_PREFIX = "ExponentPushToken[vitest-push-";
-const TEST_TOKEN_LIKE = "ExponentPushToken[vitest-push-%";
 const SIGNALS_KEY = "signals";
 
 function testToken(n: number): string {
@@ -39,16 +53,6 @@ function mockFetchOk(): FetchMock {
   vi.stubGlobal("fetch", mock);
   return mock;
 }
-
-interface BackedUpSub {
-  token: string;
-  minConfidence: number;
-  enabled: boolean;
-  lastNotifiedKey: string | null;
-}
-
-let originalSubs: BackedUpSub[] = [];
-let originalSignalsRow: { payload: unknown; updatedAt: Date | null } | null = null;
 
 async function setSignalsSnapshot(payload: unknown, updatedAt: Date): Promise<void> {
   await db
@@ -81,56 +85,87 @@ async function getSub(token: string) {
   return row;
 }
 
-async function clearTestState(): Promise<void> {
-  // Remove every subscription so tests fully control who gets notified,
-  // and clear queued deliveries for test tokens (Priority 4 durable queue).
-  await db.delete(pushSubscriptionsTable);
-  await db
-    .delete(alertDeliveriesTable)
-    .where(like(alertDeliveriesTable.destination, TEST_TOKEN_LIKE));
-}
+let templateSchema: string;
+let schemaSequence = 0;
+const suiteId = `task967_push_${process.pid}_${Date.now()}`;
 
 beforeAll(async () => {
+  // Keep SET search_path and all ORM queries on one session, as before.
+  // The real pool is lazy: no connection exists before this test setup.
+  pool.options.max = 1;
+  templateSchema = `${suiteId}_template`;
+  await pool.query(`CREATE SCHEMA "${templateSchema}"`);
+  await pool.query(`SET search_path TO "${templateSchema}"`);
   await ensurePushSubscriptionsTable();
   await ensureAlertDeliveriesTable();
-  // Back up real dev data so tests leave the database untouched.
-  originalSubs = (await db.select().from(pushSubscriptionsTable)).map((s) => ({
-    token: s.token,
-    minConfidence: s.minConfidence,
-    enabled: s.enabled,
-    lastNotifiedKey: s.lastNotifiedKey,
-  }));
-  const [row] = await db
-    .select()
-    .from(signalsCacheTable)
-    .where(eq(signalsCacheTable.key, SIGNALS_KEY));
-  originalSignalsRow = row ? { payload: row.payload, updatedAt: row.updatedAt } : null;
+  await pool.query(`CREATE TABLE signals_cache (
+    key text PRIMARY KEY, payload jsonb NOT NULL,
+    updated_at timestamp with time zone DEFAULT now()
+  )`);
 });
 
 beforeEach(async () => {
-  await clearTestState();
+  // New empty schema per test: no DELETE/TRUNCATE cleanup or shared dev data.
+  const schema = `${suiteId}_${++schemaSequence}`;
+  await pool.query(`CREATE SCHEMA "${schema}"`);
+  for (const table of ["push_subscriptions", "alert_deliveries", "signals_cache"]) {
+    await pool.query(`CREATE TABLE "${schema}"."${table}"
+      (LIKE "${templateSchema}"."${table}" INCLUDING ALL)`);
+  }
+  await pool.query(`SET search_path TO "${schema}"`);
 });
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
+afterEach(() => { vi.unstubAllGlobals(); });
+afterAll(async () => { await pool.end(); });
 
-afterAll(async () => {
-  // Restore original state.
-  await db.delete(pushSubscriptionsTable);
-  await db.delete(pushSubscriptionsTable).where(like(pushSubscriptionsTable.token, TEST_TOKEN_LIKE));
-  for (const s of originalSubs) {
-    await db.insert(pushSubscriptionsTable).values(s);
-  }
-  if (originalSignalsRow) {
-    await setSignalsSnapshot(
-      originalSignalsRow.payload,
-      originalSignalsRow.updatedAt ?? new Date(),
-    );
-  } else {
-    await db.delete(signalsCacheTable).where(eq(signalsCacheTable.key, SIGNALS_KEY));
-  }
-  await pool.end();
+describe("Task973 PostgreSQL queue clock regression", () => {
+  it("delivers a committed microsecond-due row without rounding future retries or sending expired rows", async () => {
+    // Pin only Date (not IO/timers) to the millisecond floor of a real DB
+    // instant. A row one microsecond after it deterministically reproduces
+    // the old cutoff bug, without sleeps or a fake database.
+    const { rows: [clock] } = await pool.query(
+      `SELECT date_trunc('milliseconds', clock_timestamp())::text AS instant`);
+    const appClock = new Date(clock.instant);
+    await pool.query(`INSERT INTO alert_deliveries
+      (idempotency_key, channel, kind, title, destination, status, attempts,
+       next_attempt_at, expires_at) VALUES
+      ('task973-due', 'push', 'regression', 'due', 'due', 'QUEUED', 0,
+       $1::timestamptz + interval '1 microsecond', $1::timestamptz + interval '1 day'),
+      ('task973-future', 'push', 'regression', 'future', 'future', 'RETRY_SCHEDULED', 1,
+       $1::timestamptz + interval '1 day', $1::timestamptz + interval '2 days'),
+      ('task973-expired', 'push', 'regression', 'expired', 'expired', 'QUEUED', 0,
+       $1::timestamptz - interval '1 day', $1::timestamptz - interval '1 second')`,
+      [appClock.toISOString()]);
+    const { rows: [boundary] } = await pool.query(`SELECT
+      extract(epoch FROM (next_attempt_at - $1::timestamptz)) * 1000000 AS delta_us,
+      next_attempt_at <= $1::timestamptz AS old_predicate,
+      next_attempt_at <= statement_timestamp() AS database_predicate
+      FROM alert_deliveries WHERE idempotency_key = 'task973-due'`, [appClock.toISOString()]);
+    expect(Number(boundary.delta_us)).toBe(1);
+    expect(boundary.old_predicate).toBe(false);
+    expect(boundary.database_predicate).toBe(true);
+    const sender = vi.fn(async (_row: typeof alertDeliveriesTable.$inferSelect) => ({ ok: true }));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(appClock);
+    try {
+      expect(await processDueDeliveries("push", sender)).toEqual({
+        delivered: 1, retried: 0, failed: 0, expired: 1,
+      });
+      expect(sender).toHaveBeenCalledTimes(1);
+      expect(sender.mock.calls[0]?.[0].destination).toBe("due");
+      const rows = await db.select().from(alertDeliveriesTable);
+      expect(rows.find(r => r.idempotencyKey === "task973-due")?.status).toBe("DELIVERED");
+      expect(rows.find(r => r.idempotencyKey === "task973-future")?.status).toBe("RETRY_SCHEDULED");
+      expect(rows.find(r => r.idempotencyKey === "task973-future")?.attempts).toBe(1);
+      expect(rows.find(r => r.idempotencyKey === "task973-expired")?.status).toBe("EXPIRED");
+      expect(await processDueDeliveries("push", sender)).toEqual({
+        delivered: 0, retried: 0, failed: 0, expired: 0,
+      });
+      expect(sender).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("dispatchSignalPushNotifications", () => {

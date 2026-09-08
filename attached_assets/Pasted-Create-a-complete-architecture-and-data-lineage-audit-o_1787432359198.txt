@@ -1,0 +1,240 @@
+Create a complete architecture and data-lineage audit of the entire NSE-Trade-Intraday application.
+
+PURPOSE
+
+We want a visual and technical map of the complete project showing:
+
+- every frontend page
+- every visible field, metric, card, table, chart, button and status
+- where each displayed value comes from
+- which API endpoint supplies it
+- which backend service calculates it
+- which repository/database table stores it
+- which external system supplies the raw data
+- how pages and backend modules connect to one another
+- the full end-to-end flow of the application
+
+This will become the master “vision map” of the Intraday project.
+
+DO NOT modify production code.
+
+PHASE 1 — PAGE INVENTORY
+
+Identify every currently reachable frontend page for:
+
+- web
+- mobile
+- admin/internal pages
+- replay/research pages
+- pre-open pages
+- portfolio/risk pages
+- execution/order pages
+- health/system pages
+- settings/configuration pages
+
+For every page report:
+
+- route
+- component file
+- page title
+- purpose
+- navigation entry
+- API hooks used
+- refresh/poll interval
+- whether data is live, cached, historical, demo, seeded or calculated
+
+PHASE 2 — FIELD-LEVEL DATA LINEAGE
+
+For every visible field on every page, create a row containing:
+
+1. Page
+2. UI section/card/table
+3. Displayed field
+4. Frontend component
+5. Frontend variable/property
+6. Hook/query/function
+7. API endpoint
+8. HTTP method
+9. Backend route handler
+10. Service/business-logic function
+11. Formula/calculation
+12. Repository/data-access function
+13. Database table/column
+14. External data source
+15. Refresh frequency
+16. Persistence type
+17. Live vs seeded/demo
+18. Fallback behavior
+19. Error behavior
+20. Notes/risks
+
+PHASE 3 — API INVENTORY
+
+Create a complete API map:
+
+- endpoint
+- method
+- route file
+- caller/page
+- service
+- input parameters
+- output schema
+- database dependencies
+- Zerodha dependencies
+- cache dependencies
+- scheduler dependencies
+- paper-trading dependencies
+- whether endpoint modifies state
+
+PHASE 4 — DATABASE MAP
+
+Inventory all active tables/models.
+
+For each:
+
+- table/model name
+- purpose
+- writer
+- reader
+- related pages
+- primary keys
+- important fields
+- relationships
+- retention behavior
+- whether live, replay, audit, cache or configuration data
+
+PHASE 5 — BUSINESS LOGIC MAP
+
+Map the complete execution flow for:
+
+1. Market-data ingestion
+2. Pre-open intelligence
+3. Instrument/watchlist selection
+4. Multi-timeframe analysis
+5. Signal generation
+6. Strategy scoring
+7. Risk validation
+8. Trade approval
+9. Paper-order creation
+10. Position lifecycle
+11. Stop/target handling
+12. Portfolio updates
+13. P&L calculation
+14. Risk analytics
+15. Alerts
+16. Session health
+17. Replay/research
+18. Post-trade analytics
+19. Dashboard refresh
+
+PHASE 6 — EXTERNAL SYSTEMS
+
+Map every external dependency:
+
+- Zerodha Kite
+- market-data providers
+- email/notification systems
+- GitHub if runtime-relevant
+- database
+- scheduler
+- caches
+- external AI/model providers if active
+
+Show exactly where each external system enters the architecture.
+
+PHASE 7 — PROJECT-WIDE DIAGRAMS
+
+Create Mermaid diagrams for:
+
+A. High-level system architecture
+
+B. End-to-end data flow:
+Market → Data → Intelligence → Signal → Risk → Paper Execution → Portfolio → UI
+
+C. Frontend-to-backend architecture
+
+D. Database/entity relationships
+
+E. Scheduler/event flow
+
+F. Pre-open flow
+
+G. Trading-session flow
+
+H. Paper-order lifecycle
+
+I. Portfolio/risk calculation flow
+
+J. Replay/research flow
+
+K. Page navigation map
+
+L. Cross-page data dependency map
+
+PHASE 8 — PAGE-BY-PAGE DIAGRAMS
+
+For every important page create its own Mermaid diagram showing:
+
+Page
+→ component
+→ hook/query
+→ API
+→ service
+→ repository
+→ DB/external source
+
+PHASE 9 — DATA QUALITY AUDIT
+
+Flag:
+
+- seeded/demo values
+- hardcoded values
+- stale data
+- duplicated calculations
+- same metric calculated differently in different places
+- API fields not consumed by UI
+- UI fields with unclear backend source
+- dead endpoints
+- dead frontend hooks
+- pages reading obsolete tables
+- values that can become negative/impossible
+- missing refresh
+- missing error handling
+
+Do not fix anything yet.
+
+PHASE 10 — OUTPUT FILES
+
+Create:
+
+1. INTRADAY_MASTER_ARCHITECTURE.md
+2. INTRADAY_PAGE_DATA_LINEAGE.csv
+3. INTRADAY_API_MAP.csv
+4. INTRADAY_DATABASE_MAP.md
+5. INTRADAY_BUSINESS_LOGIC_MAP.md
+6. INTRADAY_DATA_QUALITY_AUDIT.md
+
+The master architecture document must reference the detailed files.
+
+At the top of INTRADAY_MASTER_ARCHITECTURE.md include:
+
+- project identity
+- current branch
+- current commit
+- audit date
+- total pages
+- total API endpoints
+- total DB tables/models
+- total frontend fields traced
+
+IMPORTANT
+
+- Base all findings on actual repository code.
+- Do not guess.
+- If a field's lineage cannot be determined, mark it UNKNOWN.
+- Do not change runtime code.
+- Do not refactor.
+- Do not modify database schemas.
+- Do not deploy.
+- Do not publish.
+- Stop after generating the audit artifacts.

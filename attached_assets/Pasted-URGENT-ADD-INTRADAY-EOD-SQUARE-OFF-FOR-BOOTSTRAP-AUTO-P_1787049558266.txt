@@ -1,0 +1,115 @@
+URGENT — ADD INTRADAY EOD SQUARE-OFF FOR BOOTSTRAP_AUTO PAPER TRADES
+
+Use APEXQUANT_ACTUAL_POST_PUBLISH_VERIFICATION_18AUG.md as the controlling report.
+
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current issue:
+- First BOOTSTRAP_AUTO trade was created:
+  trade_id: P20-3468fb2a24
+  symbol: DRREDDY
+  fill_price: ₹1,186.98
+  qty: 1
+  status: OPEN
+  created: 2026-08-18 14:44 IST
+- Market closed at 15:30 IST.
+- The trade was not squared off before close.
+- exit_rule is blank.
+- exit_price is null.
+- realized_pnl is null.
+- Report says exit logic will evaluate at next session open.
+
+Problem:
+This is an intraday paper-trading system. BOOTSTRAP_AUTO positions should not carry overnight unless explicitly allowed.
+
+TASK 1 — AUDIT WHY DRREDDY DID NOT EXIT BEFORE CLOSE
+
+Check phase20_exits.py and scheduler timing.
+
+Report:
+- whether MARKET_CLOSE_EXIT exists
+- whether it applies to BOOTSTRAP_AUTO trades
+- whether it applies to all OPEN phase20_paper_trades
+- whether exit manager ran after 14:44 and before 15:30
+- whether DRREDDY was evaluated
+- if not evaluated, exact reason
+- if evaluated but not closed, exact gate that blocked it
+
+TASK 2 — ADD MANDATORY INTRADAY SQUARE-OFF RULE
+
+Implement a paper-only rule:
+
+For any OPEN phase20_paper_trades row:
+- if market time >= 15:20 IST
+- and status = OPEN
+- and trade is intraday / BOOTSTRAP_AUTO / AUTO paper trade
+- then close using verified Kite LTP if available
+- fallback only to safe last-known reliable scan price if Kite unavailable
+- set:
+  status = CLOSED
+  exit_rule = MARKET_CLOSE_EXIT
+  exit_price
+  realized_pnl
+  closed_at / exit_ts
+  exit_scan_id
+- emit PAPER_TRADE_CLOSED or PAPER_TRADE_FORCE_CLOSED event
+- update portfolio cash and realized P&L
+- no live broker order API call
+
+TASK 3 — SAFETY CONDITIONS
+
+Do not close using stale/unverified price unless explicitly marked:
+- exit_price_source
+- quote_reliable
+- fallback_used
+- reason
+
+If price is unavailable:
+- emit MARKET_CLOSE_EXIT_BLOCKED
+- show dashboard warning
+- do not silently carry overnight
+
+TASK 4 — APPLY TO EXISTING DRREDDY TRADE
+
+For P20-3468fb2a24:
+- if still OPEN, close it using the latest reliable price according to the new rule
+- if market is closed, use the last reliable Kite LTP before close
+- mark exit_rule = MARKET_CLOSE_EXIT or POST_CLOSE_FORCE_EXIT
+- compute realized_pnl
+- update portfolio
+
+TASK 5 — POSITION SIZE EXPLANATION
+
+Confirm why quantity was 1:
+- bootstrap max notional = ₹1,500
+- fill_price = ₹1,186.98
+- qty = floor(1500 / 1186.98) = 1
+- 10 or 20 shares would violate bootstrap cap
+
+TASK 6 — TESTS
+
+Add tests:
+1. BOOTSTRAP_AUTO OPEN position closes at/after 15:20 IST.
+2. AUTO OPEN position closes at/after 15:20 IST.
+3. No live broker API is called.
+4. realized_pnl is computed.
+5. portfolio cash updates.
+6. unavailable price emits MARKET_CLOSE_EXIT_BLOCKED.
+7. already CLOSED positions are ignored.
+8. non-intraday positions are not closed unless marked intraday.
+
+TASK 7 — REPORT
+
+Generate:
+APEXQUANT_INTRADAY_EOD_SQUAREOFF_FIX_REPORT.md
+
+Include:
+1. Exact reason DRREDDY was not squared off before close.
+2. Files changed.
+3. New EOD square-off rule.
+4. DRREDDY close result.
+5. realized_pnl.
+6. Test results.
+7. Confirmation no live orders.

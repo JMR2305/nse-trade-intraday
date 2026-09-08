@@ -16,6 +16,13 @@ Supervisor NEVER auto-restarts agents. Every alert must have `auto_action: null`
 ## Agent lazy initialization
 Agents do NOT start at import time. They initialize on first `shared_services.*()` call via the `_get_agent()` pattern. The `/agent-operations` page will show "No agents registered" until the first API call triggers initialization.
 
+## Cross-process Agent Operations details
+Agent Operations list and per-agent detail must both derive from the canonical ops snapshot, never the in-process `AgentRegistry`.
+
+**Why:** API routes spawn a fresh Python process for each request, so its registry is empty even when canonical collectors can report a live agent. Retrying a registry-backed detail request would remain unavailable forever.
+
+**How to apply:** Keep detail response fields compatible with the Agent Operations panel, mark only true collection failures as recoverable, and cover this with an unmocked fresh-process command test.
+
 ## DS component prop names (Phase 10A-verified)
 - `StatusBadge`: uses `variant` (not `status`)
 - `HealthCard`: uses `label` (not `title`); `details` is a string (not `items` array)

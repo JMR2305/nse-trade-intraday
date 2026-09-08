@@ -1,0 +1,129 @@
+PHASE 1E — SWITCH ACTIVE UNIVERSE ONLY
+
+Use APEXQUANT_PHASE1D_PRODUCTION_CUSTOM_UNIVERSE_POPULATION_REPORT.md as the controlling report.
+
+Operator approval:
+I approve Phase 1E only — switch production active universe from NIFTY_50 to CUSTOM_LOW_PRICE_SECTOR.
+
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change capital.
+Do not change thresholds.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+Do not touch Phase 20 executor/scheduler/exits/EOD safety files.
+PAPER ONLY.
+
+Current required state before switch:
+- initial_capital=100000
+- active_intraday_universe=NIFTY_50
+- custom universe active_count=23
+- custom universe price_filter={min:20,max:500}
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- positions=[]
+
+TASK 1 — PRE-SWITCH SNAPSHOT
+
+Capture:
+1. GET /api/phase20/settings
+2. GET /api/phase20/positions
+3. GET /api/universe/custom/status
+4. GET /api/universe/custom/symbols
+
+Halt if:
+- positions is not []
+- auto_paper_entries is true
+- bootstrap_paper_enabled is true
+- custom active_count is not 23
+- price_filter is not 20–500
+
+TASK 2 — SWITCH ACTIVE UNIVERSE
+
+Call the approved route:
+
+POST /api/universe/active
+
+Body:
+{
+  "active_intraday_universe": "CUSTOM_LOW_PRICE_SECTOR"
+}
+
+If this route is unavailable, use the canonical settings route only after confirming it writes the same `phase20_settings.active_intraday_universe` field.
+
+TASK 3 — POST-SWITCH VERIFICATION
+
+Verify:
+1. GET /api/phase20/settings
+   - active_intraday_universe=CUSTOM_LOW_PRICE_SECTOR
+   - initial_capital=100000
+   - auto_paper_entries=false
+   - bootstrap_paper_enabled=false
+   - auto_paper_exits=true
+
+2. GET /api/universe/custom/status
+   - active_universe=CUSTOM_LOW_PRICE_SECTOR
+   - active_count=23
+   - sector_counts BANK=9, INFRA=13, IT=1
+   - price_filter={min:20,max:500}
+
+3. GET /api/phase20/positions
+   - positions=[]
+
+4. Confirm no trade row was created, updated, or deleted.
+
+5. Confirm no broker order API was called.
+
+TASK 4 — SCAN RESOLUTION PROOF
+
+Trigger or wait for a safe scan/status check while entries remain disabled.
+
+Verify:
+- scan universe resolves to the 23 custom symbols only
+- no NIFTY_50 fallback
+- forbidden symbols absent
+- IOB/UCOBANK inactive and not scanned
+- LTIM/HCLTECH/RATEGAIN/TANLA/PERSISTENT/COFORGE/MPHASIS/LT absent
+
+TASK 5 — ADMIN ROUTE SECURITY CHECK
+
+Verify the new POST /universe/custom/upsert route is:
+- admin-only, protected, or otherwise not publicly abusable
+- not callable without intended authorization
+- read/write use is logged
+- safe to leave deployed
+
+If not protected, recommend locking it down before auto entries are ever re-enabled.
+
+TASK 6 — TESTS
+
+Run:
+python3 -m pytest tests/unit/test_custom_universe_store.py tests/unit/test_phase0c_safety_fixes.py -q
+
+Expected:
+- 40 passed
+- 0 failed
+
+TASK 7 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE1E_ACTIVE_UNIVERSE_SWITCH_REPORT.md
+
+Include:
+1. Pre-switch snapshot.
+2. Switch response.
+3. Post-switch settings proof.
+4. Custom universe status proof.
+5. Scan-resolution proof.
+6. Confirmation active universe is now CUSTOM_LOW_PRICE_SECTOR.
+7. Confirmation capital remains ₹1,00,000.
+8. Confirmation auto entries/bootstrap remain disabled.
+9. Confirmation positions remain [].
+10. Confirmation no trades/positions changed.
+11. Confirmation no live orders.
+12. Admin upsert route security status.
+13. Whether Phase 1E is accepted.
+14. Remaining condition before re-enabling auto entries: first clean market-session watch.

@@ -4,7 +4,7 @@ Unit tests for decision_service._decide() — invalidation_override flag.
 Covers two complementary test styles:
 
 Script-style checks (sections 1–6)
-  Run inline to give fast, labelled output.  Each check() call logs ✓/✗ and
+  Run inside test_script_checks to give fast, labelled output.  Each check() call logs ✓/✗ and
   accumulates _passed / _failed so the standalone runner can exit non-zero.
 
 Pytest-style functions (section 7)
@@ -32,23 +32,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-# ── Stub out modules that _decide() imports lazily ────────────────────────────
-# market_data_engine.get_last_source must return "yfinance" so data_ok=True
-# (without which the invalidation_override branch is never reached).
-_mde = types.ModuleType("market_data_engine")
-_mde.get_last_source = lambda sym: "yfinance"   # type: ignore[attr-defined]
-sys.modules.setdefault("market_data_engine", _mde)
+# Doubles exist only while a test is executing; collection must not install
+# empty predictive/model packages that hide the real adaptive dependencies.
+import pytest
 
-# adaptive_learning.current_market_regime must return a string.
-_al = types.ModuleType("adaptive_learning")
-_al.current_market_regime = lambda: "Neutral"   # type: ignore[attr-defined]
-sys.modules.setdefault("adaptive_learning", _al)
 
-# model_versioning / predictive_intelligence are only imported when
-# model_weights is passed — we always pass None, so these stubs are just
-# insurance.
-for _mod in ("model_versioning", "predictive_intelligence"):
-    sys.modules.setdefault(_mod, types.ModuleType(_mod))
+def _stub_decision_dependencies(monkeypatch):
+    mde = types.ModuleType("market_data_engine")
+    mde.get_last_source = lambda sym: "yfinance"
+    al = types.ModuleType("adaptive_learning")
+    al.current_market_regime = lambda: "Neutral"
+    monkeypatch.setitem(sys.modules, "market_data_engine", mde)
+    monkeypatch.setitem(sys.modules, "adaptive_learning", al)
+
+
+@pytest.fixture(autouse=True)
+def _decision_dependencies(monkeypatch):
+    _stub_decision_dependencies(monkeypatch)
+
 
 # ── Import the unit under test ─────────────────────────────────────────────
 from decision_service import (  # noqa: E402
@@ -121,193 +122,198 @@ def _call(item: dict):
     return _decide(item, positions={}, trades=[], model_weights=None)
 
 
-# ── 1. STRONG_BUY gates for fc >= 85 ─────────────────────────────────────────
-print("1. fc >= 85 → WATCH due to STRONG_BUY gate conditions")
+def test_script_checks():
+    global _passed, _failed
+    _passed = _failed = 0
+    # ── 1. STRONG_BUY gates for fc >= 85 ─────────────────────────────────────────
+    print("1. fc >= 85 → WATCH due to STRONG_BUY gate conditions")
 
-# 1a. low_reliability
-d = _call(_item(historical_trades=RELIABLE - 1))
-check("1a. low_reliability: recommendation=WATCH",
-      d["recommendation"] == "WATCH")
-check("1a. low_reliability: invalidation_override=True",
-      d["invalidation_override"] is True, str(d.get("invalidation_override")))
-check("1a. low_reliability: conditions mention thin sample",
-      any("thin" in c.lower() or "sample" in c.lower() or "historical" in c.lower()
-          for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
-check("1a. low_reliability: conditions NOT generic 'blocking condition met'",
-      d["invalidation_override_conditions"] != ["blocking condition met"],
-      str(d["invalidation_override_conditions"]))
+    # 1a. low_reliability
+    d = _call(_item(historical_trades=RELIABLE - 1))
+    check("1a. low_reliability: recommendation=WATCH",
+          d["recommendation"] == "WATCH")
+    check("1a. low_reliability: invalidation_override=True",
+          d["invalidation_override"] is True, str(d.get("invalidation_override")))
+    check("1a. low_reliability: conditions mention thin sample",
+          any("thin" in c.lower() or "sample" in c.lower() or "historical" in c.lower()
+              for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
+    check("1a. low_reliability: conditions NOT generic 'blocking condition met'",
+          d["invalidation_override_conditions"] != ["blocking condition met"],
+          str(d["invalidation_override_conditions"]))
 
-# 1b. expectancy <= 1.0 (STRONG_BUY requires > 1%)
-d = _call(_item(historical_expectancy=0.8))
-check("1b. exp=0.8%: recommendation=WATCH",
-      d["recommendation"] == "WATCH")
-check("1b. exp=0.8%: invalidation_override=True",
-      d["invalidation_override"] is True)
-check("1b. exp=0.8%: conditions mention expectancy",
-      any("expectancy" in c.lower() for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
-check("1b. exp=0.8%: conditions mention STRONG BUY (not just BUY)",
-      any("strong" in c.lower() for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
+    # 1b. expectancy <= 1.0 (STRONG_BUY requires > 1%)
+    d = _call(_item(historical_expectancy=0.8))
+    check("1b. exp=0.8%: recommendation=WATCH",
+          d["recommendation"] == "WATCH")
+    check("1b. exp=0.8%: invalidation_override=True",
+          d["invalidation_override"] is True)
+    check("1b. exp=0.8%: conditions mention expectancy",
+          any("expectancy" in c.lower() for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
+    check("1b. exp=0.8%: conditions mention STRONG BUY (not just BUY)",
+          any("strong" in c.lower() for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
 
-# 1c. pf < 1.5
-d = _call(_item(historical_profit_factor=1.3))
-check("1c. pf=1.3: recommendation=WATCH",
-      d["recommendation"] == "WATCH")
-check("1c. pf=1.3: invalidation_override=True",
-      d["invalidation_override"] is True)
-check("1c. pf=1.3: conditions mention profit factor",
-      any("profit factor" in c.lower() for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
+    # 1c. pf < 1.5
+    d = _call(_item(historical_profit_factor=1.3))
+    check("1c. pf=1.3: recommendation=WATCH",
+          d["recommendation"] == "WATCH")
+    check("1c. pf=1.3: invalidation_override=True",
+          d["invalidation_override"] is True)
+    check("1c. pf=1.3: conditions mention profit factor",
+          any("profit factor" in c.lower() for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
 
-# 1d. rr < 2.0 at fc >= 85
-d = _call(_item(rr_ratio=1.5, final_confidence=87.0, base_confidence=87.0, confidence=87.0))
-check("1d. rr=1.5 at fc=87: recommendation=WATCH",
-      d["recommendation"] == "WATCH")
-check("1d. rr=1.5 at fc=87: invalidation_override=True",
-      d["invalidation_override"] is True)
-check("1d. rr=1.5 at fc=87: conditions mention R:R",
-      any("r:r" in c.lower() or "risk" in c.lower() for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
+    # 1d. rr < 2.0 at fc >= 85
+    d = _call(_item(rr_ratio=1.5, final_confidence=87.0, base_confidence=87.0, confidence=87.0))
+    check("1d. rr=1.5 at fc=87: recommendation=WATCH",
+          d["recommendation"] == "WATCH")
+    check("1d. rr=1.5 at fc=87: invalidation_override=True",
+          d["invalidation_override"] is True)
+    check("1d. rr=1.5 at fc=87: conditions mention R:R",
+          any("r:r" in c.lower() or "risk" in c.lower() for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
 
-# ── 2. AVOID overrides and high-confidence safety valve ──────────────────────
-print("2. filter gate behaviour — AVOID override and high-confidence safety valve")
+    # ── 2. AVOID overrides and high-confidence safety valve ──────────────────────
+    print("2. filter gate behaviour — AVOID override and high-confidence safety valve")
 
-# 2a. Single filter failure at fc=87 → safety valve fires → WATCH not AVOID.
-#     The operator still sees the setup via the OVERRIDDEN-BY-GATE badge.
-d = _call(_item(filter_passed=False, filter_reasons=["volume_ratio 0.35× < 0.75× threshold"]))
-check("2a. single filter fail at fc=87: recommendation=WATCH (safety valve)",
-      d["recommendation"] == "WATCH",
-      f"got {d['recommendation']}")
-check("2a. single filter fail at fc=87: invalidation_override=True",
-      d["invalidation_override"] is True, str(d.get("invalidation_override")))
-check("2a. single filter fail at fc=87: conditions contain filter reason",
-      any("volume" in c.lower() or "filter" in c.lower()
-          for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
+    # 2a. Single filter failure at fc=87 → safety valve fires → WATCH not AVOID.
+    #     The operator still sees the setup via the OVERRIDDEN-BY-GATE badge.
+    d = _call(_item(filter_passed=False, filter_reasons=["volume_ratio 0.35× < 0.75× threshold"]))
+    check("2a. single filter fail at fc=87: recommendation=WATCH (safety valve)",
+          d["recommendation"] == "WATCH",
+          f"got {d['recommendation']}")
+    check("2a. single filter fail at fc=87: invalidation_override=True",
+          d["invalidation_override"] is True, str(d.get("invalidation_override")))
+    check("2a. single filter fail at fc=87: conditions contain filter reason",
+          any("volume" in c.lower() or "filter" in c.lower()
+              for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
 
-# 2b. Negative expectancy at fc=87 is always AVOID (no safety valve for fundamentals).
-d = _call(_item(historical_expectancy=-0.5))
-check("2b. exp=-0.5%: recommendation=AVOID (no safety valve for negative expectancy)",
-      d["recommendation"] == "AVOID",
-      f"got {d['recommendation']}")
-check("2b. exp=-0.5%: invalidation_override=True",
-      d["invalidation_override"] is True)
-check("2b. exp=-0.5%: conditions mention negative expectancy",
-      any("expectancy" in c.lower() for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
+    # 2b. Negative expectancy at fc=87 is always AVOID (no safety valve for fundamentals).
+    d = _call(_item(historical_expectancy=-0.5))
+    check("2b. exp=-0.5%: recommendation=AVOID (no safety valve for negative expectancy)",
+          d["recommendation"] == "AVOID",
+          f"got {d['recommendation']}")
+    check("2b. exp=-0.5%: invalidation_override=True",
+          d["invalidation_override"] is True)
+    check("2b. exp=-0.5%: conditions mention negative expectancy",
+          any("expectancy" in c.lower() for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
 
-# 2c. Empty filter_reasons with filter_passed=False at fc=87 → still safety valve
-#     (failure count = max(1, 0) = 1 < HIGH_CONF_AVOID_GATE_MIN_FAILURES=2).
-d = _call(_item(filter_passed=False, filter_reasons=[]))
-check("2c. filter_fail no reasons at fc=87: recommendation=WATCH (safety valve)",
-      d["recommendation"] == "WATCH",
-      f"got {d['recommendation']}")
-check("2c. filter_fail no reasons at fc=87: invalidation_override=True",
-      d["invalidation_override"] is True, str(d.get("invalidation_override")))
+    # 2c. Empty filter_reasons with filter_passed=False at fc=87 → still safety valve
+    #     (failure count = max(1, 0) = 1 < HIGH_CONF_AVOID_GATE_MIN_FAILURES=2).
+    d = _call(_item(filter_passed=False, filter_reasons=[]))
+    check("2c. filter_fail no reasons at fc=87: recommendation=WATCH (safety valve)",
+          d["recommendation"] == "WATCH",
+          f"got {d['recommendation']}")
+    check("2c. filter_fail no reasons at fc=87: invalidation_override=True",
+          d["invalidation_override"] is True, str(d.get("invalidation_override")))
 
-# 2d. Two simultaneous filter failures at fc=87 → threshold met → AVOID.
-d = _call(_item(filter_passed=False,
-                  filter_reasons=["volume_ratio 0.25× < 0.75× threshold",
-                                  "opportunity_score 42 < 50 floor"]))
-check("2d. two filter fails at fc=87: recommendation=AVOID (gate justified)",
-      d["recommendation"] == "AVOID",
-      f"got {d['recommendation']}")
-check("2d. two filter fails at fc=87: invalidation_override=True",
-      d["invalidation_override"] is True)
-check("2d. two filter fails at fc=87: conditions list non-empty",
-      len(d["invalidation_override_conditions"]) >= 1,
-      str(d["invalidation_override_conditions"]))
+    # 2d. Two simultaneous filter failures at fc=87 → threshold met → AVOID.
+    d = _call(_item(filter_passed=False,
+                      filter_reasons=["volume_ratio 0.25× < 0.75× threshold",
+                                      "opportunity_score 42 < 50 floor"]))
+    check("2d. two filter fails at fc=87: recommendation=AVOID (gate justified)",
+          d["recommendation"] == "AVOID",
+          f"got {d['recommendation']}")
+    check("2d. two filter fails at fc=87: invalidation_override=True",
+          d["invalidation_override"] is True)
+    check("2d. two filter fails at fc=87: conditions list non-empty",
+          len(d["invalidation_override_conditions"]) >= 1,
+          str(d["invalidation_override_conditions"]))
 
-# 2e. Single filter failure at fc=80 (below STRONG_BUY_CONF) → strict gate → AVOID.
-d = _call(_item(final_confidence=80.0, base_confidence=80.0, confidence=80.0,
-                  filter_passed=False,
-                  filter_reasons=["volume_ratio 0.35× < 0.75× threshold"]))
-check("2e. single filter fail at fc=80: recommendation=AVOID (strict gate below 85)",
-      d["recommendation"] == "AVOID",
-      f"got {d['recommendation']}")
-check("2e. single filter fail at fc=80: invalidation_override=True",
-      d["invalidation_override"] is True)
+    # 2e. Single filter failure at fc=80 (below STRONG_BUY_CONF) → strict gate → AVOID.
+    d = _call(_item(final_confidence=80.0, base_confidence=80.0, confidence=80.0,
+                      filter_passed=False,
+                      filter_reasons=["volume_ratio 0.35× < 0.75× threshold"]))
+    check("2e. single filter fail at fc=80: recommendation=AVOID (strict gate below 85)",
+          d["recommendation"] == "AVOID",
+          f"got {d['recommendation']}")
+    check("2e. single filter fail at fc=80: invalidation_override=True",
+          d["invalidation_override"] is True)
 
-# 2f. Exactly STRONG_BUY_CONF boundary (fc=85.0): safety valve applies at >=85.
-d = _call(_item(final_confidence=85.0, base_confidence=85.0, confidence=85.0,
-                  filter_passed=False,
-                  filter_reasons=["volume_ratio 0.35× < 0.75× threshold"]))
-check("2f. single filter fail at fc=85.0 (boundary): recommendation=WATCH (safety valve)",
-      d["recommendation"] == "WATCH",
-      f"got {d['recommendation']}")
-check("2f. fc=85.0 boundary: invalidation_override=True",
-      d["invalidation_override"] is True)
+    # 2f. Exactly STRONG_BUY_CONF boundary (fc=85.0): safety valve applies at >=85.
+    d = _call(_item(final_confidence=85.0, base_confidence=85.0, confidence=85.0,
+                      filter_passed=False,
+                      filter_reasons=["volume_ratio 0.35× < 0.75× threshold"]))
+    check("2f. single filter fail at fc=85.0 (boundary): recommendation=WATCH (safety valve)",
+          d["recommendation"] == "WATCH",
+          f"got {d['recommendation']}")
+    check("2f. fc=85.0 boundary: invalidation_override=True",
+          d["invalidation_override"] is True)
 
-# ── 3. Genuine low-confidence AVOID (NOT an override) ────────────────────────
-print("3. fc < 75 → AVOID (low confidence, not an override)")
+    # ── 3. Genuine low-confidence AVOID (NOT an override) ────────────────────────
+    print("3. fc < 75 → AVOID (low confidence, not an override)")
 
-d = _call(_item(final_confidence=40.0, base_confidence=40.0, confidence=40.0,
-                  historical_expectancy=2.5, filter_passed=True))
-check("3a. fc=40: recommendation=AVOID",
-      d["recommendation"] == "AVOID")
-check("3a. fc=40: invalidation_override=False (NOT an override)",
-      d["invalidation_override"] is False, str(d.get("invalidation_override")))
-check("3a. fc=40: conditions list is empty",
-      d["invalidation_override_conditions"] == [],
-      str(d["invalidation_override_conditions"]))
+    d = _call(_item(final_confidence=40.0, base_confidence=40.0, confidence=40.0,
+                      historical_expectancy=2.5, filter_passed=True))
+    check("3a. fc=40: recommendation=AVOID",
+          d["recommendation"] == "AVOID")
+    check("3a. fc=40: invalidation_override=False (NOT an override)",
+          d["invalidation_override"] is False, str(d.get("invalidation_override")))
+    check("3a. fc=40: conditions list is empty",
+          d["invalidation_override_conditions"] == [],
+          str(d["invalidation_override_conditions"]))
 
-# ── 4. BUY gates for fc in [75, 85) ──────────────────────────────────────────
-print("4. fc in [75, 85) → WATCH due to BUY sub-condition gates")
+    # ── 4. BUY gates for fc in [75, 85) ──────────────────────────────────────────
+    print("4. fc in [75, 85) → WATCH due to BUY sub-condition gates")
 
-# 4a. pf <= 1.2 blocks BUY
-d = _call(_item(final_confidence=80.0, base_confidence=80.0, confidence=80.0,
-                  historical_profit_factor=1.1))
-check("4a. pf=1.1, fc=80: recommendation=WATCH",
-      d["recommendation"] == "WATCH")
-check("4a. pf=1.1, fc=80: invalidation_override=True",
-      d["invalidation_override"] is True)
-check("4a. pf=1.1, fc=80: conditions mention profit factor for BUY (not STRONG BUY)",
-      any("profit factor" in c.lower() and "buy" in c.lower()
-          for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
-check("4a. pf=1.1, fc=80: conditions do NOT mention STRONG BUY",
-      not any("strong" in c.lower() for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
+    # 4a. pf <= 1.2 blocks BUY
+    d = _call(_item(final_confidence=80.0, base_confidence=80.0, confidence=80.0,
+                      historical_profit_factor=1.1))
+    check("4a. pf=1.1, fc=80: recommendation=WATCH",
+          d["recommendation"] == "WATCH")
+    check("4a. pf=1.1, fc=80: invalidation_override=True",
+          d["invalidation_override"] is True)
+    check("4a. pf=1.1, fc=80: conditions mention profit factor for BUY (not STRONG BUY)",
+          any("profit factor" in c.lower() and "buy" in c.lower()
+              for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
+    check("4a. pf=1.1, fc=80: conditions do NOT mention STRONG BUY",
+          not any("strong" in c.lower() for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
 
-# 4b. rr < 2.0 blocks BUY
-d = _call(_item(final_confidence=78.0, base_confidence=78.0, confidence=78.0,
-                  rr_ratio=1.8, historical_profit_factor=1.5))
-check("4b. rr=1.8, fc=78: recommendation=WATCH",
-      d["recommendation"] == "WATCH")
-check("4b. rr=1.8, fc=78: invalidation_override=True",
-      d["invalidation_override"] is True)
-check("4b. rr=1.8, fc=78: conditions mention R:R for BUY",
-      any("r:r" in c.lower() or "risk" in c.lower() for c in d["invalidation_override_conditions"]),
-      str(d["invalidation_override_conditions"]))
+    # 4b. rr < 2.0 blocks BUY
+    d = _call(_item(final_confidence=78.0, base_confidence=78.0, confidence=78.0,
+                      rr_ratio=1.8, historical_profit_factor=1.5))
+    check("4b. rr=1.8, fc=78: recommendation=WATCH",
+          d["recommendation"] == "WATCH")
+    check("4b. rr=1.8, fc=78: invalidation_override=True",
+          d["invalidation_override"] is True)
+    check("4b. rr=1.8, fc=78: conditions mention R:R for BUY",
+          any("r:r" in c.lower() or "risk" in c.lower() for c in d["invalidation_override_conditions"]),
+          str(d["invalidation_override_conditions"]))
 
-# ── 5. No override when recommendation is actionable ─────────────────────────
-print("5. Actionable recommendations have invalidation_override=False")
+    # ── 5. No override when recommendation is actionable ─────────────────────────
+    print("5. Actionable recommendations have invalidation_override=False")
 
-d = _call(_item())  # default item → STRONG_BUY
-check("5a. STRONG_BUY: invalidation_override=False",
-      d["invalidation_override"] is False and d["recommendation"] == "STRONG_BUY",
-      f"rec={d['recommendation']}, override={d.get('invalidation_override')}")
+    d = _call(_item())  # default item → STRONG_BUY
+    check("5a. STRONG_BUY: invalidation_override=False",
+          d["invalidation_override"] is False and d["recommendation"] == "STRONG_BUY",
+          f"rec={d['recommendation']}, override={d.get('invalidation_override')}")
 
-d = _call(_item(final_confidence=80.0, base_confidence=80.0, confidence=80.0,
-                  historical_expectancy=0.5))   # BUY: fc in [75,85), exp>0, pf>1.2, rr>=2
-check("5b. BUY: invalidation_override=False",
-      d["invalidation_override"] is False and d["recommendation"] == "BUY",
-      f"rec={d['recommendation']}, override={d.get('invalidation_override')}")
+    d = _call(_item(final_confidence=80.0, base_confidence=80.0, confidence=80.0,
+                      historical_expectancy=0.5))   # BUY: fc in [75,85), exp>0, pf>1.2, rr>=2
+    check("5b. BUY: invalidation_override=False",
+          d["invalidation_override"] is False and d["recommendation"] == "BUY",
+          f"rec={d['recommendation']}, override={d.get('invalidation_override')}")
 
-# ── 6. Data-unavailable case is NOT an override ───────────────────────────────
-print("6. Data quality issues are NOT reported as override")
+    # ── 6. Data-unavailable case is NOT an override ───────────────────────────────
+    print("6. Data quality issues are NOT reported as override")
 
-# Patch get_last_source to return "mock" for this test
-orig = sys.modules["market_data_engine"].get_last_source
-sys.modules["market_data_engine"].get_last_source = lambda sym: "mock"
-d = _call(_item(final_confidence=87.0, base_confidence=87.0, confidence=87.0))
-sys.modules["market_data_engine"].get_last_source = orig
-check("6a. data_ok=False: recommendation=WATCH (data guard)",
-      d["recommendation"] == "WATCH")
-check("6a. data_ok=False: invalidation_override=False (data issue, not a gate override)",
-      d["invalidation_override"] is False, str(d.get("invalidation_override")))
+    # Patch get_last_source to return "mock" for this test
+    orig = sys.modules["market_data_engine"].get_last_source
+    sys.modules["market_data_engine"].get_last_source = lambda sym: "mock"
+    d = _call(_item(final_confidence=87.0, base_confidence=87.0, confidence=87.0))
+    sys.modules["market_data_engine"].get_last_source = orig
+    check("6a. data_ok=False: recommendation=WATCH (data guard)",
+          d["recommendation"] == "WATCH")
+    check("6a. data_ok=False: invalidation_override=False (data issue, not a gate override)",
+          d["invalidation_override"] is False, str(d.get("invalidation_override")))
+    assert _failed == 0, f"{_failed} script checks failed"
+
 
 # ── 7. Pytest-style test functions ────────────────────────────────────────────
 # These functions are discovered by pytest and verify the same invariants in a
@@ -454,26 +460,5 @@ def test_two_filter_failures_still_avoid_at_high_confidence():
 # ── Main runner ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    # Script-style checks already ran at module level above.
-    print(f"\n{'=' * 50}")
-    print(f"Script checks: {_passed} passed, {_failed} failed")
-
-    # Run pytest-style functions too.
-    pytest_fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
-    p_passed = p_failed = 0
-    print("\nPytest-style functions:")
-    for fn in pytest_fns:
-        try:
-            fn()
-            print(f"  ✓ {fn.__name__}")
-            p_passed += 1
-        except AssertionError as exc:
-            print(f"  ✗ {fn.__name__} — {exc}")
-            p_failed += 1
-
-    total_failed = _failed + p_failed
-    print(f"\nTotal: {_passed + p_passed} passed, {total_failed} failed")
-    if total_failed:
-        sys.exit(1)
-    else:
-        print("ALL TESTS PASSED")
+    # Use the same scoped fixtures and assertions as CI.
+    raise SystemExit(pytest.main([__file__, "-q"]))

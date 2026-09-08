@@ -1,0 +1,172 @@
+TASK #936 — RESOLVE REMAINING UNRELATED DASHBOARD TEST FAILURES
+
+Use:
+TASK_935_FRONTEND_VALIDATION_AND_RELEASE_REPORT.md
+
+GOAL:
+
+Resolve ONLY the two remaining unrelated failing dashboard test files that block
+the zero-failure frontend release gate.
+
+DO NOT:
+- change observability-hardening behavior
+- change Mission Control provenance behavior
+- change trading logic
+- change readiness logic
+- trigger scans
+- trigger Phase 5A/5B/5C
+- modify portfolio/ledger/universe/settings
+- enable auto entries/bootstrap/controlled execution/live orders
+- alter Task #930 evidence
+
+CURRENT STATUS:
+
+Focused Mission Control provenance tests:
+20/20 PASS
+
+Full dashboard suite:
+49 files passed
+2 files failed
+925 tests passed
+71 failed
+
+Blocking files:
+
+1.
+artifacts/trading-dashboard/src/lib/freshness-coverage.test.ts
+
+2.
+artifacts/trading-dashboard/src/pages/__tests__/AIValidationV2Page.markers.test.tsx
+
+TASK 1 — FRESHNESS COVERAGE FAILURES
+
+Inspect freshness-coverage.test.ts.
+
+Determine why registered pages fail the expected contract:
+
+- DataFreshnessBar present
+OR
+- required explicit no-live-dataset marker present
+
+Do not blindly weaken the test.
+
+For each failing registered page classify:
+
+A. page consumes live/stale-sensitive data and SHOULD render DataFreshnessBar
+B. page is not live-data dependent and SHOULD carry the explicit no-live-dataset marker
+C. registry/test expectation is stale and incorrectly includes that page
+
+Fix the smallest correct layer.
+
+Do not add fake freshness UI just to satisfy the test.
+
+TASK 2 — AI VALIDATION V2 HEADING FAILURE
+
+Inspect:
+
+AIValidationV2Page.markers.test.tsx
+
+The test expects:
+
+AI Validation Centre V2
+
+Determine whether:
+
+A. the page heading was intentionally renamed and the test is stale
+OR
+B. the page accidentally lost the canonical heading
+
+Compare current product page/component source.
+
+Fix the stale test if product copy intentionally changed.
+
+Fix the page only if the canonical heading is still the intended UI contract.
+
+Do not change unrelated page behavior.
+
+TASK 3 — RUN BOTH FILES DIRECTLY
+
+Run only:
+
+freshness-coverage.test.ts
+AIValidationV2Page.markers.test.tsx
+
+Require:
+0 failures
+
+TASK 4 — FULL DASHBOARD VITEST
+
+Run:
+
+pnpm --filter @workspace/trading-dashboard test
+
+Require:
+
+all files pass
+0 failed tests
+
+TASK 5 — REGRESSION GATES
+
+Reconfirm:
+
+- Mission Control provenance focused tests = PASS
+- dashboard TypeScript = PASS
+- API TypeScript = PASS
+- workspace TypeScript = PASS
+- dashboard production build = PASS
+
+TASK 6 — SOURCE SCOPE
+
+List every changed file.
+
+Require:
+- only the two test contracts and/or directly related page freshness marker/UI heading fixes
+- no trading/runtime backend changes
+- no Task #930 changes
+- no Mission Control provenance regression
+
+TASK 7 — RELEASE DECISION
+
+If full Vitest reaches zero failures and all prior gates remain green:
+
+create:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first 12>
+
+Then proceed with the previously approved controlled deployment.
+
+Do not trigger any scan or pre-open lifecycle after deployment.
+
+TASK 8 — POST-DEPLOY READ-ONLY VERIFY
+
+Confirm:
+
+- UI/API build identity MATCH
+- provenance card truthful
+- future manual-scan audit fields present
+- legacy manual scan unchanged
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- mappings = 23/23
+- auto entries = false
+- bootstrap = false
+- controlled execution = disabled
+- live broker orders = disabled
+- portfolio/ledger unchanged
+- Task #930 evidence untouched
+
+OUTPUT:
+
+TASK_936_DASHBOARD_TEST_RECONCILIATION_AND_RELEASE.md
+
+FINAL VERDICT:
+
+A. PASS — ZERO-FAILURE FRONTEND GATE, DEPLOYED
+B. FRESHNESS TEST CONTRACT STILL FAILS
+C. AI VALIDATION MARKER TEST STILL FAILS
+D. FULL SUITE STILL RED
+E. TYPESCRIPT/BUILD REGRESSION
+F. SOURCE SCOPE FAILURE
+G. DEPLOYMENT IDENTITY FAILURE
+H. SAFETY REGRESSION

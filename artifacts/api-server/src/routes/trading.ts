@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { spawn } from "child_process";
 import type { ChildProcess } from "child_process";
+import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs";
 import { eventBus } from "../lib/events";
@@ -10,6 +11,122 @@ const router: IRouter = Router();
 
 import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 import { dispatchSignalPushNotifications } from "../lib/pushNotifier";
+import { requireApiKey } from "../lib/auth";
+
+type ManualScanProvenance = {
+  actor: "authenticated_operator";
+  actor_source: "SESSION_AUTHENTICATED";
+  actor_type: "operator_api";
+  actor_id_or_label: "unavailable";
+  request_endpoint: "/api/live-data/scan/run";
+  request_method: "POST";
+  request_id: string;
+  correlation_id: string;
+  trigger_source: "API_MANUAL_SCAN";
+  approval_required: false;
+  approval_status: "NOT_REQUIRED";
+  approval_id: null;
+  requested_at: string;
+  // Kept for established safe history consumers while the explicit fields
+  // above become the canonical manual-scan audit contract.
+  approval_context: string | null;
+  audit_reference: string | null;
+  trigger_route: "/api/live-data/scan/run";
+};
+
+const APPROVAL_CONTEXTS = new Set([
+  "OPERATOR_REQUEST",
+  "RELEASE_VALIDATION",
+  "INCIDENT_RESPONSE",
+]);
+const AUDIT_REFERENCE = /^(?!API-|KEY-|TOKEN-|SECRET-)[A-Z]{2,12}-(?:\d{1,8}|[A-Z0-9]{1,12}-20\d{2}-\d{2}-\d{2})$/;
+
+/**
+ * Preserve only concise operator-facing labels. This deliberately rejects
+ * arbitrary request content so cookies, bearer tokens, and pasted secrets
+ * cannot become durable scan-audit data.
+ */
+function safeRequestId(value: unknown): string | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const trimmed = String(value).trim();
+  // Accepted IDs must be issued by server middleware (numeric) or generated
+  // below. Do not allow caller-shaped opaque strings here: JWTs and bearer
+  // credentials can look like harmless dotted identifiers.
+  return /^(?:\d{1,20}|scan-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(trimmed)
+    ? trimmed
+    : null;
+}
+
+function safeApprovalContext(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  return APPROVAL_CONTEXTS.has(normalized) ? normalized : null;
+}
+
+function safeAuditReference(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase();
+  return AUDIT_REFERENCE.test(normalized) ? normalized : null;
+}
+
+function manualScanProvenance(req: import("express").Request): ManualScanProvenance {
+  const body = req.body && typeof req.body === "object" && !Array.isArray(req.body)
+    ? req.body as Record<string, unknown>
+    : {};
+  // Request IDs come from server middleware when available. Generate a compact
+  // opaque ID otherwise; never accept caller-provided headers or request data as
+  // audit identifiers because they can contain credentials.
+  const requestId = safeRequestId((req as import("express").Request & { id?: unknown }).id)
+    ?? `scan-${randomUUID()}`;
+
+  return {
+    // The current session model is intentionally single-operator and has no
+    // per-user profile. Record its authenticated nature without persisting the
+    // session token, network address, or a caller-controlled identity.
+    actor: "authenticated_operator",
+    actor_source: "SESSION_AUTHENTICATED",
+    actor_type: "operator_api",
+    actor_id_or_label: "unavailable",
+    request_endpoint: "/api/live-data/scan/run",
+    request_method: "POST",
+    request_id: requestId,
+    correlation_id: requestId,
+    trigger_source: "API_MANUAL_SCAN",
+    approval_required: false,
+    approval_status: "NOT_REQUIRED",
+    approval_id: null,
+    requested_at: new Date().toISOString(),
+    // These request fields deliberately accept only server-recognised context
+    // values and structured audit IDs. Free-form strings can conceal a token.
+    approval_context: safeApprovalContext(body["approval_context"] ?? body["approvalContext"]),
+    audit_reference: safeAuditReference(body["audit_reference"] ?? body["auditReference"]),
+    // Fixed route rather than originalUrl: query strings can carry sensitive
+    // values and are not useful when identifying the trigger surface.
+    trigger_route: "/api/live-data/scan/run",
+  };
+}
+
+// Mission Control's live state is authoritative only at request time. Keep
+// server-side coalescing caches below, but forbid browsers, CDNs, and proxies
+// from replaying a previous status response after a scan completes.
+const LIVE_STATUS_CACHE_CONTROL = "no-store, no-cache, must-revalidate, proxy-revalidate";
+function setLiveStatusNoStore(res: any): void {
+  res.set("Cache-Control", LIVE_STATUS_CACHE_CONTROL);
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  res.set("Surrogate-Control", "no-store");
+}
+
+// APEXQUANT_BUILD_ID is the shared public release identifier configured on both
+// production artifacts. Keep Replit's deployment ID as a fallback, but never
+// label a production API as development when build metadata is missing.
+function apiBuildId(): string {
+  return process.env.APEXQUANT_BUILD_ID
+    ?? process.env.REPLIT_DEPLOYMENT
+    ?? process.env.REPLIT_DEPLOYMENT_ID
+    ?? process.env.BUILD_ID
+    ?? (process.env.NODE_ENV === "production" ? "production-unidentified" : "development");
+}
 
 // Timeouts by command type.  Scan commands run yf.download across 50 symbols
 // and need up to ~150 s; all other commands should finish well within 90 s.
@@ -50,9 +167,18 @@ function runPython(args: string[]): Promise<unknown> {
         }
         reject(new Error(stderr || `Python exited with code ${code}`));
       } else {
-        try {
-          resolve(JSON.parse(stdout.trim()));
-        } catch {
+        // Find the last line that is valid JSON (subsystems may print
+        // structured log lines to stdout before the result JSON).
+        const lines = stdout.trim().split("\n");
+        let _parsed: unknown;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          try { _parsed = JSON.parse(line); break; } catch { /* skip */ }
+        }
+        if (_parsed !== undefined) {
+          resolve(_parsed);
+        } else {
           reject(new Error(`Failed to parse Python output: ${stdout}`));
         }
       }
@@ -964,6 +1090,20 @@ const P7_CACHE_MS = 10 * 60 * 1000;  // 10 min — same as trade-decisions
 let p7Cache: { data: unknown; ts: number } | null = null;
 let p7InFlight: Promise<unknown> | null = null;
 
+class MarketClosedScanError extends Error {
+  constructor(readonly marketState: string) {
+    super("Fresh market scans are available only while NSE is OPEN.");
+    this.name = "MarketClosedScanError";
+  }
+}
+
+class NoCanonicalSnapshotError extends Error {
+  constructor() {
+    super("No successful canonical scan snapshot is available. Run an explicit scan action when NSE is OPEN.");
+    this.name = "NoCanonicalSnapshotError";
+  }
+}
+
 // ── Abort support ────────────────────────────────────────────────────────────
 //
 // Two separate scan flows can be in flight:
@@ -1021,9 +1161,18 @@ function spawnP7Scan(args: string[]): Promise<unknown> {
         } catch { /* ignore */ }
         reject(new Error(stderr || `Python exited with code ${code}`));
       } else {
-        try {
-          resolve(JSON.parse(stdout.trim()));
-        } catch {
+        // Find the last line that is valid JSON (subsystems may print
+        // structured log lines to stdout before the result JSON).
+        const lines = stdout.trim().split("\n");
+        let _parsed: unknown;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          try { _parsed = JSON.parse(line); break; } catch { /* skip */ }
+        }
+        if (_parsed !== undefined) {
+          resolve(_parsed);
+        } else {
           reject(new Error(`Failed to parse Python output: ${stdout}`));
         }
       }
@@ -1076,9 +1225,18 @@ function spawnRunScan(args: string[]): Promise<unknown> {
         } catch { /* ignore */ }
         reject(new Error(stderr || `Python exited with code ${code}`));
       } else {
-        try {
-          resolve(JSON.parse(stdout.trim()));
-        } catch {
+        // Find the last line that is valid JSON (subsystems may print
+        // structured log lines to stdout before the result JSON).
+        const lines = stdout.trim().split("\n");
+        let _parsed: unknown;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          try { _parsed = JSON.parse(line); break; } catch { /* skip */ }
+        }
+        if (_parsed !== undefined) {
+          resolve(_parsed);
+        } else {
           reject(new Error(`Failed to parse Python output: ${stdout}`));
         }
       }
@@ -1093,10 +1251,33 @@ function spawnRunScan(args: string[]): Promise<unknown> {
   });
 }
 
-async function getP7Scan(force = false): Promise<unknown> {
-  if (!force && p7Cache && Date.now() - p7Cache.ts < P7_CACHE_MS) return p7Cache.data;
+async function readLatestP7Scan(): Promise<unknown> {
+  if (p7Cache && Date.now() - p7Cache.ts < P7_CACHE_MS) return p7Cache.data;
+  const persisted = await runPython(["scan_snapshot"]) as Record<string, unknown>;
+  if (persisted?.success === false
+      || (!persisted?.scan_id && !Array.isArray(persisted?.recommendations))) {
+    throw new NoCanonicalSnapshotError();
+  }
+  p7Cache = { data: persisted, ts: Date.now() };
+  return persisted;
+}
+
+/** Explicit compute path. Never call this from an observation GET route. */
+async function getP7Scan(
+  force = false,
+  provenance?: ManualScanProvenance,
+): Promise<unknown> {
+  const market = await runPython(["market_status"]) as Record<string, unknown>;
+  const marketState = String(market.state ?? market.market_state ?? "UNKNOWN").toUpperCase();
+  if (marketState !== "OPEN") {
+    throw new MarketClosedScanError(marketState);
+  }
+
   if (!p7InFlight) {
-    p7InFlight = spawnP7Scan(["phase7_scan", ...(force ? ["force"] : [])])
+    p7InFlight = spawnP7Scan([
+      "phase7_scan", ...(force ? ["force"] : []), "origin=API_TRIGGERED",
+      ...(provenance ? [`provenance=${JSON.stringify(provenance)}`] : []),
+    ])
       .then((data) => { p7Cache = { data, ts: Date.now() }; return data; })
       .finally(() => { p7InFlight = null; });
   }
@@ -1126,8 +1307,15 @@ router.get("/live-data/health", async (req, res) => {
 // look up rr_gap symbols bound to that exact scan.
 router.get("/live-data/scan", async (req, res) => {
   try {
-    const force = req.query.force === "true";
-    const scanData = await getP7Scan(force);
+    if (req.query.force !== undefined) {
+      res.status(405).json({
+        success: false,
+        status: "READ_ONLY_ENDPOINT",
+        error: "GET /live-data/scan is read-only. Use POST /live-data/scan/run to request a scan.",
+      });
+      return;
+    }
+    const scanData = await readLatestP7Scan();
     const scan = scanData as Record<string, unknown>;
     // Extract the concrete scan_id from the resolved scan result so the rr_gap
     // query is always scoped to the same scan we are returning.
@@ -1145,6 +1333,23 @@ router.get("/live-data/scan", async (req, res) => {
       })),
     });
   } catch (err: unknown) {
+    if (err instanceof MarketClosedScanError) {
+      res.status(409).json({
+        success: false,
+        status: "MARKET_CLOSED",
+        market_state: err.marketState,
+        error: err.message,
+      });
+      return;
+    }
+    if (err instanceof NoCanonicalSnapshotError) {
+      res.status(503).json({
+        success: false,
+        status: "NO_SNAPSHOT_AVAILABLE",
+        error: err.message,
+      });
+      return;
+    }
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
 });
@@ -1156,6 +1361,19 @@ router.get("/live-data/scan", async (req, res) => {
 const COVERAGE_CACHE_MS = 30_000;
 let coverageCache: { data: unknown; ts: number } | null = null;
 let coverageInFlight: Promise<unknown> | null = null;
+let coverageGen = 0;
+
+/**
+ * Clears the scanner-coverage cache so the next GET /live-data/coverage
+ * resolves the currently active universe. The generation guard prevents a
+ * pre-invalidation Python response from repopulating the cache with stale
+ * universe data after an active-universe update.
+ */
+export function invalidateCoverageCache(): void {
+  coverageGen++;
+  coverageCache = null;
+  coverageInFlight = null;
+}
 
 router.get("/live-data/coverage", async (_req, res) => {
   try {
@@ -1164,13 +1382,18 @@ router.get("/live-data/coverage", async (_req, res) => {
       return;
     }
     if (!coverageInFlight) {
+      const gen = coverageGen;
       coverageInFlight = runPython(["scanner_coverage"])
         .then((data) => {
-          coverageCache = { data, ts: Date.now() };
+          if (gen === coverageGen) {
+            coverageCache = { data, ts: Date.now() };
+          }
           return data;
         })
         .finally(() => {
-          coverageInFlight = null;
+          if (gen === coverageGen) {
+            coverageInFlight = null;
+          }
         });
     }
     res.json(await coverageInFlight);
@@ -1199,10 +1422,18 @@ let scanStatusGen = 0;
  * fetches fresh data from Python.  Exported for integration tests only — mirrors
  * the clearPlatformCache() / clearAgentsCache() helpers used by other test suites.
  */
-export function clearScanStatusCache(): void {
+export function invalidateScanCaches(): void {
   scanStatusGen++;
   scanStatusCache    = null;
   scanStatusInFlight = null;
+  scanHistoryGen++;
+  scanHistoryCache    = null;
+  scanHistoryInFlight = null;
+}
+
+/** @deprecated Prefer invalidateScanCaches() so status and history stay aligned. */
+export function clearScanStatusCache(): void {
+  invalidateScanCaches();
 }
 
 /**
@@ -1227,16 +1458,18 @@ export function resetScanRunRateLimit(): void {
  * Exported for integration tests only.
  */
 export function resetScanStateForTest(): void {
-  scanStatusGen++;
-  scanStatusCache    = null;
-  scanStatusInFlight = null;
-  scanHistoryCache   = null;
+  invalidateScanCaches();
+  invalidateCoverageCache();
   lastScanRunTs      = 0;
   p7InFlight         = null;  // allow a fresh scan; orphaned Promise GC'd in time
   p7Cache            = null;
 }
 
 router.get("/live-data/scan/status", async (_req, res) => {
+  // This endpoint drives live rotation/count displays. Keep its short
+  // in-process cache for Python-spawn coalescing, but never let a browser or
+  // intermediary retain an older response after a newer scan completes.
+  setLiveStatusNoStore(res);
   try {
     if (scanStatusCache && Date.now() - scanStatusCache.ts < SCAN_STATUS_CACHE_MS) {
       res.json(scanStatusCache.data);
@@ -1246,11 +1479,14 @@ router.get("/live-data/scan/status", async (_req, res) => {
       const gen = scanStatusGen;  // capture before async work begins
       scanStatusInFlight = runPython(["scan_status"])
         .then((data) => {
+          const enriched = data && typeof data === "object" && !Array.isArray(data)
+            ? { ...data as Record<string, unknown>, api_build_id: apiBuildId() }
+            : data;
           // Guard: only write cache if no invalidation happened since we started.
           if (gen === scanStatusGen) {
-            scanStatusCache = { data, ts: Date.now() };
+            scanStatusCache = { data: enriched, ts: Date.now() };
           }
-          return data;
+          return enriched;
         })
         .finally(() => {
           // Guard: only clear our own in-flight reference, never a newer one.
@@ -1279,31 +1515,68 @@ router.get("/live-data/scan/status", async (_req, res) => {
 const SCAN_HISTORY_CACHE_MS      = 30_000;
 const SCAN_HISTORY_CANONICAL_MAX = 50;          // always fetched; sliced per request
 
-type ScanHistoryPayload = { success: boolean; history: unknown[]; count: number; ist_date: string };
+type ScanHistoryPayload = {
+  success: boolean;
+  history: unknown[];
+  count: number;
+  total_completed?: number;
+  ist_date: string;
+};
 let scanHistoryCache:    { data: ScanHistoryPayload; ts: number } | null = null;
 let scanHistoryInFlight: Promise<ScanHistoryPayload> | null = null;
+let scanHistoryGen = 0;
+
+// Scheduled scans run outside the manual POST route. Listen to their lifecycle
+// events so every scan outcome (completed, lock-busy, or failed) invalidates the
+// same in-process status/history caches. The generation counters make late
+// pre-invalidation Python reads unable to refill either cache with old data.
+eventBus.on("event", (evt: { event: string }) => {
+  if (["scan.started", "scan.completed", "scan.busy", "scan.failed", "scan.scheduled.tick"].includes(evt.event)) {
+    invalidateScanCaches();
+  }
+});
 
 router.get("/live-data/scan/history", async (req, res) => {
+  setLiveStatusNoStore(res);
   try {
     const limitRaw = parseInt(String(req.query.limit ?? ""), 10);
     const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), SCAN_HISTORY_CANONICAL_MAX) : 10;
 
     // Serve from cache when fresh; otherwise start / join one canonical fetch.
-    if (!scanHistoryCache || Date.now() - scanHistoryCache.ts >= SCAN_HISTORY_CACHE_MS) {
+    // Retry when an invalidation wins while Python is reading so this request
+    // itself cannot return the pre-scan payload.
+    let full: ScanHistoryPayload;
+    while (true) {
+      if (scanHistoryCache && Date.now() - scanHistoryCache.ts < SCAN_HISTORY_CACHE_MS) {
+        full = scanHistoryCache.data;
+        break;
+      }
       if (!scanHistoryInFlight) {
+        const gen = scanHistoryGen;
         scanHistoryInFlight = runPython(["scan_history", String(SCAN_HISTORY_CANONICAL_MAX)])
           .then((data) => {
             const d = data as ScanHistoryPayload;
-            scanHistoryCache = { data: d, ts: Date.now() };
+            if (gen === scanHistoryGen) {
+              scanHistoryCache = { data: d, ts: Date.now() };
+            }
             return d;
           })
-          .finally(() => { scanHistoryInFlight = null; });
+          .finally(() => {
+            if (gen === scanHistoryGen) scanHistoryInFlight = null;
+          });
       }
-      await scanHistoryInFlight;
+      const inFlight = scanHistoryInFlight;
+      const fetched = await inFlight;
+      if (scanHistoryCache) {
+        full = scanHistoryCache.data;
+        break;
+      }
+      // Cache generation advanced while the older request was running.
+      // Loop and request the current authoritative history instead.
+      void fetched;
     }
 
     // Slice the canonical cache to the requested limit for this caller.
-    const full    = scanHistoryCache!.data;
     const sliced  = (full.history ?? []).slice(0, limit);
     res.json({ ...full, history: sliced, count: sliced.length });
   } catch (err: unknown) {
@@ -1330,8 +1603,25 @@ const SCAN_RUN_MIN_GAP_MS = 30_000;
 //   { started: true,  status: "ALREADY_RUNNING" }  — scan already in flight
 //   { started: false, status: "RATE_LIMITED",
 //     retry_in_s: N }                              — 429 (30 s gap)
-router.post("/live-data/scan/run", (_req, res) => {
+router.post("/live-data/scan/run", requireApiKey, async (req, res) => {
   try {
+    // A manual trigger must obey the same market-hours boundary as the
+    // scheduler. Without this check an operator could publish a fresh
+    // after-hours snapshot (and advisory BUY signals) despite the session
+    // being closed. Paper execution has its own defence-in-depth gates, but
+    // scan creation itself must also be OPEN-only.
+    const market = await runPython(["market_status"]) as Record<string, unknown>;
+    const marketState = String(market.state ?? market.market_state ?? "UNKNOWN").toUpperCase();
+    if (marketState !== "OPEN") {
+      res.status(409).json({
+        started: false,
+        status: "MARKET_CLOSED",
+        market_state: marketState,
+        error: "Fresh market scans are available only while NSE is OPEN.",
+      });
+      return;
+    }
+
     const now = Date.now();
 
     // Rate-limit: prevent flooding (30-second gap between manual triggers)
@@ -1353,21 +1643,19 @@ router.post("/live-data/scan/run", (_req, res) => {
     }
 
     // ── Kick off scan in background ──────────────────────────────────────────
+    const provenance = manualScanProvenance(req);
     lastScanRunTs = now;
     p7Cache         = null;   // Phase 7 cache — must refresh
     marketScanCache = null;   // Phase 19B: Market Scanner view
-    // Advance the generation so any in-flight scan/status request that was
-    // started before this point cannot write stale data to the cache.
-    scanStatusGen++;
-    scanStatusCache   = null; // Phase 19C: freshness bar
-    scanStatusInFlight = null; // abandon stale in-flight; next poll starts fresh
-    scanHistoryCache  = null; // Phase 713: scan history list
+    invalidateScanCaches();
 
     eventBus.publish("scan.started", { ts: new Date().toISOString() });
     void runPython(["system_event", "SCAN_STARTED",
       JSON.stringify({ reason: "Fresh live scan started." })]).catch(() => undefined);
 
-    void getP7Scan(true)
+    // Provenance is supplied only at this explicit operator/API trigger. The
+    // scheduler never shares it, so its SCHEDULED rows remain distinguishable.
+    void getP7Scan(true, provenance)
       .then((result) => {
         const r = result as Record<string, unknown>;
         eventBus.publish("scan.completed", {
@@ -1378,21 +1666,14 @@ router.post("/live-data/scan/run", (_req, res) => {
         void runPython(["system_event", "SCAN_COMPLETED", JSON.stringify({
           reason: `Live scan completed (scan ${String(r?.["scan_id"] ?? "unknown")}).`,
         })]).catch(() => undefined);
-        // Advance the generation and clear both caches on scan completion so
-        // the first post-completion poll sees fresh rotation count and history.
-        // Advancing the generation ensures any in-flight status request that
-        // started before this point cannot write its stale result to the cache
-        // even if it resolves a moment after we clear it.
-        scanStatusGen++;
-        scanStatusCache    = null;
-        scanStatusInFlight = null; // abandon stale in-flight; next poll fetches fresh
-        scanHistoryCache   = null;
+        invalidateScanCaches();
         // Push advisory notifications — never blocks the scan response chain.
         void dispatchSignalPushNotifications().catch(() => undefined);
       })
       .catch((scanErr: unknown) => {
         const msg = scanErr instanceof Error ? scanErr.message : String(scanErr);
         eventBus.publish("scan.failed", { error: msg });
+        invalidateScanCaches();
         void runPython(["system_event", "SCAN_FAILED",
           JSON.stringify({ reason: `Live scan failed: ${msg.slice(0, 200)}` })]).catch(() => undefined);
       });
@@ -1449,6 +1730,35 @@ router.get("/live-data/health-v2", async (_req, res) => {
   catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
 });
 
+// Durable market-data authority incidents are advisory, read-only evidence.
+// There is deliberately no browser mutation route and no external notification.
+router.get("/market-data/incidents/active", async (_req, res) => {
+  try { res.json(await runPython(["market_data_incident_active"])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+router.get("/market-data/incidents", async (req, res) => {
+  try {
+    const status = ["ACTIVE", "RECOVERED"].includes(String(req.query.status ?? "").toUpperCase())
+      ? String(req.query.status).toUpperCase() : "";
+    const severity = ["WARNING", "HIGH", "CRITICAL"].includes(String(req.query.severity ?? "").toUpperCase())
+      ? String(req.query.severity).toUpperCase() : "";
+    const rawLimit = Number.parseInt(String(req.query.limit ?? "100"), 10);
+    const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(rawLimit, 500)) : 100;
+    res.json(await runPython(["market_data_incidents", status, severity, String(limit)]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+router.get("/market-data/incidents/:id", async (req, res) => {
+  const id = String(req.params.id ?? "");
+  if (!/^[a-f0-9]{16,64}$/i.test(id)) {
+    res.status(400).json({ success: false, error: "Invalid incident id" });
+    return;
+  }
+  try { res.json(await runPython(["market_data_incident_detail", id])); }
+  catch (err: unknown) { res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) }); }
+});
+
 // POST /api/live-data/diagnostic-bundle — generate bundle, return JSON
 router.post("/live-data/diagnostic-bundle", async (_req, res) => {
   try { res.json(await runPython(["diagnostic_bundle"])); }
@@ -1483,7 +1793,15 @@ router.get("/live-data/diagnostic-bundle/download", async (req, res) => {
 // GET /api/live-data/recommendations — ranked recommendations from canonical scan
 router.get("/live-data/recommendations", async (req, res) => {
   try {
-    const scan = await getP7Scan(req.query.force === "true") as any;
+    if (req.query.force !== undefined) {
+      res.status(405).json({
+        success: false,
+        status: "READ_ONLY_ENDPOINT",
+        error: "GET /live-data/recommendations is read-only. Use POST /live-data/scan/run to request a scan.",
+      });
+      return;
+    }
+    const scan = await readLatestP7Scan() as any;
     res.json({
       success: true,
       scan_id: scan?.scan_id, snapshot_ts: scan?.snapshot_ts,
@@ -1492,6 +1810,23 @@ router.get("/live-data/recommendations", async (req, res) => {
       label: "PAPER / LIVE DATA VALIDATION",
     });
   } catch (err: unknown) {
+    if (err instanceof MarketClosedScanError) {
+      res.status(409).json({
+        success: false,
+        status: "MARKET_CLOSED",
+        market_state: err.marketState,
+        error: err.message,
+      });
+      return;
+    }
+    if (err instanceof NoCanonicalSnapshotError) {
+      res.status(503).json({
+        success: false,
+        status: "NO_SNAPSHOT_AVAILABLE",
+        error: err.message,
+      });
+      return;
+    }
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
 });
@@ -3275,6 +3610,121 @@ router.get("/phase20/settings", async (_req, res) => {
   }
 });
 
+// GET /api/phase20/capital-migration/status — strict read-only readiness check.
+// PostgreSQL OPEN + EXIT_PENDING rows are authoritative; unreadable state blocks.
+router.get("/phase20/capital-migration/status", async (_req, res) => {
+  try {
+    const result = (await runPython([
+      "phase20_capital_migration_status",
+    ])) as Record<string, unknown>;
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({
+      success: false,
+      status: "BLOCKED_STATE_UNREADABLE",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// POST /api/phase20/capital-migration — guarded paper-only ₹100,000 rebase.
+// The Python boundary takes a ledger table lock, pauses entries, preserves
+// closed history/P&L, and requires exact operator confirmation.
+router.post("/phase20/capital-migration", async (req, res) => {
+  try {
+    const payload = {
+      confirmation_text: String(req.body?.confirmation_text ?? ""),
+      reviewed_by: String(req.body?.reviewed_by ?? "operator"),
+    };
+    const result = (await runPython([
+      "phase20_capital_migration",
+      JSON.stringify(payload),
+    ])) as Record<string, unknown>;
+    const status = String(result["status"] ?? "");
+    if (status === "BLOCKED_STATE_UNREADABLE") {
+      res.status(503).json(result);
+      return;
+    }
+    if (status === "BLOCKED_OPEN_POSITIONS") {
+      res.status(409).json(result);
+      return;
+    }
+    if (status === "CONFIRMATION_REQUIRED") {
+      res.status(400).json(result);
+      return;
+    }
+    res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({
+      success: false,
+      status: "BLOCKED_STATE_UNREADABLE",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// GET /api/phase20/bootstrap-status — bootstrap mode readiness summary.
+// Reads from the latest cached scan snapshot + settings only; no yfinance calls.
+// Returns kite_session_verified, bootstrap_eligible_count, top WATCH candidates,
+// and all settings needed to render the BootstrapStatusCard without extra queries.
+router.get("/phase20/bootstrap-status", async (_req, res) => {
+  setLiveStatusNoStore(res);
+  try {
+    res.json(await runPython(["phase20_bootstrap_status"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/eod-status — EOD square-off countdown & result for Mission Control.
+// Returns: time_to_squareoff_sec, in_squareoff_window, show_countdown,
+// force_close_results (MARKET_CLOSE_EXIT / POST_CLOSE_FORCE_EXIT today),
+// blocked_events (MARKET_CLOSE_EXIT_BLOCKED today).
+// Read-only; never triggers any trades.
+router.get("/phase20/eod-status", async (_req, res) => {
+  setLiveStatusNoStore(res);
+  try {
+    res.json(await runPython(["phase20_eod_status"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/eod-outcomes — read-only query of durable per-trade EOD outcome records.
+// Optional ?session_date=YYYY-MM-DD narrows to one trading day.
+// Optional ?limit=N (1–500, default 100). Returns newest first.
+// Read-only: no mutation, no broker calls, no trade creation or deletion.
+router.get("/phase20/eod-outcomes", async (req, res) => {
+  setLiveStatusNoStore(res);
+  try {
+    const sessionDate =
+      typeof req.query.session_date === "string" &&
+      /^\d{4}-\d{2}-\d{2}$/.test(req.query.session_date)
+        ? req.query.session_date
+        : "";
+    const limit = String(
+      Math.min(500, Math.max(1, parseInt(String(req.query.limit ?? "100"), 10) || 100))
+    );
+    res.json(await runPython(["phase20_eod_outcomes", sessionDate, limit]));
+  } catch (err: unknown) {
+    res
+      .status(500)
+      .json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// POST /api/phase20/force-eod-close — emergency bypass: run
+// eod_force_close_open_positions immediately WITHOUT the kv_claim_once guard.
+// Use when today's claim was already consumed by a failed earlier attempt.
+// Paper-only; never calls broker order APIs.
+router.post("/phase20/force-eod-close", async (_req, res) => {
+  try {
+    res.json(await runPython(["phase20_force_eod_close_now"]));
+  } catch (err: unknown) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 // PUT /api/phase20/settings — update settings; enabling auto paper entries
 // requires the exact confirmation text (enforced python-side).
 router.put("/phase20/settings", async (req, res) => {
@@ -3283,6 +3733,15 @@ router.put("/phase20/settings", async (req, res) => {
     const patch = (body as Record<string, unknown>)["patch"];
     if (typeof patch !== "object" || patch === null || Array.isArray(patch)) {
       res.status(400).json({ error: "Provide { patch: {...}, confirmation_text? }" });
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, "active_intraday_universe")) {
+      res.status(410).json({
+        success: false,
+        error: "retired_universe_mutation_route",
+        replacement: "/api/universe/v1",
+        message: "The active universe can only change through the certified versioned universe workflow.",
+      });
       return;
     }
     const payload = {
@@ -3373,6 +3832,24 @@ router.post("/phase20/email/send-daily-summary", async (_req, res) => {
       return;
     }
     res.json(result);
+  } catch (err: unknown) {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// GET /api/phase20/exit-pending-alert — EXIT_PENDING trades with age (for dashboard badge)
+// Cheap: reads the ledger, no scan or yfinance call. Cache 60 s.
+const _exitPendingCache: { data: unknown; ts: number } = { data: null, ts: 0 };
+router.get("/phase20/exit-pending-alert", async (_req, res) => {
+  try {
+    if (_exitPendingCache.data && Date.now() - _exitPendingCache.ts < 60_000) {
+      res.json(_exitPendingCache.data);
+      return;
+    }
+    const data = await runPython(["phase20_exit_pending_alert"]);
+    _exitPendingCache.data = data;
+    _exitPendingCache.ts = Date.now();
+    res.json(data);
   } catch (err: unknown) {
     res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
   }

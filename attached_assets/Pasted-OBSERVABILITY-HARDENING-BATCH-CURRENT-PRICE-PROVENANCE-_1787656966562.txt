@@ -1,0 +1,452 @@
+OBSERVABILITY HARDENING BATCH — CURRENT-PRICE PROVENANCE + TASK #929 MANUAL-SCAN AUDIT
+
+GOAL:
+
+Fix the two remaining non-blocking observability gaps without changing
+trading logic, readiness logic, portfolio state, universe membership,
+execution permissions, or Task #930 certification behavior.
+
+CURRENT PRODUCTION BASE:
+
+git_commit =
+cafc2c18a99fc6e0affe61afb9fac29c3c3251ee
+
+build_id =
+apexquant-cafc2c18a99f
+
+CURRENT NON-BLOCKING ISSUES:
+
+1. Current-price provenance card:
+   after market close it shows:
+   "Awaiting current scan provenance"
+   "UNKNOWN"
+
+   while the APIs can already tell:
+   - Kite connected/authenticated
+   - current quote provider = Yahoo Finance / yfinance
+   - active universe = 23
+   - mappings = 23/23
+
+2. Historical MANUAL_SCAN:
+   scan_id = e1ded4dfba2e
+
+   shows:
+   - origin = MANUAL
+   - job type = MANUAL_SCAN
+   - requested symbols = 23
+   - entry/execution eligible = false/false
+
+   but scan history exposes no:
+   - actor
+   - endpoint
+   - request provenance
+   - approval record
+   - correlation/request ID
+
+SAFETY RULES:
+
+DO NOT:
+- enable automatic paper entries
+- enable bootstrap
+- enable controlled paper execution
+- enable live broker orders
+- place orders
+- trigger scans manually
+- trigger Phase 5A/5B/5C
+- retry/replay pre-open
+- change universe membership
+- change capital
+- modify portfolio/ledger
+- modify strategy thresholds
+- alter Task #930 gate
+- rewrite historical scan evidence
+
+==================================================
+PART A — CURRENT-PRICE PROVENANCE CARD
+==================================================
+
+TASK A1 — TRACE CURRENT CARD DATA LINEAGE
+
+Find exactly where the card obtains:
+
+"Awaiting current scan provenance"
+"UNKNOWN"
+
+Trace:
+
+frontend component
+→ API endpoint
+→ response fields
+→ backend provenance source
+→ cache/state source
+
+Report:
+- component/file
+- endpoint
+- field names
+- when UNKNOWN is emitted
+- whether market-close logic intentionally clears provenance
+- whether source is scan-scoped or current-provider-scoped
+
+TASK A2 — DEFINE SEMANTICS CLEARLY
+
+Separate these fields:
+
+kite_connection_status
+kite_mapping_coverage
+current_quote_provider
+current_quote_timestamp
+current_quote_freshness
+historical_ohlcv_provider
+fallback_count
+synthetic_count
+unavailable_count
+scan_provenance_state
+
+Do not collapse them into a single ambiguous "Kite LTP" field.
+
+TASK A3 — MARKET-CLOSED BEHAVIOR
+
+After market close:
+
+Do NOT pretend quotes are currently live.
+
+But also do NOT show UNKNOWN if the system knows the last valid provider.
+
+Preferred display:
+
+Kite:
+CONNECTED
+
+Mappings:
+23/23
+
+Current Quote Provider:
+Yahoo Finance
+
+Last Quote:
+<timestamp>
+
+Freshness:
+MARKET CLOSED / LAST KNOWN
+
+Historical OHLCV:
+Yahoo Finance
+
+Fallback:
+0
+
+If current provider cannot be proven:
+display:
+UNAVAILABLE / NOT PROVEN
+
+Do not label stale historical data as live.
+
+TASK A4 — MARKET-OPEN BEHAVIOR
+
+During market hours:
+
+The card must display the actual current quote source from authoritative
+provenance fields.
+
+Examples:
+
+Current Quote Provider:
+ZERODHA_KITE
+
+or
+
+Current Quote Provider:
+YFINANCE
+
+Do not infer from connection state alone.
+
+Connected Kite does not mean the quote came from Kite.
+
+TASK A5 — API/UI CONSISTENCY
+
+Require consistency between:
+
+/api/health/details
+/api/live-data/health
+/api/live-data/health-v2
+/api/live-data/coverage
+/api/kite/status
+/api/kite/diagnostics
+Low Price Universe Builder / Mission Control card
+
+Intentional semantic differences must be labelled.
+
+==================================================
+PART B — TASK #929 MANUAL-SCAN PROVENANCE
+==================================================
+
+TASK B1 — TRACE ALL MANUAL SCAN ENTRY POINTS
+
+Search for every path that can create:
+
+origin = MANUAL
+job_type = MANUAL_SCAN
+
+Include:
+- frontend Start Scan button
+- API routes
+- internal helpers
+- admin/debug routes
+- scripts
+- CLI utilities
+- tests
+- scheduler fallbacks
+
+Report every writer.
+
+TASK B2 — DEFINE REQUIRED AUDIT FIELDS
+
+For every future manual scan, persist:
+
+scan_id
+origin
+job_type
+actor_type
+actor_id_or_label
+request_endpoint
+request_method
+request_id
+correlation_id
+trigger_source
+approval_required
+approval_status
+approval_id
+requested_at
+started_at
+completed_at
+requested_symbol_count
+entry_eligible
+execution_eligible
+
+Do not store secrets, tokens, or personal credentials.
+
+If authenticated user identity is unavailable:
+use a safe explicit label such as:
+
+actor_type = operator_ui
+actor_id_or_label = unavailable
+
+rather than silently omitting provenance.
+
+TASK B3 — DISTINGUISH USER VS INTERNAL SOURCES
+
+Allowed trigger_source examples:
+
+MISSION_CONTROL_UI
+API_MANUAL_SCAN
+ADMIN_TOOL
+INTERNAL_DIAGNOSTIC
+TEST
+UNKNOWN_LEGACY
+
+Do not classify scheduler jobs as MANUAL.
+
+If an internal system path currently writes MANUAL_SCAN:
+fix its origin classification.
+
+TASK B4 — APPROVAL SEMANTICS
+
+If manual scans do not require approval:
+record:
+
+approval_required = false
+approval_status = NOT_REQUIRED
+
+If approval is required:
+record the actual approval outcome.
+
+Do not invent approval records retroactively.
+
+TASK B5 — HISTORICAL SCAN e1ded4dfba2e
+
+Do NOT mutate or rewrite the historical row.
+
+For:
+
+scan_id = e1ded4dfba2e
+
+only investigate read-only.
+
+If actor/source can be proven from existing logs:
+surface that as correlated evidence.
+
+If it cannot:
+retain:
+
+trigger_source = UNKNOWN_LEGACY
+
+in UI/reporting only, without altering historical truth.
+
+TASK B6 — SCAN HISTORY API
+
+Extend scan-history output so future manual scans expose the new audit fields.
+
+Backward compatibility:
+
+old rows may return:
+actor_type = null
+trigger_source = UNKNOWN_LEGACY
+approval_status = UNKNOWN
+
+Do not fabricate values.
+
+TASK B7 — UI
+
+For manual scans, show an audit drill-down:
+
+Origin: MANUAL
+Triggered by: <actor/source>
+Endpoint: <route>
+Approval: <status>
+Request ID: <id>
+Entry eligible: No
+Execution eligible: No
+
+For legacy rows with incomplete data:
+show:
+"Legacy scan — provenance unavailable"
+
+not blank fields.
+
+==================================================
+PART C — TESTS
+==================================================
+
+Add tests for:
+
+PROVENANCE CARD
+1. market open + Kite quote
+2. market open + yfinance quote
+3. market closed + last-known provider
+4. Kite connected but quote source Yahoo
+5. unavailable quote source
+6. stale quote not labeled LIVE
+7. fallback/synthetic counts rendered correctly
+
+MANUAL SCAN AUDIT
+8. UI manual scan records actor/source
+9. API manual scan records endpoint/request ID
+10. scheduler scan never labeled MANUAL
+11. internal diagnostic scan gets explicit source
+12. approval-not-required recorded explicitly
+13. old legacy row stays immutable
+14. legacy row renders provenance unavailable
+15. scan-history API backward compatible
+16. no secrets exposed
+
+Run:
+- scan-history tests
+- scheduler/origin tests
+- Mission Control tests
+- Low Price Universe Builder tests
+- readiness regression tests
+- safety suites
+- API TypeScript
+- workspace TypeScript
+- frontend build
+- Python compilation
+
+==================================================
+PART D — RELEASE ISOLATION
+==================================================
+
+Create a new branch from:
+
+cafc2c18a99fc6e0affe61afb9fac29c3c3251ee
+
+Suggested:
+
+fix/observability-provenance-manual-scan-audit
+
+Do not mix:
+- Task #930 logic
+- Phase 5A changes
+- entry/exit changes
+- portfolio changes
+- advisory bot merge
+- controlled-entry activation
+
+Before deploy report:
+
+BASE_COMMIT
+CANDIDATE_COMMIT
+all changed files
+runtime files
+UI files
+tests
+schema diff
+
+If new manual-scan audit columns are required:
+prefer additive-only schema.
+
+Any destructive schema:
+STOP.
+
+==================================================
+PART E — DEPLOYMENT
+==================================================
+
+Only after:
+- clean scope PASS
+- tests PASS
+- schema safety PASS
+
+create:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first 12>
+
+Deploy only that commit.
+
+POST-DEPLOY READ ONLY VERIFY:
+
+1. UI/API build identity MATCH
+2. active universe remains CUSTOM_LOW_PRICE_SECTOR
+3. active count remains 23
+4. mappings remain 23/23
+5. Kite remains connected/authenticated
+6. provenance card shows truthful source/last-known state
+7. no false Kite LTP labeling
+8. auto entries remain false
+9. bootstrap remains false
+10. controlled execution remains disabled
+11. live broker orders remain disabled
+12. portfolio/ledger unchanged
+13. no manual scan is triggered during verification
+14. Task #930 evidence untouched
+
+==================================================
+OUTPUT FILES
+==================================================
+
+Create:
+
+1. CURRENT_PRICE_PROVENANCE_ROOT_CAUSE.md
+2. CURRENT_PRICE_PROVENANCE_UI_FIX.md
+3. TASK_929_MANUAL_SCAN_AUDIT_ROOT_CAUSE.md
+4. TASK_929_MANUAL_SCAN_AUDIT_FIX.md
+5. OBSERVABILITY_HARDENING_TEST_REPORT.md
+6. OBSERVABILITY_HARDENING_POST_DEPLOY.md
+
+FINAL VERDICT:
+
+A. PASS — BOTH NON-BLOCKING ITEMS FIXED
+B. PRICE PROVENANCE ISSUE REMAINS
+C. MANUAL-SCAN PROVENANCE ISSUE REMAINS
+D. TEST FAILURE
+E. SOURCE SCOPE FAILURE
+F. SCHEMA FAILURE
+G. DEPLOYMENT IDENTITY FAILURE
+H. SAFETY REGRESSION
+
+FINAL RULE:
+
+Fix observability and auditability only.
+
+Do not alter trading behavior or Task #930 certification logic.

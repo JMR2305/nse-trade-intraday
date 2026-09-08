@@ -1,0 +1,699 @@
+RTV-0 — RUNTIME TRUTH VERIFICATION BASELINE
+
+Use these controlling reports:
+- INTRADAY_MASTER_ARCHITECTURE.md
+- INTRADAY_PAGE_DATA_LINEAGE.csv
+- INTRADAY_API_MAP.csv
+- INTRADAY_DATABASE_MAP.md
+- INTRADAY_BUSINESS_LOGIC_MAP.md
+- INTRADAY_DATA_QUALITY_AUDIT.md
+
+Do not code fixes.
+Do not modify production code.
+Do not change configuration.
+Do not change environment variables.
+Do not reset portfolio.
+Do not create trades.
+Do not close trades.
+Do not enable live trading.
+Do not enable auto paper entries.
+Do not call broker order APIs.
+Do not modify DB rows.
+Do not migrate schemas.
+Do not delete caches.
+Do not restart services unless required for inspection; if required, stop and report.
+Do not deploy.
+Do not publish.
+READ-ONLY AUDIT ONLY.
+
+Goal:
+Establish the actual runtime source of truth before any bug fixes or cleanup.
+
+TASK 1 — RUNTIME IDENTITY
+
+Document:
+1. current branch
+2. current commit
+3. deployed/runtime URL
+4. Node process status
+5. Python process topology
+6. whether multiple app instances are running
+7. database engine actually connected
+8. DATABASE_URL present: YES/NO only
+9. Kite credentials present: YES/NO only
+10. Zerodha session valid: YES/NO
+11. current IST time
+12. current NSE session state:
+   - CLOSED
+   - PRE_OPEN
+   - OPEN
+   - POST_MARKET
+
+Never print secrets, tokens, API keys, passwords, cookies or DB URLs.
+
+
+TASK 2 — ACTIVE MARKET-DATA PROVENANCE
+
+Identify the currently active runtime universe/watchlist.
+
+For every active symbol report:
+- symbol
+- company name if available
+- instrument token present: YES/NO
+- latest price
+- actual source:
+  - KITE
+  - YFINANCE
+  - DATABASE CACHE
+  - MOCK/SYNTHETIC
+  - OTHER
+  - UNKNOWN
+- source timestamp
+- age
+- freshness status:
+  - LIVE
+  - NEAR_LIVE
+  - STALE
+  - UNAVAILABLE
+  - SYNTHETIC
+- fallback used: YES/NO
+- fallback reason
+- whether the signal engine consumed this source
+
+Inspect:
+- kite_instruments_cache.json
+- Kite token mapping
+- Kite quote provider
+- yfinance fallback
+- _SEED_PRICES
+- _generate_mock_candles()
+- _LAST_SOURCES
+- OHLCV cache
+- market_context_cache.json
+- intelligence_cache.json
+- phase7_scan_cache.json
+
+If any active symbol is using mock/synthetic data, mark:
+
+CRITICAL — SYNTHETIC DATA IN ACTIVE RUNTIME PATH
+
+Do not change fallback behaviour yet.
+
+
+TASK 3 — KITE COVERAGE
+
+Report:
+- active universe size
+- symbols with valid instrument token
+- symbols missing token
+- token coverage %
+- last instrument-cache refresh timestamp
+- current Kite authentication state
+- last successful Kite quote timestamp
+- whether automatic instrument-cache refresh is active
+- whether manual login/cache hydration is currently required
+
+List every symbol missing a valid token.
+
+Calculate:
+
+kite_coverage_pct =
+valid_token_symbols / active_symbols × 100
+
+
+TASK 4 — OHLCV RUNTIME TRUTH
+
+For every active symbol report:
+- most recent trading date
+- number of bars
+- OHLCV source
+- cached_at / updated_at
+- freshness classification
+- minimum-bar requirement satisfied: YES/NO
+
+Summary:
+- total symbols
+- LIVE
+- NEAR_LIVE
+- STALE
+- UNAVAILABLE
+- SYNTHETIC
+
+Also verify:
+- _ohlcvColdStartPending state
+- latest cold-start run
+- latest cold-start result
+- duration
+- whether scans are blocked by cold-start state
+
+
+TASK 5 — ACTIVE SCAN PATH
+
+Static audit identified:
+
+LEGACY:
+- /api/run-scan
+- Python command: scan
+
+CANONICAL:
+- /api/live-data/scan
+- /api/live-data/scan/run
+- Python command: phase7_scan
+
+SCHEDULED:
+- scheduled_scan_tick
+
+Determine actual runtime use.
+
+Report:
+1. scheduler running: YES/NO
+2. scheduler tick interval
+3. latest scheduled scan ID
+4. scan start time
+5. scan completion time
+6. Python command executed
+7. route/path used
+8. durable scan-state row used
+9. cache used
+10. symbols scanned
+11. signals generated
+12. whether any frontend page still calls /run-scan
+13. whether recent runtime activity used the legacy path
+14. authoritative scheduled scan path
+
+Final classification:
+
+A. canonical only
+B. legacy only
+C. both active
+D. canonical scheduled + legacy user-triggered
+E. unable to determine
+
+Do not manually trigger a scan.
+
+
+TASK 6 — SCHEDULER RUNTIME AUDIT
+
+Report:
+- scheduler process alive
+- tick interval
+- configured scan interval
+- last tick
+- last successful scan
+- next scheduled scan
+- tickInFlight state if observable
+- OHLCV cold-start state
+- pre-open tick status
+- signal-validation tick status
+- alert queue status
+- push queue status
+- exit-management status
+
+Also list recent scheduler errors/failures.
+
+Do not restart scheduler.
+
+
+TASK 7 — PRE-OPEN 5A / 5B / 5C
+
+Verify:
+
+PHASE 5A
+preopen_intelligence_tick
+
+PHASE 5B
+preopen_validation_tick
+
+PHASE 5C
+signal_validation_tick
+
+For each report:
+- enabled/disabled
+- effective feature flag
+- last execution
+- last successful execution
+- session date
+- DB records created
+- row count for latest session
+- latest status
+- latest error
+- visible in UI: YES/NO
+
+Verify timing logic:
+- 08:43 IST
+- 08:53 IST
+- 09:00–09:15 IST
+- 09:15 freeze
+- 09:18 reconciliation
+
+Do not trigger these jobs outside normal timing.
+
+
+TASK 8 — PORTFOLIO AUTHORITY
+
+Static audit identified two portfolio paths.
+
+LEGACY/CURRENT:
+- paper_trader.py
+- portfolio_store.py
+- portfolio_snapshot.py
+
+RC-10C1:
+- src/portfolio/
+- PnLEngine
+- ExposureEngine
+- PortfolioService
+
+Determine which implementation is actually authoritative.
+
+For each implementation collect:
+- initial capital
+- cash
+- invested amount
+- current market value
+- realized P&L
+- unrealized P&L
+- total P&L
+- total equity
+- utilization %
+- largest position %
+- sector exposure
+- open position count
+
+Compare:
+
+UI
+vs
+Legacy engine
+vs
+RC-10C1 engine
+vs
+independently recomputed values
+
+Flag differences:
+- > ₹1
+or
+- > 0.01 percentage point
+
+Identify which implementation feeds:
+- Dashboard
+- PortfolioLive
+- Risk page
+- Trade Approval cards
+- Copilot
+- Analytics
+- Phase 20 execution
+
+Classify each implementation:
+- CANONICAL-ACTIVE
+- ACTIVE-SECONDARY
+- SHADOW
+- LEGACY
+- UNUSED
+- UNKNOWN
+
+Do not modify portfolio state.
+
+
+TASK 9 — INITIAL CAPITAL AUTHORITY
+
+Known static values:
+- config.py = ₹100,000
+- portfolio_store.py = ₹100,000
+- paper_trader.py = ₹100,000
+- phase10_analytics.py = ₹5,000
+- copilot_engine.py = ₹5,000
+
+Determine effective runtime value used by:
+- Phase 20 durable settings
+- portfolio store
+- paper trader
+- canonical portfolio
+- Dashboard
+- PortfolioLive
+- Phase 10 analytics
+- Copilot
+- reset logic
+- environment/config overrides
+
+For the same current P&L calculate:
+- return % using canonical capital
+- return % using Phase 10 capital
+- return % using Copilot capital
+
+Flag any runtime path still using ₹5,000 or ₹500,000.
+
+Do not reset portfolio.
+
+
+TASK 10 — ORDER-VALUE LIMIT AUTHORITY
+
+Static audit found:
+- phase8_config.json = ₹1,500
+- phase20_executor.py = ₹15,000
+
+Trace runtime enforcement:
+
+Signal
+→ position sizing
+→ risk gate
+→ paper entry admission
+→ executor
+
+Report every order-value limit:
+- source
+- value
+- caller
+- enforcement point
+- active: YES/NO
+- advisory vs hard limit
+
+Final answer:
+
+Effective maximum order value at runtime = ₹X
+
+Do not place a test order.
+
+
+TASK 11 — CASH / CONCURRENCY SAFETY
+
+Inspect paper BUY persistence.
+
+Determine whether these happen atomically:
+
+1. read available cash
+2. validate cash
+3. reserve/deduct cash
+4. insert trade/position
+5. commit
+
+Check for:
+- DB transaction
+- row lock
+- advisory lock
+- process lock
+- admission lock
+- multi-instance protection
+
+Final classification:
+
+A. fully atomic
+B. admission protected but portfolio update not atomic
+C. not atomic
+D. unable to determine
+
+Do not generate concurrent test trades.
+
+
+TASK 12 — RUNTIME DATABASE INVENTORY
+
+Use read-only DB access.
+
+For every actual runtime table report:
+- table name
+- schema
+- exists: YES/NO
+- row count
+- latest timestamp
+- latest write time
+- apparent writer
+- apparent reader
+- active: YES/NO/UNKNOWN
+- classification:
+  - CANONICAL
+  - ACTIVE_LEGACY
+  - RESEARCH
+  - CACHE
+  - AUDIT
+  - DEAD
+  - UNKNOWN
+
+Inspect specifically:
+- phase20_paper_trades
+- paper_portfolio
+- paper_trades
+- phase20_kv
+- signals_cache
+- signal_snapshots
+- scan_state
+- scan_lock
+- daily_ohlcv_cache
+- daily_ohlcv_refresh_state
+- preopen_* tables
+- signal_validation_* tables
+- RC-10C1 portfolio tables
+- trade_intelligence.db
+- trading.db
+
+Do not create missing tables.
+Do not modify rows.
+
+
+TASK 13 — CACHE FRESHNESS
+
+Inspect:
+- market_context_cache.json
+- intelligence_cache.json
+- phase7_scan_cache.json
+- signals_cache.json
+- Kite instruments cache
+- OHLCV cache
+- durable scan snapshot
+
+For each report:
+- cache/store
+- timestamp
+- age
+- session date
+- producer
+- consumer
+- freshness rule
+- runtime verdict
+
+Verdicts:
+- LIVE
+- FRESH
+- STALE
+- EXPIRED
+- UNKNOWN
+
+Any important cache with no timestamp must be flagged as a design defect.
+
+
+TASK 14 — HEALTH / READINESS TRUTH
+
+Inspect/query:
+- /api/health
+- /api/readiness
+- /api/live-data/health
+- /api/live-data/health-v2
+- /api/live-data/coverage
+- /api/live-data/scan/status
+- /api/kite/status
+
+Compare reported state with actual evidence.
+
+Specifically verify whether:
+
+scanner_coverage_ok = false
+
+can still coexist with:
+
+ready = true
+
+Do not intentionally break the system.
+
+
+TASK 15 — CRITICAL PAGE RUNTIME LINEAGE
+
+Trace these pages only:
+
+1. Dashboard
+2. Signals
+3. PortfolioLive
+4. Risk Management
+5. Pre-Open Intelligence
+6. Broker / Kite Status
+7. Live Data Health
+
+For major visible values record:
+
+UI field
+→ displayed value
+→ API endpoint
+→ backend function
+→ DB/cache
+→ provider
+→ source timestamp
+→ age
+→ classification
+
+Classification:
+- LIVE
+- DERIVED
+- CACHED
+- STALE
+- SYNTHETIC
+- UNKNOWN
+
+Do not audit all 119 pages during RTV-0.
+
+
+TASK 16 — RUNTIME LOG AUDIT
+
+Inspect recent logs for:
+- Python subprocess JSON errors
+- yfinance failures
+- Kite failures
+- missing instrument tokens
+- stale-cache warnings
+- DB failures
+- lock contention
+- scheduler errors
+- scan failures
+- pre-open failures
+- signal-validation failures
+- portfolio exceptions
+- negative cash
+- zero-quantity opportunities
+
+Report:
+- error
+- count
+- latest occurrence
+- subsystem
+- unresolved: YES/NO
+
+Do not clear logs.
+
+
+TASK 17 — SYNTHETIC DATA VERDICT
+
+Give one explicit verdict:
+
+A. All active symbols use valid live data
+B. Some symbols use fallback but no synthetic data
+C. Some active symbols use synthetic/mock data
+D. Unable to verify
+
+If B or C, list every affected symbol.
+
+
+TASK 18 — RUNTIME AUTHORITY MAP
+
+Produce one final source-of-truth table for:
+
+- market price
+- OHLCV
+- scan snapshot
+- signals
+- AI decisions
+- position sizing
+- risk approval
+- paper entry
+- open positions
+- cash
+- P&L
+- sector exposure
+- pre-open
+- signal validation
+- scheduler state
+- health/readiness
+
+For each provide:
+- authoritative runtime module
+- authoritative storage
+- authoritative API
+- legacy competitor
+- confidence:
+  - CONFIRMED
+  - PARTIALLY CONFIRMED
+  - UNKNOWN
+
+
+TASK 19 — PRIORITY BUG LIST
+
+Separate findings into:
+
+P0 — Trading/data integrity
+- false/stale/synthetic market data
+- wrong capital/risk/P&L
+- wrong execution constraints
+- unsafe state changes
+
+P1 — Operational reliability
+- scheduler
+- readiness
+- stale cache
+- health
+- concurrency
+
+P2 — Architecture/technical debt
+- duplicate engines
+- legacy paths
+- dead stores
+- redundant APIs
+
+P3 — Documentation/cosmetic
+
+
+TASK 20 — OUTPUT FILES
+
+Create:
+
+1. RTV0_RUNTIME_BASELINE_REPORT.md
+2. RTV0_MARKET_DATA_PROVENANCE.csv
+3. RTV0_RUNTIME_DATABASE_INVENTORY.csv
+4. RTV0_PORTFOLIO_RECONCILIATION.csv
+5. RTV0_RUNTIME_AUTHORITY_MAP.md
+
+The main report must contain:
+- executive summary
+- runtime identity
+- configuration truth
+- market-data provenance
+- Kite coverage
+- OHLCV status
+- active scan path
+- scheduler status
+- pre-open status
+- portfolio authority
+- capital authority
+- order-limit authority
+- concurrency safety
+- database inventory
+- cache freshness
+- health/readiness truth
+- critical-page runtime lineage
+- runtime error summary
+- synthetic-data verdict
+- confirmed bugs
+- static findings disproved at runtime
+- findings still UNKNOWN
+- findings requiring OPEN-MARKET verification
+- recommended RTV-1 scope
+
+
+FINAL RULE
+
+Do not fix anything.
+
+Do not consolidate paths.
+
+Do not change configs.
+
+Do not restart production.
+
+Do not deploy.
+
+Do not publish.
+
+If the market is closed and a result cannot be proven without a live NSE session, mark:
+
+REQUIRES LIVE SESSION VERIFICATION
+
+Do not simulate results.
+
+Do not manufacture evidence.
+
+Complete the five RTV-0 audit files and stop.

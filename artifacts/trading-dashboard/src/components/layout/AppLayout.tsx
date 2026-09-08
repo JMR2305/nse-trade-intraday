@@ -22,6 +22,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation } from "wouter";
 import { useReconciliationBadge } from "@/hooks/useReconciliationBadge";
+import { useLiveStream } from "@/hooks/useLiveStream";
 import {
   Moon, Sun, Menu, X, ChevronLeft, ChevronDown, ChevronRight,
   Star, StarOff, Search, Command, Home, Sparkles,
@@ -31,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import CopilotPanel from "@/components/CopilotPanel";
 import LiveMarketTicker from "@/components/LiveMarketTicker";
 import { StaleScanBanner } from "@/components/Phase15SystemHealth";
+import { RouteFreshnessIndicator } from "@/components/RouteFreshnessIndicator";
 import { Logo } from "@/components/brand/Logo";
 import { cn } from "@/lib/utils";
 import {
@@ -86,6 +88,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const { theme, setTheme } = useTheme();
   const reconciliationBadgeCount = useReconciliationBadge();
+  const { market: liveMarket } = useLiveStream();
+  const marketState = String(liveMarket?.state ?? "UNKNOWN").toUpperCase();
+  const marketIsOpen = marketState === "OPEN";
 
   const [mobileOpen,  setMobileOpen]  = useState(false);
   const [collapsed,   setCollapsed]   = useState(false);
@@ -507,10 +512,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
           {/* Market status */}
           <div className="hidden lg:flex items-center gap-2 rounded-lg border border-border bg-card/60 px-2.5 py-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-[pulse-soft_2.8s_ease-in-out_infinite]" />
+            <span className={cn(
+              "h-1.5 w-1.5 rounded-full",
+              marketIsOpen
+                ? "bg-green-500 animate-[pulse-soft_2.8s_ease-in-out_infinite]"
+                : "bg-amber-400",
+            )} />
             <span className="text-[11px] font-medium text-muted-foreground">NSE</span>
             <span className="text-[11px] text-muted-foreground/40">·</span>
-            <span className="text-[11px] font-semibold text-green-600 dark:text-green-400">OPEN</span>
+            <span
+              className={cn(
+                "text-[11px] font-semibold",
+                marketIsOpen ? "text-green-600 dark:text-green-400" : "text-amber-600 dark:text-amber-400",
+              )}
+              data-testid="global-market-status"
+            >
+              {marketState}
+            </span>
           </div>
 
           {/* AI status */}
@@ -535,6 +553,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Page content */}
         <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 relative z-10">
           <div className="mx-auto max-w-[1440px]">
+            <RouteFreshnessIndicator path={location} />
             {children}
           </div>
         </main>

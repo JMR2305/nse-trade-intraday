@@ -136,7 +136,10 @@ interface AgentRow {
   heartbeat_status?: string; current_activity?: string; last_error?: string | null;
   queue_depth?: number; processing_time_ms?: number;
 }
-interface AgentsResp { available?: boolean; agents?: AgentRow[] }
+interface AgentsResp {
+  available?: boolean; agents?: AgentRow[];
+  status?: string; recoverable?: boolean; stale?: boolean; message?: string;
+}
 interface AutoOpsResp {
   registered_agents?: number; healthy_agents?: number; failed_agents?: number;
   warning_agents?: number; queue_depth?: number; avg_decision_latency_ms?: number;
@@ -166,18 +169,27 @@ export function AiHealthWidget() {
     <Widget
       title="AI Health" icon={Bot} query={agentsQ} refreshMs={30_000}
       testId="mc-ai-health" skeletonClass="h-56"
-      headerExtra={o?.overall_health && (
-        <Badge
-          variant="outline"
-          className={`text-[9px] px-1.5 py-0 ${
-            o.overall_health === "HEALTHY" ? "border-emerald-500/40 text-emerald-300"
-              : o.overall_health === "CRITICAL" ? "border-red-500/40 text-red-300"
-                : "border-amber-500/40 text-amber-300"
-          }`}
-        >
-          {o.overall_health}{o.overall_health_score != null ? ` · ${Math.round(o.overall_health_score)}` : ""}
-        </Badge>
-      )}
+      headerExtra={
+        <>
+          {agentsQ.data?.recoverable && (
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-amber-500/40 text-amber-300">
+              {agentsQ.data.stale ? "STALE · RECOVERING" : "RECOVERING"}
+            </Badge>
+          )}
+          {o?.overall_health && (
+            <Badge
+              variant="outline"
+              className={`text-[9px] px-1.5 py-0 ${
+                o.overall_health === "HEALTHY" ? "border-emerald-500/40 text-emerald-300"
+                  : o.overall_health === "CRITICAL" ? "border-red-500/40 text-red-300"
+                    : "border-amber-500/40 text-amber-300"
+              }`}
+            >
+              {o.overall_health}{o.overall_health_score != null ? ` · ${Math.round(o.overall_health_score)}` : ""}
+            </Badge>
+          )}
+        </>
+      }
     >
       {o && (
         <div className="grid grid-cols-4 gap-2 text-[11px] mb-2">
@@ -186,6 +198,15 @@ export function AiHealthWidget() {
           <div><p className="text-muted-foreground text-[10px]">Queue</p><p className="font-semibold">{o.queue_depth ?? "—"}</p></div>
           <div><p className="text-muted-foreground text-[10px]">Latency</p><p className="font-semibold">{o.avg_decision_latency_ms != null ? `${o.avg_decision_latency_ms.toFixed(0)}ms` : "—"}</p></div>
         </div>
+      )}
+      {agentsQ.data?.recoverable && (
+        <p
+          className="text-[10px] text-amber-300/90 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2 mb-2"
+          data-testid="mc-ai-health-recoverable"
+          role="status"
+        >
+          {agentsQ.data.message ?? "Agent status is temporarily unavailable. Retrying automatically."}
+        </p>
       )}
       {agents.length === 0 ? (
         <p className="text-xs text-muted-foreground">No agent snapshots yet.</p>

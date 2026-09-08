@@ -6,8 +6,16 @@ All tests are pure-unit: no network, no scan runs, no DB writes to canonical
 scan state. PAPER TRADING / RESEARCH ONLY.
 """
 
+import inspect
+import json
+from pathlib import Path
 import unittest
-from unittest.mock import patch
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from unittest.mock import MagicMock, patch
+
+# Keep the real pandas/NumPy dependency loaded across scoped module restoration.
+import ohlcv_cache_store
 
 import phase20_store as store
 from phase20_store import DEFAULT_SETTINGS, CONFIRMATION_TEXT, config_hash
@@ -19,11 +27,76 @@ class TestSettingsDefaults(unittest.TestCase):
         self.assertFalse(DEFAULT_SETTINGS["auto_paper_entries"])
         self.assertIsNone(DEFAULT_SETTINGS["auto_paper_entries_confirmed_at"])
 
+    def test_checked_in_release_settings_keep_automatic_entries_off(self):
+        settings_path = Path(__file__).with_name("phase20_settings.json")
+        with settings_path.open() as source:
+            release_settings = json.load(source)
+        self.assertFalse(release_settings["auto_paper_entries"])
+        self.assertIsNone(release_settings["auto_paper_entries_confirmed_at"])
+        self.assertFalse(release_settings["bootstrap_paper_enabled"])
+        self.assertTrue(release_settings["auto_paper_exits"])
+
+    def test_settings_fail_closed_when_durable_store_is_unavailable(self):
+        unsafe_cache = {
+            "auto_paper_entries": True,
+            "auto_paper_entries_confirmed_at": "should-not-be-trusted",
+        }
+        with patch.object(store, "db_available", return_value=False), \
+             patch.object(store, "_read_json", return_value=unsafe_cache):
+            settings = store.get_settings()
+        self.assertFalse(settings["auto_paper_entries"])
+        self.assertIsNone(settings["auto_paper_entries_confirmed_at"])
+
+    def test_settings_fail_closed_when_durable_payload_is_malformed(self):
+        cursor = MagicMock()
+        cursor.__enter__.return_value = cursor
+        cursor.fetchone.return_value = ("{not-json",)
+        conn = MagicMock()
+        conn.cursor.return_value = cursor
+        with patch.object(store, "db_available", return_value=True), \
+             patch.object(store, "_connect", return_value=conn), \
+             patch.object(store, "_ensure_schema"):
+            settings = store.get_settings()
+        self.assertFalse(settings["auto_paper_entries"])
+        self.assertIsNone(settings["auto_paper_entries_confirmed_at"])
+
+    def test_daily_session_manager_cannot_silently_enable_entries(self):
+        import daily_session_manager
+        source = inspect.getsource(daily_session_manager.initialize_daily_session)
+        self.assertNotIn('"auto_paper_entries": True', source)
+        self.assertNotIn("update_settings(", source)
+
+    def test_cli_activation_delegates_to_explicit_phase22_flow(self):
+        main_path = Path(__file__).with_name("main.py")
+        source = main_path.read_text()
+        command_start = source.index('elif command == "daily_session_enable_autonomous":')
+        command_end = source.index(
+            'elif command == "daily_session_disable_autonomous":',
+            command_start,
+        )
+        command_source = source[command_start:command_end]
+        self.assertIn("phase22_activation import enable_paper_automation", command_source)
+        self.assertIn("confirmation_text", command_source)
+        self.assertNotIn("CONFIRMATION_TEXT", command_source)
+
     def test_interval_default_and_allowed(self):
         self.assertEqual(DEFAULT_SETTINGS["scan_interval_minutes"], 5)
 
     def test_fill_model_default_conservative(self):
         self.assertEqual(DEFAULT_SETTINGS["fill_model"], "SLIPPAGE_ADJUSTED")
+
+    def test_quality_allocation_defaults_preserve_requested_safety_caps(self):
+        self.assertTrue(DEFAULT_SETTINGS["quality_allocation_override_enabled"])
+        self.assertEqual(
+            DEFAULT_SETTINGS["quality_allocation_2x_risk_budget_pct"], 1.5)
+        self.assertEqual(
+            DEFAULT_SETTINGS["quality_allocation_3x_risk_budget_pct"], 2.0)
+        self.assertFalse(
+            DEFAULT_SETTINGS[
+                "quality_allocation_3x_sector_override_enabled"])
+        self.assertLessEqual(
+            DEFAULT_SETTINGS[
+                "quality_allocation_3x_sector_override_cap_pct"], 50.0)
 
     def test_config_hash_stable(self):
         a = config_hash(dict(DEFAULT_SETTINGS))
@@ -81,6 +154,27 @@ class TestSettingsValidation(unittest.TestCase):
     def test_invalid_fill_model_rejected(self):
         with self.assertRaises(ValueError):
             self._update({"fill_model": "FUTURE_PRICE"})
+
+    def test_quality_thresholds_and_caps_are_validated(self):
+        for patch_dict in (
+            {"quality_allocation_2x_min_confidence": 101},
+            {"quality_allocation_3x_min_risk_reward": 0.5},
+            {"quality_allocation_2x_risk_budget_pct": 2.1},
+            {"quality_allocation_3x_risk_budget_pct": 2.1},
+            {"quality_allocation_3x_max_atr_pct": 0},
+            {"quality_allocation_3x_max_stop_distance_pct": 11},
+            {"quality_allocation_absolute_cap": 999},
+            {"quality_allocation_3x_sector_override_cap_pct": 51},
+        ):
+            with self.assertRaises(ValueError):
+                self._update(patch_dict)
+
+    def test_3x_thresholds_cannot_be_looser_than_2x(self):
+        with self.assertRaises(ValueError):
+            self._update({
+                "quality_allocation_2x_min_confidence": 90,
+                "quality_allocation_3x_min_confidence": 89,
+            })
 
 
 class TestFillModels(unittest.TestCase):
@@ -148,7 +242,15 @@ class TestGates(unittest.TestCase):
                    return_value={"state": market_state}), \
              patch("scan_state_store.load_latest_meta",
                    return_value={"scan_id": ctx.get("scan_id"),
-                                 "provider": provider}), \
+                                  "provider": provider,
+                                  "universe_context": {
+                                      "natural_session": "2026-08-27",
+                                      "universe_key": "NIFTY_50",
+                                      "universe_id": "test-nifty-50",
+                                      "version": 1,
+                                      "exact_set_hash": "test-universe-hash",
+                                      "symbol_count": 50,
+                                  }}), \
              patch("scan_state_store.load_latest_snapshot",
                    return_value={"scan_id": ctx.get("scan_id"),
                                  "safety": {
@@ -217,6 +319,43 @@ class TestGates(unittest.TestCase):
             {"action": "SELL", "pnl": -500.0, "timestamp": f"{today}T10:00:00Z"}]}
         ev = self._evaluate(state=st)
         self.assertIn("daily_loss_limit", ev["candidates"][0]["failed_gates"])
+
+    def test_quality_allocation_preview_uses_kite_and_cache_evidence(self):
+        ctx = self._ctx(symbol_overrides={
+            "confidence": 86.0,
+            "opportunity_score": 82.0,
+            "technical_score": 82.0,
+            "rr_ratio": 2.6,
+            "kite_ltp": 100.0,
+            "kite_ltp_available": True,
+            "kite_session_verified_flag": True,
+            "kite_ltp_overlay_enabled": True,
+            "execution_price_source": "kite_live_ltp",
+            "quote_reliable": True,
+            "ohlcv_source": "yfinance_daily_bars",
+        })
+        with patch("ohlcv_cache_store.get_cache_status", return_value={
+            "TCS": {
+                "cached": True,
+                "data_quality": "LIVE",
+                "missing_required": False,
+                "latest_date": "2026-08-19",
+                "age_days": 0,
+            }
+        }), patch("ohlcv_cache_store.read_symbol_from_cache",
+                  return_value=None):
+            ev = self._evaluate(ctx=ctx)
+        candidate = ev["candidates"][0]
+        self.assertEqual(
+            candidate["allocation_override_preview"]["tier"],
+            "HIGH_QUALITY_2X",
+        )
+        self.assertEqual(
+            candidate["allocation_context"]["ohlcv_cache_data_quality"],
+            "LIVE",
+        )
+        self.assertEqual(
+            candidate["execution_price_source"], "kite_live_ltp")
 
     def test_research_fail_open_passes_when_halted(self):
         # fail_open (default) — gate must PASS even when research mode is
@@ -333,7 +472,7 @@ class TestExitsSafety(unittest.TestCase):
         t.update(over)
         return t
 
-    def _run(self, trade, rec, stale=False, market_state="OPEN"):
+    def _run(self, trade, rec, stale=False, market_state="OPEN", clock_ist=None):
         import phase20_exits as x
         ctx = {"available": True, "scan_id": "s2", "stale": stale,
                "symbols": ({"TCS": rec} if rec else {})}
@@ -344,7 +483,10 @@ class TestExitsSafety(unittest.TestCase):
         recorded = []
         sells = []
         settings = dict(DEFAULT_SETTINGS)
+        clock_ist = clock_ist or datetime(2026, 9, 3, 10, 0,
+                                        tzinfo=ZoneInfo("Asia/Kolkata"))
         with patch.object(x, "get_open_trades", return_value=[trade]), \
+             patch("market_hours.now_ist", return_value=clock_ist), \
              patch("phase15_scan_context.build_scan_context", return_value=ctx), \
              patch("market_hours.market_status",
                    return_value={"state": market_state}), \
@@ -378,10 +520,18 @@ class TestExitsSafety(unittest.TestCase):
         self.assertEqual(result["exits"][0]["rule"], "RECOMMENDATION_EXIT")
 
     def test_stale_data_never_fabricates_fill(self):
-        # Stop would be hit, but data is STALE → PENDING, no sell.
+        # TIME_EXIT fires (3 days held, max_holding_days=2), data is STALE, but
+        # held days (3) < exit_on_stale_after_days (5, default) → EXIT_PENDING.
+        # Verifies that the new stale-exit feature doesn't fire below its threshold.
+        from datetime import datetime, timedelta, timezone
+        recent_3d = (datetime.now(timezone.utc) - timedelta(days=3)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
         rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
-        trade = self._trade(fill_ts="2026-06-01T04:00:00Z")  # also time-exit due
-        result, recorded, sells = self._run(trade, rec, stale=True)
+        trade = self._trade(fill_ts=recent_3d)
+        # max_holding_days=2 → TIME_EXIT fires; exit_on_stale_after_days=5 → not met
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"max_holding_days": 2, "exit_on_stale_after_days": 5})
         self.assertEqual(len(sells), 0, "No fill may be fabricated from stale data")
         self.assertEqual(len(result["pending"]), 1)
         # record_exit called with EXIT_PENDING status
@@ -434,6 +584,340 @@ class TestExitsSafety(unittest.TestCase):
         self.assertEqual(result["exits"], [])
         self.assertEqual(result["pending"], [])
         self.assertEqual(len(sells), 0)
+
+    def test_explicit_squareoff_clock_still_exits(self):
+        rec = {"entry_price": 101.0, "data_quality": "LIVE", "final_action": "BUY"}
+        close = datetime(2026, 9, 3, 15, 20, tzinfo=ZoneInfo("Asia/Kolkata"))
+        result, _, sells = self._run(self._trade(), rec, clock_ist=close)
+        self.assertEqual(result["exits"][0]["rule"], "MARKET_CLOSE_EXIT")
+        self.assertEqual(len(sells), 1)
+
+    def test_open_fixture_overrides_after_market_ambient_clock(self):
+        after_close = datetime(2026, 9, 3, 16, 10, tzinfo=ZoneInfo("Asia/Kolkata"))
+        with patch("market_hours.now_ist", return_value=after_close) as ambient:
+            self.test_no_exit_keeps_position_open()
+            self.test_trailing_stop_not_armed_without_peak()
+            self.test_trailing_stop_triggers_after_peak_then_pullback()
+            # The inner intraday clock was restored, not leaked.
+            import market_hours
+            self.assertIs(market_hours.now_ist, ambient)
+
+    # ── Task 791: exit_on_stale_after_days tests ──────────────────────────────
+
+    def _run_with_settings(self, trade, rec, stale=False, settings_override=None):
+        """Like _run but accepts a full settings dict override."""
+        import phase20_exits as x
+        ctx = {"available": True, "scan_id": "s2", "stale": stale,
+               "symbols": ({"TCS": rec} if rec else {})}
+        pf = {"cash": 0.0, "total_value": 5000.0, "invested_value": 500.0,
+              "positions": [{"symbol": "TCS", "quantity": 5,
+                             "current_price": rec.get("entry_price", 100.0)
+                             if rec else 100.0}]}
+        recorded = []
+        sells = []
+        settings = dict(DEFAULT_SETTINGS)
+        if settings_override:
+            settings.update(settings_override)
+        with patch.object(x, "get_open_trades", return_value=[trade]), \
+             patch("phase15_scan_context.build_scan_context", return_value=ctx), \
+             patch("market_hours.market_status",
+                   return_value={"state": "OPEN"}), \
+             patch("paper_trader._load_state",
+                   return_value={"trades": [], "positions": {}}), \
+             patch("paper_trader.get_portfolio", return_value=pf), \
+             patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch.object(x, "record_exit",
+                          side_effect=lambda *a, **k: recorded.append((a, k))), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None), \
+             patch("phase20_executor.get_ledger", return_value=[]):
+            result = x.manage_open_positions(settings)
+        return result, recorded, sells
+
+    def _old_trade(self, days_held=6):
+        """Trade held for `days_held` days (default exceeds exit_on_stale_after_days=5)."""
+        from datetime import datetime, timedelta, timezone
+        old_ts = (datetime.now(timezone.utc) - timedelta(days=days_held)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        return self._trade(fill_ts=old_ts)
+
+    def test_stale_exit_after_n_days_closes_immediately(self):
+        """Stale scan + TIME_EXIT + held >= exit_on_stale_after_days + yfinance quote
+        → CLOSED immediately, no EXIT_PENDING.
+        (max_holding_days=2 makes TIME_EXIT fire; 6 days >= threshold of 5.)"""
+        rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
+        trade = self._old_trade(days_held=6)
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"max_holding_days": 2, "exit_on_stale_after_days": 5})
+        self.assertEqual(len(sells), 1, "execute_sell must be called for stale-after-N-days exit")
+        self.assertEqual(result["pending"], [], "Position must not enter EXIT_PENDING")
+        self.assertEqual(len(result["exits"]), 1)
+        self.assertEqual(result["exits"][0].get("price_source"), "yfinance_daily_close_stale")
+        # record_exit must be called with CLOSED, not EXIT_PENDING
+        self.assertTrue(any(k.get("status") == "CLOSED" or
+                            (len(a) >= 5 and a[4] == "CLOSED")
+                            for a, k in recorded),
+                        "record_exit must be called with status=CLOSED")
+
+    def test_stale_exit_below_threshold_defers_to_pending(self):
+        """Stale scan + TIME_EXIT fires but held days < exit_on_stale_after_days
+        → EXIT_PENDING (no sell).
+        (max_holding_days=2 fires TIME_EXIT; 3 days < threshold of 5.)"""
+        rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
+        trade = self._old_trade(days_held=3)
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"max_holding_days": 2, "exit_on_stale_after_days": 5})
+        self.assertEqual(len(sells), 0, "No fill when held days < threshold")
+        self.assertEqual(len(result["pending"]), 1)
+        self.assertTrue(any(k.get("status") == "EXIT_PENDING" or
+                            (len(a) >= 5 and a[4] == "EXIT_PENDING")
+                            for a, k in recorded))
+
+    def test_stale_exit_disabled_when_flag_zero(self):
+        """exit_on_stale_after_days=0 disables the feature → EXIT_PENDING regardless
+        of how long the trade has been held."""
+        rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
+        trade = self._old_trade(days_held=30)  # well past any threshold
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"exit_on_stale_after_days": 0})
+        self.assertEqual(len(sells), 0, "Feature is disabled — no fill must occur")
+        self.assertEqual(len(result["pending"]), 1)
+        self.assertTrue(any(k.get("status") == "EXIT_PENDING" or
+                            (len(a) >= 5 and a[4] == "EXIT_PENDING")
+                            for a, k in recorded))
+
+    def test_stale_exit_no_yfinance_quote_defers_to_pending(self):
+        """Stale scan + held >= threshold but no yfinance quote (entry_price=0)
+        → EXIT_PENDING even though the stale-exit gate is open.
+        (max_holding_days=2 fires TIME_EXIT; 6 days >= threshold of 5.)"""
+        rec = {"entry_price": 0, "data_quality": "LIVE", "final_action": "WATCH"}
+        trade = self._old_trade(days_held=6)
+        result, recorded, sells = self._run_with_settings(
+            trade, rec, stale=True,
+            settings_override={"max_holding_days": 2, "exit_on_stale_after_days": 5})
+        self.assertEqual(len(sells), 0, "No fill when yfinance quote is unavailable")
+        self.assertEqual(len(result["pending"]), 1)
+
+    def test_stale_exit_custom_threshold(self):
+        """Custom exit_on_stale_after_days=10: trade held 8 days → still EXIT_PENDING;
+        trade held 11 days → CLOSED via yfinance.
+        (max_holding_days=2 makes TIME_EXIT fire for both.)"""
+        rec = {"entry_price": 90.0, "data_quality": "LIVE", "final_action": "WATCH"}
+        settings_ov = {"max_holding_days": 2, "exit_on_stale_after_days": 10}
+
+        # 8 days held — below custom 10-day threshold → EXIT_PENDING
+        trade_8 = self._old_trade(days_held=8)
+        result8, _, sells8 = self._run_with_settings(
+            trade_8, rec, stale=True, settings_override=settings_ov)
+        self.assertEqual(len(sells8), 0, "8 days < 10 threshold — must not close")
+        self.assertEqual(len(result8["pending"]), 1)
+
+        # 11 days held — above custom 10-day threshold → CLOSED
+        trade_11 = self._old_trade(days_held=11)
+        result11, _, sells11 = self._run_with_settings(
+            trade_11, rec, stale=True, settings_override=settings_ov)
+        self.assertEqual(len(sells11), 1, "11 days >= 10 threshold — must close")
+        self.assertEqual(result11["pending"], [])
+
+
+class TestTimeoutExitPending(unittest.TestCase):
+    """Tests for TIMEOUT_EXIT_PENDING force-close and yfinance fallback retry."""
+
+    def _exit_pending_trade(self, pending_days=12, fill_days_ago=15, **over):
+        """A trade in EXIT_PENDING state.
+
+        pending_days — how long ago the trade transitioned to EXIT_PENDING
+                       (stored in exit_ts).
+        fill_days_ago — how long ago the trade was opened (stored in fill_ts).
+                        Default older than pending_days to simulate a realistic
+                        hold-then-stuck scenario.
+
+        The critical distinction: timeout gating uses exit_ts (time in
+        EXIT_PENDING), NOT fill_ts (total holding time).
+        """
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        fill_ts = (now - timedelta(days=fill_days_ago)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        exit_ts = (now - timedelta(days=pending_days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        t = {
+            "trade_id": "P20-ep1", "symbol": "BAJFINANCE",
+            "quantity": 3, "fill_price": 6500.0,
+            "stop_loss": 6200.0, "target": 7000.0,
+            "fill_ts": fill_ts, "exit_ts": exit_ts,
+            "status": "EXIT_PENDING",
+            "exit_rule": "TIME_EXIT",
+            "sector": "Finance",
+        }
+        t.update(over)
+        return t
+
+    def _run_manage(self, trade, rec, stale=False, ledger_extra=None):
+        import phase20_exits as x
+        ctx = {"available": True, "scan_id": "s-ep", "stale": stale,
+               "symbols": ({"BAJFINANCE": rec} if rec else {})}
+        pf = {"cash": 10_000.0, "total_value": 15_000.0,
+              "invested_value": 5_000.0,
+              "positions": [{"symbol": "BAJFINANCE", "quantity": 3,
+                             "current_price": rec.get("entry_price", 6500.0) if rec else 6500.0}]}
+        recorded = []
+        sells = []
+        settings = dict(DEFAULT_SETTINGS)
+        # Ledger includes the EXIT_PENDING trade so _retry_pending and
+        # _resolve_timeout_exit_pending can see it.
+        ledger = [trade] + (ledger_extra or [])
+        with patch.object(x, "get_open_trades", return_value=[]), \
+             patch("phase15_scan_context.build_scan_context", return_value=ctx), \
+             patch("market_hours.market_status",
+                   return_value={"state": "OPEN"}), \
+             patch("paper_trader._load_state",
+                   return_value={"trades": [], "positions": {}}), \
+             patch("paper_trader.get_portfolio", return_value=pf), \
+             patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch.object(x, "record_exit",
+                          side_effect=lambda *a, **k: recorded.append((a, k))), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None), \
+              patch("phase20_executor.get_exit_pending_trades",
+                    return_value=ledger):
+            result = x.manage_open_positions(settings)
+        return result, recorded, sells
+
+    def test_timeout_exit_pending_force_closes_with_yfinance_price(self):
+        """A trade EXIT_PENDING for > max_holding_days must be force-closed."""
+        rec = {"entry_price": 6450.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        # exit_ts = 12 days ago (>10 day threshold); fill_ts = 15 days ago
+        trade = self._exit_pending_trade(pending_days=12, fill_days_ago=15)
+        result, recorded, sells = self._run_manage(trade, rec)
+        timeout_closed = result.get("timeout_closed", [])
+        self.assertEqual(len(timeout_closed), 1,
+                         "Trade stuck in EXIT_PENDING >max_holding_days must be force-closed")
+        self.assertEqual(timeout_closed[0]["exit_rule"], "TIMEOUT_EXIT_PENDING")
+        self.assertEqual(timeout_closed[0]["symbol"], "BAJFINANCE")
+        self.assertEqual(timeout_closed[0]["exit_price"], 6450.0)
+        self.assertEqual(timeout_closed[0]["price_source"], "yfinance_daily_close")
+
+    def test_timeout_exit_pending_uses_kite_ltp_when_available(self):
+        """Kite LTP is preferred over yfinance daily close in timeout force-close."""
+        rec = {"entry_price": 6450.0, "data_quality": "DAILY",
+               "final_action": "WATCH",
+               "kite_ltp": 6460.0, "kite_ltp_available": True,
+               "quote_reliable": True}
+        trade = self._exit_pending_trade(pending_days=12)
+        result, _, _ = self._run_manage(trade, rec)
+        tc = result.get("timeout_closed", [])
+        self.assertEqual(len(tc), 1)
+        self.assertEqual(tc[0]["price_source"], "kite_ltp")
+        self.assertAlmostEqual(tc[0]["exit_price"], 6460.0)
+
+    def test_timeout_exit_pending_falls_back_to_fill_price_when_no_quote(self):
+        """When even yfinance has no price, fill_price is used as exit price."""
+        trade = self._exit_pending_trade(pending_days=12)
+        result, recorded, _ = self._run_manage(trade, rec={})
+        tc = result.get("timeout_closed", [])
+        self.assertEqual(len(tc), 1)
+        self.assertEqual(tc[0]["price_source"], "fill_price_fallback")
+        self.assertAlmostEqual(tc[0]["exit_price"], 6500.0)
+
+    def test_timeout_uses_exit_ts_not_fill_ts(self):
+        """Timeout gate must measure time-in-EXIT_PENDING (exit_ts), not total
+        holding time (fill_ts).  A trade held for 15 days that only just entered
+        EXIT_PENDING (exit_ts 3 days ago) must NOT be force-closed."""
+        rec = {"entry_price": 6450.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        # fill_ts = 15 days ago (would trip fill_ts-based gate),
+        # exit_ts =  3 days ago (within max_holding_days=10 → must NOT close)
+        trade = self._exit_pending_trade(pending_days=3, fill_days_ago=15)
+        result, _, _ = self._run_manage(trade, rec)
+        self.assertEqual(result.get("timeout_closed", []), [],
+                         "Must not force-close: exit_ts is only 3 days old "
+                         "(even though fill_ts is 15 days old)")
+
+    def test_timeout_exit_not_triggered_for_recent_exit_pending(self):
+        """EXIT_PENDING trade within max_holding_days (by exit_ts) must NOT fire."""
+        rec = {"entry_price": 6450.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        trade = self._exit_pending_trade(pending_days=3)  # 3 days < 10 threshold
+        result, _, _ = self._run_manage(trade, rec)
+        self.assertEqual(result.get("timeout_closed", []), [],
+                         "Should not force-close a recently-pending trade")
+
+    def _pending_trade_for_retry(self, pending_hours=48, **over):
+        """An EXIT_PENDING trade with exit_ts `pending_hours` ago."""
+        from datetime import datetime, timedelta, timezone
+        now = datetime.now(timezone.utc)
+        exit_ts = (now - timedelta(hours=pending_hours)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        fill_ts = (now - timedelta(days=15)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        t = {
+            "trade_id": "P20-ep-retry", "symbol": "BAJFINANCE",
+            "quantity": 3, "fill_price": 6500.0,
+            "fill_ts": fill_ts, "exit_ts": exit_ts,
+            "status": "EXIT_PENDING", "exit_rule": "TIME_EXIT",
+        }
+        t.update(over)
+        return t
+
+    def test_retry_pending_accepts_yfinance_fallback_after_24h(self):
+        """_retry_pending resolves EXIT_PENDING via yfinance daily close when
+        the trade has been pending for ≥ 24 hours (Kite LTP offline scenario)."""
+        import phase20_exits as x
+        trade = self._pending_trade_for_retry(pending_hours=48)  # 2 days stuck
+        rec = {"entry_price": 6430.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        sells = []
+        recorded = []
+        with patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch("phase20_executor.get_exit_pending_trades",
+                   return_value=[trade]), \
+             patch.object(x, "record_exit",
+                          side_effect=lambda *a, **k: recorded.append((a, k))), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None):
+            out = x._retry_pending({"BAJFINANCE": rec}, scan_ok=True, stale=False,
+                                   exit_scan_id="s-retry")
+        self.assertEqual(len(out), 1,
+                         "yfinance daily close must resolve EXIT_PENDING after 24 h")
+        self.assertEqual(out[0]["symbol"], "BAJFINANCE")
+
+    def test_retry_pending_rejects_yfinance_fallback_for_new_pending(self):
+        """_retry_pending must NOT resolve via yfinance fallback when the trade
+        just entered EXIT_PENDING (< 24 h ago).  New pending positions must
+        wait for a reliable LIVE/NEAR_LIVE quote, not settle for daily close."""
+        import phase20_exits as x
+        trade = self._pending_trade_for_retry(pending_hours=2)  # just entered pending
+        rec = {"entry_price": 6430.0, "data_quality": "DAILY",
+               "final_action": "WATCH"}
+        sells = []
+        with patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch("phase20_executor.get_ledger", return_value=[trade]), \
+             patch.object(x, "record_exit", lambda *a, **k: None), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None):
+            out = x._retry_pending({"BAJFINANCE": rec}, scan_ok=True, stale=False,
+                                   exit_scan_id="s-retry")
+        self.assertEqual(out, [],
+                         "New pending position must wait for reliable quote, "
+                         "not be immediately resolved via yfinance daily close")
+
+    def test_retry_pending_skips_error_quotes(self):
+        """_retry_pending must not resolve from a symbol marked with an error."""
+        import phase20_exits as x
+        trade = self._pending_trade_for_retry(pending_hours=48)
+        rec = {"entry_price": 6430.0, "data_quality": "DAILY", "error": "timeout"}
+        sells = []
+        with patch("paper_trader.execute_sell",
+                   side_effect=lambda *a, **k: (sells.append((a, k)) or (True, "ok"))), \
+             patch("phase20_executor.get_ledger", return_value=[trade]), \
+             patch.object(x, "record_exit", lambda *a, **k: None), \
+             patch.object(x.store, "add_notification", lambda *a, **k: None):
+            out = x._retry_pending({"BAJFINANCE": rec}, scan_ok=True, stale=False,
+                                   exit_scan_id="s-retry")
+        self.assertEqual(out, [],
+                         "Error quote must not be used to resolve EXIT_PENDING")
 
 
 class TestReplayDeterminism(unittest.TestCase):

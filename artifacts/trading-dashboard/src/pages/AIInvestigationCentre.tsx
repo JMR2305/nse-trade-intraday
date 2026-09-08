@@ -355,6 +355,75 @@ function stageTimestamp(snapshotTs: string | undefined, stageId: string) {
 // Mode Selector Bar
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── NextScanCountdown — live countdown shown in the morning stale-guard state ─
+// Computes time remaining until the next expected scan and updates every 30 s.
+// When within 5 minutes of the expected time the label pulses with
+// "Scan starting soon…".  expectedIso may come from the pipeline-stats API or
+// be omitted, in which case 09:15 IST today (or tomorrow) is used as the
+// default market-open scan time.
+function NextScanCountdown({ expectedIso }: { expectedIso?: string | null }) {
+  const [label, setLabel] = useState<string>("");
+  const [soon, setSoon]   = useState(false);
+
+  useEffect(() => {
+    function compute() {
+      let target: Date;
+      if (expectedIso) {
+        target = new Date(expectedIso);
+      } else {
+        // Default: 09:15 IST = 03:45 UTC
+        const now = new Date();
+        const t = new Date(Date.UTC(
+          now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 3, 45, 0,
+        ));
+        if (t <= now) t.setUTCDate(t.getUTCDate() + 1);
+        target = t;
+      }
+
+      const now    = new Date();
+      const diffMs = target.getTime() - now.getTime();
+
+      if (diffMs <= 0) {
+        setSoon(false);
+        setLabel("Scan overdue — auto-scan should start shortly");
+        return;
+      }
+
+      const diffMin = Math.round(diffMs / 60_000);
+      if (diffMin <= 5) {
+        setSoon(true);
+        setLabel("Scan starting soon…");
+        return;
+      }
+
+      const timeStr = target.toLocaleTimeString("en-IN", {
+        hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata",
+      });
+      const h = Math.floor(diffMin / 60);
+      const m = diffMin % 60;
+      setSoon(false);
+      setLabel(
+        `Next scan expected at ${timeStr} IST` +
+        (h > 0 ? ` (in ${h}h ${m}m)` : ` (in ${m}m)`),
+      );
+    }
+
+    compute();
+    const id = setInterval(compute, 30_000);
+    return () => clearInterval(id);
+  }, [expectedIso]);
+
+  if (!label) return null;
+  return (
+    <div className={`flex items-center justify-center gap-1.5 text-xs mt-1 ${
+      soon ? "text-teal-300 animate-pulse" : "text-slate-500"
+    }`}>
+      <Timer size={12} className="flex-shrink-0" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
 function ModeSelectorBar({ mode, onChange }: { mode: PageMode; onChange: (m: PageMode) => void }) {
   const modes: { id: PageMode; label: string; icon: typeof Microscope; desc: string }[] = [
     { id: "trading_day",    label: "Trading Day Replay",      icon: Calendar,    desc: "Full market session pipeline" },
@@ -1961,6 +2030,23 @@ export default function AIInvestigationCentre() {
   // Note: integrity data is fetched directly by <ReplayIntegrityPanel> to avoid
   // a redundant query at the page level. No page-level inv-integrity query here.
 
+  // Pipeline stats — fetched only when the stale guard might be active so we
+  // have an authoritative next_scan_expected_ist from the backend (which
+  // accounts for the configured scan interval, weekends, and NSE holidays).
+  // Derived from sessionsData directly because selectedSession is computed
+  // further below and hooks must not be called conditionally.
+  const _latestSession = sessionsData?.sessions?.[0];
+  const _staleGuardLikely =
+    !!(_latestSession?.is_latest) && !(_latestSession?.is_today_session ?? true);
+  const { data: pipelineData } = useQuery({
+    queryKey: ["inv-pipeline-stats"],
+    queryFn:  () => apiJson<{ next_scan_expected_ist?: string | null }>("phase20/pipeline"),
+    enabled:  _staleGuardLikely,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+
   const { data: summaryData } = useQuery({
     queryKey: ["inv-summary", selectedScanId],
     queryFn: () => apiJson<Record<string, unknown>>(`replay/sessions/${selectedScanId}/summary`),
@@ -2621,6 +2707,7 @@ export default function AIInvestigationCentre() {
                     <div className="col-span-2 flex flex-col items-center gap-3 py-8 rounded-xl bg-slate-900/50 border border-slate-700/50">
                       <Clock size={28} className="text-slate-500" />
                       <p className="text-sm font-semibold text-slate-300">Waiting for today's first fresh scan</p>
+                      <NextScanCountdown expectedIso={pipelineData?.next_scan_expected_ist} />
                       <p className="text-xs text-slate-500 text-center max-w-xs">
                         The latest scan is from a previous trading session ({selectedSession?.snapshot_date_ist ?? "—"}).
                         Active BUY candidates are hidden until a fresh scan runs today.

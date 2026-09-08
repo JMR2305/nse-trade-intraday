@@ -1,0 +1,328 @@
+TASK #947 — PRE-FREEZE STALENESS ROOT CAUSE
+NATURAL PHASE 5A 23/23 → 0/23 LIVE AT 09:14:49
+
+Use the following evidence:
+
+TASK_930_2026_08_27_NATURAL_PREOPEN_CERTIFICATION.md
+TASK_930_2026_08_27_BATCH_AND_FREEZE_EVIDENCE.md
+TASK_930_2026_08_27_SYMBOL_OUTCOME_MATRIX.csv
+TASK_930_2026_08_27_DATA_AUTHORITY_INCIDENT_CHECK.md
+TASK_930_2026_08_27_SAFETY_AND_PORTFOLIO_CHECK.md
+
+KNOWN FACTS:
+
+- Origin = SCHEDULED
+- Provider = NSE Official
+- Provider scope = ALL
+- Active universe = CUSTOM_LOW_PRICE_SECTOR
+- Expected = 23
+- 09:00:24 natural collection:
+    returned = 23
+    normalized = 23
+    persisted = 23
+    live = 23
+    outcomes = 23
+    persistence_status = MATCH
+- 09:05 and 09:09 natural collections remained exact/live
+- At 09:14:49:
+    returned = 23
+    normalized = 23
+    persisted = 23
+    valid = 0
+    stale = 23
+    live_snapshot_count = 0
+    persistence_status = COVERAGE_INCOMPLETE
+    retry_state = RETRY_REQUIRED
+    frozen batch = null
+- Every symbol outcome in final matrix:
+    outcome_status = LIVE_PREOPEN_DATA
+    reason_code = STALE_AT_FINAL_COLLECTION
+    eligibility_status = REJECTED_STALE
+    provider_scope = ALL
+    provider_raw_count = 2120
+
+GOAL:
+
+Determine precisely why all 23 otherwise valid provider rows became stale at
+the final natural collection immediately before the 09:15 freeze boundary.
+
+DO NOT:
+- rerun Phase 5A today
+- replay/retry/backfill
+- freeze manually
+- weaken freshness rules without evidence
+- change provider scope
+- change universe
+- change trading settings
+- enable entries
+- change portfolio/ledger
+- rewrite Task #930 evidence
+
+==================================================
+1. TIMELINE RECONSTRUCTION
+==================================================
+
+For every natural collection between 08:45 and 09:15, report:
+
+scheduled_at
+started_at
+completed_at
+collection_batch_id
+provider request time
+NSE lastUpdateTime observed
+parsed IST timestamp
+row age_seconds
+min age
+max age
+fresh count
+stale count
+persistence status
+verified batch pointer
+freeze state
+
+Determine the exact point at which the 23 rows crossed the freshness threshold.
+
+==================================================
+2. NSE PRE-OPEN TIMESTAMP SEMANTICS
+==================================================
+
+Inspect the authoritative NSE pre-open response semantics.
+
+Determine what `lastUpdateTime` actually represents:
+
+- last market-wide pre-open update?
+- per-symbol update?
+- endpoint-generation time?
+- last IEP/order-book update?
+- final pre-open publication time?
+
+Prove whether it is expected to stop updating before 09:15.
+
+Do not assume.
+
+==================================================
+3. 300-SECOND RULE REVIEW
+==================================================
+
+Current rule:
+
+age >= 300 seconds => STALE
+
+Determine whether that rule is valid for:
+
+A. early pre-open collection
+B. final pre-open freeze proof
+C. post-09:08 order matching / transition period
+D. NSE’s final pre-open published state
+
+If NSE legitimately stops updating pre-open data before 09:15, determine whether
+the same 300-second real-time quote freshness rule is semantically appropriate
+for a freeze certificate.
+
+Do NOT simply increase the threshold.
+
+==================================================
+4. COLLECTION SCHEDULER REVIEW
+==================================================
+
+Determine why another natural collection occurred at approximately 09:14:49.
+
+Report configured collection cadence and freeze sequence.
+
+Check whether lifecycle currently does:
+
+collect repeatedly
+→ collect again immediately before freeze
+→ freeze latest batch
+
+or:
+
+collect until final valid pre-open point
+→ verify final batch
+→ freeze that exact verified batch at 09:15
+
+Determine intended design.
+
+==================================================
+5. VERIFIED-BATCH SEMANTICS
+==================================================
+
+At 09:14:49:
+
+verified_collection_batch =
+collection-867b53a6ab4b48a58ae02582c4861c7e
+
+current failed batch =
+collection-6bbe038e85644fb7a42a364966691b88
+
+Determine:
+
+- when verified batch was created
+- its exact provider timestamp
+- its age at verification
+- its age at 09:15
+- whether it remained valid under the intended pre-open certification contract
+- why a later failed batch superseded practical freeze eligibility
+
+Do not substitute batches merely to get a PASS.
+
+==================================================
+6. DEFINE CORRECT FREEZE AUTHORITY
+==================================================
+
+Establish the correct contract.
+
+Possible models:
+
+MODEL A:
+Freeze must always use the latest collection, even if a previously verified
+batch exists.
+
+MODEL B:
+Freeze uses the last exact verified fresh pre-open batch, provided it was
+captured inside an explicitly approved final pre-open validity window.
+
+MODEL C:
+A special final NSE pre-open snapshot must be captured at a defined exchange
+phase and pinned for freeze.
+
+MODEL D:
+Other, based on proven NSE semantics.
+
+Choose only from evidence.
+
+==================================================
+7. MARKET PHASE AWARENESS
+==================================================
+
+Review NSE pre-open phase transitions around:
+
+09:00
+09:07/09:08
+09:12
+09:15
+
+Determine whether current scheduler/freshness logic is phase-aware.
+
+If NSE data naturally becomes static during order matching/transition, the
+system must distinguish:
+
+STALE BECAUSE PROVIDER FAILED
+
+from
+
+FINAL VALID PREOPEN SNAPSHOT — EXPECTED STATIC
+
+only if this distinction can be proven from timestamps and exchange phase.
+
+==================================================
+8. NO FALSE-FRESHNESS ALLOWED
+==================================================
+
+Any fix must remain fail closed.
+
+Never treat data as valid merely because:
+- provider returned 200
+- symbol exists
+- count is 23
+- prior batch was once live
+
+Require explicit proof that the snapshot is valid for the freeze phase.
+
+==================================================
+9. SMALLEST CORRECT FIX
+==================================================
+
+After proving root cause, implement only the smallest correct change.
+
+Possible categories:
+
+A. scheduler timing defect
+B. wrong final-collection timing
+C. freshness-rule semantic mismatch
+D. freeze-authority defect
+E. NSE timestamp interpretation defect
+F. lifecycle phase-awareness gap
+
+Do not change unrelated trading logic.
+
+==================================================
+10. TESTS
+==================================================
+
+Add deterministic tests for:
+
+- 23/23 fresh at 09:00
+- repeated fresh collections
+- exact 300-second boundary
+- provider timestamp stops updating before freeze
+- late collection becomes stale
+- verified batch handling
+- freeze cannot use arbitrary older batch
+- approved final-valid batch can freeze only if contract explicitly permits it
+- provider genuinely stale/failing still blocks
+- future timestamps block
+- missing timestamps block
+- wrong batch ID blocks
+- no manual retry path
+- exact 23-symbol outcome accounting preserved
+
+==================================================
+11. SAFETY REGRESSION
+==================================================
+
+Run:
+
+Phase 5A suites
+pre-open lifecycle tests
+scheduler tests
+provider timestamp tests
+persistence/freeze tests
+readiness tests
+market-data authority tests
+Phase20 safety
+portfolio/ledger tests
+Python compile
+TypeScript
+dashboard tests/build
+
+Require zero unexpected failures.
+
+==================================================
+12. PRODUCTION CHANGE POLICY
+==================================================
+
+Do NOT deploy automatically if the proposed fix changes certification semantics.
+
+First produce root-cause and proposed contract.
+
+If the fix is only an obvious scheduler defect with no semantic weakening,
+still provide the diff and tests before deployment.
+
+==================================================
+13. OUTPUT
+==================================================
+
+Create:
+
+TASK_947_PREFREEZE_STALENESS_ROOT_CAUSE.md
+TASK_947_COLLECTION_TIMELINE.csv
+TASK_947_NSE_TIMESTAMP_AND_PHASE_CONTRACT.md
+TASK_947_FREEZE_AUTHORITY_DESIGN.md
+TASK_947_PROPOSED_FIX_AND_TEST_REPORT.md
+
+FINAL VERDICT:
+
+A. SCHEDULER TIMING DEFECT
+B. FRESHNESS CONTRACT MISMATCH
+C. FREEZE AUTHORITY DEFECT
+D. NSE TIMESTAMP SEMANTICS DEFECT
+E. MARKET-PHASE AWARENESS GAP
+F. PROVIDER ACTUALLY STALE
+G. MULTIPLE ROOT CAUSES
+H. UNRESOLVED
+
+FINAL RULE:
+
+Do not turn today's failed Task #930 session into a pass.
+Preserve it as immutable evidence.

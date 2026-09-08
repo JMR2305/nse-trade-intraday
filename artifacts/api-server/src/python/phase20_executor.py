@@ -26,6 +26,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import phase20_store as store
+from paper_entry_admission import PAPER_ENTRY_ADMISSION_LOCK_ID
 from scan_state_store import db_available, _connect
 
 try:
@@ -38,6 +39,12 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 _LEDGER_FILE = os.path.join(_DIR, "phase20_ledger.json")
 
 RULE_VERSION = "phase20-v1"
+
+# Maximum age (in minutes) for a scan snapshot to authorise an automatic
+# paper entry. A pre-cutoff scan cannot authorise a post-cutoff entry even
+# if the no_open_duplicate gate was cleared on the same tick. Defense in depth
+# alongside the _manage_paper() pre-guard and the _insert_row() final check.
+MAX_SIGNAL_AGE_MINUTES: int = 20
 
 _SCHEMA_READY = False
 
@@ -140,31 +147,323 @@ class DuplicateOpenTrade(Exception):
     """Raised when an OPEN Phase 20 trade already exists for the symbol."""
 
 
-def _insert_row(row: Dict[str, Any]) -> None:
+class PaperEntryAdmissionError(Exception):
+    """Raised when PostgreSQL cannot authoritatively admit a paper entry."""
+
+
+class PaperEntriesPaused(PaperEntryAdmissionError):
+    """Raised when the locked settings recheck finds automatic entries off."""
+
+
+class MarketClosedForEntry(PaperEntryAdmissionError):
+    """Raised when a final paper-entry commit crosses its allowed window."""
+
+
+def _market_entry_status() -> Dict[str, Any]:
+    """Return the automatic paper-entry window state, failing closed."""
+    try:
+        from market_hours import automatic_paper_entry_status
+        status = automatic_paper_entry_status() or {}
+        if isinstance(status, dict):
+            return status
+    except Exception:
+        pass
+    return {
+        "allowed": False,
+        "market_state": "UNKNOWN",
+        "reason": (
+            "NSE market-entry window is unavailable — automatic paper entry "
+            "blocked fail-closed"
+        ),
+    }
+
+
+def _market_entry_allowed() -> bool:
+    """Fail closed outside the automatic intraday paper-entry window."""
+    return bool(_market_entry_status().get("allowed"))
+
+
+def _entry_window_rejection(
+        candidate: Dict[str, Any],
+        scan_id: Optional[str],
+        trigger_source: str,
+        entry_status: Dict[str, Any],
+        *,
+        auto_entry_attempted: bool) -> Dict[str, Any]:
+    """Record an explicit terminal outcome for a time-blocked candidate."""
+    sym = str(candidate.get("symbol") or "").upper()
+    reason = str(entry_status.get("reason") or
+                 "Automatic paper entry is outside its permitted window")
+    cutoff_reached = "cutoff" in reason.lower()
+    payload = {
+        "gate_name": (
+            "automatic_paper_entry_cutoff"
+            if cutoff_reached else "automatic_paper_entry_window"
+        ),
+        "action": candidate.get("recommendation") or "BUY",
+        "reason": reason,
+        "human_readable_reason": reason,
+        "market_state": entry_status.get("market_state"),
+        "entry_cutoff_ist": entry_status.get("cutoff_ist"),
+        "auto_entry_attempted": auto_entry_attempted,
+        "trigger_source": trigger_source,
+        "note": (
+            "Candidate was not committed because the automatic intraday "
+            "paper-entry window is closed"
+        ),
+    }
+    try:
+        from pipeline_events import emit as _pe
+        _pe("EXECUTION_SKIPPED_WITH_REASON", "EXECUTION",
+            scan_id=scan_id, symbol=sym, payload=payload)
+    except Exception:
+        pass
+    try:
+        store.add_notification(
+            ("ENTRY_BLOCKED_ENTRY_CUTOFF" if cutoff_reached
+             else "ENTRY_BLOCKED"),
+            (f"{sym} paper entry blocked by intraday cutoff"
+             if cutoff_reached else f"{sym} paper entry blocked"),
+            reason,
+            severity="WARN",
+            context={
+                "symbol": sym,
+                "scan_id": scan_id,
+                "trigger_source": trigger_source,
+                "entry_cutoff_ist": entry_status.get("cutoff_ist"),
+            },
+        )
+    except Exception:
+        pass
+    return {
+        "created": False,
+        "symbol": sym,
+        "reason": reason,
+        "entry_window": entry_status,
+    }
+
+
+def _insert_row(row: Dict[str, Any]) -> Dict[str, Any]:
     """Insert a ledger row. Raises DuplicateOpenTrade if the partial unique
-    index (one OPEN trade per symbol) rejects the insert."""
+    index (one OPEN trade per symbol) rejects the insert.
+
+    OPEN entry admission and capital migration serialize on one PostgreSQL
+    advisory lock. Settings are re-read under that lock immediately before the
+    INSERT, closing the race where a pre-approved entry could otherwise wait
+    for migration and insert after the rebase committed.
+    """
+    # This intentionally lives at the ledger-admission boundary, after all
+    # recommendation/risk work but immediately before any durable BUY commit.
+    # A state change while the candidate is being evaluated therefore cannot
+    # create an out-of-hours normal or BOOTSTRAP_AUTO paper position.
+    entry_status = _market_entry_status()
+    if not entry_status.get("allowed"):
+        raise MarketClosedForEntry(str(
+            entry_status.get("reason")
+            or "Automatic paper entry is outside its permitted window"
+        ))
     if db_available():
         try:
             conn = _connect()
             try:
                 _ensure_schema(conn)
+                store._ensure_schema(conn)
                 with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT pg_advisory_xact_lock(%s)",
+                        (PAPER_ENTRY_ADMISSION_LOCK_ID,),
+                    )
+                    cur.execute(
+                        "SELECT data FROM phase20_settings WHERE id = 1 FOR SHARE"
+                    )
+                    settings_row = cur.fetchone()
+                    stored = settings_row[0] if settings_row and settings_row[0] else {}
+                    if isinstance(stored, str):
+                        stored = json.loads(stored)
+                    if not (
+                        isinstance(stored, dict)
+                        and stored.get("auto_paper_entries") is True
+                        and bool(stored.get("auto_paper_entries_confirmed_at"))
+                    ):
+                        conn.rollback()
+                        raise PaperEntriesPaused(
+                            "Automatic paper entries are paused or unconfirmed"
+                        )
+                    admitted_row = dict(row)
+                    if row.get("status") == "OPEN":
+                        # The partial unique index protects OPEN rows only.
+                        # EXIT_PENDING still owns the economic position until
+                        # its exit is committed, so admitting the same symbol
+                        # here would double-spend capital.  Check and lock the
+                        # authoritative row inside the existing transaction
+                        # and admission advisory lock; no schema migration is
+                        # needed and a concurrent exit cannot race this check.
+                        cur.execute(
+                            """
+                            SELECT trade_id
+                            FROM phase20_paper_trades
+                            WHERE UPPER(symbol) = UPPER(%s)
+                              AND status IN ('OPEN', 'EXIT_PENDING')
+                            LIMIT 1
+                            FOR UPDATE
+                            """,
+                            (str(row.get("symbol") or ""),),
+                        )
+                        if cur.fetchone() is not None:
+                            conn.rollback()
+                            raise DuplicateOpenTrade(str(row.get("symbol")))
+                        cur.execute(
+                            """
+                            SELECT symbol, sector, quantity, fill_price
+                            FROM phase20_paper_trades
+                            WHERE status IN ('OPEN', 'EXIT_PENDING')
+                            """
+                        )
+                        existing_rows = [
+                            {
+                                "symbol": existing[0],
+                                "sector": existing[1],
+                                "quantity": existing[2],
+                                "fill_price": existing[3],
+                            }
+                            for existing in cur.fetchall()
+                        ]
+                        cur.execute(
+                            """
+                            SELECT COALESCE(SUM(realized_pnl), 0)
+                            FROM phase20_paper_trades
+                            WHERE status = 'CLOSED'
+                            """
+                        )
+                        realized_row = cur.fetchone()
+                        realized_pnl = (
+                            realized_row[0] if realized_row else 0.0
+                        )
+                        settings = {
+                            **store.DEFAULT_SETTINGS,
+                            **stored,
+                        }
+                        evidence = dict(row.get("evidence") or {})
+                        decision = evidence.get(
+                            "quality_allocation_override"
+                        )
+                        if not isinstance(decision, dict):
+                            base_qty = int(row.get("quantity") or 0)
+                            decision = {
+                                "policy": "QUALITY_ALLOCATION_OVERRIDE",
+                                "paper_only": True,
+                                "live_broker_orders_called": False,
+                                "override_approved": False,
+                                "tier": "NORMAL",
+                                "base_quantity": base_qty,
+                                "final_quantity": base_qty,
+                                "effective_multiplier": 1.0,
+                                "limiting_caps": [],
+                            }
+                        from quality_allocation_override import (
+                            revalidate_final_quantity,
+                        )
+                        revalidation = revalidate_final_quantity(
+                            decision,
+                            settings,
+                            existing_rows,
+                            symbol=str(row.get("symbol") or ""),
+                            sector=row.get("sector"),
+                            fill_price=float(row.get("fill_price") or 0),
+                            stop_loss=float(row.get("stop_loss") or 0),
+                            realized_pnl=float(realized_pnl or 0),
+                        )
+                        if revalidation.get("allowed") is not True:
+                            conn.rollback()
+                            raise PaperEntryAdmissionError(
+                                "Authoritative paper-allocation admission "
+                                "blocked: "
+                                + str(revalidation.get("reason") or "UNKNOWN")
+                            )
+
+                        final_qty = int(revalidation["quantity"])
+                        final_decision = dict(revalidation["decision"])
+                        admitted_row["quantity"] = final_qty
+                        admitted_row["risk_amount"] = round(
+                            final_qty
+                            * max(
+                                0.0,
+                                float(row.get("fill_price") or 0)
+                                - float(row.get("stop_loss") or 0),
+                            ),
+                            2,
+                        )
+                        admitted_row["est_charges"] = compute_charges(
+                            float(row.get("fill_price") or 0) * final_qty,
+                            settings,
+                        )
+                        sizing = dict(evidence.get("sizing") or {})
+                        sizing.update({
+                            "quantity": final_qty,
+                            "position_value": round(
+                                float(row.get("fill_price") or 0) * final_qty,
+                                2,
+                            ),
+                            "order_value": round(
+                                float(row.get("fill_price") or 0) * final_qty,
+                                2,
+                            ),
+                            "risk_amount": admitted_row["risk_amount"],
+                        })
+                        evidence["sizing"] = sizing
+                        evidence[
+                            "quality_allocation_override"
+                        ] = final_decision
+                        evidence["locked_allocation_admission"] = {
+                            key: value
+                            for key, value in revalidation.items()
+                            if key != "decision"
+                        }
+                        admitted_row["evidence"] = evidence
+
+                    # The first window check above rejects obvious late
+                    # candidates without opening a transaction. Re-check here,
+                    # after waiting for the advisory lock and immediately
+                    # before the durable INSERT, so a 15:14 candidate cannot
+                    # cross the 15:15 cutoff while admission is contended.
+                    final_entry_status = _market_entry_status()
+                    if not final_entry_status.get("allowed"):
+                        conn.rollback()
+                        raise MarketClosedForEntry(str(
+                            final_entry_status.get("reason")
+                            or "Automatic paper entry is outside its "
+                            "permitted window"
+                        ))
+
                     placeholders = ", ".join(["%s"] * len(_COLS))
                     cur.execute(
                         f"INSERT INTO phase20_paper_trades ({', '.join(_COLS)}) "
                         f"VALUES ({placeholders})",
-                        [json.dumps(row.get(c), default=str) if c == "evidence"
-                         else row.get(c) for c in _COLS],
+                        [
+                            json.dumps(admitted_row.get(c), default=str)
+                            if c == "evidence"
+                            else admitted_row.get(c)
+                            for c in _COLS
+                        ],
                     )
                 conn.commit()
-                return
+                return admitted_row
             finally:
                 conn.close()
+        except (PaperEntryAdmissionError, DuplicateOpenTrade):
+            raise
         except Exception as exc:
             name = type(exc).__name__
             if "UniqueViolation" in name or "unique" in str(exc).lower():
                 raise DuplicateOpenTrade(str(row.get("symbol"))) from exc
-            # fall through to file fallback on other DB errors
+            raise PaperEntryAdmissionError(
+                f"PostgreSQL paper-entry admission failed: {exc}"
+            ) from exc
+
+    if row.get("status") == "OPEN":
+        raise PaperEntryAdmissionError(
+            "PostgreSQL unavailable; automatic paper entry blocked fail-closed"
+        )
 
     rows = _read_ledger_file()
     if row.get("status") == "OPEN" and any(
@@ -174,6 +473,7 @@ def _insert_row(row: Dict[str, Any]) -> None:
         raise DuplicateOpenTrade(str(row.get("symbol")))
     rows.append(row)
     _write_ledger_file(rows)
+    return row
 
 
 def _delete_row(trade_id: str) -> None:
@@ -191,7 +491,7 @@ def _delete_row(trade_id: str) -> None:
     _with_db(to_db, to_file)
 
 
-def _update_row(trade_id: str, fields: Dict[str, Any]) -> None:
+def _update_row(trade_id: str, fields: Dict[str, Any]) -> bool:
     def to_db(conn):
         sets = ", ".join(f"{k} = %s" for k in fields) + ", updated_at = NOW()"
         with conn.cursor() as cur:
@@ -199,17 +499,20 @@ def _update_row(trade_id: str, fields: Dict[str, Any]) -> None:
                 f"UPDATE phase20_paper_trades SET {sets} WHERE trade_id = %s",
                 list(fields.values()) + [trade_id],
             )
+            updated = cur.rowcount == 1
         conn.commit()
-        return True
+        return updated
 
     def to_file():
         rows = _read_ledger_file()
+        updated = False
         for r in rows:
             if r.get("trade_id") == trade_id:
                 r.update(fields)
-        _write_ledger_file(rows)
+                updated = True
+        return updated and _write_ledger_file(rows)
 
-    _with_db(to_db, to_file)
+    return bool(_with_db(to_db, to_file))
 
 
 def _read_ledger_file() -> List[Dict[str, Any]]:
@@ -220,12 +523,16 @@ def _read_ledger_file() -> List[Dict[str, Any]]:
         return []
 
 
-def _write_ledger_file(rows: List[Dict[str, Any]]) -> None:
+def _write_ledger_file(rows: List[Dict[str, Any]]) -> bool:
     try:
         with open(_LEDGER_FILE, "w") as f:
-            json.dump(rows[-500:], f, default=str)
+            # The file fallback is the safety ledger when Postgres is
+            # unavailable.  It must retain every OPEN row so EOD recovery
+            # cannot lose an older position behind a dashboard-sized history.
+            json.dump(rows, f, default=str)
+        return True
     except Exception:
-        pass
+        return False
 
 
 def get_ledger(limit: int = 200) -> List[Dict[str, Any]]:
@@ -253,14 +560,122 @@ def get_ledger(limit: int = 200) -> List[Dict[str, Any]]:
 
 
 def get_trade(trade_id: str) -> Optional[Dict[str, Any]]:
-    for t in get_ledger(500):
-        if t.get("trade_id") == trade_id:
-            return t
-    return None
+    """Fetch a single trade row by trade_id.
+
+    This function queries the DB directly by primary key — it does NOT go
+    through get_ledger(500), which is bounded to the 500 newest rows.  A trade
+    opened before 500 newer trades were created would be invisible via
+    get_ledger, causing record_exit() to silently skip the update and leave the
+    row permanently EXIT_PENDING.
+
+    File fallback: scans the entire ledger file (no row cap).
+    """
+    def from_db(conn) -> Optional[Dict[str, Any]]:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(_COLS)}, created_at "
+                f"FROM phase20_paper_trades WHERE trade_id = %s",
+                (trade_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        item = dict(zip(_COLS, row[:-1]))
+        if isinstance(item.get("evidence"), str):
+            try:
+                item["evidence"] = json.loads(item["evidence"])
+            except Exception:
+                pass
+        item["created_at"] = _iso(row[-1]) if isinstance(row[-1], datetime) else row[-1]
+        return item
+
+    def from_file() -> Optional[Dict[str, Any]]:
+        # Scan entire file — no row cap so legacy rows are never missed.
+        for r in _read_ledger_file():
+            if r.get("trade_id") == trade_id:
+                return r
+        return None
+
+    return _with_db(from_db, from_file)
 
 
 def get_open_trades() -> List[Dict[str, Any]]:
+    """Return recent OPEN rows for normal intraday callers."""
     return [t for t in get_ledger(500) if t.get("status") == "OPEN"]
+
+
+def get_all_open_trades() -> List[Dict[str, Any]]:
+    """Return every OPEN ledger row, not just rows inside the activity feed cap.
+
+    ``get_ledger(500)`` is intentionally bounded for dashboard activity.  It
+    must never be used to drive an end-of-session safety action: an older OPEN
+    position can otherwise be hidden by 500 newer closed rows and carry
+    overnight without a close or blocked outcome.
+    """
+    def from_db(conn) -> List[Dict[str, Any]]:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(_COLS)}, created_at "
+                f"FROM phase20_paper_trades "
+                f"WHERE status = 'OPEN' ORDER BY created_at ASC"
+            )
+            rows = cur.fetchall()
+        out = []
+        for r in rows:
+            item = dict(zip(_COLS, r[:-1]))
+            if isinstance(item.get("evidence"), str):
+                try:
+                    item["evidence"] = json.loads(item["evidence"])
+                except Exception:
+                    pass
+            item["created_at"] = _iso(r[-1]) if isinstance(r[-1], datetime) else r[-1]
+            out.append(item)
+        return out
+
+    def from_file() -> List[Dict[str, Any]]:
+        return [r for r in _read_ledger_file() if r.get("status") == "OPEN"]
+
+    return _with_db(from_db, from_file)
+
+
+def get_exit_pending_trades() -> List[Dict[str, Any]]:
+    """Return ALL rows with status='EXIT_PENDING' with no row-count limit.
+
+    Unlike get_ledger(500) — which fetches the 500 newest rows regardless of
+    status — this function queries EXIT_PENDING rows directly and exhausts the
+    full result set.  This is the correct source for _resolve_timeout_exit_pending
+    and _retry_pending: a trade that entered EXIT_PENDING before 500 newer trades
+    were created would otherwise fall out of the get_ledger window and be
+    permanently stranded, defeating the force-close guarantee.
+
+    File fallback: scans the entire local ledger file for EXIT_PENDING rows.
+    """
+    def from_db(conn) -> List[Dict[str, Any]]:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"SELECT {', '.join(_COLS)}, created_at "
+                f"FROM phase20_paper_trades "
+                f"WHERE status = 'EXIT_PENDING' "
+                f"ORDER BY created_at ASC",   # oldest first so we resolve in FIFO order
+            )
+            rows = cur.fetchall()
+        out = []
+        for r in rows:
+            item = dict(zip(_COLS, r[:-1]))
+            if isinstance(item.get("evidence"), str):
+                try:
+                    item["evidence"] = json.loads(item["evidence"])
+                except Exception:
+                    pass
+            item["created_at"] = _iso(r[-1]) if isinstance(r[-1], datetime) else r[-1]
+            out.append(item)
+        return out
+
+    def from_file() -> List[Dict[str, Any]]:
+        return [r for r in _read_ledger_file()
+                if r.get("status") == "EXIT_PENDING"]
+
+    return _with_db(from_db, from_file)
 
 
 def get_open_positions_view() -> List[Dict[str, Any]]:
@@ -272,14 +687,42 @@ def get_open_positions_view() -> List[Dict[str, Any]]:
                   for p in get_portfolio()["positions"]}
     except Exception:
         prices = {}
+    now = _now()
     out = []
     for t in open_trades:
         sym = str(t.get("symbol") or "").upper()
         cur = prices.get(sym) or float(t.get("fill_price") or 0)
         qty = int(t.get("quantity") or 0)
         fill = float(t.get("fill_price") or 0)
-        out.append({**t, "current_price": cur,
-                    "unrealized_pnl": round((cur - fill) * qty, 2)})
+        # Compute holding duration with a fallback timestamp chain so
+        # missing/malformed fill_ts never silently returns None.
+        # Priority: fill_ts → signal_ts → snapshot_ts → created_at.
+        # The result is clamped to ≥ 0 to absorb small clock-skew bugs.
+        holding_days: Optional[float] = None
+        _age_ts_source: Optional[str] = None
+        for _ts_key in ("fill_ts", "signal_ts", "snapshot_ts", "created_at"):
+            _raw = t.get(_ts_key)
+            if not _raw:
+                continue
+            try:
+                _ft = datetime.fromisoformat(str(_raw).replace("Z", "+00:00"))
+                if _ft.tzinfo is None:
+                    _ft = _ft.replace(tzinfo=timezone.utc)
+                holding_days = round(max(0.0, (now - _ft).total_seconds() / 86400), 2)
+                _age_ts_source = _ts_key
+                break
+            except Exception:
+                continue
+        out.append({
+            **t,
+            "current_price": cur,
+            "unrealized_pnl": round((cur - fill) * qty, 2),
+            "holding_days": holding_days,
+            # Indicates which timestamp was used when fill_ts was absent/malformed.
+            # "fill_ts" means the primary field was used (normal case).
+            # None means no usable timestamp was found in the ledger row.
+            "age_ts_source": _age_ts_source,
+        })
     return out
 
 
@@ -315,7 +758,14 @@ def _build_row(trade_id: str, scan_id: Optional[str], snapshot_ts: Optional[str]
                signal_price: float, fill: Dict[str, Any], fill_price: float,
                qty: int, charges: float, model_version: str,
                settings: Dict[str, Any], trigger_source: str,
-               now_iso: str) -> Dict[str, Any]:
+               now_iso: str,
+               # Kite LTP overlay provenance — must be passed explicitly by
+               # create_paper_entry because they are its local variables, not
+               # module-level globals.  Defaults make old call sites safe.
+               kite_ltp_overlay_active: bool = False,
+               signal_price_from_daily: Optional[float] = None,
+                kite_ltp_used: Optional[float] = None,
+                allocation_override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     return {
         "trade_id": trade_id,
         "scan_id": scan_id,
@@ -350,20 +800,24 @@ def _build_row(trade_id: str, scan_id: Optional[str], snapshot_ts: Optional[str]
         "exit_ts": None, "exit_price": None, "exit_rule": None,
         "exit_scan_id": None, "realized_pnl": None,
         "evidence": {
+            "universe": candidate.get("universe_context") or {},
             "gates": candidate.get("gates"),
             "failed_gates": candidate.get("failed_gates"),
             "sizing": sizing,
             "recommendation": candidate.get("recommendation"),
             "expected_holding_days": candidate.get("expected_holding_days"),
             # ── Task 3: Kite LTP overlay provenance ──────────────────────────
-            "kite_ltp_overlay_enabled": _kite_ltp_overlay_active,
+            "kite_ltp_overlay_enabled": kite_ltp_overlay_active,
             "indicator_source": candidate.get("indicator_source", "yfinance_daily_bars"),
             "ohlcv_source": candidate.get("ohlcv_source", "yfinance_daily_bars"),
-            "signal_price_from_daily_bar": _signal_price_from_daily,
-            "execution_price_from_kite_ltp": _kite_ltp_used,
+            "signal_price_from_daily_bar": (
+                signal_price_from_daily if signal_price_from_daily is not None
+                else signal_price),
+            "execution_price_from_kite_ltp": kite_ltp_used,
             "execution_price_source": candidate.get("execution_price_source", "yfinance_daily_bars"),
             "kite_ltp_timestamp": candidate.get("latest_price_time_ist"),
             "quote_reliable": candidate.get("quote_reliable", False),
+            "quality_allocation_override": allocation_override,
         },
         "recomputed": False,
     }
@@ -378,6 +832,17 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
                 "reason": f"Gates failed: {candidate.get('failed_gates')}"}
 
     sym = str(candidate["symbol"]).upper()
+    # An entry inherits the exact pinned identity from the canonical scan that
+    # produced it. It must not re-resolve a mutable runtime list.
+    universe_context = dict(candidate.get("universe_context") or {})
+    required_universe_fields = (
+        "natural_session", "universe_key", "universe_id", "version",
+        "exact_set_hash", "symbol_count",
+    )
+    if any(universe_context.get(field) in (None, "") for field in required_universe_fields):
+        return {"created": False, "symbol": sym,
+                "reason": "Pinned universe provenance is unavailable for this scan"}
+    candidate = {**candidate, "universe_context": universe_context}
     sizing = candidate.get("sizing") or {}
     qty = int(sizing.get("quantity") or 0)
     signal_price = float(sizing.get("entry_price") or 0)   # yfinance daily close
@@ -413,14 +878,177 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
 
     fill = compute_fill(signal_price, settings, side="BUY")
     fill_price = fill["fill_price"]
+
+    # ── Controlled quality allocation override (paper only) ─────────────────
+    # This runs only after every existing eligibility gate has passed.  Missing
+    # evidence fails closed to NORMAL 1x.  Bootstrap keeps its separate ₹15k
+    # path, and the authoritative risk/portfolio checks below still run on the
+    # final quantity before the ledger/portfolio commit.
+    try:
+        from quality_allocation_override import evaluate_allocation_override
+        allocation_override = evaluate_allocation_override(
+            candidate,
+            settings,
+            fill_price,
+            previous_scan_valid=(
+                (candidate.get("allocation_context") or {})
+                .get("previous_scan_3x_valid")
+            ),
+            trigger_source=trigger_source,
+        )
+    except Exception as exc:
+        allocation_override = {
+            "policy": "QUALITY_ALLOCATION_OVERRIDE",
+            "paper_only": True,
+            "live_broker_orders_called": False,
+            "enabled": False,
+            "override_approved": False,
+            "tier": "NORMAL",
+            "reason": (
+                "ALLOCATION_EVALUATOR_UNAVAILABLE: "
+                f"{type(exc).__name__}"
+            ),
+            "rejection_reasons": [
+                f"ALLOCATION_EVALUATOR_UNAVAILABLE: {type(exc).__name__}"
+            ],
+            "requested_multiplier": 1.0,
+            "effective_multiplier": 1.0,
+            "base_quantity": qty,
+            "final_quantity": qty,
+            "base_notional": round(fill_price * qty, 2),
+            "requested_notional": round(fill_price * qty, 2),
+            "final_notional": round(fill_price * qty, 2),
+            "limiting_caps": [],
+            "three_x_quality_valid": False,
+            "sector_override_applied": False,
+        }
+
+    final_allocation_qty = int(
+        allocation_override.get("final_quantity") or qty
+    )
+    if final_allocation_qty >= 1 and final_allocation_qty != qty:
+        qty = final_allocation_qty
+        sizing = dict(sizing)
+        sizing["quantity"] = qty
+        sizing["position_value"] = round(fill_price * qty, 2)
+        sizing["order_value"] = round(fill_price * qty, 2)
+        sizing["risk_amount"] = round(
+            qty * max(0.0, fill_price - float(sizing.get("stop_loss") or 0)),
+            2,
+        )
     charges = compute_charges(fill_price * qty, settings)
+
+    def _allocation_payload(
+        *,
+        outcome: str,
+        rejection_reason: Optional[str] = None,
+        risk_validation: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return {
+            **allocation_override,
+            "outcome": outcome,
+            "rejection_reason": rejection_reason,
+            "scan_id": scan_id,
+            "symbol": sym,
+            "trigger_source": trigger_source,
+            "confidence": float(candidate.get("confidence") or 0),
+            "opportunity_score": float(
+                candidate.get("opportunity_score") or 0
+            ),
+            "trade_quality_score": float(
+                candidate.get("trade_quality_score") or 0
+            ),
+            "risk_reward": float(sizing.get("rr_ratio") or 0),
+            "data_quality": candidate.get("data_quality"),
+            "execution_price_source": candidate.get(
+                "execution_price_source"
+            ),
+            "quote_reliable": candidate.get("quote_reliable"),
+            "kite_session_verified": candidate.get(
+                "kite_session_verified_flag"
+            ),
+            "ohlcv_cache": (
+                candidate.get("allocation_context") or {}
+            ).get("ohlcv_cache_data_quality"),
+            "risk_validation": risk_validation,
+            "note": (
+                "Paper-only quality allocation evaluation. "
+                "No live broker order API is called."
+            ),
+        }
+
+    def _emit_allocation_outcome(
+        *,
+        rejected_by: Optional[str] = None,
+        risk_validation: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        if str(trigger_source or "").upper() == "BOOTSTRAP_AUTO":
+            return
+        try:
+            from pipeline_events import emit as _alloc_emit
+            outcome = (
+                "REJECTED"
+                if rejected_by
+                else (
+                    "APPROVED"
+                    if allocation_override.get("override_approved")
+                    else "NORMAL"
+                )
+            )
+            payload = _allocation_payload(
+                outcome=outcome,
+                rejection_reason=rejected_by,
+                risk_validation=risk_validation,
+            )
+            _alloc_emit(
+                "ALLOCATION_OVERRIDE_EVALUATED",
+                "EXECUTION",
+                scan_id=scan_id,
+                symbol=sym,
+                payload=payload,
+            )
+            if rejected_by or not allocation_override.get(
+                "override_approved"
+            ):
+                _alloc_emit(
+                    "ALLOCATION_OVERRIDE_REJECTED",
+                    "EXECUTION",
+                    scan_id=scan_id,
+                    symbol=sym,
+                    payload=payload,
+                )
+            else:
+                tier = allocation_override.get("tier")
+                event_type = (
+                    "ALLOCATION_OVERRIDE_APPROVED_3X"
+                    if tier == "EXCEPTIONAL_QUALITY_3X"
+                    else "ALLOCATION_OVERRIDE_APPROVED_2X"
+                )
+                _alloc_emit(
+                    event_type,
+                    "EXECUTION",
+                    scan_id=scan_id,
+                    symbol=sym,
+                    payload=payload,
+                )
+                if allocation_override.get("sector_override_applied"):
+                    _alloc_emit(
+                        "ALLOCATION_SECTOR_CAP_OVERRIDE_APPLIED",
+                        "EXECUTION",
+                        scan_id=scan_id,
+                        symbol=sym,
+                        payload=payload,
+                    )
+        except Exception:
+            pass
 
     # ── Risk Agent pre-trade validation ──────────────────────────────────────
     # Every paper BUY order passes through the pre-trade risk gate before any
     # ledger claim or portfolio debit occurs. REJECTED trades are blocked here;
     # APPROVED_WARN trades proceed but warnings are embedded in evidence.
-    # The validator never raises: errors degrade to APPROVED_WARN so a bug in
-    # validation cannot silently drop legitimate trades.
+    # NORMAL entries retain the legacy APPROVED_WARN fallback. A 2x/3x
+    # override is stricter: validator unavailability fails closed because an
+    # exceptional allocation must never proceed without the downstream gate.
     _rv_result: Dict[str, Any] = {}
     try:
         from risk_validation.pre_trade import validate_pre_trade
@@ -436,6 +1064,9 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
         )
         _rv_result = rv.to_dict()
         if rv.verdict == "REJECTED":
+            allocation_override = dict(allocation_override)
+            allocation_override["continuity_eligible"] = False
+            allocation_override["downstream_outcome"] = "RISK_REJECTED"
             # Phase 1C: structured rejection payload — gate_name, actual_value,
             # required_value, action, human_readable_reason all included.
             _first_crit = next(
@@ -465,9 +1096,14 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
                 context={"symbol": sym, "scan_id": scan_id,
                          "risk_validation": _rv_result},
             )
+            _emit_allocation_outcome(
+                rejected_by=f"RISK_VALIDATION: {rv.reason}",
+                risk_validation=_rv_result,
+            )
             return {"created": False, "symbol": sym,
                     "reason": f"Risk Agent: {rv.reason}",
-                    "risk_validation": _rv_result}
+                    "risk_validation": _rv_result,
+                    "allocation_override": allocation_override}
         if rv.verdict == "APPROVED_WARN" and rv.issues:
             warnings_txt = " | ".join(
                 i.message for i in rv.issues if i.severity == "WARNING")
@@ -481,6 +1117,23 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
     except Exception as rv_exc:
         _rv_result = {"verdict": "APPROVED_WARN", "approved": True,
                       "error": str(rv_exc)[:200]}
+        if allocation_override.get("override_approved") is True:
+            allocation_override = dict(allocation_override)
+            allocation_override["continuity_eligible"] = False
+            allocation_override[
+                "downstream_outcome"
+            ] = "RISK_VALIDATOR_UNAVAILABLE"
+            _emit_allocation_outcome(
+                rejected_by="RISK_VALIDATOR_UNAVAILABLE",
+                risk_validation=_rv_result,
+            )
+            return {
+                "created": False,
+                "symbol": sym,
+                "reason": "Risk validator unavailable for allocation override",
+                "risk_validation": _rv_result,
+                "allocation_override": allocation_override,
+            }
 
     # ── Phase 1B: adopt capped quantity when SIZE_REDUCED_TO_CAP ─────────────
     # If the risk validator found the ideal qty exceeds the per-stock cap but
@@ -512,6 +1165,17 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
         _rv_result["capped_qty"] = qty
         _rv_result["original_risk_amount"] = _old_risk
         _rv_result["capped_risk_amount"] = _new_risk
+        try:
+            from quality_allocation_override import apply_final_quantity
+            allocation_override = apply_final_quantity(
+                allocation_override,
+                qty,
+                fill_price,
+                float(sizing.get("stop_loss") or 0),
+                limiting_reason="risk_validation_per_stock_cap",
+            )
+        except Exception:
+            pass
         # Emit a structured SIZE_REDUCED_TO_CAP pipeline event so the audit log
         # always shows the resize happened (not silently absorbed).
         try:
@@ -546,28 +1210,142 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
     # at the database level, so concurrent ticks cannot double-enter.
     row = _build_row(trade_id, scan_id, snapshot_ts, sym, candidate, sizing,
                      signal_price, fill, fill_price, qty, charges,
-                     model_version, settings, trigger_source, now_iso)
+                     model_version, settings, trigger_source, now_iso,
+                     kite_ltp_overlay_active=_kite_ltp_overlay_active,
+                     signal_price_from_daily=_signal_price_from_daily,
+                     kite_ltp_used=_kite_ltp_used,
+                     allocation_override=allocation_override)
     # Embed the risk-agent validation result in the immutable evidence record.
     if _rv_result:
         row.setdefault("evidence", {})["risk_validation"] = _rv_result
+
+    # ── Entry admission evidence (TASK 6) ─────────────────────────────────────
+    # Record build identity and market-window state at the exact admission
+    # decision point. These fields are immutable once the row is inserted and
+    # allow post-hoc verification that the entry ran inside the permitted window.
+    try:
+        from market_hours import automatic_paper_entry_status as _ape_ev
+        from market_hours import now_ist as _nist_ev
+        _ape_now = _nist_ev()
+        _ape_status = _ape_ev(_ape_now)
+        _signal_age_sec: Optional[float] = None
+        if snapshot_ts:
+            try:
+                _st_dt = datetime.fromisoformat(str(snapshot_ts).replace("Z", "+00:00"))
+                _signal_age_sec = round((_now() - _st_dt).total_seconds(), 1)
+            except Exception:
+                pass
+        row.setdefault("evidence", {}).update({
+            "build_id": str(os.environ.get("APEXQUANT_BUILD_ID") or "").strip() or "unknown",
+            "signal_age_seconds": _signal_age_sec,
+            "entry_market_state": _ape_status.get("market_state"),
+            "entry_allowed": _ape_status.get("allowed"),
+            "entry_cutoff_ist": _ape_status.get("cutoff_ist"),
+            "cutoff_reached": _ape_status.get("cutoff_reached"),
+            "checked_at_ist": _ape_now.isoformat(),
+            "checked_at_utc": _iso(),
+        })
+    except Exception:
+        pass  # never block an entry on evidence annotation failure
 
     try:
         from pipeline_events import emit as _pe
     except Exception:
         _pe = lambda *a, **k: None  # type: ignore
-    _pe("ORDER_SUBMITTED", "EXECUTION", scan_id=scan_id, symbol=sym,
-        payload={"trade_id": trade_id, "qty": qty, "signal_price": signal_price,
-                 "fill_price": fill_price, "charges": charges,
-                 "trigger_source": trigger_source})
-
     try:
-        _insert_row(row)
+        admitted_row = _insert_row(row)
+        if isinstance(admitted_row, dict):
+            original_qty = qty
+            row = admitted_row
+            qty = int(row.get("quantity") or qty)
+            charges = float(row.get("est_charges") or charges)
+            admitted_evidence = row.get("evidence") or {}
+            admitted_sizing = admitted_evidence.get("sizing")
+            if isinstance(admitted_sizing, dict):
+                sizing = dict(admitted_sizing)
+            admitted_allocation = admitted_evidence.get(
+                "quality_allocation_override"
+            )
+            if isinstance(admitted_allocation, dict):
+                allocation_override = dict(admitted_allocation)
+            if qty != original_qty:
+                _pe(
+                    "ALLOCATION_OVERRIDE_LOCKED_RESIZE",
+                    "EXECUTION",
+                    scan_id=scan_id,
+                    symbol=sym,
+                    payload={
+                        "trade_id": trade_id,
+                        "original_qty": original_qty,
+                        "final_qty": qty,
+                        "fill_price": fill_price,
+                        "allocation_tier": allocation_override.get("tier"),
+                        "limiting_caps": allocation_override.get(
+                            "limiting_caps"
+                        ),
+                        "note": (
+                            "Final quantity recomputed under PostgreSQL "
+                            "paper-entry admission lock."
+                        ),
+                    },
+                )
     except DuplicateOpenTrade:
+        allocation_override = dict(allocation_override)
+        allocation_override["continuity_eligible"] = False
+        allocation_override["downstream_outcome"] = "DUPLICATE_OPEN_TRADE"
         _pe("ORDER_CANCELLED", "EXECUTION", scan_id=scan_id, symbol=sym,
             payload={"trade_id": trade_id,
                      "reason": "Open Phase 20 trade already exists (concurrent claim)"})
+        _emit_allocation_outcome(
+            rejected_by="DUPLICATE_OPEN_TRADE",
+            risk_validation=_rv_result,
+        )
         return {"created": False, "symbol": sym,
-                "reason": "Open Phase 20 trade already exists (concurrent claim)"}
+                "reason": "Open Phase 20 trade already exists (concurrent claim)",
+                "allocation_override": allocation_override}
+    except PaperEntryAdmissionError as exc:
+        allocation_override = dict(allocation_override)
+        allocation_override["continuity_eligible"] = False
+        allocation_override["downstream_outcome"] = "ADMISSION_REJECTED"
+        reason = str(exc)
+        if isinstance(exc, MarketClosedForEntry):
+            entry_status = _market_entry_status()
+            entry_status["reason"] = reason
+            result = _entry_window_rejection(
+                candidate, scan_id, trigger_source, entry_status,
+                auto_entry_attempted=True)
+            _emit_allocation_outcome(
+                rejected_by=f"ADMISSION_REJECTED: {reason}",
+                risk_validation=_rv_result,
+            )
+            result["allocation_override"] = allocation_override
+            return result
+        _pe("ORDER_CANCELLED", "EXECUTION", scan_id=scan_id, symbol=sym,
+            payload={"trade_id": trade_id, "reason": reason})
+        _emit_allocation_outcome(
+            rejected_by=f"ADMISSION_REJECTED: {reason}",
+            risk_validation=_rv_result,
+        )
+        store.add_notification(
+            "ENTRY_BLOCKED",
+            f"{sym} paper entry blocked",
+            reason,
+            severity="WARN",
+            context={"symbol": sym, "scan_id": scan_id},
+        )
+        return {"created": False, "symbol": sym, "reason": reason,
+                "allocation_override": allocation_override}
+
+    _emit_allocation_outcome(risk_validation=_rv_result)
+    _pe("ORDER_SUBMITTED", "EXECUTION", scan_id=scan_id, symbol=sym,
+        payload={"trade_id": trade_id, "qty": qty, "signal_price": signal_price,
+                 "fill_price": fill_price, "charges": charges,
+                 "trigger_source": trigger_source,
+                 "allocation_tier": allocation_override.get("tier"),
+                 "allocation_multiplier": allocation_override.get(
+                     "effective_multiplier"),
+                 "allocation_final_notional": allocation_override.get(
+                     "final_notional")})
 
     ok, msg = execute_buy(
         sym, qty, fill_price,
@@ -587,6 +1365,9 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
         trade_quality=float(candidate.get("trade_quality_score") or 0),
     )
     if not ok:
+        allocation_override = dict(allocation_override)
+        allocation_override["continuity_eligible"] = False
+        allocation_override["downstream_outcome"] = "PAPER_BUY_FAILED"
         _pe("ORDER_REJECTED", "EXECUTION", scan_id=scan_id, symbol=sym,
             payload={"trade_id": trade_id, "reason": msg,
                      "stage_detail": "execute_buy"})
@@ -595,15 +1376,28 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
                                context={"symbol": sym, "scan_id": scan_id})
         # Release the claimed ledger slot since no position was created.
         _delete_row(trade_id)
-        return {"created": False, "symbol": sym, "reason": msg}
+        return {"created": False, "symbol": sym, "reason": msg,
+                "allocation_override": allocation_override}
 
     _pe("ORDER_EXECUTED", "EXECUTION", scan_id=scan_id, symbol=sym,
         payload={"trade_id": trade_id, "qty": qty, "fill_price": fill_price,
-                 "slippage": fill.get("slippage"), "charges": charges})
+                 "slippage": fill.get("slippage"), "charges": charges,
+                 "allocation_tier": allocation_override.get("tier"),
+                 "allocation_multiplier": allocation_override.get(
+                     "effective_multiplier"),
+                 "allocation_final_notional": allocation_override.get(
+                     "final_notional")})
     _pe("POSITION_OPENED", "PORTFOLIO", scan_id=scan_id, symbol=sym,
         payload={"trade_id": trade_id, "qty": qty, "fill_price": fill_price,
                  "stop_loss": float(sizing.get("stop_loss") or 0),
-                 "target": float(sizing.get("target_price") or 0)})
+                 "target": float(sizing.get("target_price") or 0),
+                 "allocation_tier": allocation_override.get("tier"),
+                 "allocation_multiplier": allocation_override.get(
+                     "effective_multiplier"),
+                 "allocation_final_notional": allocation_override.get(
+                     "final_notional"),
+                 "allocation_risk_amount": allocation_override.get(
+                     "final_risk_amount")})
     try:
         from canonical_portfolio import build_canonical_portfolio
         _cp = build_canonical_portfolio()
@@ -624,7 +1418,8 @@ def create_paper_entry(candidate: Dict[str, Any], settings: Dict[str, Any],
         severity="INFO",
         context={"trade_id": trade_id, "symbol": sym, "scan_id": scan_id})
     return {"created": True, "trade_id": trade_id, "symbol": sym,
-            "quantity": qty, "fill_price": fill_price}
+            "quantity": qty, "fill_price": fill_price,
+            "allocation_override": allocation_override}
 
 
 def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
@@ -653,6 +1448,43 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
     blocked: List[Dict[str, Any]] = []
     _scan_id = evaluation.get("scan_id")
     _snap_ts = evaluation.get("snapshot_ts")
+
+    # Stale signal guard: reject when the scan snapshot is older than
+    # MAX_SIGNAL_AGE_MINUTES. A pre-cutoff scan (e.g. 14:49 IST) cannot
+    # authorise an entry at 15:25 IST even if the duplicate gate was just
+    # cleared by an exit on the same tick.
+    # FAIL-CLOSED: a missing, None, or malformed timestamp is treated as
+    # INVALID_SIGNAL_TIMESTAMP — no entry is created from a signal of unknown age.
+    if not _snap_ts:
+        return {
+            "ran": False,
+            "reason": "INVALID_SIGNAL_TIMESTAMP",
+            "detail": "snapshot_ts is missing or None — cannot verify signal age",
+            "decision_ts": _iso(),
+            "scan_id": _scan_id,
+        }
+    try:
+        _snap_dt = datetime.fromisoformat(str(_snap_ts).replace("Z", "+00:00"))
+        _signal_age_s = (_now() - _snap_dt).total_seconds()
+        if _signal_age_s > MAX_SIGNAL_AGE_MINUTES * 60:
+            return {
+                "ran": False,
+                "reason": "STALE_SIGNAL_BLOCKED",
+                "signal_ts": str(_snap_ts),
+                "decision_ts": _iso(),
+                "signal_age_minutes": round(_signal_age_s / 60.0, 1),
+                "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
+                "scan_id": _scan_id,
+            }
+    except Exception:
+        return {
+            "ran": False,
+            "reason": "INVALID_SIGNAL_TIMESTAMP",
+            "detail": f"snapshot_ts could not be parsed: {_snap_ts!r}",
+            "decision_ts": _iso(),
+            "scan_id": _scan_id,
+        }
+
     for cand in evaluation.get("candidates", []):
         if not cand.get("eligible"):
             # Build a human-readable reason map from the full gate objects so
@@ -716,6 +1548,59 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
                       for b in blocked[:5]),
             severity="INFO",
             context={"scan_id": _scan_id, "blocked": blocked})
+
+    # Persist one bounded, scan-level quality record.  The next distinct scan
+    # may grant 3x only when the same symbol was independently 3x-quality-valid
+    # here.  Repeated processing of one scan replaces its record and can never
+    # manufacture the required two-scan continuity.
+    try:
+        history = store.kv_get("allocation_override_history") or []
+        if not isinstance(history, list):
+            history = []
+        result_by_symbol = {
+            str(item.get("symbol") or "").upper(): item
+            for item in created
+            if item.get("symbol")
+        }
+        history_symbols: Dict[str, Any] = {}
+        for cand in evaluation.get("candidates", []):
+            cand_sym = str(cand.get("symbol") or "").upper()
+            if not cand_sym:
+                continue
+            actual = result_by_symbol.get(cand_sym, {})
+            decision = (
+                actual.get("allocation_override")
+                or cand.get("allocation_override_preview")
+                or {}
+            )
+            history_symbols[cand_sym] = {
+                "three_x_quality_valid": bool(
+                    decision.get("three_x_quality_valid")
+                ),
+                "continuity_eligible": bool(
+                    decision.get(
+                        "continuity_eligible",
+                        decision.get("three_x_quality_valid"),
+                    )
+                ),
+                "tier": decision.get("tier", "NORMAL"),
+                "reason": decision.get("reason"),
+            }
+        history_record = {
+            "evaluated_at": _iso(),
+            "scan_id": _scan_id,
+            "snapshot_ts": _snap_ts,
+            "symbols": history_symbols,
+        }
+        history = [
+            item for item in history
+            if item.get("scan_id") != _scan_id
+        ]
+        history.append(history_record)
+        store.kv_set("allocation_override_history", history[-60:])
+    except Exception:
+        pass
+
     result = {"ran": True, "scan_id": _scan_id,
               "created": created, "blocked": blocked,
               "evaluation": evaluation}
@@ -734,13 +1619,497 @@ def run_auto_entries(settings: Dict[str, Any]) -> Dict[str, Any]:
                 for b in blocked
             ],
             "created": [
-                {"symbol": c.get("symbol"), "trade_id": c.get("trade_id")}
+                {"symbol": c.get("symbol"), "trade_id": c.get("trade_id"),
+                 "allocation_override": c.get("allocation_override")}
                 for c in created if c.get("created")
+            ],
+            "evaluated_allocations": [
+                {"symbol": c.get("symbol"),
+                 "created": bool(c.get("created")),
+                 "allocation_override": c.get("allocation_override")}
+                for c in created if c.get("allocation_override")
             ],
         })
     except Exception:
         pass
     return result
+
+
+# ── Bootstrap paper entry (parallel track — never touches normal BUY logic) ──
+
+# Thresholds mirror live_scan_engine.BOOTSTRAP_MIN_* constants.
+_BOOTSTRAP_MAX_CLOSED_TRADES  = 20     # stop once the ledger has enough evidence
+_BOOTSTRAP_MAX_ORDER_VALUE    = 15_000  # ₹ hard ceiling per bootstrap trade
+_BOOTSTRAP_MIN_CONF           = 60.0
+_BOOTSTRAP_MIN_OPP            = 50.0
+_BOOTSTRAP_MIN_RR             = 1.5
+
+
+def run_bootstrap_auto_entry(snapshot: Dict[str, Any],
+                              settings: Dict[str, Any],
+                              circuit_breaker_tripped: bool = False) -> Dict[str, Any]:
+    """
+    Create at most ONE small bootstrap paper trade per scan when:
+
+    * The production paper ledger has fewer than _BOOTSTRAP_MAX_CLOSED_TRADES
+      closed trades (ledger seeding purpose only — auto-disables when the
+      system has enough history for normal evidence-driven BUY signals).
+    * ``bootstrap_paper_enabled`` is True in phase20_settings (defaults False —
+      operators must explicitly enable it).
+    * ``auto_paper_entries`` is True AND ``auto_paper_entries_confirmed_at`` is
+      set (same explicit-confirmation invariant as normal auto entries).
+    * At least one WATCH recommendation has ``bootstrap_eligible=True``
+      (set post-overlay by live_scan_engine when Kite LTP is live, all hard
+      gates pass, confidence ≥ 60, and low_evidence blocks the normal path).
+
+    Strictly parallel track:
+    * NEVER modifies BUY_CONF, WATCH_CONF, paper_eligible, or any confidence.
+    * NEVER calls live broker order APIs (paper_trader.execute_buy only).
+    * Position size capped at ₹15,000; one trade per scan; normal exit engine.
+    * Records trigger_source="BOOTSTRAP_AUTO", fill_model="bootstrap_paper".
+    * Emits BOOTSTRAP_PAPER_TRADE_APPROVED pipeline event for full auditability.
+
+    Evidence note: low_evidence is based on 6-month backtest trade count, NOT
+    paper trades. Bootstrap paper trades do NOT reduce low_evidence — that clears
+    naturally as the strategy walk-forward window accumulates ≥5 signals.
+    """
+    # ── Feature flag (safe-off default) ──────────────────────────────────────
+    # bootstrap_paper_enabled defaults False in DEFAULT_SETTINGS; operators must
+    # explicitly opt in via the settings API.
+    if not settings.get("bootstrap_paper_enabled", False):
+        return {"ran": False, "reason": "bootstrap_paper_enabled is off in settings"}
+
+    # ── Operator confirmation guard (defense-in-depth) ────────────────────────
+    # Mirror the exact same check as run_auto_entries / the scheduler gate so
+    # direct/internal callers cannot bypass the Phase 20 explicit-confirmation
+    # invariant. Bootstrap creates canonical paper positions — it must require
+    # the same operator opt-in as any other automated entry path.
+    if not (settings.get("auto_paper_entries") and
+            settings.get("auto_paper_entries_confirmed_at")):
+        return {"ran": False,
+                "reason": "auto_paper_entries not confirmed — bootstrap requires the same "
+                           "explicit operator confirmation as normal auto entries "
+                           "(set auto_paper_entries=True with confirmation text)"}
+
+    # Circuit breaker — fail-closed. Bootstrap must never open a position while
+    # entries are paused for manual review. An unreadable/errored breaker state
+    # is treated as tripped (circuit_breaker_tripped=True when state is unknown).
+    if circuit_breaker_tripped:
+        return {"ran": False,
+                "reason": "Circuit breaker tripped — all entries paused including bootstrap"}
+
+    # Kite LTP must be live at the snapshot level (safety double-check)
+    safety = snapshot.get("safety") or {}
+    if not (safety.get("kite_ltp_session_verified") or
+            safety.get("kite_ltp_overlay_enabled")):
+        return {"ran": False,
+                "reason": "Kite LTP not verified in snapshot — bootstrap requires live quotes"}
+
+    # ── Early stale signal guard (TASK 3 / PHASE 0C) ─────────────────────────
+    # Checked BEFORE kv_claim_once so that a stale snapshot does NOT consume the
+    # per-scan claim slot (which would make the first good scan with the same
+    # scan_id appear "already processed").
+    # FAIL-CLOSED: a missing, None, or malformed timestamp blocks entry and does
+    # NOT call kv_claim_once — so the claim slot is preserved for a valid retry.
+    _snap_ts_early = snapshot.get("snapshot_ts")
+    if not _snap_ts_early:
+        return {
+            "ran": False,
+            "reason": "INVALID_SIGNAL_TIMESTAMP",
+            "detail": "snapshot_ts is missing or None — cannot verify signal age",
+            "decision_ts": _iso(),
+            "scan_id": snapshot.get("scan_id"),
+        }
+    try:
+        _snap_dt_early = datetime.fromisoformat(
+            str(_snap_ts_early).replace("Z", "+00:00"))
+        _age_s_early = (_now() - _snap_dt_early).total_seconds()
+        if _age_s_early > MAX_SIGNAL_AGE_MINUTES * 60:
+            return {
+                "ran": False,
+                "reason": "STALE_SIGNAL_BLOCKED",
+                "signal_ts": str(_snap_ts_early),
+                "decision_ts": _iso(),
+                "signal_age_minutes": round(_age_s_early / 60.0, 1),
+                "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
+                "scan_id": snapshot.get("scan_id"),
+            }
+    except Exception:
+        return {
+            "ran": False,
+            "reason": "INVALID_SIGNAL_TIMESTAMP",
+            "detail": f"snapshot_ts could not be parsed: {_snap_ts_early!r}",
+            "decision_ts": _iso(),
+            "scan_id": snapshot.get("scan_id"),
+        }
+
+    # Count closed production trades (bootstrap auto-disables above threshold)
+    def _closed_count(conn) -> int:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM phase20_paper_trades WHERE status='CLOSED'"
+            )
+            return int(cur.fetchone()[0])
+
+    closed = _with_db(_closed_count, lambda: 0)
+    if closed >= _BOOTSTRAP_MAX_CLOSED_TRADES:
+        return {"ran": False,
+                "reason": f"Bootstrap complete — {closed} closed trades in ledger "
+                           f"(threshold {_BOOTSTRAP_MAX_CLOSED_TRADES})"}
+
+    # ── Per-scan atomic claim (one bootstrap trade per scan_id) ─────────────
+    # kv_claim_once is an atomic first-claimant guard: the first caller wins and
+    # subsequent callers (concurrent ticks, repeated ticks on the same stale
+    # snapshot) see False and skip.  This prevents both concurrent races and
+    # repeated execution against the same snapshot scan_id.
+    scan_id_for_guard = snapshot.get("scan_id") or ""
+    if scan_id_for_guard:
+        try:
+            import phase20_store as _bs_store
+            _claim_key = f"bootstrap_scan:{scan_id_for_guard}"
+            if not _bs_store.kv_claim_once(_claim_key):
+                return {"ran": False,
+                        "reason": f"Bootstrap already processed for scan {scan_id_for_guard} "
+                                   "(kv_claim_once guard — concurrent/repeated tick blocked)"}
+        except Exception as _ce:
+            # kv unavailable — fail-closed: don't attempt to create a trade
+            return {"ran": False,
+                    "reason": f"Per-scan claim guard unavailable: {_ce!s:.100} — "
+                               "skipping bootstrap to avoid duplicate trades"}
+    else:
+        # No scan_id in snapshot — cannot guarantee idempotency; skip.
+        return {"ran": False, "reason": "Snapshot has no scan_id — bootstrap skipped for safety"}
+
+    # Guard: don't create a bootstrap trade if a bootstrap trade is already OPEN.
+    def _bootstrap_open(conn) -> bool:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT 1 FROM phase20_paper_trades "
+                "WHERE status='OPEN' AND trigger_source='BOOTSTRAP_AUTO' LIMIT 1"
+            )
+            return cur.fetchone() is not None
+
+    if _with_db(_bootstrap_open, lambda: False):
+        return {"ran": False, "reason": "Bootstrap trade already OPEN — waiting for exit"}
+
+    # Pick highest-confidence bootstrap_eligible candidate
+    recs = snapshot.get("recommendations") or []
+    candidates = [
+        r for r in recs
+        if r.get("bootstrap_eligible")
+        and r.get("final_action") == "WATCH"
+        and (r.get("calibrated_confidence") or 0) >= _BOOTSTRAP_MIN_CONF
+        and (r.get("opportunity_score") or 0) >= _BOOTSTRAP_MIN_OPP
+        and (r.get("rr_ratio") or 0) >= _BOOTSTRAP_MIN_RR
+        and r.get("quote_reliable")
+        and r.get("kite_session_verified_flag")
+    ]
+    scan_id = snapshot.get("scan_id")
+    snap_ts = snapshot.get("snapshot_ts")
+
+    # Stale signal guard — same MAX_SIGNAL_AGE_MINUTES rule as run_auto_entries.
+    # Checked BEFORE candidate selection so a stale snapshot releases the
+    # kv_claim_once claim (claim was already set above — that's correct; we
+    # don't want a stale scan retried either). Checked before candidates so an
+    # empty candidates list from a stale scan doesn't shadow the real reason.
+    # Never blocks on parsing failure.
+    if snap_ts:
+        try:
+            _snap_dt = datetime.fromisoformat(str(snap_ts).replace("Z", "+00:00"))
+            _signal_age_s = (_now() - _snap_dt).total_seconds()
+            if _signal_age_s > MAX_SIGNAL_AGE_MINUTES * 60:
+                return {
+                    "ran": False,
+                    "reason": "STALE_SIGNAL_BLOCKED",
+                    "signal_ts": str(snap_ts),
+                    "decision_ts": _iso(),
+                    "signal_age_minutes": round(_signal_age_s / 60.0, 1),
+                    "max_signal_age_minutes": MAX_SIGNAL_AGE_MINUTES,
+                    "scan_id": scan_id,
+                }
+        except Exception:
+            pass
+
+    if not candidates:
+        return {"ran": False, "reason": "No bootstrap_eligible WATCH candidates in snapshot"}
+
+    # Rank candidates: highest calibrated_confidence first, then opportunity_score
+    ranked = sorted(
+        candidates,
+        key=lambda r: (
+            float(r.get("calibrated_confidence") or 0),
+            float(r.get("opportunity_score") or 0),
+        ),
+        reverse=True,
+    )
+
+    # Override fill_model to "bootstrap_paper" for clear ledger labelling.
+    bootstrap_settings = dict(settings)
+    bootstrap_settings["fill_model"] = "bootstrap_paper"
+
+    slip_pct = float(settings.get("slippage_pct", 0.15)) / 100.0
+
+    # Track every skip so the final return is auditable even if all fail.
+    skipped: List[Dict[str, Any]] = []
+
+    from paper_trader import get_portfolio  # single import for the loop
+
+    for best in ranked:
+        sym = str(best.get("symbol", "")).upper()
+
+        # ── Independent gate re-verification ─────────────────────────────────
+        # Defensive re-check on each candidate.  bootstrap_eligible is a
+        # pre-computed flag that may reflect a stale scan or be overridden by a
+        # caller in tests.  We verify each constituent condition independently.
+        # Failures here skip to the next candidate rather than aborting the run.
+        if not best.get("low_evidence"):
+            skipped.append({"symbol": sym,
+                             "reason": "low_evidence=False — normal BUY path unblocked"})
+            continue
+        if not best.get("all_gates_passed"):
+            skipped.append({"symbol": sym,
+                             "reason": "all_gates_passed=False — hard risk gate failure"})
+            continue
+        if not best.get("kite_ltp_available"):
+            skipped.append({"symbol": sym,
+                             "reason": "kite_ltp_available=False — live LTP required"})
+            continue
+        _exec_src = str(best.get("execution_price_source") or "")
+        if "kite" not in _exec_src.lower():
+            skipped.append({"symbol": sym,
+                             "reason": f"execution_price_source '{_exec_src}' is not Kite"})
+            continue
+
+        price = float(best.get("kite_ltp") or 0)
+        if price <= 0:
+            skipped.append({"symbol": sym, "reason": "Invalid kite_ltp price (≤ 0)"})
+            continue
+
+        # Compute qty bounded by ₹15,000 ceiling against worst-case slippage fill.
+        worst_fill = round(price * (1.0 + slip_pct), 2)
+        if worst_fill > _BOOTSTRAP_MAX_ORDER_VALUE:
+            skipped.append({"symbol": sym,
+                             "reason": (f"Worst-case fill ₹{worst_fill:.2f} exceeds "
+                                        f"₹{_BOOTSTRAP_MAX_ORDER_VALUE} cap — even 1 share")})
+            continue
+        qty = max(1, int(_BOOTSTRAP_MAX_ORDER_VALUE // worst_fill))
+        while qty > 1 and qty * worst_fill > _BOOTSTRAP_MAX_ORDER_VALUE:
+            qty -= 1
+        order_value = round(qty * worst_fill, 2)
+
+        # Gate: target_price must be populated and positive.
+        # When target_price is null or 0 the downstream validate_pre_trade()
+        # call computes RR = 0 and emits a generic STOP_LOSS_MISSING CRITICAL
+        # rejection.  That rejection is hard to diagnose because the gate name
+        # doesn't tell the operator WHY target is absent (it was null in the
+        # scan snapshot).  We surface it here as TARGET_MISSING so the
+        # pipeline-events log is unambiguous and the operator knows to check
+        # live_scan_engine's strategy.compute_target() for the symbol.
+        _target_price_raw = best.get("target_price")
+        _target_price_val = float(_target_price_raw) if _target_price_raw is not None else 0.0
+        if _target_price_val <= 0:
+            _reason_no_target = (
+                f"{sym}: target_price is {'null' if _target_price_raw is None else 0} "
+                f"in the scan snapshot — R:R check would compute RR=0 and reject; "
+                f"check strategy.compute_target() in live_scan_engine.py"
+            )
+            skipped.append({"symbol": sym, "reason": _reason_no_target})
+            try:
+                from pipeline_events import emit as _pe
+                _pe("BOOTSTRAP_CANDIDATE_REJECTED", "EXECUTION",
+                    scan_id=scan_id, symbol=sym,
+                    payload={
+                        "symbol":       sym,
+                        "reason":       _reason_no_target,
+                        "gate":         "TARGET_MISSING",
+                        "target_price": _target_price_raw,
+                        "stop_loss":    float(best.get("stop_loss") or 0),
+                        "rr_ratio":     float(best.get("rr_ratio") or 0),
+                        "note": (
+                            "target_price was null or 0 in the scan snapshot. "
+                            "The pre-trade R:R check would have silently produced "
+                            "RR=0 and rejected with STOP_LOSS_MISSING. "
+                            "Explicit TARGET_MISSING gate raised here so the "
+                            "rejection is auditable without reading risk_validation."
+                        ),
+                    })
+            except Exception:
+                pass
+            continue
+
+        # Duplicate position guard — skip this symbol if already held.
+        if any(str(p["symbol"]).upper() == sym for p in get_portfolio()["positions"]):
+            skipped.append({"symbol": sym, "reason": "Open position already exists"})
+            continue
+
+        # Build a minimal candidate dict compatible with create_paper_entry
+        sizing = {
+            "quantity":    qty,
+            "entry_price": price,
+            "stop_loss":   float(best.get("stop_loss") or 0),
+            "target_price": float(best.get("target_price") or 0),
+            "rr_ratio":    float(best.get("rr_ratio") or 0),
+            "order_value": order_value,
+        }
+        candidate: Dict[str, Any] = {
+            "eligible":               True,
+            "symbol":                 sym,
+            "recommendation":         "WATCH",
+            "confidence":             float(best.get("calibrated_confidence") or 0),
+            "opportunity_score":      float(best.get("opportunity_score") or 0),
+            "trade_quality_score":    float(best.get("technical_score") or 0),
+            "regime":                 str(best.get("regime") or "UNKNOWN"),
+            "strategy_id":            str(best.get("strategy_id") or ""),
+            "strategy_name":          str(best.get("strategy_name") or ""),
+            "kite_ltp_available":       bool(best.get("kite_ltp_available")),
+            "execution_price_source":   str(best.get("execution_price_source") or ""),
+            "kite_ltp":                 float(best.get("kite_ltp") or 0),
+            "sizing":                   sizing,
+            "failed_gates":             [],
+            # Bootstrap is still an automatic paper entry from this exact
+            # canonical snapshot; retain its immutable identity rather than
+            # asking create_paper_entry to discover a newer cache.
+            "universe_context": dict(
+                best.get("universe_context")
+                or snapshot.get("universe_context")
+                or {}
+            ),
+        }
+
+        # Emit approval event BEFORE creation for atomicity audit trail
+        try:
+            from pipeline_events import emit as _pe
+            _pe("BOOTSTRAP_PAPER_TRADE_APPROVED", "EXECUTION",
+                scan_id=scan_id, symbol=sym,
+                payload={
+                    "symbol":                sym,
+                    "calibrated_confidence": best.get("calibrated_confidence"),
+                    "opportunity_score":     best.get("opportunity_score"),
+                    "rr_ratio":              best.get("rr_ratio"),
+                    "kite_ltp":              best.get("kite_ltp"),
+                    "order_value":           order_value,
+                    "qty":                   qty,
+                    "closed_trades_so_far":  closed,
+                    "rank_in_candidates":    ranked.index(best) + 1,
+                    "candidates_total":      len(ranked),
+                    "reason": (
+                        "Bootstrap paper trade: low_evidence (backtest < 5 trades) "
+                        "blocked normal BUY path. Kite LTP live, all hard gates "
+                        "passed. Max order value ₹15,000. No live broker API called. "
+                        "Exit handled by normal phase20 exit engine."
+                    ),
+                })
+        except Exception:
+            pass
+
+        try:
+            result = create_paper_entry(candidate, bootstrap_settings,
+                                        scan_id, snap_ts,
+                                        trigger_source="BOOTSTRAP_AUTO")
+        except Exception as _cpe:
+            # create_paper_entry raised unexpectedly (e.g. Kite API timeout,
+            # DB transient error).  Treat as a per-candidate rejection so the
+            # loop can continue to the next candidate instead of aborting.
+            _exc_reason = f"create_paper_entry raised: {_cpe!s:.120}"
+            skipped.append({"symbol": sym, "reason": _exc_reason})
+            try:
+                from pipeline_events import emit as _pe
+                _pe("BOOTSTRAP_CANDIDATE_REJECTED", "EXECUTION",
+                    scan_id=scan_id, symbol=sym,
+                    payload={
+                        "symbol":                   sym,
+                        "reason":                   _exc_reason,
+                        "gate":                     "CREATE_PAPER_ENTRY_EXCEPTION",
+                        "next_candidate_attempted": (ranked.index(best) + 1) < len(ranked),
+                        "rank_in_candidates":       ranked.index(best) + 1,
+                        "candidates_total":         len(ranked),
+                    })
+            except Exception:
+                pass
+            continue
+
+        if result.get("created"):
+            store.add_notification(
+                "BOOTSTRAP_TRADE_CREATED",
+                f"Bootstrap paper BUY {sym} × {qty} @ ₹{price:.2f}",
+                (f"Trade {result.get('trade_id')} created to seed the paper ledger. "
+                 f"Reason: low_evidence=True (backtest < 5 trades) blocked normal BUY. "
+                 f"Kite LTP live, all risk gates passed. Max ₹15,000 position. "
+                  f"Paper only — no live order. Exits via normal phase20 exit engine."),
+                severity="INFO",
+                context={"trade_id": result.get("trade_id"), "symbol": sym,
+                         "scan_id": scan_id, "trigger_source": "BOOTSTRAP_AUTO"},
+            )
+            return {"ran": True, "symbol": sym, "result": result,
+                    "closed_trades_before": closed,
+                    "candidates_checked": len(ranked),
+                    "skipped_before_success": skipped}
+
+        # create_paper_entry rejected (pre-trade risk check, duplicate, etc.).
+        # Compute slippage-adjusted R:R for the audit event.
+        _stop  = float(best.get("stop_loss") or 0)
+        _tgt   = float(best.get("target_price") or 0)
+        _rr_after: Optional[float] = None
+        if _stop > 0 and _tgt > worst_fill and worst_fill > _stop:
+            _rr_after = round((_tgt - worst_fill) / (worst_fill - _stop), 4)
+
+        _skip_entry = {
+            "symbol":              sym,
+            "reason":              result.get("reason", "create_paper_entry rejected"),
+            "rr_before_slippage":  float(best.get("rr_ratio") or 0),
+            "rr_after_slippage":   _rr_after,
+            "fill_price":          worst_fill,
+            "next_candidate_attempted": False,  # updated below if more remain
+        }
+        skipped.append(_skip_entry)
+
+        _next_idx = ranked.index(best) + 1
+        _has_next = _next_idx < len(ranked)
+        _skip_entry["next_candidate_attempted"] = _has_next
+
+        try:
+            from pipeline_events import emit as _pe
+            _pe("BOOTSTRAP_CANDIDATE_REJECTED", "EXECUTION",
+                scan_id=scan_id, symbol=sym,
+                payload={
+                    "symbol":                    sym,
+                    "reason":                    result.get("reason", "rejected"),
+                    "gate":                      (result.get("risk_validation") or {})
+                                                 .get("first_critical_check"),
+                    "rr_before_slippage":        float(best.get("rr_ratio") or 0),
+                    "rr_after_slippage":         _rr_after,
+                    "fill_price":                worst_fill,
+                    "next_candidate_attempted":  _has_next,
+                    "rank_in_candidates":        _next_idx,
+                    "candidates_total":          len(ranked),
+                })
+        except Exception:
+            pass
+
+    # All ranked candidates exhausted without a successful fill.
+    try:
+        from pipeline_events import emit as _pe
+        _pe("BOOTSTRAP_ALL_CANDIDATES_REJECTED", "EXECUTION",
+            scan_id=scan_id, symbol=None,
+            payload={
+                "candidates_checked":  len(ranked),
+                "rejection_summary":   [
+                    {"symbol": s["symbol"], "reason": s["reason"],
+                     "rr_before_slippage": s.get("rr_before_slippage"),
+                     "rr_after_slippage": s.get("rr_after_slippage")}
+                    for s in skipped
+                ],
+                "reason": (f"All {len(ranked)} bootstrap candidate(s) exhausted — "
+                           "no paper trade created this scan"),
+            })
+    except Exception:
+        pass
+
+    return {"ran": False,
+            "reason": (f"All {len(ranked)} bootstrap candidate(s) rejected after "
+                       f"pre-trade re-check — no paper trade created"),
+            "candidates_checked": len(ranked),
+            "skipped": skipped}
 
 
 # ── Execution-outcome seal ────────────────────────────────────────────────────
@@ -838,21 +2207,29 @@ def seal_execution_outcomes(scan_id: str,
 # ── Exit recording (called by phase20_exits) ─────────────────────────────────
 
 def record_exit(trade_id: str, exit_price: float, exit_rule: str,
-                exit_scan_id: Optional[str], status: str = "CLOSED") -> None:
+                exit_scan_id: Optional[str], status: str = "CLOSED") -> bool:
     trade = get_trade(trade_id)
     if not trade:
-        return
+        return False
     qty = int(trade.get("quantity") or 0)
     fill = float(trade.get("fill_price") or 0)
     pnl = round((exit_price - fill) * qty, 2) if status == "CLOSED" else None
-    _update_row(trade_id, {
+    if not _update_row(trade_id, {
         "status": status,
         "exit_ts": _iso() if status in ("CLOSED", "EXIT_PENDING") else None,
         "exit_price": exit_price if status == "CLOSED" else None,
         "exit_rule": exit_rule,
         "exit_scan_id": exit_scan_id,
         "realized_pnl": pnl,
-    })
+    }):
+        return False
+
+    # Do not acknowledge a terminal close until the canonical ledger can read
+    # it back.  This prevents a successful paper sell plus failed persistence
+    # from being misreported as a closed position.
+    persisted = get_trade(trade_id)
+    if not persisted or persisted.get("status") != status:
+        return False
     # Phase 23: pipeline events (fail-safe)
     try:
         from pipeline_events import emit as _pe
@@ -881,6 +2258,7 @@ def record_exit(trade_id: str, exit_price: float, exit_rule: str,
             pass
     except Exception:
         pass
+    return True
 
 
 # ── Deterministic replay ─────────────────────────────────────────────────────

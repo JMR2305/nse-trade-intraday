@@ -1,0 +1,77 @@
+PHASE 0A — APPLY TEMPORARY SAFETY PAUSE ONLY
+
+Use APEXQUANT_PHASE0A_SAFETY_REMEDIATION_PLAN.md as the controlling report.
+
+Operator approval:
+I approve Option C only.
+
+Action allowed:
+Pause both automatic paper entries and bootstrap.
+
+Set:
+- auto_paper_entries = false
+- bootstrap_paper_enabled = false
+
+Do not change:
+- capital
+- active universe
+- LTIM status
+- max trades
+- max positions
+- strategy thresholds
+- exit settings
+- Kite settings
+- broker settings
+- database schema
+- any trade row
+- any position status
+
+Do not close TRENT.
+Do not close DRREDDY.
+Do not call force-eod-close yet.
+Do not create migrations.
+Do not implement architecture.
+Do not implement multi-agent logic.
+Do not implement intraday candle store.
+Do not enable live orders.
+Do not call any broker order API.
+
+PAPER ONLY.
+
+Before changing settings, capture:
+1. Current /api/phase20/settings response.
+2. Current /api/phase20/bootstrap-status response.
+3. Current /api/phase20/positions response.
+4. Current config_hash.
+5. Current auto_paper_entries value.
+6. Current bootstrap_paper_enabled value.
+7. Current open TRENT and DRREDDY rows.
+
+Then apply only the two setting changes.
+
+After changing settings, capture:
+1. New /api/phase20/settings response.
+2. New /api/phase20/bootstrap-status response.
+3. New config_hash.
+4. Proof auto_paper_entries=false.
+5. Proof bootstrap_paper_enabled=false.
+6. Proof paper exits/monitoring remain enabled.
+7. Proof TRENT and DRREDDY were not modified.
+8. Proof no broker order API was called.
+9. Proof no new Phase 20 OPEN trade was created after the pause.
+
+Generate:
+
+APEXQUANT_PHASE0A_OPTION_C_SAFETY_PAUSE_EVIDENCE_REPORT.md
+
+The report must include:
+1. Before settings snapshot.
+2. After settings snapshot.
+3. Config hash before and after.
+4. Open positions before and after.
+5. Confirmation only auto_paper_entries and bootstrap_paper_enabled changed.
+6. Confirmation no trade rows changed.
+7. Confirmation no positions were closed.
+8. Confirmation exits/monitoring remain available.
+9. Confirmation no live orders.
+10. Recommendation for the next step: open-position evidence capture before any force-close decision.

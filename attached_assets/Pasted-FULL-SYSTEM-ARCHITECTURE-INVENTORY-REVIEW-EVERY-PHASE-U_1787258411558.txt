@@ -1,0 +1,374 @@
+FULL-SYSTEM ARCHITECTURE INVENTORY — REVIEW EVERY PHASE, UI PAGE, BOT, AGENT, FLOW, AND DATABASE BEFORE FINAL DESIGN
+
+Do not implement code yet.
+Do not create migrations yet.
+Do not change trading thresholds.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Reason:
+We have created many phases, batches, agents, bots, UI pages, paper-trading modules, cache modules, exit modules, and Mission Control fixes over time.
+Sometimes only the latest phase is reviewed, and older phases/modules are missed.
+Before finalizing the revised multi-agent intraday structure, we need a full-system inventory and dependency map.
+
+Use all available project files, reports, code, docs, markdown files, UI components, database schema, tests, routes, and current Replit workspace state.
+
+MANDATORY:
+Do not answer from only one report or one phase.
+Review every implemented phase and every currently existing module.
+If something cannot be verified from code, mark it UNKNOWN and list how to verify.
+
+TASK 1 — PHASE / BATCH INVENTORY
+
+Create a complete inventory of every phase/batch/RC/task implemented or partially implemented.
+
+At minimum check for:
+- Phase 7 / canonical live scan
+- Phase 10 / market intelligence
+- Phase 11 / AI Paper Trader
+- Phase 15 / data quality / stale scan logic
+- Phase 20 / paper trading, scheduler, executor, exits
+- Phase 23 / replay / portfolio reconstruction, if present
+- OHLCV cache migration
+- Kite LTP overlay
+- Bootstrap paper trading
+- EOD square-off
+- No-new-entry cutoff
+- Post-close force-exit
+- Mission Control scan-status freshness
+- Off-market scan classification
+- Build ID / deployment identity fix
+- Capital ₹100,000 migration, if present
+- LTIM removal, if present
+- 2x/3x quality allocation override, if present
+- Low-price IT/Infra/Bank universe, if present
+- Dynamic intraday exit monitoring, if present
+- Multi-agent intraday architecture proposal
+
+For each phase/task:
+- name
+- purpose
+- status: implemented / partial / dev only / production / obsolete / unknown
+- files changed
+- DB tables changed
+- API routes changed
+- UI pages changed
+- tests added
+- reports generated
+- dependencies
+- unresolved issues
+- whether it is live in production
+
+TASK 2 — EXISTING BOT / AGENT INVENTORY
+
+Find every existing bot/agent/agent-equivalent module.
+
+At minimum review:
+- Market Data Agent
+- Market Intelligence Agent
+- Stock Monitoring Agent
+- Strategy Agent
+- Risk Agent
+- AI Decision Agent
+- Execution Agent
+- Learning Agent
+- Knowledge Agent
+- Supervisor Agent
+- SnapshotBus
+- AgentRegistry
+- any “bot” modules outside agent_framework
+- any legacy/intraday-trading-bot modules
+- any scheduler jobs behaving like agents
+
+For each:
+- exact file path
+- class/function names
+- current responsibility
+- active in production: yes/no/unknown
+- advisory or execution-capable
+- SnapshotBus topics published/subscribed
+- DB tables read
+- DB tables written
+- pipeline events emitted
+- UI pages that display it
+- whether it should be reused, modified, replaced, or retired
+- risk if duplicated by new architecture
+
+TASK 3 — CURRENT END-TO-END FLOW MAP
+
+Map the current full flow from market data to paper trade.
+
+Include:
+1. Universe/watchlist selection
+2. OHLCV cache read
+3. yfinance fallback
+4. Kite LTP overlay
+5. scan generation
+6. strategy/recommendation generation
+7. risk checks
+8. AI decision
+9. bootstrap eligibility
+10. entry admission
+11. paper fill
+12. portfolio update
+13. exit monitoring
+14. EOD square-off
+15. post-close force-exit
+16. pipeline events
+17. Mission Control display
+18. AI Paper Trader display
+19. replay/learning/audit
+
+Show:
+- file/function
+- input
+- output
+- DB table
+- event emitted
+- API route
+- UI page
+
+TASK 4 — UI PAGE INVENTORY
+
+Review every UI page and component.
+
+At minimum:
+- Landing page / dashboard
+- Mission Control
+- AI Paper Trader
+- Live Scanner
+- Live Data Health
+- System Readiness
+- Operator Analytics
+- Portfolio / Risk Analytics
+- Pre-market page, if present
+- Agent configuration page
+- Bootstrap settings/card
+- Low-price universe page/card, if present
+- Cache status page/card
+- Closed trades table
+- Open positions table
+- EOD status view
+- Any mobile-specific layout
+
+For each UI page:
+- route/path
+- frontend file/component
+- backend API routes used
+- data source
+- whether it reads canonical Phase 20 ledger or fallback source
+- whether it can display stale/cached data
+- no-store/cache-busting status
+- known display bugs
+- what it must show after revised architecture
+- what must not be duplicated
+
+TASK 5 — DATABASE / TABLE INVENTORY
+
+List all relevant DB tables/stores.
+
+At minimum:
+- phase20_paper_trades
+- paper_portfolio / portfolio tables
+- phase20_scan_runs
+- scan_state
+- pipeline_events
+- phase20_settings
+- phase20_scheduler_state
+- daily_ohlcv_cache
+- daily_ohlcv_refresh_state
+- nifty50_company_master
+- custom universe tables, if present
+- replay tables, if present
+- learning/knowledge tables, if present
+- proposed but not yet created tables:
+  - intraday_candles
+  - paper_trade_price_tracking
+  - strategy_agent_outputs
+  - entry_decision_audit
+  - exit_decision_audit
+
+For each:
+- schema
+- owner module
+- read paths
+- write paths
+- whether canonical or derived
+- whether append-only
+- whether safe to mutate
+- whether production exists
+- whether migration exists
+- data retention concern
+
+TASK 6 — ROUTES / API INVENTORY
+
+List all relevant API routes.
+
+At minimum:
+- /api/healthz
+- /api/live-data/scan/status
+- /api/live-data/scan/history
+- /api/phase20/bootstrap-status
+- /api/phase20/eod-status
+- /api/phase20/positions
+- /api/phase20/settings
+- /api/phase20/circuit-breaker
+- /api/ohlcv-cache/status
+- /api/ohlcv-cache/readiness
+- /api/ohlcv-cache/company-master
+- any paper-trade routes
+- any agent routes
+- any universe routes
+- any Mission Control routes
+
+For each:
+- route path
+- source file
+- response fields
+- DB source
+- cache headers
+- whether production returns latest schema
+- whether frontend uses it
+- whether it is read-only or mutating
+- safety concerns
+
+TASK 7 — CURRENT SAFETY CONTRACT
+
+Verify with code references:
+
+- PAPER ONLY
+- no Kite place_order / modify_order / cancel_order
+- no live execution enabled
+- one canonical paper ledger writer
+- no duplicate open position per symbol
+- no new entries after 15:15 IST
+- MARKET_CLOSE_EXIT from 15:20
+- POST_CLOSE_FORCE_EXIT after 15:30
+- fail-closed market-state check before ledger admission
+- EXIT_PENDING if exit price is unsafe
+- no completed trade mutation
+- learning/knowledge advisory only
+- agents cannot directly write trades
+
+If any item is not proven, mark it as NOT PROVEN and explain exactly what code/report is missing.
+
+TASK 8 — ARCHITECTURE CONSISTENCY CHECK
+
+Compare:
+- current implementation
+- latest architecture proposal
+- existing phases
+- UI pages
+- bots/agents
+- DB tables
+- safety contracts
+
+Identify:
+- duplicated responsibilities
+- dead/unused modules
+- old code paths still active
+- dev-only features not published
+- production features not documented
+- UI pages using non-canonical sources
+- agents that are present but not active
+- tables that exist but are not used
+- tests that are outdated
+- routes that return old schema
+- any hidden dependency that can break the new multi-agent design
+
+TASK 9 — REVISED MULTI-AGENT STRUCTURE, FITTED TO CURRENT CODE
+
+Do not invent a clean-room architecture.
+
+Revise the multi-agent design to fit current ApexQuant exactly.
+
+For each proposed role:
+- Universe Coordinator
+- Data Quality Coordinator
+- 15-minute Context Agent
+- 5-minute Setup Agent
+- 1-minute Timing Agent
+- Entry Decision Coordinator
+- Risk & Sizing Gate
+- Paper Ledger Executor
+- Position / Exit Coordinator
+- EOD Safety Coordinator
+- Audit & Learning Coordinator
+- Supervisor
+
+Say:
+- existing module reused
+- existing module modified
+- new module required
+- deferred
+- exact files
+- exact DB tables
+- exact events
+- exact UI impact
+- why this choice is safest
+
+TASK 10 — PHASED IMPLEMENTATION PLAN
+
+Create a safer implementation sequence.
+
+Suggested order:
+Phase 0 — Full inventory and architecture lock
+Phase 1 — Intraday data foundation only
+Phase 2 — Per-trade high-water/low-water tracking
+Phase 3 — Exit manager / profit protection upgrade
+Phase 4 — UI observability
+Phase 5 — Advisory 15m/5m/1m agents
+Phase 6 — Entry decision coordinator integration
+Phase 7 — Risk-based sizing / allocation override integration
+Phase 8 — Learning and post-market review
+
+For each phase:
+- goal
+- files changed
+- DB migrations
+- APIs
+- UI pages
+- tests
+- rollback plan
+- production publish requirements
+- what must be verified before moving to next phase
+
+TASK 11 — OPEN QUESTIONS BEFORE FINALIZATION
+
+List every remaining decision that requires operator approval.
+
+At minimum:
+- intraday candle provider source
+- universe mode: NIFTY 50 vs low-price IT/Infra/Bank
+- candle intervals and retention
+- profit-lock thresholds
+- VWAP/ORB/EMA strategy enablement
+- time-stop values
+- partial exit behavior when quantity is small
+- allocation override rules
+- deployment model: autoscale vs always-on worker/VM
+- live order future boundary, even though current state remains paper-only
+
+TASK 12 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_FULL_SYSTEM_PHASE_AGENT_UI_ARCHITECTURE_INVENTORY.md
+
+The report must include:
+1. Every phase/task inventory.
+2. Every existing bot/agent inventory.
+3. Every UI page inventory.
+4. Every DB table inventory.
+5. Every API route inventory.
+6. Current end-to-end flow map.
+7. Safety contract proof.
+8. Architecture consistency gaps.
+9. Revised multi-agent structure fitted to current code.
+10. File-by-file implementation map.
+11. Safe phased implementation plan.
+12. Open questions for operator approval.
+13. Items that are dev-only vs production-live.
+14. Confirmation no code was changed.
+15. Confirmation no live orders.

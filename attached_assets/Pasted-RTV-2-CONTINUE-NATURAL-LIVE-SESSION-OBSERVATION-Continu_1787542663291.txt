@@ -1,0 +1,314 @@
+RTV-2 — CONTINUE NATURAL LIVE-SESSION OBSERVATION
+
+Continue the existing RTV-2 validation.
+
+Do NOT restart RTV-2 from scratch.
+Do NOT modify the existing baseline artifacts.
+Do NOT manually trigger 5A, 5B, 5C, or any market scan.
+
+The previous RTV-2 checkpoint was captured before the NSE session began and correctly returned:
+
+G. LIVE SESSION INCOMPLETE — CONTINUE OBSERVATION
+
+Current task:
+Continue observing today's naturally scheduled production session and complete the pending RTV-2 checks.
+
+TARGET:
+Production only
+
+https://nse-trade-intraday.replit.app
+
+Approved identity:
+
+git_commit =
+4392f278ae25562f168f970e2b694f8c3d249d5c
+
+build_id =
+apexquant-4392f278ae25
+
+CURRENT VERIFIED BASELINE:
+
+- CUSTOM_LOW_PRICE_SECTOR
+- 23 active symbols
+- 23/23 mappings
+- Kite authenticated
+- portfolio cash/equity ₹99,721.26
+- realized P&L ₹-278.74
+- zero open positions
+- auto entries disabled
+- bootstrap disabled
+- auto exits enabled
+- live broker orders disabled
+- trading_data_ready false pending live-session evidence
+
+PHASE 1 — OBSERVE CURRENT PRE-OPEN
+
+Observe only naturally scheduled executions.
+
+Check whether today's scheduler has now created a session.
+
+Capture:
+- session_id
+- trading_date
+- scheduler active state
+- phases_done
+- current phase
+- scheduled timestamps
+- actual timestamps
+
+PHASE 2 — PHASE 5A
+
+Observe today's naturally scheduled:
+
+preopen_intelligence_tick
+
+Require today's session/date, not 2026-08-21 historical data.
+
+Capture:
+
+- provider
+- provider-collected count
+- persisted count
+- failed count
+- session ID
+- start/end timestamps
+- status
+- source
+- freshness
+- volume/pre-open volume availability
+
+Require:
+
+provider-collected count
+==
+persisted count
+
+Do not confuse the provider-health probe with actual scheduled 5A execution.
+
+If today's 5A does not run when scheduled:
+record PREOPEN 5A FAILURE.
+
+PHASE 3 — PHASE 5B
+
+Observe naturally scheduled:
+
+preopen_validation_tick
+
+Capture:
+
+- today's session ID
+- execution timestamp
+- candidates
+- valid
+- rejected
+- skipped
+- rejection reasons
+- lifecycle status
+
+Require a truthful lifecycle state.
+
+Do not manufacture COMPLETE.
+
+PHASE 4 — PHASE 5C
+
+Observe naturally scheduled:
+
+signal_validation_tick
+
+Capture:
+
+- execution timestamp
+- generated signals
+- approved advisory signals
+- rejected
+- skipped
+- paper trades
+- lifecycle status
+
+Automatic paper entries MUST remain disabled.
+
+No advisory signal may cause automatic execution.
+
+PHASE 5 — WAIT FOR NATURAL MARKET OPEN
+
+Do not manually trigger the scan.
+
+After NSE opens, observe the FIRST naturally scheduled canonical scan.
+
+Capture:
+
+- scan ID
+- scheduler source
+- start timestamp
+- finish timestamp
+- universe mode
+- requested symbol count
+- received symbol count
+- exact symbol list
+- provider
+- errors
+- recommendations/signals
+
+Require:
+
+universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+requested =
+23
+
+received =
+23
+
+Exact symbol membership must equal the current active 23-symbol universe.
+
+PHASE 6 — LEGACY SCAN CHECK
+
+Inspect today's scheduler/scan evidence.
+
+Require:
+
+NO newly scheduled NIFTY_50 / 50-symbol canonical scan.
+
+Historical scan
+76e307f291e7
+from 2026-08-21 is allowed as history.
+
+Classify:
+
+A. only canonical 23-symbol scheduled path
+B. 23-symbol canonical + manual legacy call
+C. new scheduled legacy 50-symbol path
+D. unable to determine
+
+RTV-2 PASS requires A.
+
+PHASE 7 — LIVE KITE PROVENANCE
+
+For the first current-session canonical scan verify all 23:
+
+- symbol
+- instrument token
+- LTP
+- source/provider
+- quote timestamp
+- received timestamp
+- quote age
+- fallback
+- synthetic
+- reliability
+
+Require:
+
+23/23 Kite execution-grade provenance
+0 fallback-as-live
+0 synthetic
+0 stale execution-grade prices
+
+Do not reuse the RTV-1H off-session quote baseline as today's scan evidence.
+
+PHASE 8 — READINESS TRANSITION
+
+Record readiness:
+
+BEFORE CURRENT SCAN
+AFTER CURRENT SCAN
+
+Fields:
+
+- service_ready
+- data_ready
+- session_fresh
+- trading_data_ready
+- active_universe_count
+- valid_token_count
+- missing_token_count
+- Kite symbol count
+- fallback count
+- stale count
+- unavailable count
+- synthetic count
+- latest_quote_timestamp
+- latest_scan_timestamp
+
+trading_data_ready may become TRUE only if every current-session gate passes.
+
+Otherwise leave FALSE and record the blocker.
+
+PHASE 9 — PORTFOLIO / LEDGER RECHECK
+
+After the first canonical scan verify:
+
+/api/portfolio
+==
+/api/portfolio/snapshot
+
+Expected unless legitimate authorized activity occurred:
+
+initial_capital = 100000
+cash/equity = 99721.26
+realized_pnl = -278.74
+unrealized_pnl = 0
+open_positions = 0
+
+Verify the existing six CLOSED ledger rows remain unchanged.
+
+No mutation is authorized.
+
+PHASE 10 — SAFETY RECHECK
+
+Check again after pre-open and after first scan:
+
+paper mode = enabled
+automatic paper entries = disabled
+bootstrap = disabled
+automatic exits = enabled
+live broker orders = disabled
+
+Any unexpected change:
+STOP immediately.
+
+PHASE 11 — COMPLETE EXISTING RTV-2 ARTIFACTS
+
+Update/complete:
+
+1. RTV2_LIVE_SESSION_VALIDATION_REPORT.md
+2. RTV2_PREOPEN_LIFECYCLE.csv
+3. RTV2_FIRST_CANONICAL_SCAN.csv
+4. RTV2_LIVE_KITE_PROVENANCE.csv
+5. RTV2_READINESS_TRANSITION.csv
+6. RTV2_SESSION_SAFETY_RECONCILIATION.md
+
+Do not replace valid baseline evidence.
+Append/complete today's natural-session observations.
+
+FINAL VERDICT:
+
+A. RTV-2 LIVE SESSION PASS
+B. PRE-OPEN FAILURE
+C. SCHEDULER / UNIVERSE FAILURE
+D. KITE PROVENANCE FAILURE
+E. READINESS FAILURE
+F. PORTFOLIO / SAFETY REGRESSION
+G. LIVE SESSION INCOMPLETE — CONTINUE OBSERVATION
+
+Do not return A until:
+- today's 5A/5B/5C are observed
+- first natural canonical scan is observed
+- scan uses exactly the current 23 symbols
+- no new scheduled legacy 50-symbol scan exists
+- fresh Kite provenance is proven for 23/23
+- readiness transitions correctly
+- portfolio and ledger remain reconciled
+- all safety controls remain unchanged
+
+FINAL RULE:
+
+OBSERVE ONLY.
+
+Do not manually trigger scans.
+Do not manually trigger 5A/5B/5C.
+Do not enable automatic entries.
+Do not enable bootstrap.
+Do not enable live orders.
+Do not place broker orders.

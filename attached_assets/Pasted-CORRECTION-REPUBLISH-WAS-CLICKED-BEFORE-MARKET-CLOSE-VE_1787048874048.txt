@@ -1,0 +1,106 @@
+CORRECTION — REPUBLISH WAS CLICKED BEFORE MARKET CLOSE, VERIFY POST-PUBLISH SCANS
+
+The previous report said Publish was not clicked before market close.
+
+Correction:
+The Replit deployment screen shows:
+- Production status active
+- "Jm published 40 minutes ago"
+- Screenshot time: 15:56 IST
+Therefore publish likely happened around 15:16 IST, before NSE close at 15:30 IST.
+
+Use production database and production deployment only.
+
+Do not change thresholds.
+Do not change risk rules.
+Do not enable live orders.
+PAPER ONLY.
+
+TASK 1 — VERIFY ACTUAL PUBLISH TIME
+
+Check Replit production deployment/build timestamp.
+
+Report:
+- latest production deploy timestamp
+- whether deploy happened around 15:16 IST
+- whether production is now running the new build
+- whether old 04:23 UTC build is still serving or replaced
+- whether /api/healthz returns 200
+- production version/startup timestamp
+
+TASK 2 — VERIFY CODE NOW LIVE IN PRODUCTION
+
+Confirm production includes:
+- _build_row explicit parameter fix
+- create_paper_entry defensive try-except
+- bootstrap fallback loop
+- deploy-build.sh cleanup
+- Task #807 force-close stale EXIT_PENDING positions
+- Task #808 exports cleanup
+- Task #809 bootstrap eligibility banner
+
+TASK 3 — CHECK SCANS AFTER PUBLISH
+
+Check all scans between publish time and market close:
+
+Time window:
+15:16 IST to 15:30 IST on 2026-08-18
+
+For each scan, report:
+- scan_id
+- started/completed time
+- BUY count
+- WATCH count
+- IGNORE count
+- bootstrap_eligible count
+- BOOTSTRAP_SCAN_CLAIMED event
+- BOOTSTRAP_PAPER_TRADE_APPROVED event
+- ORDER_EXECUTED / ORDER_REJECTED event
+- any exception
+- whether _build_row NameError still happened
+
+TASK 4 — CHECK FORCE-CLOSE AFTER PUBLISH
+
+Check whether Task #807 ran after publish for these trades:
+
+- P20-acad172b74 TRENT
+- P20-a205b1ef09 DIVISLAB
+- P20-83aa1be8f9 GRASIM
+- P20-4a5f909738 BAJFINANCE
+
+Report:
+- status
+- exit_price
+- realized_pnl
+- exit_rule
+- updated_at
+- PAPER_TRADE_FORCE_CLOSED event present or absent
+
+TASK 5 — CHECK BOOTSTRAP TRADE
+
+Query:
+
+SELECT trade_id, symbol, status, fill_price, quantity, stop_loss, target,
+       trigger_source, fill_model, confidence,
+       created_at AT TIME ZONE 'Asia/Kolkata' AS created_ist
+FROM phase20_paper_trades
+WHERE trigger_source = 'BOOTSTRAP_AUTO'
+ORDER BY created_at LIMIT 1;
+
+Report whether first BOOTSTRAP_AUTO trade was created after publish.
+
+TASK 6 — FINAL REPORT
+
+Generate:
+
+APEXQUANT_ACTUAL_POST_PUBLISH_VERIFICATION_18AUG.md
+
+Include:
+1. Actual publish time.
+2. Whether production build was updated.
+3. Health check result.
+4. Scans after publish before 15:30.
+5. Whether force-close ran.
+6. Whether bootstrap trade fired.
+7. If no trade fired, exact blocker.
+8. Confirmation live orders remained disabled.

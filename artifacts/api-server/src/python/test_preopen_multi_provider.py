@@ -220,6 +220,70 @@ class TestNSEProviderFetchMarket(unittest.TestCase):
                     h = p.health_check()
         self.assertEqual(h["status"], "UNAVAILABLE")
 
+    def test_default_scope_is_all_for_custom_universe_coverage(self):
+        from nse_preopen_provider import _preopen_key
+
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(_preopen_key(), "ALL")
+        with patch.dict(os.environ, {"NSE_PREOPEN_KEY": "NIFTY"}):
+            self.assertEqual(_preopen_key(), "ALL")
+
+    def test_collection_evidence_distinguishes_absent_and_normalized_symbols(self):
+        by_sym = {"INFY": _make_nse_raw("INFY")}
+        with patch("nse_preopen_provider._fetch_raw", return_value=by_sym):
+            with patch("config.SECTOR_MAP", {}):
+                from nse_preopen_provider import NSEPreOpenProvider
+                evidence = NSEPreOpenProvider(["INFY", "MISSING"]).fetch_collection_evidence()
+
+        self.assertEqual(evidence["provider_scope"], "ALL")
+        self.assertEqual(evidence["provider_raw_count"], 1)
+        self.assertEqual([snapshot.symbol for snapshot in evidence["snapshots"]], ["INFY"])
+        outcomes = {outcome["symbol"]: outcome for outcome in evidence["outcomes"]}
+        self.assertEqual(outcomes["INFY"]["outcome_status"], "LIVE_PREOPEN_DATA")
+        self.assertEqual(outcomes["MISSING"]["outcome_status"], "NO_PREOPEN_DATA")
+        self.assertFalse(outcomes["MISSING"]["provider_response_present"])
+
+    def test_nse_timestamp_is_interpreted_as_ist_and_stale_at_five_minutes(self):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from nse_preopen_provider import _nse_last_update_age_seconds
+
+        now = datetime(2026, 7, 29, 9, 15, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:07:00", now),
+            480,
+        )
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:10:00", now),
+            300,
+        )
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:16:00", now),
+            300,
+        )
+        self.assertEqual(_nse_last_update_age_seconds("", now), 300)
+
+    def test_static_auction_timestamp_crosses_stale_boundary_before_freeze(self):
+        """A real static matching-phase timestamp is still stale if collected late."""
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        from nse_preopen_provider import _nse_last_update_age_seconds
+
+        before_boundary = datetime(
+            2026, 7, 29, 9, 11, 59, tzinfo=ZoneInfo("Asia/Kolkata"),
+        )
+        at_boundary = datetime(
+            2026, 7, 29, 9, 12, 0, tzinfo=ZoneInfo("Asia/Kolkata"),
+        )
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:07:00", before_boundary),
+            299,
+        )
+        self.assertEqual(
+            _nse_last_update_age_seconds("29-Jul-2026 09:07:00", at_boundary),
+            300,
+        )
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # KITE PROVIDER TESTS
@@ -354,6 +418,7 @@ class TestProviderManagerFailover(unittest.TestCase):
         import preopen_provider_manager as mgr
         mgr._cached_provider    = None
         mgr._cached_provider_ts = 0.0
+        mgr._cached_symbol_key  = None
 
     def test_nse_wins_when_available(self):
         from preopen_data_model import ProviderState
@@ -378,6 +443,40 @@ class TestProviderManagerFailover(unittest.TestCase):
                 from preopen_provider_manager import get_best_provider
                 p, label = get_best_provider(["INFY"], force=True)
         self.assertEqual(label, "Zerodha Kite")
+
+    def test_kite_uses_a_durable_session_without_legacy_env_token(self):
+        """Fresh processes must select Kite from Phase-20 state alone."""
+        from preopen_data_model import ProviderState
+        import preopen_provider_manager as mgr
+
+        with patch.dict(os.environ, {"ZERODHA_API_KEY": "test-key"}, clear=True):
+            with patch("kite_preopen_provider.resolve_preopen_token",
+                       return_value="durable-token"):
+                with patch("kite_preopen_provider.KitePreOpenProvider") as MockKite:
+                    MockKite.PROVIDER_LABEL = "Zerodha Kite"
+                    MockKite.return_value.health_check.return_value = {
+                        "status": ProviderState.LIVE,
+                    }
+                    provider, label = mgr._try_kite(["INFY"])
+        self.assertIs(provider, MockKite.return_value)
+        self.assertEqual(label, "Zerodha Kite")
+        MockKite.assert_called_once_with(["INFY"])
+
+    def test_kite_refuses_legacy_token_when_durable_store_is_unreachable(self):
+        """A Phase-20 outage must fail closed rather than revive a stale token."""
+        import preopen_provider_manager as mgr
+
+        with patch.dict(os.environ, {
+            "ZERODHA_API_KEY": "test-key",
+            "KITE_ACCESS_TOKEN": "legacy-token",
+        }, clear=True):
+            with patch("kite_token_store._db_load",
+                       side_effect=RuntimeError("durable store unavailable")):
+                with patch("kite_preopen_provider.KitePreOpenProvider") as MockKite:
+                    provider, label = mgr._try_kite(["INFY"])
+        self.assertIsNone(provider)
+        self.assertEqual(label, "")
+        MockKite.assert_not_called()
 
     def test_yahoo_wins_when_nse_and_kite_unavailable(self):
         mock_yf = MagicMock()
@@ -423,6 +522,25 @@ class TestProviderManagerFailover(unittest.TestCase):
             p2, _ = mgr.get_best_provider(["INFY"])       # should hit cache
         self.assertEqual(call_count[0], 1)                # only one real probe
         self.assertIs(p1, p2)
+
+    def test_cache_is_not_reused_for_a_different_requested_universe(self):
+        import preopen_provider_manager as mgr
+        first = MagicMock()
+        second = MagicMock()
+        providers = iter([(first, "NSE Official"), (second, "NSE Official")])
+
+        with patch("preopen_provider_manager._try_nse",
+                   side_effect=lambda symbols: next(providers)) as choose:
+            p1, _ = mgr.get_best_provider(["ALPHA", "BETA"], force=True)
+            p2, _ = mgr.get_best_provider(["ALPHA", "BETA"])
+            p3, _ = mgr.get_best_provider(["GAMMA"])
+
+        self.assertIs(p1, first)
+        self.assertIs(p2, first)
+        self.assertIs(p3, second)
+        self.assertEqual(choose.call_count, 2)
+        self.assertEqual(choose.call_args_list[0].args[0], ["ALPHA", "BETA"])
+        self.assertEqual(choose.call_args_list[1].args[0], ["GAMMA"])
 
 
 # ══════════════════════════════════════════════════════════════════════════════

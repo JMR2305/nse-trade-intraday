@@ -1,0 +1,630 @@
+TASK #963 — FIX EFFECTIVE UNIVERSE VERSION PINNING
+SCANNER + SCHEDULER + PRE-OPEN SESSION AUTHORITY CONSISTENCY
+
+CURRENT NATURAL FAILURE:
+
+Task #930 — 2026-08-31
+
+FINAL VERDICT:
+E. SCANNER / READINESS FAILURE
+
+DURABLE UNIVERSE ITSELF IS CORRECT:
+
+universe_key =
+CUSTOM_LOW_PRICE_SECTOR
+
+revision_id =
+3
+
+version =
+1
+
+symbol_count =
+23
+
+mapping_coverage =
+23/23
+
+set_hash =
+22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016
+
+effective_from =
+2026-08-31 09:00 IST
+
+NATURAL SESSION:
+
+preopen-2026-08-31-dee23c
+
+FAILED RUNTIME STATE:
+
+session status =
+INITIALISING
+
+collection_batch_id =
+none
+
+expected_symbols =
+0
+
+symbols_analysed =
+0
+
+persisted_outcomes =
+0
+
+verified_collection_batch =
+none
+
+frozen_collection_batch =
+none
+
+SCANNER ERROR:
+
+Latest scan was produced by a different pinned universe version
+
+SCHEDULER ERROR:
+
+Effective universe CUSTOM_LOW_PRICE_SECTOR is unavailable: revision_not_found
+
+scheduler health =
+DOWN
+
+GOAL:
+
+Fix the runtime authority handoff so that when a durable universe revision
+becomes effective at 09:00 IST, every runtime consumer resolves and pins the
+same effective revision atomically and consistently.
+
+DO NOT:
+- change universe membership
+- change version 1 contents
+- change effective_from retroactively
+- create another universe version
+- bypass revision authority
+- fall back to legacy custom_universe_master
+- fall back to hard-coded 23 symbols
+- fall back to NIFTY50 / DEFAULT_WATCHLIST
+- trigger Phase 5A manually
+- trigger scans manually
+- replay/retry/backfill the 31 Aug session
+- alter historical Task #930 evidence
+- enable automatic entries
+- enable controlled execution
+- enable live broker orders
+- modify portfolio/ledger/settings
+
+==================================================
+1. ROOT CAUSE — EFFECTIVE REVISION RESOLUTION
+==================================================
+
+Trace exact code path for:
+
+durable revision effective_from
+→ active/effective revision query
+→ scheduler startup/session initialization
+→ scanner expected-universe resolution
+→ pre-open session pinning
+→ market-data readiness
+→ strategy/runtime consumers
+
+Find the FIRST point where revision 3/version 1 becomes unavailable or mismatched.
+
+Determine whether root cause is:
+
+A. timezone comparison bug
+B. effective_from inclusive/exclusive bug
+C. startup cache loaded before 09:00 and not invalidated
+D. active/effective query filters wrong
+E. scheduler session initialized before revision became effective and never re-resolved
+F. scanner pinned old universe revision
+G. process-local cache race
+H. deployment replica inconsistency
+I. stale revision cache
+J. DB transaction visibility issue
+K. runtime session pin created too early
+L. multiple causes
+
+Return exact proven root cause.
+
+==================================================
+2. TIMEZONE / EFFECTIVE TIME CHECK
+==================================================
+
+Verify production representation:
+
+effective_from =
+2026-08-31 03:30:00 UTC
+=
+2026-08-31 09:00:00 IST
+
+Check all comparisons use timezone-aware timestamps.
+
+Require at 09:00:00 IST:
+
+revision 3/version 1 is EFFECTIVE.
+
+Test exact boundaries:
+
+08:59:59 IST -> not effective
+09:00:00 IST -> effective
+09:00:01 IST -> effective
+
+No naive datetime comparison allowed.
+
+==================================================
+3. ACTIVE VS EFFECTIVE SEMANTICS
+==================================================
+
+Clarify whether revision status ACTIVE means:
+
+- administratively active
+or
+- currently effective by time
+
+Create one canonical helper/service for:
+
+get_effective_universe(at_timestamp)
+
+It must consider:
+
+universe_key
+status
+effective_from
+effective_until
+
+Return exactly one effective revision or fail closed.
+
+No consumer may implement its own differing effective-time logic.
+
+==================================================
+4. CACHE INVALIDATION / REFRESH
+==================================================
+
+Audit all universe caches:
+
+- scanner universe cache
+- scheduler universe cache
+- readiness cache
+- Mission Control/API cache
+- strategy context cache
+- pre-open session cache
+
+If a cache is populated before 09:00, it must re-resolve at the effective boundary.
+
+Do NOT require service restart for a scheduled revision to become effective.
+
+Implement one of:
+
+- TTL ending at next effective boundary
+- invalidation event
+- version check per scheduler cycle
+- effective revision query before session pinning
+
+Choose the smallest safe design.
+
+==================================================
+5. SESSION PINNING CONTRACT
+==================================================
+
+A natural pre-open session must pin exactly one effective universe revision.
+
+At session initialization:
+
+resolve effective revision
+
+persist:
+
+universe_key
+universe_id
+revision_id
+version
+set_hash
+expected_symbol_count
+effective_from
+
+Once pinned, that session must remain on the same revision.
+
+But if the session object is created before the revision becomes effective,
+it must not permanently pin "no revision".
+
+Define correct behavior for pre-09:00 session creation.
+
+Recommended contract:
+
+before effective boundary:
+session may exist in WAITING_FOR_EFFECTIVE_UNIVERSE
+
+at/after 09:00:
+resolve and pin the effective revision exactly once
+
+Do not stay INITIALISING with expected_count=0 indefinitely.
+
+==================================================
+6. SCANNER VERSION AUTHORITY
+==================================================
+
+Fix scanner behavior when latest scan belongs to an older universe revision.
+
+Do NOT treat an old scan as valid for current revision.
+
+But the error:
+
+Latest scan was produced by a different pinned universe version
+
+must result in:
+
+STALE_FOR_CURRENT_REVISION
+
+not a permanent inability to start the next natural scheduled scan.
+
+Ensure the next natural scheduled scan resolves current effective revision 3
+and creates a current-version scan.
+
+Do NOT manually trigger a production scan during validation.
+
+==================================================
+7. READINESS SEMANTICS
+==================================================
+
+Readiness should distinguish:
+
+UNIVERSE_NOT_YET_EFFECTIVE
+CURRENT_REVISION_NO_SCAN_YET
+CURRENT_REVISION_SCAN_HEALTHY
+REVISION_MISMATCH
+REVISION_UNAVAILABLE
+
+At 09:00 after revision becomes effective:
+
+revision_not_found must not persist if revision exists and is effective.
+
+If no current-version scan exists yet:
+readiness may be NOT_READY,
+but scheduler must remain capable of producing the natural scan.
+
+Do not create a deadlock where:
+scanner waits for readiness
+while readiness waits for scanner.
+
+==================================================
+8. SCHEDULER DEADLOCK AUDIT
+==================================================
+
+Check for circular dependency:
+
+scheduler requires scanner coverage OK
+→ scanner coverage requires current-version scan
+→ current-version scan requires scheduler
+→ scheduler remains DOWN
+
+If present, break the cycle safely.
+
+Define bootstrap/readiness sequencing for a newly effective universe revision.
+
+No trading bootstrap mode may be enabled.
+
+This is scheduler/data bootstrap only, not trade execution.
+
+==================================================
+9. PRE-OPEN SCHEDULER RECOVERY
+==================================================
+
+Ensure natural Phase 5A can start with:
+
+effective revision = 3
+version = 1
+expected_count = 23
+
+without requiring a prior current-version scan if Phase 5A provider authority
+is independently valid.
+
+If a current-version canonical scan is a genuine prerequisite, prove why and
+ensure scheduler naturally creates it before Phase 5A.
+
+==================================================
+10. ALL-CONSUMER AUTHORITY
+==================================================
+
+After fix, all consumers must use the same canonical effective-revision service:
+
+1. pre-open scheduler
+2. Phase 5A
+3. scanner
+4. scanner readiness
+5. market-data coverage
+6. Mission Control
+7. strategy context
+8. multi-bot/advisory system
+9. signal generation
+10. future paper-entry eligibility
+11. future live-execution eligibility
+
+No duplicate effective-time logic.
+
+==================================================
+11. TESTS — EFFECTIVE-TIME BOUNDARY
+==================================================
+
+Add deterministic tests for:
+
+- revision scheduled for future
+- 08:59:59 no effective revision
+- 09:00:00 revision becomes effective
+- 09:00:01 effective
+- timezone UTC/IST equivalence
+- process started before 09:00
+- cache populated before 09:00
+- cache refresh at boundary
+- session created before 09:00
+- session pins revision at/after 09:00
+- no permanent zero-symbol session
+- old-version scan ignored for current revision
+- natural new-version scan can be created
+- readiness no circular deadlock
+- no service restart required
+- no fallback to legacy universe
+- no hard-coded set authority
+
+==================================================
+12. TESTS — SESSION PIN IMMUTABILITY
+==================================================
+
+Once revision 3 is pinned to a session:
+
+ensure it cannot silently change mid-session.
+
+A future version 2 becoming effective later must only apply to future eligible
+sessions.
+
+Historical/current session remains pinned to revision 3.
+
+==================================================
+13. TASK #947 REGRESSION
+==================================================
+
+Preserve:
+
+automatic collection:
+09:00 <= time < 09:12 IST
+
+final-proof:
+09:08 <= completed_at < 09:12
+
+no collection:
+09:12 <= time < 09:15
+
+freeze:
+09:15 exact verified final-proof batch
+
+freshness:
+age < 300 seconds at ingestion
+
+Do not alter Task #947 semantics.
+
+==================================================
+14. TASK #941/#942 REGRESSION
+==================================================
+
+Preserve:
+
+provider scope ALL
+query-scope cache isolation
+23 per-symbol immutable outcomes
+no fabricated snapshots
+Asia/Kolkata NSE timestamps
+exact MATCH parity
+exact freeze batch
+truthful Pre-Open UI certification state
+
+==================================================
+15. KITE / DATA AUTHORITY REGRESSION
+==================================================
+
+Preserve:
+
+23/23 Kite mappings
+complete instrument authority
+current-price authority provenance
+Mission Control fallback incident tracking
+
+Do not manufacture fallback incidents.
+
+==================================================
+16. SAFETY REGRESSION
+==================================================
+
+Require:
+
+automatic paper entries = false
+entry confirmation = null
+bootstrap = false
+automatic exits = true
+controlled execution = disabled
+execution_allowed = false
+live broker orders = disabled
+broker mode = PAPER_TRADING / RESEARCH ONLY
+
+portfolio source = phase20_ledger
+
+No trading behavior change.
+
+==================================================
+17. FULL TEST GATE
+==================================================
+
+Run:
+
+universe version/effective-time tests
+session pinning tests
+scanner tests
+readiness tests
+scheduler tests
+Phase5A tests
+Task947 timing/freeze tests
+Kite mapping tests
+market-data authority tests
+multi-bot/advisory authority tests
+Phase20 safety tests
+portfolio/ledger tests
+API tests
+dashboard tests
+TypeScript
+Python compilation
+production builds
+
+Require zero unexpected failures.
+
+==================================================
+18. DEPLOYMENT
+==================================================
+
+After tests pass:
+
+create one clean approved release.
+
+Report:
+
+APPROVED_RELEASE_COMMIT
+EXPECTED_BUILD_ID
+
+List exact runtime files changed.
+
+Deploy only the approved release.
+
+==================================================
+19. POST-DEPLOY READ-ONLY PROOF
+==================================================
+
+After deployment, do NOT trigger a scan or Phase 5A.
+
+Verify:
+
+production identity exact match
+
+durable universe revision 3/version 1 exists
+
+effective resolver at current time returns revision 3
+
+scanner authority recognizes revision 3
+
+revision_not_found = false
+
+scheduler health no longer permanently DOWN due to revision_not_found
+
+pre-open authority resolves expected_count = 23 where current-session logic permits
+
+all consumers expose same revision ID/hash
+
+No manual run required.
+
+==================================================
+20. HISTORICAL PRESERVATION
+==================================================
+
+Do not modify:
+
+preopen-2026-08-31-dee23c
+
+It remains failed natural evidence.
+
+No retry
+No replay
+No backfill
+No retroactive pin
+No relabel
+
+==================================================
+21. NEXT NATURAL SESSION
+==================================================
+
+Prepare the next natural certification.
+
+At next eligible session require:
+
+before 09:00:
+revision 3 known as next effective/current effective as appropriate
+
+at 09:00:
+revision 3 resolves immediately
+
+session pins:
+revision 3
+version 1
+expected_count 23
+
+natural Phase5A:
+23 symbols
+
+natural canonical scan:
+revision 3
+23/23
+
+Task947 final-proof/freeze:
+PASS naturally
+
+==================================================
+22. DO NOT STOP EARLY
+==================================================
+
+Do not stop after:
+
+"root cause found"
+"cache fixed"
+"tests passed"
+"deployment ready"
+
+Continue through:
+
+ROOT CAUSE
+→ FIX
+→ FULL TESTS
+→ CLEAN DEPLOY
+→ READ-ONLY PRODUCTION AUTHORITY PROOF
+→ NEXT NATURAL SESSION GATE
+
+Stop early only for a genuine safety blocker.
+
+==================================================
+OUTPUT
+==================================================
+
+Create:
+
+TASK_963_EFFECTIVE_REVISION_ROOT_CAUSE.md
+TASK_963_EFFECTIVE_TIME_CONTRACT.md
+TASK_963_SESSION_PINNING_DESIGN.md
+TASK_963_SCANNER_READINESS_DEADLOCK_AUDIT.md
+TASK_963_IMPLEMENTATION_AND_TEST_REPORT.md
+TASK_963_PRODUCTION_AUTHORITY_VERIFICATION.md
+TASK_963_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL VERDICT:
+
+A. PASS — EFFECTIVE REVISION PINNING FIXED,
+   SCANNER/SCHEDULER AUTHORITY CONSISTENT,
+   NEXT NATURAL SESSION READY
+
+B. EFFECTIVE-TIME / TIMEZONE DEFECT
+
+C. CACHE INVALIDATION DEFECT
+
+D. SESSION PINNING DEFECT
+
+E. SCANNER VERSION-AUTHORITY DEFECT
+
+F. READINESS DEADLOCK
+
+G. MULTIPLE ROOT CAUSES
+
+H. TEST FAILURE
+
+I. DEPLOYMENT IDENTITY FAILURE
+
+J. SAFETY REGRESSION
+
+FINAL RULE:
+
+Do not make today's failed Task #930 pass retroactively.
+
+Fix the runtime revision-resolution defect prospectively and validate it on the
+next natural session only.

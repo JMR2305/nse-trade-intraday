@@ -1,0 +1,131 @@
+PHASE 1 PLAN REVISION REQUIRED — DO NOT EXECUTE YET
+
+Review APEXQUANT_PHASE1_CAPITAL_UNIVERSE_LTIM_BRANCH_PLAN.md.
+
+Do not execute capital migration yet.
+Do not populate custom universe yet.
+Do not switch active universe yet.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change production settings.
+Do not touch Phase 20 safety files.
+Do not call broker order APIs.
+PAPER ONLY.
+
+The plan is directionally useful, but it is NOT approved as-is.
+
+ISSUE 1 — CUSTOM UNIVERSE DOES NOT MATCH TARGET
+
+Our target universe is low-price IT / Infra / Bank, preferably around ₹20–₹200 unless operator changes the band.
+
+The current proposed list includes high-price names and even says LTIM is ₹4,000–₹6,000. That conflicts with the low-price target.
+
+Revise the universe section.
+
+Requirements:
+1. Define the exact price band options:
+   - Option A: ₹20–₹200 strict low-price
+   - Option B: ₹20–₹500 moderate
+   - Option C: ₹20–₹1,500 broad liquid universe
+2. For each option, explain pros/cons for ₹1,00,000 capital and ₹25,000 per-stock cap.
+3. Do not include high-price stocks in a strict low-price list.
+4. LTIM must not be included in the strict low-price universe unless current price is within the approved band.
+5. For every proposed symbol, provide:
+   - symbol
+   - company
+   - sector
+   - expected price band
+   - liquidity reason
+   - why suitable for intraday
+   - whether Kite/yfinance mapping exists
+   - whether it is already in current master data
+
+ISSUE 2 — SEPARATE BRANCH WORK FROM PRODUCTION DB ACTIONS
+
+The report says separate branch only, but execution order includes production DB/API actions.
+
+Split the plan into:
+- Phase 1A: revised candidate universe research and validation only
+- Phase 1B: dev/staging custom universe population only
+- Phase 1C: operator-approved production capital migration to ₹1,00,000
+- Phase 1D: operator-approved production custom universe population
+- Phase 1E: operator-approved active universe switch
+
+Clearly mark which steps are:
+- documentation only
+- dev-only
+- production DB write
+- production setting change
+
+ISSUE 3 — CAPITAL MIGRATION SHOULD BE SEPARATE
+
+Capital migration to ₹1,00,000 is likely correct, but do not bundle it with universe switching.
+
+Create a standalone capital migration checklist:
+1. Confirm auto_paper_entries=false.
+2. Confirm bootstrap_paper_enabled=false.
+3. Confirm positions=[].
+4. Confirm EXIT_PENDING count=0.
+5. Capture settings before.
+6. Call capital migration endpoint with confirmation.
+7. Capture settings after.
+8. Verify initial_capital=100000.
+9. Verify risk limits:
+   - per-stock cap ₹25,000
+   - risk per trade ₹1,000
+   - daily loss limit ₹3,000
+10. Confirm no trade row changed.
+11. Confirm no live orders.
+
+ISSUE 4 — UI CLAIM “NO UI CHANGES REQUIRED” NEEDS PROOF
+
+The report says no UI file changes are required.
+
+Verify this with route/component evidence:
+- AI Paper Trader
+- Mission Control
+- Portfolio/Risk pages
+- Mobile Positions
+- Live Data Health
+
+For each page, prove it will show:
+- capital source
+- active universe
+- custom universe symbol count
+- canonical vs legacy source
+- auto entries paused
+- bootstrap paused
+
+If any page cannot show this clearly, list required UI label/card changes.
+
+ISSUE 5 — TEST PLAN TOO LIGHT FOR CUSTOM UNIVERSE
+
+Add tests or verification for:
+1. custom_universe_master upsert idempotency
+2. active-only filtering
+3. membership history append-only snapshot
+4. switch to CUSTOM_LOW_PRICE_SECTOR uses only custom symbols
+5. empty custom universe blocks scan safely
+6. invalid Kite/yfinance mapping is reported, not silently used
+7. Phase 0C safety tests still pass after Phase 1 changes
+
+DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE1_REVISED_CAPITAL_UNIVERSE_EXECUTION_PLAN.md
+
+Include:
+1. Revised executive summary.
+2. Corrected low-price universe options.
+3. Recommended price band.
+4. Candidate symbol table by price band.
+5. Capital migration standalone checklist.
+6. Production vs dev action separation.
+7. UI proof.
+8. Tests and verification.
+9. Rollback plan.
+10. Clear operator decisions required.
+11. Confirmation no execution was performed.
+12. Confirmation auto entries/bootstrap remain disabled.
+13. Confirmation no live orders.

@@ -19,6 +19,7 @@ import os
 import sys
 import types
 import unittest
+import pytest
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
@@ -37,12 +38,11 @@ def _stub_module(name: str, **attrs) -> types.ModuleType:
     mod = types.ModuleType(name)
     for k, v in attrs.items():
         setattr(mod, k, v)
-    sys.modules[name] = mod
     return mod
 
 
 # scan_state_store: db_available returns False so the file-fallback path is used.
-_stub_module("scan_state_store", db_available=lambda: False, _connect=None)
+_scan_mod = _stub_module("scan_state_store", db_available=lambda: False, _connect=None)
 
 # pipeline_events: query_events returns [] by default (tests override per-case).
 _pe_mod = _stub_module("pipeline_events", query_events=lambda **kw: [],
@@ -62,7 +62,15 @@ _mh_mod = _stub_module("market_hours", market_state=_market_state_stub)
 # ── Import the module under test ──────────────────────────────────────────────
 import importlib
 import buy_audit  # noqa: E402  (module is now importable after stubs)
-importlib.reload(buy_audit)  # reload so it picks up the stubs set above
+def _stub_modules():
+    return {"scan_state_store": _scan_mod, "pipeline_events": _pe_mod,
+            "phase20_executor": _exec_mod, "market_hours": _mh_mod}
+
+
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    with patch.dict(sys.modules, _stub_modules()):
+        yield
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

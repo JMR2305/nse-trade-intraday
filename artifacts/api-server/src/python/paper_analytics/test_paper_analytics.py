@@ -155,7 +155,8 @@ class TestTradeAnalytics(unittest.TestCase):
         from paper_analytics.trade_analytics import get_trade_analytics
         with patch("portfolio_performance.performance_engine.load_performance_data",
                    return_value=_make_perf_data(trades)), \
-             patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0):
+              patch("portfolio_performance.performance_engine._initial_capital",
+                    return_value=500_000.0):
             return get_trade_analytics()
 
     def test_win_rate_correct(self):
@@ -272,7 +273,8 @@ class TestRiskAnalytics(unittest.TestCase):
         from paper_analytics.risk_analytics import get_risk_analytics
         with patch("portfolio_performance.performance_engine.load_performance_data",
                    return_value=_make_perf_data(trades)), \
-             patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0), \
+              patch("portfolio_performance.performance_engine._initial_capital",
+                    return_value=500_000.0), \
              patch("risk_optimisation.shared_services.get_risk_optimisation_snapshot",
                    return_value={}):
             return get_risk_analytics()
@@ -377,7 +379,8 @@ class TestPortfolioAnalytics(unittest.TestCase):
         from paper_analytics.portfolio_analytics import get_portfolio_analytics
         with patch("portfolio_performance.performance_engine.load_performance_data",
                    return_value=_make_perf_data()), \
-             patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0), \
+              patch("portfolio_performance.performance_engine._initial_capital",
+                    return_value=500_000.0), \
              patch("risk_optimisation.shared_services.get_capital", return_value={}):
             return get_portfolio_analytics()
 
@@ -694,7 +697,8 @@ class TestRecoveryCurve(unittest.TestCase):
         from paper_analytics.trade_analytics import get_trade_analytics
         with patch("portfolio_performance.performance_engine.load_performance_data",
                    return_value=_make_perf_data(trades)), \
-             patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0):
+              patch("portfolio_performance.performance_engine._initial_capital",
+                    return_value=500_000.0):
             return get_trade_analytics()
 
     def test_recovery_curve_present(self):
@@ -831,7 +835,8 @@ class TestRecoveryCurveNoDrawdown(unittest.TestCase):
         pd = _make_perf_data(pnl_history=history)
         with patch("portfolio_performance.performance_engine.load_performance_data",
                    return_value=pd), \
-             patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0):
+              patch("portfolio_performance.performance_engine._initial_capital",
+                    return_value=500_000.0):
             return get_trade_analytics()
 
     def test_recovery_curve_empty_when_no_drawdown(self):
@@ -1348,7 +1353,8 @@ class TestZeroTradePortfolio(unittest.TestCase):
         from paper_analytics.trade_analytics import get_trade_analytics
         with patch("portfolio_performance.performance_engine.load_performance_data",
                    return_value=_make_perf_data([])), \
-             patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0):
+              patch("portfolio_performance.performance_engine._initial_capital",
+                    return_value=500_000.0):
             r = get_trade_analytics()
         self.assertIsNone(r["largest_winner"])
 
@@ -1356,7 +1362,8 @@ class TestZeroTradePortfolio(unittest.TestCase):
         from paper_analytics.trade_analytics import get_trade_analytics
         with patch("portfolio_performance.performance_engine.load_performance_data",
                    return_value=_make_perf_data([])), \
-             patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0):
+              patch("portfolio_performance.performance_engine._initial_capital",
+                    return_value=500_000.0):
             r = get_trade_analytics()
         self.assertIsNone(r["largest_loser"])
 
@@ -1370,7 +1377,8 @@ class TestZeroTradePortfolio(unittest.TestCase):
         for fn in endpoints:
             with patch("portfolio_performance.performance_engine.load_performance_data",
                        return_value=_make_perf_data([])), \
-                 patch("portfolio_performance.performance_engine.INITIAL_CAPITAL", 500_000.0), \
+                  patch("portfolio_performance.performance_engine._initial_capital",
+                        return_value=500_000.0), \
                  patch("paper_analytics.shared_services._load_trades",   return_value=self._ZERO_TRADES), \
                  patch("paper_analytics.shared_services._load_risk",     return_value=self._ZERO_RISK), \
                  patch("paper_analytics.shared_services._load_learning", return_value=self._ZERO_LRN), \

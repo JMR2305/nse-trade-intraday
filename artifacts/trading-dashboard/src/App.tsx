@@ -122,8 +122,12 @@ import AIValidationV2Page          from "@/pages/AIValidationV2Page";
 import { ConnectivityPanel } from "@/components/ConnectivityPanel";
 import AILearningCenter            from "@/pages/AILearningCenter";
 import MissionControl              from "@/pages/MissionControl";
+import MarketDataIncidents         from "@/pages/MarketDataIncidents";
+import CustomUniverseManagement    from "@/pages/CustomUniverseManagement";
 import TradingQuality              from "@/pages/TradingQuality";
 import InstitutionalAnalytics      from "@/pages/InstitutionalAnalytics";
+import AdvisoryDashboard            from "@/pages/AdvisoryDashboard";
+import { isAdvisoryUiEnabled }      from "@/lib/advisoryFlags";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -262,8 +266,13 @@ function Router() {
         <Route path="/validation-v2"              component={AIValidationV2Page} />
         <Route path="/ai-learning-center"         component={AILearningCenter} />
         <Route path="/mission-control"            component={MissionControl} />
+        <Route path="/market-data-incidents"      component={MarketDataIncidents} />
+        <Route path="/custom-universe-management" component={CustomUniverseManagement} />
         <Route path="/trading-quality"            component={TradingQuality} />
         <Route path="/institutional-analytics"    component={InstitutionalAnalytics} />
+        {isAdvisoryUiEnabled() && (
+          <Route path="/advisory" component={AdvisoryDashboard} />
+        )}
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

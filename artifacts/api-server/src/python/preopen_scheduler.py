@@ -5,8 +5,7 @@ Cadence:
   08:45 — initialise, validate provider + DB, load prev-close refs
   08:55 — readiness check
   09:00–09:08 — snapshots every 30s
-  09:08–09:12 — snapshots every 15s (where supported)
-  09:12–09:15 — final capture
+   09:08–09:12 — snapshots every 15s (where supported); approved final-proof window
   09:15 — freeze + generate watchlists
   09:20 — reconcile indicative vs actual prices
 
@@ -66,6 +65,55 @@ def _collection_interval_seconds() -> int:
     if (9, 0) <= t < (9, 8):
         return 30    # main collection phase
     return 60        # early or final capture
+
+
+_FINAL_COLLECTION_START_MINUTE = 9 * 60 + 8
+_FINAL_COLLECTION_END_MINUTE = 9 * 60 + 12
+
+
+def _approved_final_collection(session: Optional[dict],
+                               now: Optional[datetime] = None) -> tuple[bool, str]:
+    """Require a naturally captured, fresh-at-ingestion final-proof batch.
+
+    The provider timestamp is evaluated when a row is collected.  At 09:15 the
+    exchange may already be in matching/transition and no longer emit a newer
+    auction timestamp, so elapsed wall-clock age alone cannot invalidate an
+    otherwise exact batch captured in the approved 09:08–09:12 proof window.
+    Missing, malformed, future, out-of-day, manual, or older evidence cannot
+    pass this authority gate.
+    """
+    session = session or {}
+    if str(session.get("collection_source") or "").strip().upper() != "SCHEDULED":
+        return False, "Freeze blocked: verified batch was not naturally scheduled."
+
+    raw_completed_at = session.get("collection_completed_at")
+    if not raw_completed_at:
+        return False, "Freeze blocked: verified batch has no durable collection completion time."
+    try:
+        value = str(raw_completed_at).strip().replace("Z", "+00:00")
+        completed_at = datetime.fromisoformat(value)
+        if completed_at.tzinfo is None:
+            raise ValueError("naive collection timestamp")
+        completed_ist = completed_at.astimezone(_IST)
+    except (TypeError, ValueError):
+        return False, "Freeze blocked: verified batch has an invalid completion time."
+
+    freeze_now = now or _now_ist()
+    if completed_ist > freeze_now:
+        return False, "Freeze blocked: verified batch completion time is in the future."
+    if (
+        completed_ist.date() != freeze_now.date()
+        or completed_ist.strftime("%Y-%m-%d") != str(session.get("trading_date") or "")
+    ):
+        return False, "Freeze blocked: verified batch was not captured on this trading date."
+
+    minute = completed_ist.hour * 60 + completed_ist.minute
+    if not _FINAL_COLLECTION_START_MINUTE <= minute < _FINAL_COLLECTION_END_MINUTE:
+        return False, (
+            "Freeze blocked: verified batch was not captured in the approved "
+            "09:08–09:12 IST final-proof window."
+        )
+    return True, ""
 
 
 # ── Phase states ──────────────────────────────────────────────────────────────
@@ -155,20 +203,144 @@ class PreOpenScheduler:
         """Single snapshot collection pass."""
         try:
             import preopen_engine as engine
-            return engine.collect_snapshot(session_id=self.session_id)
+            return engine.collect_snapshot(session_id=self.session_id, source="MANUAL")
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def _phase_09_15_freeze(self) -> None:
-        """09:15 — freeze final snapshot + generate watchlists."""
-        self._emit(SchedulerPhase.FROZEN)
+    def _phase_09_15_freeze(self) -> bool:
+        """09:15 — freeze only a complete, durably persisted collection."""
         try:
             import preopen_db as db_mod
             import preopen_engine as engine
             from preopen_watchlist import generate_watchlists
 
             today = _today_ist()
-            snaps_raw = db_mod.get_latest_snapshots(today)
+            session = db_mod.get_session(self.session_id)
+            collected = (session or {}).get("provider_collected_count")
+            persisted = (session or {}).get("persisted_count")
+            expected = (session or {}).get("expected_count")
+            failed = (session or {}).get("failed_count")
+            persistence_status = str((session or {}).get("persistence_status") or "")
+            collection_batch_id = (session or {}).get("verified_collection_batch_id")
+            if (
+                not session
+                or persistence_status != "MATCH"
+                or collected is None
+                or persisted is None
+                or expected is None
+                or int(collected) != int(persisted)
+                or int(collected) != int(expected)
+                or int(failed or 0) != 0
+                or not collection_batch_id
+            ):
+                reason = (
+                    "Freeze blocked: Phase 5A collection is not durably complete "
+                    f"(expected={expected}, provider={collected}, persisted={persisted}, "
+                    f"failed={failed}, "
+                    f"status={persistence_status or 'UNKNOWN'}, "
+                    f"batch={collection_batch_id or 'UNKNOWN'})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+
+            approved, authority_reason = _approved_final_collection(
+                session, now=_now_ist(),
+            )
+            if not approved:
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", authority_reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": authority_reason})
+                return False
+
+            snaps_raw = db_mod.get_session_snapshots(
+                self.session_id, str(collection_batch_id),
+            )
+            snapshot_ids = {
+                str(s.get("snapshot_id") or "") for s in snaps_raw
+                if s.get("snapshot_id")
+            }
+            symbols = {
+                str(s.get("symbol") or "").strip().upper() for s in snaps_raw
+                if s.get("symbol")
+            }
+            coverage = session.get("collection_coverage") or {}
+            expected_symbols = {
+                str(symbol or "").strip().upper()
+                for symbol in coverage.get("expected_symbols") or []
+                if str(symbol or "").strip()
+            }
+            if (
+                not snaps_raw
+                or len(snaps_raw) != int(persisted)
+                or len(snapshot_ids) != int(persisted)
+                or len(symbols) != int(persisted)
+                or len(expected_symbols) != int(expected)
+                or symbols != expected_symbols
+                or any(
+                    str(snapshot.get("collection_batch_id") or "")
+                    != str(collection_batch_id)
+                    or
+                    snapshot.get("is_stale") is not False
+                    or str(snapshot.get("source_status") or "").strip().upper() != "LIVE"
+                    for snapshot in snaps_raw
+                )
+            ):
+                reason = (
+                    "Freeze blocked: exact verified collection batch does not "
+                    f"match its persisted proof (batch={collection_batch_id}, "
+                    f"rows={len(snaps_raw)}, snapshots={len(snapshot_ids)}, "
+                    f"symbols={len(symbols)}, expected_symbols={len(expected_symbols)}, "
+                    f"persisted={persisted})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+
+            # Snapshot parity proves the real market-data rows. The separate
+            # outcome matrix proves every expected symbol was classified by this
+            # exact batch, so a provider omission can never disappear behind an
+            # aggregate count or a placeholder snapshot.
+            get_outcomes = getattr(db_mod, "get_collection_outcomes", None)
+            if not callable(get_outcomes):
+                reason = "Freeze blocked: durable collection outcome reader is unavailable."
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            outcomes = get_outcomes(self.session_id, str(collection_batch_id))
+            outcome_symbols = {
+                str(row.get("symbol") or "").strip().upper()
+                for row in outcomes
+                if str(row.get("symbol") or "").strip()
+            }
+            live_symbols = {
+                str(row.get("symbol") or "").strip().upper()
+                for row in outcomes
+                if str(row.get("outcome_status") or "").strip().upper()
+                == "LIVE_PREOPEN_DATA"
+            }
+            if (
+                len(outcomes) != int(expected)
+                or outcome_symbols != expected_symbols
+                or live_symbols != expected_symbols
+            ):
+                reason = (
+                    "Freeze blocked: exact collection outcomes are incomplete "
+                    f"or non-live (batch={collection_batch_id}, outcomes={len(outcomes)}, "
+                    f"expected={expected}, live={len(live_symbols)})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "FREEZE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
 
             # Rebuild PreOpenSnapshot objects for watchlist generation
             from preopen_data_model import PreOpenSnapshot
@@ -215,26 +387,49 @@ class PreOpenScheduler:
                 {"symbol_count": len(snap_objs),
                  "valid_count": sum(1 for s in snap_objs if not s.is_stale)},
             )
-            db_mod.upsert_session({
+            if not db_mod.upsert_session({
                 "session_id": self.session_id,
                 "trading_date": today,
                 "status": "FROZEN",
+                "frozen_collection_batch_id": collection_batch_id,
                 "frozen_at": _now_ist().isoformat(),
-            })
+            }):
+                raise RuntimeError("Could not durably mark pre-open session FROZEN")
             self._emit(SchedulerPhase.FROZEN, {
                 "watchlists_generated": list(watchlists.keys()),
                 "symbols": len(snap_objs),
             })
+            return True
         except Exception as e:
             self._emit(SchedulerPhase.ERROR, {"error": f"freeze failed: {e}"})
+            return False
 
-    def _phase_09_20_reconcile(self) -> None:
+    def _phase_09_20_reconcile(self) -> bool:
         """09:20 — reconcile indicative vs actual prices (best-effort)."""
         self._emit(SchedulerPhase.RECON)
         try:
             import preopen_db as db_mod
             today = _today_ist()
-            snaps = db_mod.get_latest_snapshots(today)
+            session = db_mod.get_session(self.session_id) or {}
+            if session.get("status") not in ("FROZEN", "RECONCILED", "RECONCILED_0930"):
+                reason = (
+                    "Reconcile blocked: durable FROZEN prerequisite is missing "
+                    f"(session status={session.get('status') or 'UNKNOWN'})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "RECONCILE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            collection_batch_id = session.get("frozen_collection_batch_id")
+            if not collection_batch_id:
+                reason = "Reconcile blocked: no durable frozen collection batch is recorded."
+                db_mod.record_collection_failure(
+                    self.session_id, "RECONCILE_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            snaps = db_mod.get_session_snapshots(self.session_id, str(collection_batch_id))
 
             # Attempt to get actual prices from live quote service
             try:
@@ -250,7 +445,7 @@ class PreOpenScheduler:
             from preopen_reconciliation import reconcile_session
 
             # Watchlist symbols from the frozen watchlists
-            wl = db_mod.get_latest_watchlists(today)
+            wl = db_mod.get_session_watchlists(self.session_id)
             wl_syms = set()
             for items in wl.values():
                 for item in items:
@@ -264,17 +459,20 @@ class PreOpenScheduler:
                 prices_0930={},
                 watchlist_symbols=wl_syms,
             )
-            db_mod.upsert_session({
+            if not db_mod.upsert_session({
                 "session_id": self.session_id,
                 "trading_date": today,
                 "status": "RECONCILED",
                 "reconciled_at": _now_ist().isoformat(),
-            })
+            }):
+                raise RuntimeError("Could not durably mark pre-open session RECONCILED")
             self._emit(SchedulerPhase.DONE, {"reconciliation": result})
+            return True
         except Exception as e:
             self._emit(SchedulerPhase.ERROR, {"error": f"reconcile failed: {e}"})
+            return False
 
-    def _phase_09_30_post_open_reconcile(self) -> None:
+    def _phase_09_30_post_open_reconcile(self) -> bool:
         """
         09:30 — enrich reconciliation records with actual 09:30 prices.
 
@@ -287,7 +485,26 @@ class PreOpenScheduler:
         try:
             import preopen_db as db_mod
             today = _today_ist()
-            snaps = db_mod.get_latest_snapshots(today)
+            session = db_mod.get_session(self.session_id) or {}
+            if session.get("status") not in ("RECONCILED", "RECONCILED_0930"):
+                reason = (
+                    "09:30 reconcile blocked: durable RECONCILED prerequisite "
+                    f"is missing (session status={session.get('status') or 'UNKNOWN'})."
+                )
+                db_mod.record_collection_failure(
+                    self.session_id, "RECONCILE_0930_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            collection_batch_id = session.get("frozen_collection_batch_id")
+            if not collection_batch_id:
+                reason = "09:30 reconcile blocked: no durable frozen collection batch is recorded."
+                db_mod.record_collection_failure(
+                    self.session_id, "RECONCILE_0930_BLOCKED", reason,
+                )
+                self._emit(SchedulerPhase.ERROR, {"error": reason})
+                return False
+            snaps = db_mod.get_session_snapshots(self.session_id, str(collection_batch_id))
 
             # Fetch live quotes at 09:30
             try:
@@ -301,19 +518,22 @@ class PreOpenScheduler:
                 prices_0930 = {}
 
             if prices_0930:
-                db_mod.update_reconciliation_0930(today, prices_0930)
+                db_mod.update_reconciliation_0930(self.session_id, prices_0930)
 
-            db_mod.upsert_session({
+            if not db_mod.upsert_session({
                 "session_id": self.session_id,
                 "trading_date": today,
                 "status": "RECONCILED_0930",
-            })
+            }):
+                raise RuntimeError("Could not durably mark pre-open session RECONCILED_0930")
             self._emit(SchedulerPhase.DONE, {
                 "step": "0930",
                 "prices_patched": len(prices_0930),
             })
+            return True
         except Exception as e:
             self._emit(SchedulerPhase.ERROR, {"error": f"09:30 reconcile failed: {e}"})
+            return False
 
     def run_once(self) -> Dict[str, Any]:
         """Run the full pre-open cycle synchronously (for testing / manual trigger)."""
@@ -322,9 +542,10 @@ class PreOpenScheduler:
         self._phase_08_45_init()
         self._phase_08_55_readiness()
         result = self._collect_one()
-        self._phase_09_15_freeze()
-        self._phase_09_20_reconcile()
-        self._phase_09_30_post_open_reconcile()
+        froze = self._phase_09_15_freeze()
+        reconciled = self._phase_09_20_reconcile() if froze else False
+        if reconciled:
+            self._phase_09_30_post_open_reconcile()
         return {"ran": True, "session_id": self.session_id, "log": self._log}
 
     def status(self) -> Dict[str, Any]:

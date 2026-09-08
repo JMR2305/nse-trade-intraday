@@ -1,0 +1,168 @@
+name: Task 969 PostgreSQL 16 Validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [task967-migration-guard-hardening]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: task967
+          POSTGRES_PASSWORD: task967
+          POSTGRES_DB: task967_disposable_task968
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd="pg_isready -U task967 -d task967_disposable_task968"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DATABASE_URL: postgresql://task967:task967@127.0.0.1:5432/task967_disposable_task968
+      TASK967_TEST_DATABASE_URL: postgresql://task967:task967@127.0.0.1:5432/task967_disposable_task968
+      NODE_ENV: test
+      CI: 'true'
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout validation HEAD
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify Task967 ancestor and exact Task971/972 correction diff
+        id: identity
+        run: python3 scripts/task969_ci_report.py identity
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Verify canonical audit order and exact source correction boundaries
+        id: schema_order
+        run: python3 -m unittest discover -s scripts -p test_task971_schema_order.py -v
+      - name: Pin pnpm compatible with unchanged repository build policy
+        id: pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.33.3 --activate
+          test "$(pnpm --version)" = '10.33.3'
+      - name: Install locked Node dependencies using repository approvals
+        id: install
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee task969-install.log
+          git diff --exit-code -- package.json pnpm-lock.yaml pnpm-workspace.yaml
+      - name: Install native-validator dependency
+        id: validator_deps
+        run: python -m pip install 'psycopg[binary]==3.3.5'
+      - name: Migration guard adversarial suite
+        id: guard
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/db run test-guard 2>&1 | tee task969-guard.log
+      - name: Migration offline safety classification
+        id: offline
+        run: |
+          set -o pipefail
+          node lib/db/scripts/safe-migrate.mjs check lib/db/migrations/0002_universe_authority_schema_parity.sql 2>&1 | tee task969-offline.log
+      - name: Native PostgreSQL catalog, preservation and idempotency gate
+        id: native
+        run: |
+          set -o pipefail
+          python -u scripts/task969_postgres_validation.py 2>&1 | tee task969-native.log
+      # A catalog failure stops here; downstream tests cannot override it.
+      - name: Focused disposable-DB pushNotifier suite
+        id: api_focused
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server run test src/lib/pushNotifier.test.ts --no-file-parallelism 2>&1 | tee task969-api-focused.log
+      - name: Full DB-dependent API suite
+        id: api
+        run: |
+          set -o pipefail
+          pnpm --filter @workspace/api-server run test --no-file-parallelism 2>&1 | tee task969-api.log
+      - name: Setup locked Python application environment
+        uses: astral-sh/setup-uv@v6
+      - name: Install Python application/test dependencies
+        id: python_deps
+        run: |
+          uv sync --frozen
+          uv pip install 'pytest-asyncio==1.4.0'
+      - name: Prepare canonical fresh-database Python fixture
+        id: python_fixture
+        run: python scripts/task973_prepare_python_db.py
+      - name: Native Python database integration suites
+        id: python_native
+        working-directory: artifacts/api-server/src/python
+        run: |
+          set -o pipefail
+          ../../../../.venv/bin/python -m pytest tests/integration -q 2>&1 | tee ../../../../task969-python-native.log
+      - name: Task974 clean-interpreter collection diagnostics
+        run: .venv/bin/python scripts/task974_collection_diagnostics.py
+      - name: Task974 scoped-stub restoration regressions
+        id: python_isolation
+        run: |
+          set -o pipefail
+          cd artifacts/api-server/src/python
+          ../../../../.venv/bin/python -m pytest test_task974_import_isolation.py test_consecutive_blocks.py test_analytics_30plus_integration.py ai_performance/test_ai_performance.py strategy_intelligence/test_strategy_intelligence.py portfolio_performance/test_portfolio_performance.py market_intelligence_hub/test_market_intelligence_hub.py research_lab/test_research_lab.py test_event_intelligence.py test_macro_intelligence.py test_explainable_ai.py test_research_lab.py tests/buy_audit_test.py tests/test_eod_reconciliation.py tests/test_phase20_startup_overnight_check.py tests/test_ohlcv_cold_start_check.py tests/test_journey_execution_labels.py tests/unit/test_size_reduced_to_cap.py tests/unit/test_bootstrap_paper_trade.py tests/test_balanced_decision.py tests/test_strategy_intelligence.py test_phase9.py test_phase18.py -q 2>&1 | tee ../../../../task974-focused-python.log
+      - name: Python application and authority/session suites
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python_fixture.outcome == 'success' }}
+        id: python
+        working-directory: artifacts/api-server/src/python
+        run: |
+          set -o pipefail
+          ../../../../.venv/bin/python -m pytest . -q -p task974_runtime_leak_diagnostics 2>&1 | tee ../../../../task969-python.log
+      - name: Dashboard suite
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
+        id: dashboard
+        run: pnpm --filter @workspace/trading-dashboard run test
+      - name: TypeScript
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
+        id: typecheck
+        run: pnpm run typecheck
+      - name: Python compilation
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
+        id: compile
+        run: python -m compileall -q artifacts/api-server/src/python
+      - name: API build
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
+        id: api_build
+        run: pnpm --filter @workspace/api-server run build
+      - name: Dashboard build
+        if: ${{ !cancelled() && steps.native.outcome == 'success' && steps.api.outcome == 'success' && steps.python.outcome == 'success' && steps.python_isolation.outcome == 'success' }}
+        id: dashboard_build
+        run: env -u REPL_ID PORT=9999 BASE_PATH=/trading-dashboard/ pnpm --filter @workspace/trading-dashboard run build
+      - name: Write final report including failed/skipped gates
+        if: always()
+        env:
+          TASK969_STEPS: ${{ toJSON(steps) }}
+        run: python3 scripts/task969_ci_report.py report
+      - name: Upload Task969 evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: task969-postgres-validation-evidence
+          path: |
+            TASK_969_*.md
+            TASK_969_*.json
+            TASK_969_*.csv
+            task969-*.log
+            TASK_973_*.json
+            TASK_973_*.md
+            task974-diagnostics/
+            task974-*.log
+            artifacts/api-server/src/python/TASK_974_RUNTIME_MODULE_LEAKS.json
+            TASK_974_*.md
+            TASK974_STEP26_REMAINING_FAILURES_STATUS.md
+            TASK974_STEP27_BROAD_PYTHON_12_STATUS.md
+          if-no-files-found: error

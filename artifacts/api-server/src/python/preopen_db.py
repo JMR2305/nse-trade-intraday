@@ -1,9 +1,10 @@
 """
 preopen_db.py — Phase 5A Pre-Open Intelligence database layer.
 
-Creates and manages six isolated tables:
+ Creates and manages seven isolated tables:
   preopen_sessions, preopen_snapshots, preopen_rankings,
-  preopen_watchlists, preopen_provider_health, preopen_reconciliation
+ preopen_watchlists, preopen_provider_health, preopen_reconciliation,
+ preopen_collection_outcomes
 
 Additive only — never modifies existing tables.
 Falls back gracefully when DB is unavailable.
@@ -13,6 +14,7 @@ PAPER TRADING / ADVISORY ONLY.
 from __future__ import annotations
 
 import json
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -47,12 +49,56 @@ def _ensure_schema(conn) -> None:
                 valid_count    INTEGER DEFAULT 0,
                 stale_count    INTEGER DEFAULT 0,
                 provider_status TEXT DEFAULT 'UNAVAILABLE',
+                provider_collected_count INTEGER,
+                persisted_count INTEGER,
+                failed_count INTEGER,
+                expected_count INTEGER,
+                provider_returned_count INTEGER,
+                normalized_count INTEGER,
+                missing_count INTEGER,
+                duplicate_count INTEGER,
+                malformed_count INTEGER,
+                collection_coverage JSONB,
+                collection_started_at TIMESTAMPTZ,
+                collection_completed_at TIMESTAMPTZ,
+                collection_source TEXT,
+                persistence_status TEXT,
+                verified_collection_batch_id TEXT,
+                frozen_collection_batch_id TEXT,
+                retry_state TEXT,
+                phase_state JSONB NOT NULL DEFAULT '{}'::jsonb,
                 frozen_at      TIMESTAMPTZ,
                 reconciled_at  TIMESTAMPTZ,
                 error          TEXT,
+                universe_context JSONB,
                 created_at     TIMESTAMPTZ DEFAULT NOW(),
                 updated_at     TIMESTAMPTZ DEFAULT NOW()
             )
+        """)
+        # `CREATE TABLE IF NOT EXISTS` does not upgrade a pre-existing
+        # production table. Keep the canonical columns above and make this
+        # additive migration explicit so collection truth is durable everywhere.
+        cur.execute("""
+            ALTER TABLE preopen_sessions
+                ADD COLUMN IF NOT EXISTS provider_collected_count INTEGER,
+                ADD COLUMN IF NOT EXISTS persisted_count INTEGER,
+                ADD COLUMN IF NOT EXISTS failed_count INTEGER,
+                ADD COLUMN IF NOT EXISTS expected_count INTEGER,
+                ADD COLUMN IF NOT EXISTS provider_returned_count INTEGER,
+                ADD COLUMN IF NOT EXISTS normalized_count INTEGER,
+                ADD COLUMN IF NOT EXISTS missing_count INTEGER,
+                ADD COLUMN IF NOT EXISTS duplicate_count INTEGER,
+                ADD COLUMN IF NOT EXISTS malformed_count INTEGER,
+                ADD COLUMN IF NOT EXISTS collection_coverage JSONB,
+                ADD COLUMN IF NOT EXISTS collection_started_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS collection_completed_at TIMESTAMPTZ,
+                ADD COLUMN IF NOT EXISTS collection_source TEXT,
+                ADD COLUMN IF NOT EXISTS persistence_status TEXT,
+                ADD COLUMN IF NOT EXISTS verified_collection_batch_id TEXT,
+                ADD COLUMN IF NOT EXISTS frozen_collection_batch_id TEXT,
+                ADD COLUMN IF NOT EXISTS retry_state TEXT,
+                ADD COLUMN IF NOT EXISTS phase_state JSONB NOT NULL DEFAULT '{}'::jsonb,
+                ADD COLUMN IF NOT EXISTS universe_context JSONB
         """)
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_preopen_sessions_date
@@ -64,6 +110,7 @@ def _ensure_schema(conn) -> None:
             CREATE TABLE IF NOT EXISTS preopen_snapshots (
                 snapshot_id              TEXT PRIMARY KEY,
                 session_id               TEXT REFERENCES preopen_sessions(session_id),
+                collection_batch_id      TEXT,
                 trading_date             TEXT NOT NULL,
                 timestamp_ist            TIMESTAMPTZ NOT NULL,
                 symbol                   TEXT NOT NULL,
@@ -101,9 +148,45 @@ def _ensure_schema(conn) -> None:
             CREATE INDEX IF NOT EXISTS idx_preopen_snaps_date_sym
             ON preopen_snapshots (trading_date, symbol)
         """)
+        # Production already has this table. Upgrade it before creating the
+        # batch index so existing deployments retain durable Phase 5A access.
+        cur.execute("""
+            ALTER TABLE preopen_snapshots
+                ADD COLUMN IF NOT EXISTS collection_batch_id TEXT
+        """)
         cur.execute("""
             CREATE INDEX IF NOT EXISTS idx_preopen_snaps_session
             ON preopen_snapshots (session_id)
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_preopen_snaps_session_batch
+            ON preopen_snapshots (session_id, collection_batch_id)
+        """)
+
+        # One explicit non-price outcome for every requested symbol in an
+        # immutable provider batch. Snapshot rows remain reserved for real
+        # normalized market data and are never replaced by placeholder rows.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS preopen_collection_outcomes (
+                session_id                TEXT NOT NULL REFERENCES preopen_sessions(session_id),
+                collection_batch_id       TEXT NOT NULL,
+                symbol                    TEXT NOT NULL,
+                outcome_status            TEXT NOT NULL,
+                reason_code               TEXT NOT NULL,
+                provider_symbol           TEXT,
+                provider_response_present BOOLEAN NOT NULL DEFAULT FALSE,
+                normalization_result      TEXT,
+                eligibility_status        TEXT,
+                snapshot_id               TEXT,
+                provider_scope            TEXT,
+                provider_raw_count        INTEGER,
+                created_at                TIMESTAMPTZ DEFAULT NOW(),
+                PRIMARY KEY (session_id, collection_batch_id, symbol)
+            )
+        """)
+        cur.execute("""
+            CREATE INDEX IF NOT EXISTS idx_preopen_outcomes_session_batch
+            ON preopen_collection_outcomes (session_id, collection_batch_id)
         """)
 
         # preopen_rankings
@@ -206,35 +289,118 @@ def _with_db(fn, fallback=None):
 
 # ── Session CRUD ──────────────────────────────────────────────────────────────
 
-def upsert_session(session: dict) -> None:
+def _forward_session_status(existing: str, incoming: Optional[str]) -> str:
+    """Mirror the SQL upsert lifecycle guard for focused policy tests."""
+    incoming = incoming or "INITIALISING"
+    if existing in ("RECONCILED_0930", "COMPLETE", "NO_CANDIDATES"):
+        return existing
+    if existing == "RECONCILED" and incoming != "RECONCILED_0930":
+        return existing
+    if existing == "FROZEN" and incoming not in ("RECONCILED", "RECONCILED_0930"):
+        return existing
+    if incoming == "INITIALISING" and existing != "INITIALISING":
+        return existing
+    return incoming
+
+
+def upsert_session(session: dict) -> bool:
     def to_db(conn):
         with conn.cursor() as cur:
             cur.execute("""
                 INSERT INTO preopen_sessions
                     (session_id, trading_date, status, symbol_count, valid_count,
-                     stale_count, provider_status, frozen_at, reconciled_at, error, updated_at)
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                     stale_count, provider_status, verified_collection_batch_id,
+                     frozen_collection_batch_id, frozen_at, reconciled_at, error,
+                     universe_context, updated_at)
+                VALUES (%s,%s,COALESCE(%s, 'INITIALISING'),%s,%s,%s,%s,%s,%s,%s,%s,%s,%s::jsonb,NOW())
                 ON CONFLICT (session_id) DO UPDATE SET
-                    status=EXCLUDED.status,
-                    symbol_count=EXCLUDED.symbol_count,
-                    valid_count=EXCLUDED.valid_count,
-                    stale_count=EXCLUDED.stale_count,
-                    provider_status=EXCLUDED.provider_status,
-                    frozen_at=EXCLUDED.frozen_at,
-                    reconciled_at=EXCLUDED.reconciled_at,
-                    error=EXCLUDED.error,
+                    -- Lifecycle is forward-only.  A late collection/init
+                    -- write may still refresh counts, but can never reopen a
+                    -- frozen or reconciled historical session.
+                    status=CASE
+                        WHEN preopen_sessions.status IN ('RECONCILED_0930', 'COMPLETE', 'NO_CANDIDATES')
+                            THEN preopen_sessions.status
+                        WHEN preopen_sessions.status = 'RECONCILED'
+                             AND EXCLUDED.status <> 'RECONCILED_0930'
+                            THEN preopen_sessions.status
+                        WHEN preopen_sessions.status = 'FROZEN'
+                             AND EXCLUDED.status NOT IN ('RECONCILED', 'RECONCILED_0930')
+                            THEN preopen_sessions.status
+                        WHEN EXCLUDED.status = 'INITIALISING'
+                             AND preopen_sessions.status <> 'INITIALISING'
+                            THEN preopen_sessions.status
+                        ELSE EXCLUDED.status
+                    END,
+                    symbol_count=COALESCE(EXCLUDED.symbol_count, preopen_sessions.symbol_count),
+                    valid_count=COALESCE(EXCLUDED.valid_count, preopen_sessions.valid_count),
+                    stale_count=COALESCE(EXCLUDED.stale_count, preopen_sessions.stale_count),
+                    provider_status=COALESCE(EXCLUDED.provider_status, preopen_sessions.provider_status),
+                    verified_collection_batch_id=COALESCE(
+                        EXCLUDED.verified_collection_batch_id,
+                        preopen_sessions.verified_collection_batch_id
+                    ),
+                    frozen_collection_batch_id=COALESCE(
+                        preopen_sessions.frozen_collection_batch_id,
+                        EXCLUDED.frozen_collection_batch_id
+                    ),
+                    frozen_at=COALESCE(EXCLUDED.frozen_at, preopen_sessions.frozen_at),
+                    reconciled_at=COALESCE(EXCLUDED.reconciled_at, preopen_sessions.reconciled_at),
+                    error=COALESCE(EXCLUDED.error, preopen_sessions.error),
+                    universe_context=COALESCE(
+                        preopen_sessions.universe_context, EXCLUDED.universe_context
+                    ),
                     updated_at=NOW()
             """, [
                 session.get("session_id"), session.get("trading_date"),
-                session.get("status", "INITIALISING"),
-                session.get("symbol_count", 0), session.get("valid_count", 0),
-                session.get("stale_count", 0),
-                session.get("provider_status", "UNAVAILABLE"),
+                session.get("status"),
+                session.get("symbol_count"), session.get("valid_count"),
+                session.get("stale_count"),
+                session.get("provider_status"),
+                session.get("verified_collection_batch_id"),
+                session.get("frozen_collection_batch_id"),
                 session.get("frozen_at"), session.get("reconciled_at"),
                 session.get("error"),
+                json.dumps(session.get("universe_context"))
+                if session.get("universe_context") else None,
             ])
         conn.commit()
-    _with_db(to_db)
+        return True
+    return bool(_with_db(to_db, fallback=lambda: False))
+
+
+def get_session(session_id: str) -> Optional[dict]:
+    """Return one session by id, for collection persistence verification."""
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT session_id, trading_date, status, symbol_count, valid_count,
+                       stale_count, provider_status, provider_collected_count,
+                       persisted_count, failed_count, expected_count,
+                       provider_returned_count, normalized_count, missing_count,
+                       duplicate_count, malformed_count, collection_coverage,
+                       collection_started_at,
+                       collection_completed_at, collection_source, persistence_status,
+                        retry_state, phase_state, verified_collection_batch_id,
+                        frozen_collection_batch_id, frozen_at, reconciled_at, error,
+                       universe_context, created_at, updated_at
+                FROM preopen_sessions WHERE session_id = %s
+            """, [session_id])
+            row = cur.fetchone()
+            if not row:
+                return None
+            cols = ["session_id","trading_date","status","symbol_count","valid_count",
+                    "stale_count","provider_status","provider_collected_count",
+                    "persisted_count","failed_count","expected_count",
+                    "provider_returned_count","normalized_count","missing_count",
+                    "duplicate_count","malformed_count","collection_coverage",
+                    "collection_started_at",
+                    "collection_completed_at","collection_source","persistence_status",
+                    "retry_state","phase_state","verified_collection_batch_id",
+                    "frozen_collection_batch_id","frozen_at","reconciled_at","error",
+                    "universe_context","created_at","updated_at"]
+            return {k: (v.isoformat() if isinstance(v, datetime) else v)
+                    for k, v in zip(cols, row)}
+    return _with_db(from_db)
 
 
 def get_latest_session() -> Optional[dict]:
@@ -242,7 +408,14 @@ def get_latest_session() -> Optional[dict]:
         with conn.cursor() as cur:
             cur.execute("""
                 SELECT session_id, trading_date, status, symbol_count, valid_count,
-                       stale_count, provider_status, frozen_at, reconciled_at, error,
+                       stale_count, provider_status, provider_collected_count,
+                       persisted_count, failed_count, expected_count,
+                       provider_returned_count, normalized_count, missing_count,
+                       duplicate_count, malformed_count, collection_coverage,
+                       collection_started_at,
+                       collection_completed_at, collection_source, persistence_status,
+                        retry_state, phase_state, verified_collection_batch_id,
+                        frozen_collection_batch_id, frozen_at, reconciled_at, error,
                        created_at, updated_at
                 FROM preopen_sessions ORDER BY created_at DESC LIMIT 1
             """)
@@ -250,51 +423,448 @@ def get_latest_session() -> Optional[dict]:
             if not row:
                 return None
             cols = ["session_id","trading_date","status","symbol_count","valid_count",
-                    "stale_count","provider_status","frozen_at","reconciled_at","error",
+                    "stale_count","provider_status","provider_collected_count",
+                    "persisted_count","failed_count","expected_count",
+                    "provider_returned_count","normalized_count","missing_count",
+                    "duplicate_count","malformed_count","collection_coverage",
+                    "collection_started_at",
+                    "collection_completed_at","collection_source","persistence_status",
+                    "retry_state","phase_state","verified_collection_batch_id",
+                    "frozen_collection_batch_id","frozen_at","reconciled_at","error",
                     "created_at","updated_at"]
             return {k: (v.isoformat() if isinstance(v, datetime) else v)
                     for k, v in zip(cols, row)}
     return _with_db(from_db)
 
 
+def get_session_for_trading_date(trading_date: str) -> Optional[dict]:
+    """Return the most recent durable Phase 5A session for one IST date."""
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT session_id FROM preopen_sessions
+                WHERE trading_date = %s
+                ORDER BY updated_at DESC, created_at DESC
+                LIMIT 1
+            """, [trading_date])
+            row = cur.fetchone()
+        return get_session(row[0]) if row else None
+    return _with_db(from_db)
+
+
+def update_phase_state(session_id: str, phase: str, detail: dict,
+                       completed: bool) -> bool:
+    """Persist phase outcome so a restarted scheduler resumes truthfully."""
+    def to_db(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                UPDATE preopen_sessions
+                SET phase_state = COALESCE(phase_state, '{}'::jsonb)
+                    || jsonb_build_object(%s, %s::jsonb),
+                    retry_state = CASE WHEN %s THEN NULL ELSE 'RETRY_REQUIRED' END,
+                    updated_at = NOW()
+                WHERE session_id = %s
+            """, [phase, json.dumps({**detail, "completed": completed}),
+                  completed, session_id])
+            if cur.rowcount != 1:
+                raise RuntimeError(f"Unknown pre-open session {session_id}")
+        conn.commit()
+        return True
+    return bool(_with_db(to_db, fallback=lambda: False))
+
+
 # ── Snapshot storage ──────────────────────────────────────────────────────────
 
-def save_snapshots(session_id: str, snapshots: List[dict]) -> None:
+def _insert_snapshot(cur, session_id: str, s: dict,
+                     collection_batch_id: Optional[str] = None) -> None:
+    cur.execute("""
+        INSERT INTO preopen_snapshots
+            (snapshot_id, session_id, collection_batch_id, trading_date, timestamp_ist, symbol,
+             company_name, sector, previous_close, indicative_equilibrium_price,
+             indicative_open_price, final_open_price, price_change, gap_percent,
+             total_buy_quantity, total_sell_quantity, matched_quantity,
+             final_executed_quantity, total_traded_value, buy_sell_imbalance,
+             imbalance_percent, volume_rank, gap_rank, liquidity_score,
+             classification, opportunity_score, factor_scores,
+             data_source, data_freshness_seconds, source_status,
+             is_stale, validation_status)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
+                %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (snapshot_id) DO NOTHING
+    """, [
+        s.get("snapshot_id"), session_id, collection_batch_id, s.get("trading_date"),
+        s.get("timestamp_ist"), s.get("symbol"), s.get("company_name"),
+        s.get("sector"), s.get("previous_close"),
+        s.get("indicative_equilibrium_price"), s.get("indicative_open_price"),
+        s.get("final_open_price"), s.get("price_change"), s.get("gap_percent"),
+        s.get("total_buy_quantity"), s.get("total_sell_quantity"),
+        s.get("matched_quantity"), s.get("final_executed_quantity"),
+        s.get("total_traded_value"), s.get("buy_sell_imbalance"),
+        s.get("imbalance_percent"), s.get("volume_rank"), s.get("gap_rank"),
+        s.get("liquidity_score"), s.get("classification"),
+        s.get("opportunity_score"), json.dumps(s.get("factor_scores") or {}),
+        s.get("data_source"), s.get("data_freshness_seconds"),
+        s.get("source_status"), s.get("is_stale"), s.get("validation_status"),
+    ])
+
+
+def _normalise_symbol(value: Any) -> str:
+    return str(value or "").strip().upper()
+
+
+def _canonical_outcomes(outcomes: Optional[List[dict]],
+                        expected_symbols: List[str]) -> List[dict]:
+    """Validate one immutable outcome per expected symbol before storage."""
+    if outcomes is None:
+        return []
+    expected = {_normalise_symbol(symbol) for symbol in expected_symbols if _normalise_symbol(symbol)}
+    result = []
+    seen = set()
+    for outcome in outcomes:
+        if not isinstance(outcome, dict):
+            continue
+        symbol = _normalise_symbol(outcome.get("symbol"))
+        if not symbol or symbol not in expected or symbol in seen:
+            continue
+        status = str(outcome.get("outcome_status") or "").strip().upper()
+        reason = str(outcome.get("reason_code") or "").strip().upper()
+        if not status or not reason:
+            continue
+        seen.add(symbol)
+        result.append({
+            "symbol": symbol,
+            "outcome_status": status,
+            "reason_code": reason,
+            "provider_symbol": _normalise_symbol(outcome.get("provider_symbol")) or None,
+            "provider_response_present": bool(outcome.get("provider_response_present")),
+            "normalization_result": str(outcome.get("normalization_result") or "").strip().upper() or None,
+            "eligibility_status": str(outcome.get("eligibility_status") or "").strip().upper() or None,
+            "snapshot_id": str(outcome.get("snapshot_id") or "").strip() or None,
+            "provider_scope": str(outcome.get("provider_scope") or "").strip().upper() or None,
+        })
+    return result
+
+
+def _insert_collection_outcome(cur, session_id: str, collection_batch_id: str,
+                               outcome: dict, provider_raw_count: Optional[int]) -> None:
+    cur.execute("""
+        INSERT INTO preopen_collection_outcomes
+            (session_id, collection_batch_id, symbol, outcome_status, reason_code,
+             provider_symbol, provider_response_present, normalization_result,
+             eligibility_status, snapshot_id, provider_scope, provider_raw_count)
+        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        ON CONFLICT (session_id, collection_batch_id, symbol) DO NOTHING
+    """, [
+        session_id, collection_batch_id, outcome["symbol"], outcome["outcome_status"],
+        outcome["reason_code"], outcome.get("provider_symbol"),
+        outcome.get("provider_response_present", False),
+        outcome.get("normalization_result"), outcome.get("eligibility_status"),
+        outcome.get("snapshot_id"), outcome.get("provider_scope"),
+        provider_raw_count,
+    ])
+
+
+def save_snapshots(session_id: str, snapshots: List[dict]) -> bool:
     def to_db(conn):
         with conn.cursor() as cur:
             for s in snapshots:
-                cur.execute("""
-                    INSERT INTO preopen_snapshots
-                        (snapshot_id, session_id, trading_date, timestamp_ist, symbol,
-                         company_name, sector, previous_close, indicative_equilibrium_price,
-                         indicative_open_price, final_open_price, price_change, gap_percent,
-                         total_buy_quantity, total_sell_quantity, matched_quantity,
-                         final_executed_quantity, total_traded_value, buy_sell_imbalance,
-                         imbalance_percent, volume_rank, gap_rank, liquidity_score,
-                         classification, opportunity_score, factor_scores,
-                         data_source, data_freshness_seconds, source_status,
-                         is_stale, validation_status)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,
-                            %s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (snapshot_id) DO NOTHING
-                """, [
-                    s.get("snapshot_id"), session_id, s.get("trading_date"),
-                    s.get("timestamp_ist"), s.get("symbol"), s.get("company_name"),
-                    s.get("sector"), s.get("previous_close"),
-                    s.get("indicative_equilibrium_price"), s.get("indicative_open_price"),
-                    s.get("final_open_price"), s.get("price_change"), s.get("gap_percent"),
-                    s.get("total_buy_quantity"), s.get("total_sell_quantity"),
-                    s.get("matched_quantity"), s.get("final_executed_quantity"),
-                    s.get("total_traded_value"), s.get("buy_sell_imbalance"),
-                    s.get("imbalance_percent"), s.get("volume_rank"), s.get("gap_rank"),
-                    s.get("liquidity_score"), s.get("classification"),
-                    s.get("opportunity_score"),
-                    json.dumps(s.get("factor_scores") or {}),
-                    s.get("data_source"), s.get("data_freshness_seconds"),
-                    s.get("source_status"), s.get("is_stale"), s.get("validation_status"),
-                ])
+                _insert_snapshot(cur, session_id, s)
         conn.commit()
-    _with_db(to_db)
+        return True
+    return bool(_with_db(to_db, fallback=lambda: False))
+
+
+def persist_collection(session_id: str, trading_date: str, snapshots: List[dict],
+                       provider_status: str, valid_count: int,
+                       stale_count: int, source: str = "SCHEDULED",
+                       collection_batch_id: Optional[str] = None,
+                        coverage: Optional[dict] = None,
+                        outcomes: Optional[List[dict]] = None,
+                        universe_context: Optional[dict] = None) -> dict:
+    """Atomically persist a provider batch and prove every supplied row exists.
+
+    The returned counts describe *this exact provider batch*, not a previous
+    in-memory or database aggregate. A successful collection is therefore
+    impossible unless provider_collected_count == persisted_count.
+    """
+    collection_batch_id = collection_batch_id or f"collection-{uuid.uuid4().hex}"
+    provider_count = len(snapshots)
+    coverage = dict(coverage or {})
+    if universe_context:
+        coverage["universe"] = {
+            "natural_session": universe_context.get("natural_session"),
+            "universe_key": universe_context.get("universe_key"),
+            "universe_id": universe_context.get("universe_id"),
+            "universe_version": universe_context.get("version"),
+            "universe_symbols": list(universe_context.get("enabled_symbols") or []),
+            "universe_symbol_count": universe_context.get("symbol_count"),
+            "universe_set_hash": universe_context.get("exact_set_hash"),
+        }
+    expected_count = int(coverage.get("expected_count", provider_count) or 0)
+    expected_symbols = [
+        _normalise_symbol(symbol)
+        for symbol in coverage.get("expected_symbols") or []
+        if _normalise_symbol(symbol)
+    ]
+    provider_returned_count = int(
+        coverage.get("provider_returned_count", provider_count) or 0
+    )
+    normalized_count = int(coverage.get("normalized_count", provider_count) or 0)
+    missing_count = int(coverage.get("missing_count", 0) or 0)
+    duplicate_count = int(coverage.get("duplicate_count", 0) or 0)
+    malformed_count = int(coverage.get("malformed_count", 0) or 0)
+    unusable_count = int(coverage.get(
+        "unusable_count",
+        duplicate_count + malformed_count + int(coverage.get("unexpected_count", 0) or 0),
+    ) or 0)
+    coverage.update({
+        "expected_count": expected_count,
+        "provider_returned_count": provider_returned_count,
+        "normalized_count": normalized_count,
+        "missing_count": missing_count,
+        "duplicate_count": duplicate_count,
+        "malformed_count": malformed_count,
+        "collection_batch_id": collection_batch_id,
+    })
+    canonical_outcomes = _canonical_outcomes(outcomes, expected_symbols)
+    outcome_symbols = {outcome["symbol"] for outcome in canonical_outcomes}
+    outcomes_structurally_complete = (
+        expected_count > 0
+        and len(expected_symbols) == expected_count
+        and len(canonical_outcomes) == expected_count
+        and outcome_symbols == set(expected_symbols)
+    )
+    live_snapshot_count = sum(
+        1 for snapshot in snapshots
+        if (
+            snapshot.get("is_stale") is False
+            and str(snapshot.get("source_status") or "").strip().upper() == "LIVE"
+        )
+    )
+    live_coverage_complete = (
+        str(provider_status or "").strip().upper() == "LIVE"
+        and valid_count == expected_count
+        and stale_count == 0
+        and live_snapshot_count == expected_count
+    )
+    coverage.update({
+        "outcome_expected_count": expected_count,
+        "outcome_accounted_count": len(canonical_outcomes),
+        "outcome_complete": outcomes_structurally_complete,
+        "live_snapshot_count": live_snapshot_count,
+        "live_coverage_complete": live_coverage_complete,
+    })
+    snapshot_ids = [str(s.get("snapshot_id") or "") for s in snapshots]
+    started_at = _now()
+
+    def to_db(conn):
+        with conn.cursor() as cur:
+            for snapshot in snapshots:
+                _insert_snapshot(cur, session_id, snapshot, collection_batch_id)
+            for outcome in canonical_outcomes:
+                _insert_collection_outcome(
+                    cur, session_id, collection_batch_id, outcome,
+                    coverage.get("provider_raw_count"),
+                )
+            if snapshot_ids:
+                cur.execute("""
+                    SELECT COUNT(*) FROM preopen_snapshots
+                    WHERE session_id = %s AND collection_batch_id = %s
+                      AND snapshot_id = ANY(%s)
+                """, [session_id, collection_batch_id, snapshot_ids])
+                persisted_count = int(cur.fetchone()[0] or 0)
+            else:
+                persisted_count = 0
+            cur.execute("""
+                SELECT COUNT(*) FROM preopen_collection_outcomes
+                WHERE session_id = %s AND collection_batch_id = %s
+            """, [session_id, collection_batch_id])
+            persisted_outcome_count = int(cur.fetchone()[0] or 0)
+            storage_match = persisted_count == provider_count
+            outcome_storage_match = persisted_outcome_count == len(canonical_outcomes)
+            coverage_complete = (
+                expected_count > 0
+                and normalized_count == expected_count
+                and persisted_count == expected_count
+                and missing_count == 0
+                and duplicate_count == 0
+                and malformed_count == 0
+                and unusable_count == 0
+                and outcomes_structurally_complete
+                and outcome_storage_match
+                and live_coverage_complete
+            )
+            failed_count = max(0, expected_count - persisted_count) + unusable_count
+            if not storage_match or not outcome_storage_match:
+                persistence_status = "MISMATCH"
+                status = "PERSISTENCE_FAILED"
+            elif not outcomes_structurally_complete:
+                persistence_status = "OUTCOME_INCOMPLETE"
+                status = "PARTIAL_COVERAGE"
+            elif not coverage_complete:
+                persistence_status = "COVERAGE_INCOMPLETE"
+                status = "PARTIAL_COVERAGE"
+            else:
+                persistence_status = "MATCH"
+                status = "COLLECTED"
+            cur.execute("""
+                UPDATE preopen_sessions
+                SET status = CASE
+                        WHEN status IN ('FROZEN', 'RECONCILED', 'RECONCILED_0930', 'COMPLETE')
+                            THEN status
+                        ELSE %s
+                    END,
+                    symbol_count = %s, valid_count = %s, stale_count = %s,
+                    provider_status = %s, provider_collected_count = %s,
+                    persisted_count = %s, failed_count = %s,
+                    expected_count = %s, provider_returned_count = %s,
+                    normalized_count = %s, missing_count = %s,
+                    duplicate_count = %s, malformed_count = %s,
+                    collection_coverage = %s::jsonb,
+                    collection_started_at = %s, collection_completed_at = NOW(),
+                    collection_source = %s, persistence_status = %s,
+                    verified_collection_batch_id = CASE
+                        WHEN %s = 'MATCH'
+                             AND status NOT IN ('FROZEN', 'RECONCILED', 'RECONCILED_0930', 'COMPLETE')
+                            THEN %s
+                        ELSE verified_collection_batch_id
+                    END,
+                    retry_state = CASE WHEN %s = 'MATCH' THEN NULL ELSE 'RETRY_REQUIRED' END,
+                    error = CASE
+                        WHEN %s = 'MATCH' THEN NULL
+                        WHEN %s IN ('COVERAGE_INCOMPLETE', 'OUTCOME_INCOMPLETE')
+                            THEN 'Provider response did not cover the active pre-open universe'
+                        ELSE 'Provider collection did not persist completely'
+                    END,
+                    updated_at = NOW()
+                WHERE session_id = %s
+            """, [status, provider_count, valid_count, stale_count, provider_status,
+                  provider_count, persisted_count, failed_count, expected_count,
+                  provider_returned_count, normalized_count, missing_count,
+                  duplicate_count, malformed_count, json.dumps(coverage), started_at, source,
+                  persistence_status, persistence_status, collection_batch_id,
+                  persistence_status, persistence_status, persistence_status, session_id])
+            if cur.rowcount != 1:
+                raise RuntimeError(f"Unknown pre-open session {session_id}")
+        conn.commit()
+        return {
+            "success": persistence_status == "MATCH",
+            "provider_collected_count": provider_count,
+            "persisted_count": persisted_count,
+            "failed_count": failed_count,
+            "expected_count": expected_count,
+            "provider_returned_count": provider_returned_count,
+            "normalized_count": normalized_count,
+            "missing_count": missing_count,
+            "duplicate_count": duplicate_count,
+            "malformed_count": malformed_count,
+            "collection_coverage": coverage,
+            "outcome_persisted_count": persisted_outcome_count,
+            "outcome_complete": outcomes_structurally_complete and outcome_storage_match,
+            "persistence_status": persistence_status,
+            "collection_batch_id": collection_batch_id,
+            "source": source,
+        }
+
+    return _with_db(to_db, fallback=lambda: {
+        "success": False,
+        "provider_collected_count": provider_count,
+        "persisted_count": None,
+        "failed_count": max(0, expected_count - provider_count) + unusable_count,
+        "expected_count": expected_count,
+        "provider_returned_count": provider_returned_count,
+        "normalized_count": normalized_count,
+        "missing_count": missing_count,
+        "duplicate_count": duplicate_count,
+        "malformed_count": malformed_count,
+        "collection_coverage": coverage,
+        "outcome_persisted_count": None,
+        "outcome_complete": False,
+        "persistence_status": "PERSISTENCE_UNAVAILABLE",
+        "collection_batch_id": collection_batch_id,
+        "source": source,
+        "error": "Durable pre-open collection persistence is unavailable",
+    })
+
+
+def record_collection_failure(session_id: str, status: str, error: str,
+                              source: str = "SCHEDULED",
+                               coverage: Optional[dict] = None,
+                               outcomes: Optional[List[dict]] = None,
+                               collection_batch_id: Optional[str] = None) -> bool:
+    """Persist a retryable, explicit collection failure when the DB is reachable."""
+    coverage = dict(coverage or {})
+    collection_batch_id = collection_batch_id or f"collection-{uuid.uuid4().hex}"
+    expected_symbols = [
+        _normalise_symbol(symbol)
+        for symbol in coverage.get("expected_symbols") or []
+        if _normalise_symbol(symbol)
+    ]
+    canonical_outcomes = _canonical_outcomes(outcomes, expected_symbols)
+    outcomes_supplied = outcomes is not None
+    outcome_symbols = {outcome["symbol"] for outcome in canonical_outcomes}
+    outcome_complete = (
+        outcomes_supplied
+        and len(expected_symbols) == int(coverage.get("expected_count", len(expected_symbols)) or 0)
+        and len(canonical_outcomes) == len(expected_symbols)
+        and outcome_symbols == set(expected_symbols)
+    )
+    if outcomes_supplied:
+        coverage.update({
+            "collection_batch_id": collection_batch_id,
+            "outcome_expected_count": len(expected_symbols),
+            "outcome_accounted_count": len(canonical_outcomes),
+            "outcome_complete": outcome_complete,
+            "outcome_status_counts": {
+                outcome["outcome_status"]: sum(
+                    1 for item in canonical_outcomes
+                    if item["outcome_status"] == outcome["outcome_status"]
+                )
+                for outcome in canonical_outcomes
+            },
+        })
+    coverage_json = json.dumps(coverage) if coverage else None
+
+    def _count(name: str):
+        return coverage.get(name) if coverage else None
+
+    def to_db(conn):
+        with conn.cursor() as cur:
+            for outcome in canonical_outcomes:
+                _insert_collection_outcome(
+                    cur, session_id, collection_batch_id, outcome,
+                    coverage.get("provider_raw_count"),
+                )
+            if outcomes_supplied:
+                cur.execute("""
+                    SELECT COUNT(*) FROM preopen_collection_outcomes
+                    WHERE session_id = %s AND collection_batch_id = %s
+                """, [session_id, collection_batch_id])
+                persisted_outcomes = int(cur.fetchone()[0] or 0)
+                if persisted_outcomes != len(canonical_outcomes):
+                    raise RuntimeError("Could not persist all pre-open collection outcomes")
+            cur.execute("""
+                UPDATE preopen_sessions
+                SET status = %s, collection_completed_at = NOW(), collection_source = %s,
+                    persistence_status = 'NOT_COMPLETE', retry_state = 'RETRY_REQUIRED',
+                    expected_count = COALESCE(%s, expected_count),
+                    provider_returned_count = COALESCE(%s, provider_returned_count),
+                    normalized_count = COALESCE(%s, normalized_count),
+                    missing_count = COALESCE(%s, missing_count),
+                    duplicate_count = COALESCE(%s, duplicate_count),
+                    malformed_count = COALESCE(%s, malformed_count),
+                    collection_coverage = COALESCE(%s::jsonb, collection_coverage),
+                    error = %s, updated_at = NOW()
+                WHERE session_id = %s
+            """, [status, source, _count("expected_count"),
+                  _count("provider_returned_count"), _count("normalized_count"),
+                  _count("missing_count"), _count("duplicate_count"),
+                  _count("malformed_count"), coverage_json, str(error)[:500], session_id])
+            if cur.rowcount != 1:
+                raise RuntimeError(f"Unknown pre-open session {session_id}")
+        conn.commit()
+        return True
+    return bool(_with_db(to_db, fallback=lambda: False))
 
 
 def get_latest_snapshots(trading_date: Optional[str] = None) -> List[dict]:
@@ -341,6 +911,61 @@ def get_latest_snapshots(trading_date: Optional[str] = None) -> List[dict]:
             if sym and sym not in seen:
                 seen[sym] = snap
         return list(seen.values())
+
+    return _with_db(from_db) or []
+
+
+def get_session_snapshots(session_id: str, collection_batch_id: str) -> List[dict]:
+    """Return only the exact persisted collection batch for one session.
+
+    There is deliberately no newest-per-symbol fallback across batches: freeze
+    must consume the immutable batch whose counts were parity-verified.
+    """
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT *
+                FROM preopen_snapshots
+                WHERE session_id = %s AND collection_batch_id = %s
+                ORDER BY created_at ASC
+            """, [session_id, collection_batch_id])
+            cols = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+        result = []
+        for row in rows:
+            record = dict(zip(cols, row))
+            for key, value in record.items():
+                if isinstance(value, datetime):
+                    record[key] = value.isoformat()
+            result.append(record)
+        return result
+
+    return _with_db(from_db) or []
+
+
+def get_collection_outcomes(session_id: str, collection_batch_id: str) -> List[dict]:
+    """Return the immutable per-symbol outcome matrix for one exact batch."""
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT symbol, outcome_status, reason_code, provider_symbol,
+                       provider_response_present, normalization_result,
+                       eligibility_status, snapshot_id, provider_scope,
+                       provider_raw_count, created_at
+                FROM preopen_collection_outcomes
+                WHERE session_id = %s AND collection_batch_id = %s
+                ORDER BY symbol ASC
+            """, [session_id, collection_batch_id])
+            cols = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+        result = []
+        for row in rows:
+            record = dict(zip(cols, row))
+            for key, value in record.items():
+                if isinstance(value, datetime):
+                    record[key] = value.isoformat()
+            result.append(record)
+        return result
 
     return _with_db(from_db) or []
 
@@ -392,6 +1017,24 @@ def get_latest_watchlists(trading_date: Optional[str] = None) -> Dict[str, list]
                 if list_type not in result:
                     result[list_type] = items_json if isinstance(items_json, list) else []
             return result
+    return _with_db(from_db) or {}
+
+
+def get_session_watchlists(session_id: str) -> Dict[str, list]:
+    """Return the frozen watchlists created by one durable session."""
+    def from_db(conn):
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT list_type, items_json FROM preopen_watchlists
+                WHERE session_id = %s
+                ORDER BY created_at DESC
+            """, [session_id])
+            rows = cur.fetchall()
+        result: Dict[str, list] = {}
+        for list_type, items_json in rows:
+            if list_type not in result:
+                result[list_type] = items_json if isinstance(items_json, list) else []
+        return result
     return _with_db(from_db) or {}
 
 
@@ -473,16 +1116,16 @@ def get_reconciliation_dates(n: int = 5) -> List[str]:
     return _with_db(from_db) or []
 
 
-def update_reconciliation_0930(trading_date: str, prices_0930: Dict[str, float]) -> None:
-    """Patch price_at_0930 for existing reconciliation records (post-open enrichment)."""
+def update_reconciliation_0930(session_id: str, prices_0930: Dict[str, float]) -> None:
+    """Patch price_at_0930 only for reconciliation rows in one session."""
     def to_db(conn):
         with conn.cursor() as cur:
             for symbol, price in prices_0930.items():
                 cur.execute("""
                     UPDATE preopen_reconciliation
                     SET price_at_0930 = %s
-                    WHERE trading_date = %s AND symbol = %s
+                    WHERE session_id = %s AND symbol = %s
                       AND price_at_0930 IS NULL
-                """, [price, trading_date, symbol])
+                """, [price, session_id, symbol])
         conn.commit()
     _with_db(to_db)

@@ -1,0 +1,109 @@
+PHASE 1F — PRE-AUTO-ENTRY HARDENING AND MARKET SESSION WATCH
+
+Use APEXQUANT_PHASE1E_ACTIVE_UNIVERSE_SWITCH_REPORT.md as the controlling report.
+
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change capital.
+Do not change active universe.
+Do not change thresholds.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current production state:
+- initial_capital=100000
+- active_intraday_universe=CUSTOM_LOW_PRICE_SECTOR
+- custom universe active_count=23
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- positions=[]
+
+GOAL:
+Complete the remaining prerequisites before auto entries can ever be re-enabled.
+
+TASK 1 — LOCK ADMIN CUSTOM UNIVERSE UPSERT ROUTE
+
+Secure:
+POST /universe/custom/upsert
+
+Requirement:
+- Add UNIVERSE_ADMIN_TOKEN secret.
+- Require x-admin-token header.
+- If token missing or invalid, return HTTP 403.
+- Keep route read/write behavior unchanged for valid admin token.
+- Do not affect GET /api/universe/custom/status.
+- Do not affect GET /api/universe/custom/symbols.
+- Do not touch Phase 20 executor/scheduler/exits/EOD safety code.
+- Do not enable entries.
+
+Add tests:
+1. upsert without token returns 403.
+2. upsert with wrong token returns 403.
+3. upsert with correct token succeeds.
+4. GET custom universe status remains public/read-only.
+5. GET custom universe symbols remains public/read-only.
+6. no broker order API reachable from this route.
+
+TASK 2 — KITE TOKEN HYDRATION
+
+Hydrate instrument_token for the 23 active custom symbols if Kite session/instrument cache is available.
+
+For each symbol, report:
+- symbol
+- kite_symbol
+- instrument_token before
+- instrument_token after
+- hydration status
+- failure reason if any
+
+Kite token hydration is for LTP overlay only. It must not place orders.
+
+TASK 3 — FIRST MARKET SESSION WATCH PLAN
+
+Prepare and/or run the first clean session watch while entries remain disabled.
+
+Watch:
+- scanner runs on CUSTOM_LOW_PRICE_SECTOR
+- exactly 23 custom active symbols are scanned
+- no NIFTY_50 fallback
+- no forbidden symbols
+- no AUTO or BOOTSTRAP_AUTO trades
+- positions remain []
+- 15:20 squareoff/EOD status works
+- eod-outcomes route works
+- no ERROR rows
+- build_id remains apexquant-phase0c-20260821 or later approved ID
+
+TASK 4 — TESTS
+
+Run:
+python3 -m pytest tests/unit/test_custom_universe_store.py tests/unit/test_phase0c_safety_fixes.py -q
+
+Also run any new admin-route security tests.
+
+Expected:
+- all custom universe tests pass
+- all Phase 0C safety tests pass
+- admin route security tests pass
+
+TASK 5 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE1F_PRE_AUTO_ENTRY_HARDENING_AND_WATCH_REPORT.md
+
+Include:
+1. Current production baseline.
+2. Admin route security implementation proof.
+3. Admin token test results.
+4. Kite token hydration table.
+5. Market-session watch plan/result.
+6. Confirmation active universe remains CUSTOM_LOW_PRICE_SECTOR.
+7. Confirmation capital remains ₹1,00,000.
+8. Confirmation auto entries/bootstrap remain disabled.
+9. Confirmation positions=[].
+10. Confirmation no trades or live orders.
+11. Clear go/no-go recommendation for future auto-entry re-enable.

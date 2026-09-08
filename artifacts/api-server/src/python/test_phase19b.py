@@ -105,6 +105,12 @@ class TestScanStateStore(Phase19BStoreBase):
             self.assertTrue(meta[field])
         self.assertEqual(meta["status"], "SUCCESS")
 
+    def test_trigger_origin_is_preserved_with_the_snapshot_metadata(self):
+        snap = _snapshot()
+        snap["trigger_origin"] = "SCHEDULED"
+        store.save_successful_scan(snap)
+        self.assertEqual(store.load_latest_meta()["trigger_origin"], "SCHEDULED")
+
 
 class TestScanLock(Phase19BStoreBase):
     def test_concurrent_acquire_only_one_wins(self):

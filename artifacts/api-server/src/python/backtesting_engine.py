@@ -29,7 +29,7 @@ from typing import Optional, TypedDict
 import numpy as np
 import pandas as pd
 
-from market_data_engine import fetch_candles_df
+# fetch_candles_df now routed via backtest_data_bridge (cache-first for 1d)
 from indicator_engine import compute_indicators_df
 from strategies import get_strategy, StrategyBase
 from config import INITIAL_CAPITAL, MAX_RISK_PCT, MAX_CAPITAL_PER_TRADE_PCT
@@ -413,23 +413,29 @@ def run_backtest(
     except ValueError as e:
         return _empty_result(symbol, strategy_name, str(e))
 
-    # 2. Fetch OHLCV
+    # 2. Fetch OHLCV (cache-first for 1d via backtest_data_bridge)
     try:
         period = _period_for_start(start_date)
-        df = fetch_candles_df(
+        from backtest_data_bridge import fetch_candles_for_backtest
+        df, data_source = fetch_candles_for_backtest(
             symbol, interval=interval,
-            period=period, start=start_date, end=end_date,
+            period=period, start_date=start_date, end_date=end_date,
         )
     except Exception as e:
         return _empty_result(symbol, strategy_name, f"Data fetch failed: {e}")
+
+    if data_source == "mock":
+        # Synthetic fallback candles must never be silently evaluated.
+        return _empty_result(
+            symbol, strategy_name,
+            "Live data unavailable (mock fallback) — backtest blocked",
+        )
 
     if df.empty or len(df) < WARMUP_BARS + 5:
         return _empty_result(
             symbol, strategy_name,
             f"Insufficient data: {len(df)} bars (need {WARMUP_BARS + 5}+)"
         )
-
-    data_source = "yfinance"
 
     # 3. Compute ALL indicators in ONE pass
     try:
@@ -1014,15 +1020,21 @@ def run_strategy_lab(
     if strategy_ids is None:
         strategy_ids = LAB_STRATEGY_IDS
 
-    # 1. Fetch data once
+    # 1. Fetch data once (cache-first for 1d via backtest_data_bridge)
     try:
         period = _period_for_start(start_date)
-        df = fetch_candles_df(
+        from backtest_data_bridge import fetch_candles_for_backtest
+        df, _lab_source = fetch_candles_for_backtest(
             symbol, interval=interval, period=period,
-            start=start_date, end=end_date,
+            start_date=start_date, end_date=end_date,
         )
     except Exception as exc:
         return [_empty_lab_entry(sid, str(exc)) for sid in strategy_ids]
+
+    if _lab_source == "mock":
+        # Synthetic fallback candles must never be silently evaluated.
+        msg = "Live data unavailable (mock fallback) — Strategy Lab blocked"
+        return [_empty_lab_entry(sid, msg) for sid in strategy_ids]
 
     if df.empty or len(df) < WARMUP_BARS + 5:
         msg = f"Insufficient data: {len(df)} bars (need {WARMUP_BARS + 5}+)"

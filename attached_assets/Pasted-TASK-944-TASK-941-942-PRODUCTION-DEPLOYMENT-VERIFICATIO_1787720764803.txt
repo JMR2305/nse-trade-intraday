@@ -1,0 +1,319 @@
+TASK #944 — TASK #941/#942 PRODUCTION DEPLOYMENT VERIFICATION
+
+Use:
+TASK_941_DETAILED_SUMMARY.md
+
+GOAL:
+
+Verify that the merged Task #941 pre-open accounting fix and Task #942 UI
+clarification are cleanly deployed to production before the next natural NSE
+pre-open certification.
+
+CURRENT KNOWN IMPLEMENTATION:
+
+Task #941 = merged and complete
+Task #942 = merged
+
+Task #942 reported merge commit:
+ba3727403d45c8bdec6a25eebaf3236da859727c
+
+Task #941 behavior must include:
+
+- custom-universe NSE provider scope = ALL
+- provider cache isolated by query scope
+- one immutable outcome for every expected active-universe symbol
+- no fabricated snapshots for missing provider rows
+- original collection batch preserved through failure paths
+- NSE timestamps parsed as Asia/Kolkata
+- missing/malformed/future/≥300s timestamps fail stale
+- MATCH requires exact expected/live/persisted parity
+- freeze independently rechecks exact batch/outcome/liveness evidence
+
+IMPORTANT:
+
+Do NOT:
+- trigger Phase 5A
+- trigger Phase 5B/5C
+- retry/replay/backfill historical pre-open
+- trigger a manual market scan
+- fabricate provider data
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- place broker orders
+- modify universe membership
+- modify portfolio/ledger/capital/settings
+- rewrite the August 26 failed session
+
+TASK 1 — VERIFY SOURCE / MERGE STATE
+
+Report:
+
+current branch
+HEAD commit
+git status
+
+Confirm:
+- Task #941 merge is present
+- Task #942 commit ba3727403d45c8bdec6a25eebaf3236da859727c is present or is an ancestor
+- no unrelated uncommitted runtime changes exist
+
+Identify the exact commit containing the final Task #941 + #942 runtime state.
+
+TASK 2 — SOURCE SCOPE
+
+List every runtime file changed by Task #941/#942.
+
+Expected Task #941 runtime scope includes:
+
+artifacts/api-server/src/python/nse_preopen_provider.py
+artifacts/api-server/src/python/preopen_engine.py
+artifacts/api-server/src/python/preopen_db.py
+artifacts/api-server/src/python/preopen_scheduler.py
+
+plus Task #942 UI files.
+
+Confirm no trading/execution/portfolio/universe-membership changes are included.
+
+TASK 3 — VERIFY ROOT-CAUSE FIX
+
+Source-inspect and prove:
+
+1. CUSTOM_LOW_PRICE_SECTOR collection resolves all 23 active symbols.
+2. NSE provider request scope becomes ALL.
+3. hard-coded NIFTY scope cannot override the custom-universe request.
+4. provider cache key includes query scope.
+5. every expected symbol gets exactly one durable outcome.
+6. missing provider rows do not create fake PreOpenSnapshot rows.
+7. incomplete coverage cannot produce MATCH.
+8. freeze requires exact batch + exact outcome coverage + explicit live evidence.
+
+TASK 4 — HISTORICAL EVIDENCE DISCREPANCY
+
+READ ONLY.
+
+There is a report discrepancy for the August 26 failed session:
+
+One report listed:
+COALINDIA
+NTPC
+WIPRO
+
+Task #941 summary lists:
+COALINDIA
+GAIL
+NTPC
+
+Do NOT rewrite anything.
+
+Determine the authoritative historical truth from:
+- immutable persisted batch rows
+- preopen_collection_outcomes
+- original audit evidence
+- durable session/batch IDs
+
+Report:
+
+AUTHORITATIVE_COLLECTED_3 =
+<exact symbols>
+
+Explain why the two reports differed.
+
+If the discrepancy cannot be proven:
+mark it UNRESOLVED.
+
+TASK 5 — TEST GATE
+
+Re-run:
+
+- pre-open universe coverage
+- lifecycle/persistence truth
+- multi-provider behavior
+- broader pre-open validation
+- scheduler tests
+- readiness regressions
+- Phase20 safety
+- portfolio/ledger regressions
+- Python compilation
+- API TypeScript
+- workspace TypeScript
+- dashboard Task #942 tests/build
+
+Require zero unexpected failures.
+
+Reference prior evidence:
+- focused 92 passed
+- broader pre-open validation 268 passed
+
+TASK 6 — SCHEMA SAFETY
+
+Inspect production schema diff.
+
+Task #941 may require additive storage for:
+preopen_collection_outcomes
+
+Require:
+- additive only
+- no DROP
+- no TRUNCATE
+- no destructive table recreation
+- no historical row rewrite
+
+Show exact SQL if a production schema change is required.
+
+TASK 7 — CREATE APPROVED DEPLOY COMMIT
+
+Only after source/test/schema gates pass:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first 12 chars>
+
+TASK 8 — CONTROLLED PUBLISH
+
+Deploy only APPROVED_DEPLOY_COMMIT.
+
+Do not trigger any pre-open lifecycle or scan after publishing.
+
+TASK 9 — RUNTIME IDENTITY
+
+READ ONLY.
+
+Confirm production:
+
+environment = production
+git_commit = APPROVED_DEPLOY_COMMIT
+build_id = EXPECTED_BUILD_ID
+deployment_id = present
+runtime_timestamp = current
+
+Any mismatch:
+STOP.
+
+TASK 10 — POST-DEPLOY SAFETY
+
+READ ONLY.
+
+Confirm:
+
+active universe = CUSTOM_LOW_PRICE_SECTOR
+active count = 23
+mappings = 23/23
+
+automatic paper entries = false
+confirmation = null
+bootstrap = false
+automatic exits = true
+controlled execution = disabled
+live broker orders = disabled
+execution mode = PAPER_TRADING
+
+portfolio/ledger parity unchanged
+open positions = 0
+EXIT_PENDING = 0
+six historical closed rows preserved
+
+TASK 11 — TASK #941 RUNTIME PRESENCE
+
+Without triggering collection, verify deployed source/runtime contains:
+
+provider scope ALL for custom universe
+query-scope cache isolation
+preopen_collection_outcomes support
+Asia/Kolkata timestamp parsing
+fail-closed stale/future handling
+exact-outcome coverage requirement
+freeze exact-evidence recheck
+
+TASK 12 — TASK #942 UI CHECK
+
+READ ONLY.
+
+Confirm Pre-Open UI distinguishes:
+
+SESSION STATE
+
+from
+
+CERTIFIED COLLECTION STATE
+
+An incomplete/empty batch must not visually imply successful certification
+merely because a session-level state says Frozen.
+
+TASK 13 — PRESERVE AUGUST 26 EVIDENCE
+
+Do not modify:
+
+session =
+preopen-2026-08-26-ccb21a
+
+Confirm it remains incomplete historical evidence.
+
+No retry.
+No replay.
+No backfill.
+No relabeling as certified.
+
+TASK 14 — NEXT NATURAL SESSION GATE
+
+Prepare the next natural-session validation.
+
+Require natural SCHEDULED Phase 5A evidence:
+
+active universe resolved = 23
+provider scope = ALL
+
+for every expected symbol:
+exactly one durable outcome
+
+certification only if:
+
+expected live symbol set
+=
+persisted live symbol set
+=
+exact expected universe
+
+and:
+
+is_stale = false
+source_status = LIVE
+batch IDs agree
+all required outcome evidence exists
+
+Any:
+missing
+stale
+future-dated
+non-live
+malformed
+duplicate
+unclassified
+or incomplete evidence
+
+must block MATCH and freeze.
+
+No manual correction during the validation session.
+
+OUTPUT:
+
+1. TASK_944_DEPLOYMENT_SCOPE_AND_TEST_REPORT.md
+2. TASK_944_HISTORICAL_3_SYMBOL_RECONCILIATION.md
+3. TASK_944_RUNTIME_IDENTITY_AND_SAFETY.md
+4. TASK_944_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL VERDICT:
+
+A. PASS — TASK #941/#942 DEPLOYED, NEXT NATURAL SESSION READY
+B. SOURCE SCOPE FAILURE
+C. TEST FAILURE
+D. SCHEMA FAILURE
+E. DEPLOYMENT IDENTITY FAILURE
+F. SAFETY REGRESSION
+G. HISTORICAL EVIDENCE DISCREPANCY UNRESOLVED
+
+FINAL RULE:
+
+Do not run Phase 5A to verify the deployment.
+Prove deployment identity and code presence only, then wait for the next
+naturally scheduled NSE pre-open session.

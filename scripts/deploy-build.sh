@@ -9,6 +9,23 @@ echo " ApexQuant AI — Deployment Build"
 echo "========================================"
 
 echo ""
+echo "--- Step 0: Capture exact source identity for artifact builds ---"
+# Artifact-specific production builds run after this root pre-build hook. The
+# cleanup below removes .git to keep the publish image under its size limit,
+# so preserve the exact commit in a tiny non-secret handoff file.
+SOURCE_COMMIT="${APEXQUANT_GIT_COMMIT:-${REPLIT_GIT_COMMIT:-${GIT_COMMIT:-${SOURCE_COMMIT:-}}}}"
+if [ -z "$SOURCE_COMMIT" ]; then
+  SOURCE_COMMIT="$(git rev-parse HEAD 2>/dev/null || true)"
+fi
+if ! [[ "$SOURCE_COMMIT" =~ ^[0-9a-fA-F]{40}$ ]]; then
+  echo "Unable to resolve a full 40-character source commit for deployment." >&2
+  exit 1
+fi
+printf '%s\n' "$SOURCE_COMMIT" > .apexquant-source-commit
+export APEXQUANT_GIT_COMMIT="$SOURCE_COMMIT"
+echo "    Source commit: ${SOURCE_COMMIT:0:12}"
+
+echo ""
 echo "--- Step 1: Create workspace-local virtualenv (.venv) ---"
 # We explicitly create a .venv in the workspace filesystem so packages are
 # guaranteed to be available at runtime.  uv sync without this flag installs
@@ -30,6 +47,15 @@ echo "$UV_PYTHON" > .python-exe
 echo "$UV_SITE"   > .python-site
 echo "    Executable : $UV_PYTHON"
 echo "    Site-pkgs  : $UV_SITE"
+
+echo ""
+echo "--- Step 1d: Prune exports/ files older than 7 days ---"
+# Keep the workspace tidy during development so a future deploy never hits
+# the 8 GiB image limit again.  Step 5 removes the entire exports/ directory
+# from the deploy image, but this step keeps the dev workspace clean between
+# deploys by removing stale files right at build time.
+find exports/ -maxdepth 1 -type f -mtime +7 -delete 2>/dev/null || true
+echo "    Exports older than 7 days removed (Step 5 strips the full dir from image)"
 
 echo ""
 echo "--- Step 2: Verify critical Python imports (using .venv) ---"
@@ -72,10 +98,22 @@ echo "--- Step 5: Strip build-only bloat from the deployment image ---"
 #                  startup with 'exec: "node": executable file not found'.
 #   .pythonlibs  — dev Python env; production uses the .venv built above
 #   .local/state — workspace-local logs/state
+#   exports/     — user-generated CSV/PDF/ZIP output (~1 GB, grows over time,
+#                  not needed at runtime — this was the root cause of the
+#                  2026-08-18 promote-step timeout: the Repl layer was so large
+#                  the container took >300 s to unpack, killing health checks.
+#   reports/     — generated markdown/PDF reports
+#   verification/ — generated verification artefacts
+#   screenshots/ — dev screenshots
+#   **/.mypy_cache — mypy type-check cache (~30 MB)
+#   **/__pycache__ — Python bytecode (regenerated on first use; ~31 MB)
 # (.local/share/pnpm is stripped in the postBuild step, after pnpm store prune.)
-rm -rf .git .pythonlibs .local/state
+rm -rf .git .pythonlibs .local/state exports/ reports/ verification/ screenshots/
 find .cache -mindepth 1 -maxdepth 1 ! -name replit -exec rm -rf {} + 2>/dev/null || true
-echo "    Stripped .git, .cache/* (kept .cache/replit), .pythonlibs, .local/state"
+find . -name ".mypy_cache" -not -path "./.venv/*" -exec rm -rf {} + 2>/dev/null || true
+find . -name "__pycache__"  -not -path "./.venv/*" -exec rm -rf {} + 2>/dev/null || true
+echo "    Stripped .git, .cache/*, .pythonlibs, .local/state, exports/, reports/,"
+echo "             verification/, screenshots/, .mypy_cache, __pycache__"
 du -sh . 2>/dev/null | awk '{print "    Image workspace size after cleanup: " $1}'
 
 echo ""

@@ -1,0 +1,133 @@
+CHANGE BOOTSTRAP PAPER TRADE CAP FROM ₹1,500 TO ₹15,000 — KEEP OTHER RISK GATES
+
+Use APEXQUANT_ACTUAL_POST_PUBLISH_VERIFICATION_18AUG.md and APEXQUANT_AI_SOP_v5.0.html as controlling documents.
+
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current issue:
+- First BOOTSTRAP_AUTO trade was created for DRREDDY.
+- Fill price: ₹1,186.98
+- Quantity: 1
+- Reason: bootstrap max notional was ₹1,500.
+- Operator now wants bootstrap cap changed to ₹15,000.
+
+Required change:
+Change bootstrap max order value from ₹1,500 to ₹15,000.
+
+Important:
+Do NOT change:
+- LIVE_EXECUTION_ENABLED
+- broker order logic
+- BUY/WATCH thresholds
+- R:R thresholds
+- circuit breaker
+- duplicate-position rule
+- per-stock exposure cap
+- portfolio-level risk controls
+
+Keep existing exposure cap active.
+If per-stock exposure cap is 25% of ₹50,000, effective max exposure is ₹12,500.
+So even with bootstrap cap ₹15,000, DRREDDY should likely size to about 10 shares, not 12, unless the exposure cap allows more.
+
+TASK 1 — FIND CURRENT BOOTSTRAP CAP
+
+Find all places where bootstrap max order value is defined or used.
+
+Search for:
+- BOOTSTRAP_MAX_ORDER_VALUE
+- _BOOTSTRAP_MAX_ORDER_VALUE
+- bootstrap max notional
+- 1500
+- ₹1,500
+- max bootstrap notional
+
+Report exact file/function.
+
+TASK 2 — CHANGE CAP
+
+Change bootstrap max notional from ₹1,500 to ₹15,000.
+
+Expected:
+- bootstrap max order value = 15000
+- UI shows ₹15,000
+- API/bootstrap-status shows ₹15,000
+- executor uses ₹15,000 for quantity sizing
+- tests use ₹15,000 where relevant
+
+TASK 3 — PRESERVE RISK CONTROLS
+
+Confirm these still apply:
+- per-stock exposure cap
+- position-size cap
+- duplicate-position rule
+- circuit breaker
+- R:R re-check after slippage
+- Kite LTP / quote_reliable requirement
+- max one bootstrap trade per scan
+- no live broker order API
+
+TASK 4 — DRREDDY SIZE SIMULATION
+
+Using DRREDDY fill/reference price ₹1,186.98, calculate expected quantity:
+
+- Based on ₹15,000 bootstrap cap
+- Based on 25% portfolio exposure cap, if active
+- Final selected quantity after all caps
+
+Show:
+- raw bootstrap quantity
+- exposure-cap-adjusted quantity
+- final notional
+- remaining cash impact
+- risk amount
+- stop_loss
+- target
+- R:R after slippage
+
+Expected:
+- ₹15,000 / ₹1,186.98 ≈ 12 shares raw
+- 25% exposure cap may reduce this to about 10 shares
+- final notional should respect all caps
+
+TASK 5 — EXISTING OPEN DRREDDY POSITION
+
+Do NOT automatically modify the already-open DRREDDY trade unless explicitly supported safely.
+
+Report:
+- current DRREDDY quantity
+- whether resizing existing open paper trade is supported
+- whether better approach is to leave current trade as-is and apply ₹15,000 cap only to future bootstrap trades
+
+Preferred:
+- Leave existing P20-3468fb2a24 unchanged.
+- Apply new cap only to future BOOTSTRAP_AUTO entries.
+
+TASK 6 — TESTS
+
+Update/add tests proving:
+1. Bootstrap cap is ₹15,000.
+2. Quantity sizing uses ₹15,000 cap.
+3. Per-stock exposure cap can still reduce quantity below ₹15,000.
+4. DRREDDY-like price sizes correctly.
+5. No fractional quantity.
+6. No live broker API called.
+7. Existing ₹1,500 references are removed from UI/API except migration notes.
+8. Circuit breaker and duplicate-position rules still block correctly.
+
+TASK 7 — REPORT
+
+Generate:
+
+APEXQUANT_BOOTSTRAP_CAP_15000_UPDATE_REPORT.md
+
+Include:
+1. Files changed.
+2. Old cap vs new cap.
+3. Final effective cap after exposure rules.
+4. DRREDDY quantity simulation.
+5. Confirmation existing DRREDDY trade was not mutated.
+6. Test results.
+7. Confirmation no live orders.
+8. Whether publish is required.

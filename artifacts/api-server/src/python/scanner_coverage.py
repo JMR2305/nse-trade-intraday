@@ -1,8 +1,8 @@
 """
 scanner_coverage.py — market-hours scanner coverage probe.
 
-Phase 2B/2C observed the scanner stuck at 48/50 symbols over weekends
-(Yahoo returns no weekend data for some symbols, e.g. LTIM / TMPV).
+Phase 2B/2C observed the scanner stuck below full coverage over weekends
+(Yahoo returns no weekend data for some symbols, e.g. TMPV).
 That gap is expected to self-resolve at Monday market open — but nothing
 confirmed the recovery actually happened. This probe makes the check
 explicit and automated:
@@ -30,13 +30,25 @@ PAPER TRADING / RESEARCH ONLY — read-only; never triggers a scan.
 
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
-
-from config import MIN_SYMBOLS_EXPECTED
+from typing import Any, Dict, List, Optional, Tuple
 
 # Session states where full, session-fresh coverage is required.
 IN_SESSION_STATES = {"OPEN", "PRE_OPEN"}
+
+# A stable, machine-readable explanation of whether the scanner can establish
+# readiness against the immutable universe authority.  This is deliberately
+# independent of ``ok``: outside market hours the established coverage policy
+# remains permissive even when the latest scan is stale or incomplete.
+READINESS_DURABLE_AUTHORITY_UNAVAILABLE = "durable_authority_unavailable"
+READINESS_SCAN_METADATA_UNAVAILABLE = "scan_metadata_unavailable"
+READINESS_NO_CURRENT_VERSION_SCAN = "no_current_version_scan"
+READINESS_STALE_OR_DIFFERENT_PINNED_REVISION = (
+    "stale_or_different_pinned_revision"
+)
+READINESS_INCOMPLETE_CURRENT_SCAN = "incomplete_current_scan"
+READINESS_HEALTHY_CURRENT_SCAN = "healthy_current_scan"
 
 
 def _parse_ts(value: Any) -> Optional[datetime]:
@@ -52,11 +64,17 @@ def _parse_ts(value: Any) -> Optional[datetime]:
         return None
 
 
+def _expected_universe() -> Tuple[str, List[str], Dict[str, Any]]:
+    """Resolve the same pinned durable version as collection and scanning."""
+    from runtime_universe import resolve_active_universe
+    context = resolve_active_universe()
+    return context["universe_key"], list(context["enabled_symbols"]), context
+
+
 def coverage_probe() -> Dict[str, Any]:
     """Return the market-hours coverage verdict. Never raises."""
     result: Dict[str, Any] = {
         "success": True,
-        "min_symbols_expected": MIN_SYMBOLS_EXPECTED,
         "label": "PAPER / RESEARCH ONLY",
     }
     try:
@@ -72,6 +90,7 @@ def coverage_probe() -> Dict[str, Any]:
     except Exception as exc:
         result.update({"success": False, "ok": False, "in_session": False,
                        "market_state": "UNKNOWN",
+                       "readiness_state": "market_state_unavailable",
                        "warning": f"Market state unavailable: {exc}"})
         return result
 
@@ -81,10 +100,35 @@ def coverage_probe() -> Dict[str, Any]:
     result["session_start_ist"] = session_start.isoformat()
 
     try:
+        active_universe, expected_symbols, universe_context = _expected_universe()
+        expected_count = len(expected_symbols)
+        result.update({
+            "active_universe": active_universe,
+            "expected_symbols": expected_symbols,
+            # Keep the established field name for dashboard/scheduler
+            # consumers, but make it reflect the selected universe.
+            "min_symbols_expected": expected_count,
+            "universe": universe_context,
+        })
+    except Exception as exc:
+        result.update({
+            "success": False,
+            "ok": not in_session,
+            "coverage": None,
+            "readiness_state": READINESS_DURABLE_AUTHORITY_UNAVAILABLE,
+            "warning": (
+                f"Active universe unavailable: {exc}"
+                if in_session else None
+            ),
+        })
+        return result
+
+    try:
         import scan_state_store
         meta = scan_state_store.load_latest_meta()
     except Exception as exc:
-        result.update({"ok": not in_session, "coverage": None,
+        result.update({"success": False, "ok": not in_session, "coverage": None,
+                       "readiness_state": READINESS_SCAN_METADATA_UNAVAILABLE,
                        "warning": (f"Scan metadata unavailable: {exc}"
                                    if in_session else None)})
         return result
@@ -93,6 +137,7 @@ def coverage_probe() -> Dict[str, Any]:
         result.update({
             "ok": not in_session,
             "coverage": None,
+            "readiness_state": READINESS_NO_CURRENT_VERSION_SCAN,
             "warning": ("No completed scan found during market hours — "
                         "scanner may not be running") if in_session else None,
         })
@@ -111,17 +156,38 @@ def coverage_probe() -> Dict[str, Any]:
         "snapshot_ts": meta.get("snapshot_ts"),
         "scan_fresh_for_session": scan_fresh,
     })
+    meta_universe = meta.get("universe_context") or meta.get("universe") or {}
+    expected_hash = universe_context.get("exact_set_hash")
+    expected_version = universe_context.get("version")
+    if (meta_universe.get("exact_set_hash", meta_universe.get("universe_set_hash")) != expected_hash
+            or meta_universe.get("version", meta_universe.get("universe_version")) != expected_version):
+        result.update({
+            "success": False,
+            "ok": not in_session,
+            "readiness_state": READINESS_STALE_OR_DIFFERENT_PINNED_REVISION,
+            "warning": "Latest scan was produced by a different pinned universe version",
+            "universe_mismatch": True,
+        })
+        return result
 
-    # Coverage is judged against the configured expected universe, never the
-    # scan's own requested count.
-    low = received < MIN_SYMBOLS_EXPECTED
+    # Coverage is judged against the active expected universe, never the
+    # scan's own requested count. This prevents a reduced custom scan from
+    # declaring itself complete merely because its own request was satisfied.
+    low = received < expected_count
 
     if not in_session:
         result["ok"] = True
         result["warning"] = None
+        result["readiness_state"] = (
+            READINESS_INCOMPLETE_CURRENT_SCAN
+            if low else (
+                READINESS_HEALTHY_CURRENT_SCAN
+                if scan_fresh else READINESS_STALE_OR_DIFFERENT_PINNED_REVISION
+            )
+        )
         if low:
             result["note"] = (
-                f"Coverage {received}/{MIN_SYMBOLS_EXPECTED} outside market "
+                f"Coverage {received}/{expected_count} outside market "
                 f"hours ({state}) — expected to self-resolve at next open."
             )
         return result
@@ -129,24 +195,34 @@ def coverage_probe() -> Dict[str, Any]:
     # In session: recovery must be CONFIRMED by a scan from today's session.
     if not scan_fresh:
         result["ok"] = False
+        result["readiness_state"] = READINESS_STALE_OR_DIFFERENT_PINNED_REVISION
         age = f" (last scan: {meta.get('completed_at') or meta.get('snapshot_ts') or 'unknown'})"
         result["warning"] = (
             f"No scan completed in today's session{age} — coverage "
-            f"{received}/{MIN_SYMBOLS_EXPECTED} is from a previous session and "
+            f"{received}/{expected_count} is from a previous session and "
             "does NOT confirm recovery; run a fresh scan."
         )
         return result
 
     if low:
         result["ok"] = False
+        result["readiness_state"] = READINESS_INCOMPLETE_CURRENT_SCAN
         miss = f" (missing: {', '.join(missing)})" if missing else ""
+        # On Monday (first session after a weekend/holiday) the missing symbols
+        # may be a lingering weekend data gap.  On any other weekday they are
+        # a mid-session provider outage — do not say "weekend gap" on a Tuesday.
+        if now.weekday() == 0:  # Monday = 0
+            gap_note = "weekend data gap may not have resolved at open — "
+        else:
+            gap_note = "symbol(s) currently unavailable from provider — "
         result["warning"] = (
-            f"Scanner coverage {received}/{MIN_SYMBOLS_EXPECTED} during market "
-            f"hours{miss} — weekend data gap did NOT self-resolve; "
+            f"Scanner coverage {received}/{expected_count} during market "
+            f"hours{miss} — {gap_note}"
             "run a fresh scan and investigate the provider."
         )
         return result
 
     result["ok"] = True
     result["warning"] = None
+    result["readiness_state"] = READINESS_HEALTHY_CURRENT_SCAN
     return result

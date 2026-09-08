@@ -138,12 +138,32 @@ class TestCapitalConfig(unittest.TestCase):
             with self.assertRaises(ValueError):
                 m.update_capital_config({"starting_capital": 500})
 
-    def test_update_capital_config_valid_capital(self):
+    def test_update_capital_config_cannot_bypass_guarded_migration(self):
         with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
              patch("phase20_store.kv_set", side_effect=_kv_set_mock):
             import phase11_autonomous as m
-            m.update_capital_config({"starting_capital": 100_000.0})
-        self.assertEqual(SAMPLE_KV.get("phase11_starting_capital"), 100_000.0)
+            with self.assertRaisesRegex(ValueError, "guarded"):
+                m.update_capital_config({"starting_capital": 100_000.0})
+        self.assertNotIn("phase11_starting_capital", SAMPLE_KV)
+
+    def test_update_capital_config_cannot_change_topup_target(self):
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
+             patch("phase20_store.kv_set", side_effect=_kv_set_mock):
+            import phase11_autonomous as m
+            with self.assertRaisesRegex(ValueError, "topup_target.*guarded"):
+                m.update_capital_config({"topup_target": 250_000.0})
+        self.assertNotIn("phase11_topup_target", SAMPLE_KV)
+
+    def test_guarded_capital_rejection_is_atomic_with_mode_patch(self):
+        with patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d)), \
+             patch("phase20_store.kv_set", side_effect=_kv_set_mock):
+            import phase11_autonomous as m
+            with self.assertRaisesRegex(ValueError, "guarded"):
+                m.update_capital_config({
+                    "mode": "B",
+                    "starting_capital": 100_000.0,
+                })
+        self.assertNotIn("phase11_capital_mode", SAMPLE_KV)
 
 
 # ── Test: Portfolio Summary ───────────────────────────────────────────────────
@@ -289,13 +309,53 @@ class TestOpenPositions(unittest.TestCase):
         positions = m.get_open_positions_detail()
         self.assertEqual(positions, [])
 
+    @patch("canonical_portfolio.build_canonical_portfolio", return_value=SAMPLE_CANON)
+    @patch("phase11_autonomous._get_current_regime", return_value="TRENDING")
+    @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
+    @patch("phase20_store.kv_get", side_effect=lambda k, d=None: SAMPLE_KV.get(k, d))
+    @patch("phase20_executor.get_open_trades", return_value=[{
+        "symbol": "RELIANCE",
+        "trigger_source": "AUTO",
+        "fill_model": "LAST_TRADED_PRICE",
+        "evidence": {
+            "quality_allocation_override": {
+                "tier": "HIGH_QUALITY_2X",
+                "reason": "HIGH_QUALITY_2X_APPROVED",
+                "requested_multiplier": 2.0,
+                "effective_multiplier": 1.8,
+                "base_notional": 10_000.0,
+                "final_notional": 18_000.0,
+                "final_risk_amount": 1_200.0,
+                "final_risk_pct": 1.2,
+                "limiting_caps": ["sector"],
+                "exposure_after": {
+                    "stock_pct": 18.0,
+                    "sector_pct": 40.0,
+                    "portfolio_deployed_pct": 68.0,
+                },
+            }
+        },
+    }])
+    def test_open_position_propagates_immutable_allocation_evidence(
+        self, mock_trades, mock_kv, mock_load, mock_regime, mock_canon
+    ):
+        import phase11_autonomous as m
+        positions = m.get_open_positions_detail()
+        reliance = next(p for p in positions if p["stock"] == "RELIANCE")
+        self.assertEqual(reliance["allocation_tier"], "HIGH_QUALITY_2X")
+        self.assertEqual(reliance["allocation_effective_multiplier"], 1.8)
+        self.assertEqual(reliance["allocation_final_notional"], 18_000.0)
+        self.assertEqual(reliance["allocation_sector_exposure_pct"], 40.0)
+        self.assertEqual(reliance["allocation_limiting_caps"], ["sector"])
+
 
 # ── Test: Closed Positions Detail ─────────────────────────────────────────────
 
 class TestClosedPositions(unittest.TestCase):
+    @patch("phase11_autonomous._get_phase20_ledger_closed_trades", return_value=[])
     @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[])
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
-    def test_closed_positions_has_required_fields(self, mock_load, mock_p20):
+    def test_closed_positions_has_required_fields(self, mock_load, mock_p20, mock_ledger):
         import phase11_autonomous as m
         closed = m.get_closed_positions_detail()
         required = [
@@ -307,22 +367,63 @@ class TestClosedPositions(unittest.TestCase):
             for f in required:
                 self.assertIn(f, pos, f"Missing field {f} in closed position")
 
+    @patch("phase11_autonomous._get_phase20_ledger_closed_trades", return_value=[])
     @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[])
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
-    def test_only_sell_actions_in_closed(self, mock_load, mock_p20):
+    def test_only_sell_actions_in_closed(self, mock_load, mock_p20, mock_ledger):
         import phase11_autonomous as m
         closed = m.get_closed_positions_detail()
         for pos in closed:
             self.assertIn(pos["symbol"], ["TCS", "WIPRO"])
 
+    @patch("phase11_autonomous._get_phase20_ledger_closed_trades", return_value=[])
     @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[])
     @patch("portfolio_store.load_state", return_value=SAMPLE_STATE)
-    def test_loss_trade_has_lesson(self, mock_load, mock_p20):
+    def test_loss_trade_has_lesson(self, mock_load, mock_p20, mock_ledger):
         import phase11_autonomous as m
         closed = m.get_closed_positions_detail()
         wipro = next((c for c in closed if c["symbol"] == "WIPRO"), None)
         self.assertIsNotNone(wipro)
         self.assertTrue(len(wipro["lesson_learned"]) > 0)
+
+    @patch("phase11_autonomous._get_phase20_ledger_closed_trades", return_value=[
+        {
+            "symbol": "DRREDDY", "action": "EXIT", "quantity": 20,
+            "entry_price": 1234.5, "price": 1250.0, "pnl": 310.0,
+            "buy_ts": "2026-08-19T04:20:00Z",
+            "trade_ts": "2026-08-19T08:30:00Z",
+            "strategy": "MOMENTUM", "confidence": 80.0,
+        },
+    ])
+    @patch("phase11_autonomous._get_phase20_closed_trades", return_value=[
+        {
+            "symbol": "DIVISLAB", "action": "SELL", "quantity": 1,
+            "entry_price": 6000.0, "price": 6030.0, "pnl": 30.0,
+            "buy_ts": "2026-08-19T04:25:00Z",
+            "trade_ts": "2026-08-19T08:35:00Z",
+            "strategy": "BREAKOUT", "confidence": 76.0,
+        },
+        {
+            "symbol": "HISTORICAL", "action": "SELL",
+            "entry_price": 100.0, "price": 101.0, "pnl": 1.0,
+            "buy_ts": "2024-01-01T04:25:00Z",
+            "trade_ts": "2024-01-01T08:35:00Z",
+            "strategy": "UNKNOWN", "confidence": 0.0,
+        },
+    ])
+    @patch("portfolio_store.load_state", return_value={"trades": []})
+    def test_closed_positions_preserve_ledger_and_legacy_quantities(
+        self, mock_load, mock_legacy, mock_ledger
+    ):
+        import phase11_autonomous as m
+
+        by_symbol = {
+            row["symbol"]: row for row in m.get_closed_positions_detail()
+        }
+
+        self.assertEqual(by_symbol["DRREDDY"]["quantity"], 20)
+        self.assertEqual(by_symbol["DIVISLAB"]["quantity"], 1)
+        self.assertIsNone(by_symbol["HISTORICAL"]["quantity"])
 
 
 # ── Test: Recommendation Queue ────────────────────────────────────────────────
@@ -379,6 +480,104 @@ class TestRecommendationQueue(unittest.TestCase):
             result = m.get_recommendation_queue()
         for key in ["items", "count", "advisory_only", "paper_only", "as_of"]:
             self.assertIn(key, result)
+
+    def test_recommendation_merges_latest_real_allocation_preview(self):
+        import phase11_autonomous as m
+
+        def _kv_get(key, default=None):
+            if key == "last_entry_evaluation":
+                return {
+                    "evaluated_at": "2026-08-19T04:00:05Z",
+                    "scan_id": "scan-current",
+                    "snapshot_ts": "2026-08-19T04:00:00Z",
+                    "settings_config_hash": "cfg-current",
+                    "candidates": [{
+                        "symbol": "TCS",
+                        "allocation_override_preview": {
+                            "tier": "EXCEPTIONAL_QUALITY_3X",
+                            "reason": "EXCEPTIONAL_QUALITY_3X_APPROVED",
+                            "requested_multiplier": 3.0,
+                            "effective_multiplier": 2.5,
+                            "base_notional": 8_000.0,
+                            "final_notional": 20_000.0,
+                            "final_risk_amount": 1_600.0,
+                            "final_risk_pct": 1.6,
+                            "limiting_caps": ["per_stock"],
+                            "exposure_after": {
+                                "stock_pct": 25.0,
+                                "sector_pct": 36.0,
+                                "portfolio_deployed_pct": 72.0,
+                            },
+                        },
+                    }]
+                }
+            return default
+
+        with patch("phase11_autonomous._get_ai_decision_recs", return_value=[{
+            "symbol": "TCS",
+            "action": "STRONG BUY",
+            "confidence": 92.0,
+        }]), patch("phase20_store.kv_get", side_effect=_kv_get), \
+             patch("phase20_store.get_settings",
+                   return_value={"config_hash": "cfg-current"}), \
+             patch("phase15_scan_context.build_scan_context",
+                   return_value={
+                       "is_today_session": True,
+                       "scan_id": "scan-current",
+                       "snapshot_ts": "2026-08-19T04:00:00Z",
+                   }):
+            result = m.get_recommendation_queue()
+
+        item = result["items"][0]
+        self.assertEqual(item["allocation_tier"], "EXCEPTIONAL_QUALITY_3X")
+        self.assertEqual(item["allocation_effective_multiplier"], 2.5)
+        self.assertEqual(item["allocation_final_notional"], 20_000.0)
+        self.assertEqual(item["allocation_stock_exposure_pct"], 25.0)
+        self.assertTrue(item["allocation_preview"])
+        self.assertTrue(item["allocation_preview_not_executed"])
+        self.assertEqual(item["allocation_scan_id"], "scan-current")
+
+    def test_recommendation_does_not_merge_stale_allocation_preview(self):
+        import phase11_autonomous as m
+
+        stale_eval = {
+            "evaluated_at": "2026-08-19T03:55:05Z",
+            "scan_id": "scan-old",
+            "snapshot_ts": "2026-08-19T03:55:00Z",
+            "settings_config_hash": "cfg-current",
+            "candidates": [{
+                "symbol": "TCS",
+                "allocation_override_preview": {
+                    "tier": "EXCEPTIONAL_QUALITY_3X",
+                    "effective_multiplier": 3.0,
+                },
+            }],
+        }
+        with patch(
+            "phase11_autonomous._get_ai_decision_recs",
+            return_value=[{
+                "symbol": "TCS",
+                "action": "STRONG BUY",
+                "confidence": 92.0,
+            }],
+        ), patch(
+            "phase20_store.kv_get",
+            return_value=stale_eval,
+        ), patch(
+            "phase20_store.get_settings",
+            return_value={"config_hash": "cfg-current"},
+        ), patch(
+            "phase15_scan_context.build_scan_context",
+            return_value={
+                "is_today_session": True,
+                "scan_id": "scan-current",
+                "snapshot_ts": "2026-08-19T04:00:00Z",
+            },
+        ):
+            item = m.get_recommendation_queue()["items"][0]
+
+        self.assertNotIn("allocation_tier", item)
+        self.assertNotIn("allocation_preview", item)
 
 
 # ── Test: Session Timeline ────────────────────────────────────────────────────
@@ -961,6 +1160,229 @@ class TestPriceSnapshots(unittest.TestCase):
         self.assertEqual(result["symbol"], "RELIANCE")
         self.assertEqual(result["prices"], [2870.0, 2880.0, 2875.0])
         self.assertEqual(result["count"], 3)
+
+
+# ── Test: Age column fallback chain & clamping ────────────────────────────────
+
+def _make_pos(opened_at: str | None, age_ts_source: str | None) -> dict:
+    """Minimal canonical position fixture."""
+    return {
+        "trade_id": "T-age-test",
+        "symbol": "TESTCO",
+        "quantity": 1,
+        "avg_price": 100.0,
+        "cost": 100.0,
+        "mark_price": 105.0,
+        "mark_source": "scan",
+        "market_value": 105.0,
+        "unrealized_pnl": 5.0,
+        "status": "OPEN",
+        "sector": "TEST",
+        "strategy_id": "BREAKOUT",
+        "opened_at": opened_at,
+        "age_ts_source": age_ts_source,
+        "stop_loss": 90.0,
+        "target": 120.0,
+        "scan_id": "scan-age-test",
+    }
+
+
+def _canon_with_pos(pos: dict) -> dict:
+    return {
+        **EMPTY_CANON,
+        "cash": 50_000.0,
+        "initial_capital": 50_000.0,
+        "equity": 50_105.0,
+        "open_position_count": 1,
+        "positions": [pos],
+    }
+
+
+class TestAgeColumnCanonicalPortfolio(unittest.TestCase):
+    """Verify canonical_portfolio opens_at fallback chain & age_ts_source."""
+
+    def _build(self, ledger_row: dict) -> list:
+        """Run build_canonical_portfolio() with a single open ledger row mocked."""
+        import canonical_portfolio as cp
+        import portfolio_store
+
+        with patch.object(cp, "_ledger_rows", return_value=[ledger_row]), \
+             patch.object(cp, "_scan_marks",
+                          return_value=({"TESTCO": 105.0}, {"TESTCO": "TEST"}, "s1")), \
+             patch.object(cp, "_live_marks", return_value={}), \
+             patch.object(portfolio_store, "INITIAL_CAPITAL", 50_000.0):
+            snap = cp.build_canonical_portfolio()
+        return snap["positions"]
+
+    def _base_row(self, **overrides) -> dict:
+        row = {
+            "trade_id": "T1",
+            "symbol": "TESTCO",
+            "status": "OPEN",
+            "fill_ts":      None,
+            "signal_ts":    None,
+            "snapshot_ts":  None,
+            "created_at":   None,
+            "fill_price":   100.0,
+            "quantity":     1,
+            "stop_loss":    90.0,
+            "target":       120.0,
+            "strategy_id":  "BREAKOUT",
+            "sector":       "TEST",
+            "scan_id":      "s1",
+            "realized_pnl": None,
+        }
+        row.update(overrides)
+        return row
+
+    def test_fill_ts_is_primary_source(self):
+        """Normal case: fill_ts present → opened_at = fill_ts, source = fill_ts."""
+        positions = self._build(self._base_row(fill_ts="2025-08-10T05:00:00Z"))
+        self.assertEqual(len(positions), 1)
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T05:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "fill_ts")
+
+    def test_signal_ts_fallback_when_fill_ts_null(self):
+        """fill_ts missing → fall back to signal_ts."""
+        positions = self._build(
+            self._base_row(fill_ts=None, signal_ts="2025-08-10T06:00:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T06:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "signal_ts")
+
+    def test_snapshot_ts_fallback_when_fill_and_signal_null(self):
+        """fill_ts + signal_ts both missing → fall back to snapshot_ts."""
+        positions = self._build(
+            self._base_row(fill_ts=None, signal_ts=None,
+                           snapshot_ts="2025-08-10T07:00:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T07:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "snapshot_ts")
+
+    def test_created_at_fallback_when_all_others_null(self):
+        """fill_ts, signal_ts, snapshot_ts all missing → fall back to created_at."""
+        positions = self._build(
+            self._base_row(fill_ts=None, signal_ts=None, snapshot_ts=None,
+                           created_at="2025-08-10T08:00:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T08:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "created_at")
+
+    def test_age_ts_source_none_when_all_timestamps_null(self):
+        """All timestamp fields null → opened_at=None, age_ts_source=None."""
+        positions = self._build(
+            self._base_row(fill_ts=None, signal_ts=None, snapshot_ts=None,
+                           created_at=None))
+        pos = positions[0]
+        self.assertIsNone(pos["opened_at"])
+        self.assertIsNone(pos["age_ts_source"])
+
+    def test_malformed_fill_ts_falls_back_to_signal_ts(self):
+        """Malformed (non-empty, unparseable) fill_ts must be skipped;
+        the first valid fallback (signal_ts) is used instead."""
+        positions = self._build(
+            self._base_row(fill_ts="N/A",  # non-empty but unparseable
+                           signal_ts="2025-08-10T06:00:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T06:00:00Z")
+        self.assertEqual(pos["age_ts_source"], "signal_ts")
+
+    def test_malformed_fill_ts_falls_back_to_snapshot_ts(self):
+        """Malformed fill_ts + null signal_ts → snapshot_ts used."""
+        positions = self._build(
+            self._base_row(fill_ts="invalid-date",
+                           signal_ts=None,
+                           snapshot_ts="2025-08-10T07:30:00Z"))
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T07:30:00Z")
+        self.assertEqual(pos["age_ts_source"], "snapshot_ts")
+
+    def test_naive_fill_ts_is_accepted(self):
+        """Naive ISO timestamp (no UTC offset) is treated as UTC and accepted."""
+        positions = self._build(
+            self._base_row(fill_ts="2025-08-10T08:00:00"))  # no offset
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T08:00:00")
+        self.assertEqual(pos["age_ts_source"], "fill_ts")
+
+    def test_naive_fill_ts_malformed_falls_back_to_naive_signal_ts(self):
+        """Malformed fill_ts, then naive signal_ts → signal_ts selected."""
+        positions = self._build(
+            self._base_row(fill_ts="not-a-date",
+                           signal_ts="2025-08-10T09:00:00"))  # naive
+        pos = positions[0]
+        self.assertEqual(pos["opened_at"], "2025-08-10T09:00:00")
+        self.assertEqual(pos["age_ts_source"], "signal_ts")
+
+
+class TestAgeColumnPhase11Detail(unittest.TestCase):
+    """Verify phase11 get_open_positions_detail() propagates age_ts_source
+    correctly and clamps holding_days to >= 0."""
+
+    _common_patches = [
+        ("phase11_autonomous._get_current_regime", "TRENDING"),
+        ("portfolio_store.load_state", {}),
+    ]
+
+    @staticmethod
+    def _kv_mock(k, d=None):
+        return d
+
+    def _call(self, canon_override: dict) -> list:
+        import phase11_autonomous as m
+        with patch("canonical_portfolio.build_canonical_portfolio",
+                   return_value=canon_override), \
+             patch("phase11_autonomous._get_current_regime", return_value="TRENDING"), \
+             patch("phase20_store.kv_get", side_effect=self._kv_mock), \
+             patch("phase20_executor.get_open_trades", return_value=[]):
+            return m.get_open_positions_detail()
+
+    def test_holding_days_positive_with_fill_ts(self):
+        """A position opened in the past has holding_days > 0."""
+        from datetime import datetime, timezone, timedelta
+        past = (datetime.now(timezone.utc) - timedelta(days=3)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        pos = _make_pos(opened_at=past, age_ts_source="fill_ts")
+        result = self._call(_canon_with_pos(pos))
+        self.assertEqual(len(result), 1)
+        item = result[0]
+        self.assertIsNotNone(item["holding_days"])
+        self.assertGreaterEqual(item["holding_days"], 2.9)
+        self.assertEqual(item["age_ts_source"], "fill_ts")
+
+    def test_holding_days_none_when_no_timestamp(self):
+        """No usable timestamp → holding_days is None, age_ts_source is None."""
+        pos = _make_pos(opened_at=None, age_ts_source=None)
+        result = self._call(_canon_with_pos(pos))
+        self.assertEqual(len(result), 1)
+        item = result[0]
+        self.assertIsNone(item["holding_days"])
+        self.assertIsNone(item["age_ts_source"])
+        # near_time_exit must be False (not raise) when holding_days is None
+        self.assertFalse(item["near_time_exit"])
+
+    def test_holding_days_clamped_to_zero_for_future_timestamp(self):
+        """Future fill_ts (clock skew) → holding_days is 0.0, never negative."""
+        from datetime import datetime, timezone, timedelta
+        future = (datetime.now(timezone.utc) + timedelta(hours=2)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        pos = _make_pos(opened_at=future, age_ts_source="fill_ts")
+        result = self._call(_canon_with_pos(pos))
+        self.assertEqual(len(result), 1)
+        item = result[0]
+        self.assertIsNotNone(item["holding_days"])
+        self.assertEqual(item["holding_days"], 0.0)
+        self.assertFalse(item["near_time_exit"])
+
+    def test_fallback_source_propagated_to_output(self):
+        """age_ts_source from canonical portfolio is forwarded in the output."""
+        from datetime import datetime, timezone, timedelta
+        past = (datetime.now(timezone.utc) - timedelta(days=1)).strftime(
+            "%Y-%m-%dT%H:%M:%SZ")
+        pos = _make_pos(opened_at=past, age_ts_source="snapshot_ts")
+        result = self._call(_canon_with_pos(pos))
+        self.assertEqual(result[0]["age_ts_source"], "snapshot_ts")
 
 
 if __name__ == "__main__":

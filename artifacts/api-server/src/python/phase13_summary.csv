@@ -1,5 +1,5 @@
 key,value
-generated_at,2026-08-13T19:35:47Z
+generated_at,2026-08-26T22:11:57Z
 engine_version,Research Engine v1.0 · Phase 13
 mode,PAPER_TRADING_RESEARCH_ONLY
 market_status.state,OPEN
@@ -34,16 +34,15 @@ factor_weights.data_freshness,0.02
 factor_weights.historical_similarity,0.06
 factor_weights.risk_reward,0.05
 factor_weights.portfolio_context,0.03
-action_summary.AVOID,50
-action_summary.WATCH,1
-evidence_distribution.insufficient,51
+action_summary.WATCH,50
+evidence_distribution.insufficient,50
 audit_summary.trade_count,0
 audit_summary.interpretation,Insufficient evidence (0 trades). Minimum 20 OOS trades needed for reliable comparison.
 audit_summary.p13_expectancy,
 audit_summary.p12_expectancy,
-scan_staleness.stale,False
-scan_staleness.age_minutes,605.6
-sample_counts.symbols_analyzed,51
+scan_staleness.stale,True
+scan_staleness.age_minutes,736.1
+sample_counts.symbols_analyzed,50
 sample_counts.completed_trades,0
 self_tests.results,[13 items]
 self_tests.passed,13

@@ -1,0 +1,187 @@
+PHASE 2C — INDEPENDENT SAFETY REVIEW AND MERGE-READINESS AUDIT FOR ADVISORY BOTS
+
+Use APEXQUANT_PHASE2B_ADVISORY_MULTI_BOT_IMPLEMENTATION_REPORT.md as the controlling report.
+
+Do not merge to main.
+Do not deploy to production.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+Do not add scheduler hooks.
+Do not add production endpoints.
+PAPER ONLY.
+ADVISORY ONLY.
+
+Goal:
+Perform a fresh independent review of the Phase 2B implementation and prove whether the branch is safe for later merge consideration.
+
+Review scope:
+
+1. Verify branch state
+- branch = phase2a-advisory-multi-bot-logic
+- not merged to main
+- not deployed
+- no production config changed
+
+2. Verify files changed
+Confirm only advisory-related files changed:
+- advisory_bots/*
+- advisory bot tests
+- phase24/advisory storage additions if used
+- advisory implementation report
+
+Confirm these were NOT touched:
+- phase20_executor.py
+- phase20_scheduler.py
+- phase20_exits.py
+- phase20_eod_outcomes.py
+- phase20_eod_status.py
+- paper_trader.py
+- broker_client.py
+- Kite live-order modules
+- settings write handlers
+- production deployment config
+- workflows
+
+3. AST/import deny-list review
+Search all advisory_bots files and advisory storage files for prohibited imports/calls:
+- phase20_executor
+- phase20_scheduler
+- phase20_exits
+- paper_trader
+- broker
+- kite
+- order
+- place_order
+- create_trade
+- open_position
+- close_position
+- settings update/write
+- auto_paper_entries mutation
+- bootstrap_paper_enabled mutation
+
+Expected:
+- zero prohibited execution imports
+- zero broker/order/trade/position/settings mutation paths
+
+4. Contract review
+Verify every advisory output requires:
+- advisory_only=true
+- paper_only=true
+- allowed advisory vocabulary only
+
+Allowed decisions only:
+- WATCH
+- CANDIDATE
+- REJECTED
+- BLOCKED_DATA_QUALITY
+- INSUFFICIENT_CONTEXT
+- SUPERVISOR_BLOCKED
+
+Forbidden:
+- BUY
+- SELL
+- EXECUTE
+- order quantity
+- broker instruction
+- live order reference
+- auto-enable command
+
+5. Universe safety review
+Verify:
+- CUSTOM_LOW_PRICE_SECTOR required
+- exactly 23 active symbols required
+- IOB and UCOBANK excluded
+- no NIFTY_50 fallback
+- empty/mismatched universe fails closed
+- unknown symbols rejected
+
+6. Data-quality review
+Verify:
+- missing OHLCV blocks scoring
+- stale data blocks scoring
+- null price blocks scoring
+- missing/invalid volume blocks scoring
+- unsupported candle/timeframe evidence does not create fake VWAP/ORB/EMA signals
+
+7. Strategy review
+Verify:
+- VWAP Pullback returns advisory score only
+- Opening Range Breakout returns advisory score only
+- EMA Pullback returns advisory score only
+- no strategy returns executable orders, quantities, entries, exits, SL, targets as order payloads
+- missing evidence returns INSUFFICIENT_CONTEXT or BLOCKED_DATA_QUALITY with score 0
+
+8. Risk Gate review
+Verify fixed limits:
+- capital basis = 100000
+- per-stock cap = 25000
+- risk per idea = 1000
+- daily loss limit = 3000
+
+Verify:
+- missing/non-finite risk evidence fails closed
+- config mismatch rejects advisory output
+- no capital reservation
+- no daily counter mutation
+- no position/trade write
+
+9. Supervisor review
+Verify supervisor:
+- blocks unsafe settings
+- blocks unhealthy universe
+- blocks executable action fields
+- recomputes approval instead of trusting caller-provided approval
+- only approves advisory recording, never execution
+
+10. Storage review
+Verify advisory storage only writes to:
+- advisory_bot_outputs
+- advisory_strategy_scores
+- advisory_decision_audit
+- advisory_universe_health
+
+Verify:
+- append-only
+- ON CONFLICT DO NOTHING
+- no update API
+- no delete API
+- no FK/trigger/write path into Phase 20 trade/position/portfolio/settings tables
+- no partial write if any output is unsafe
+- forged valid-looking output cannot bypass supervisor recomputation
+
+11. Test run
+Run:
+
+cd artifacts/api-server/src/python
+python3 -m pytest tests/unit/test_advisory_bots.py -v
+python3 -m pytest tests/unit/test_phase0c_safety_fixes.py -v
+python3 -m pytest tests/unit/test_custom_universe_store.py -v
+python3 -m py_compile advisory_bots/*.py phase24_store.py
+
+12. Final deliverable
+Generate:
+
+APEXQUANT_PHASE2C_ADVISORY_BOT_SAFETY_REVIEW_REPORT.md
+
+Include:
+1. Branch state.
+2. Files changed.
+3. Files confirmed untouched.
+4. AST/import deny-list result.
+5. Contract review.
+6. Universe safety review.
+7. Data-quality review.
+8. Strategy review.
+9. Risk Gate review.
+10. Supervisor review.
+11. Storage review.
+12. Test results.
+13. Confirmation no merge.
+14. Confirmation no deployment.
+15. Confirmation no trades/positions/live orders.
+16. Clear verdict:
+   - SAFE FOR LATER MERGE REVIEW
+   - or BLOCKED with exact required fixes.

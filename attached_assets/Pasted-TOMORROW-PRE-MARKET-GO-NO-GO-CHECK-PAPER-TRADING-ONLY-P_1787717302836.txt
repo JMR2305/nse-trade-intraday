@@ -1,0 +1,300 @@
+TOMORROW PRE-MARKET GO / NO-GO CHECK — PAPER TRADING ONLY
+
+Purpose:
+
+Verify that ApexQuant AI is fully ready for tomorrow's NSE paper-trading session
+before any automatic paper entry is enabled.
+
+This is a READINESS CHECK ONLY.
+
+Do not place any live order.
+Do not enable live-order writes.
+Do not change the champion model.
+Do not change strategy thresholds.
+Do not reset the portfolio.
+Do not run a historical replay.
+Do not mutate Task #930/#940 evidence.
+
+Current expected production state:
+
+- approved production build already published
+- active universe: CUSTOM_LOW_PRICE_SECTOR
+- active symbols: 23
+- mappings: 23/23
+- broker mode: PAPER_TRADING
+- automatic paper entries: OFF
+- bootstrap: OFF
+- controlled paper execution: OFF
+- live orders: disabled
+
+Run this check between approximately 08:45 and 09:10 IST.
+
+1. BUILD / DEPLOYMENT IDENTITY
+
+Confirm production is still running the approved build.
+
+Report:
+
+- UI build ID
+- API build ID
+- MATCH / MISMATCH
+- source commit
+
+If mismatch:
+GO/NO-GO = NO-GO
+
+2. ZERODHA / KITE SESSION
+
+Verify:
+
+- Kite session authenticated
+- access token valid
+- instrument master available
+- no redirect/login error
+- no unexpected swing-project redirect
+- no broker-order call required
+
+Report:
+
+- CONNECTED / DISCONNECTED
+- session age
+- token validity
+- exact failure if unhealthy
+
+Do not print secrets or tokens.
+
+3. MARKET STATE
+
+Confirm current NSE market lifecycle state:
+
+- PRE_OPEN
+- OPEN
+- CLOSED
+- HOLIDAY
+- UNKNOWN
+
+Confirm today's date is a valid NSE trading day.
+
+If holiday:
+return NO-GO — MARKET HOLIDAY
+
+4. PRE-MARKET READINESS
+
+Run the existing pre-market readiness evaluation.
+
+Do not create a replacement readiness engine.
+
+Verify:
+
+- scheduler healthy
+- database healthy
+- quote provider reachable
+- Zerodha mapping complete
+- data freshness valid for current market state
+- active universe correct
+- risk/circuit-breaker state healthy
+- no stale unresolved operational error
+- no stuck exit requiring manual intervention
+- no ledger reconciliation failure
+
+Report every readiness gate as:
+
+PASS / WARN / FAIL
+
+5. ACTIVE UNIVERSE
+
+Confirm:
+
+- universe = CUSTOM_LOW_PRICE_SECTOR
+- active symbols = 23
+- mappings = 23/23
+- no unmapped or ambiguous symbol
+- no duplicate symbol
+- no unexpected universe change
+
+List any symbol that fails mapping or data validation.
+
+6. CURRENT QUOTE PROVENANCE
+
+Use only the authoritative:
+
+GET /api/live-data/health-v2
+
+Verify:
+
+- current_quote_provider
+- current_quote_timestamp
+- current_quote_freshness
+- historical_ohlcv_provider
+- scan_provenance_state
+
+Do not infer quote provenance from Kite connection alone.
+
+Before market open, MARKET_CLOSED_LAST_KNOWN may be legitimate.
+
+Once the live/pre-open quote path is expected to be active, require the correct
+freshness state for the current market phase.
+
+7. PRE-OPEN DATA / VOLUME
+
+Confirm the pre-open module is active and collecting the intended inputs,
+including:
+
+- pre-open price indications
+- available pre-open volume
+- gap information
+- index context
+- market regime inputs
+
+If pre-open data is unavailable, report it clearly.
+
+Do not fabricate data.
+
+8. SCHEDULED SCAN READINESS
+
+Confirm the scheduler is prepared for today's first production scan.
+
+Verify:
+
+- no stale lock
+- no duplicate executor
+- previous scheduled run finalized
+- current scan cadence configured correctly
+- scan timeout/performance gate healthy
+- no overlapping scan risk
+
+Do not trigger an early production scan unless that is already part of the
+approved pre-market lifecycle.
+
+9. PAPER PORTFOLIO
+
+Report current intraday paper state:
+
+- initial/session capital
+- available cash
+- invested amount
+- reserved cash
+- open positions
+- realized P&L
+- unrealized P&L
+- total equity
+- max drawdown
+- daily loss state
+- losing streak
+- risk pause state
+
+Expected intraday paper capital:
+₹25,000
+
+If any screen or authoritative state still uses an incorrect ₹5,000 value,
+report the exact source.
+
+10. OPEN / PENDING TRADES
+
+Confirm:
+
+- no unexpected open position
+- no stuck EXIT_PENDING trade
+- no unresolved failed entry
+- no duplicate order/fill
+- no unreconciled ledger event
+
+If anything is pending, include:
+
+- trade ID
+- symbol
+- status
+- last error
+- retry count
+- operator action required
+
+11. RISK GATES
+
+Verify current status of:
+
+- per-trade risk limit
+- daily loss limit
+- weekly loss limit
+- max drawdown pause
+- maximum positions
+- total exposure
+- sector exposure
+- minimum cash reserve
+- circuit breaker
+- data-quality gate
+- losing-streak pause
+
+Do not modify thresholds.
+
+12. AUTO PAPER ENTRY STATE
+
+Confirm:
+
+Automatic Paper Entries = OFF
+
+Do not enable it during this check.
+
+If all readiness gates pass, state:
+
+READY FOR MANUAL PAPER-ACTIVATION
+
+The user will separately decide whether to enable it.
+
+13. LIVE-ORDER SAFETY
+
+Confirm:
+
+- place_order unavailable to this workflow
+- modify_order unavailable
+- cancel_order unavailable
+- live-order write flag = false
+- broker mode = PAPER_TRADING
+- controlled live execution = disabled
+
+Any failure:
+GO/NO-GO = NO-GO
+
+14. READ-ONLY SAFETY
+
+This check must not:
+
+- place a trade
+- open a paper position
+- close a position
+- reset capital
+- change settings
+- change universe
+- trigger replay
+- retrain model
+- promote model
+- modify historical evidence
+
+15. FINAL OUTPUT
+
+Provide a concise report with:
+
+A. BUILD
+B. KITE SESSION
+C. MARKET STATE
+D. PRE-MARKET READINESS
+E. UNIVERSE / MAPPINGS
+F. QUOTE PROVENANCE
+G. PRE-OPEN DATA
+H. SCAN SCHEDULER
+I. PAPER PORTFOLIO
+J. PENDING TRADES
+K. RISK GATES
+L. AUTO PAPER ENTRY STATE
+M. LIVE-ORDER SAFETY
+
+End with exactly one:
+
+GO — READY FOR MANUAL PAPER-ACTIVATION
+
+or
+
+NO-GO — DO NOT ENABLE PAPER ENTRIES
+
+If NO-GO, list the exact blocking reasons and recommended correction.
+
+Do not enable automatic paper entries as part of this task.

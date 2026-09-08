@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from phase15_scan_context import (
-    build_scan_context, scan_age_seconds, STALE_AFTER_S, _load, SCAN_CACHE, _parse_ts,
+    build_scan_context, scan_age_seconds, STALE_AFTER_S, _load, _load_scan, SCAN_CACHE, _parse_ts,
 )
 
 BAND_EXCELLENT = "EXCELLENT"
@@ -124,10 +124,28 @@ def quality_report() -> Dict[str, Any]:
 
 
 def staleness_report() -> Dict[str, Any]:
-    scan = _load(SCAN_CACHE) or {}
+    # Phase 19B fix: use the DB-backed canonical store (same source as
+    # /live-data/scan and build_scan_context), not the local file only.
+    # The local phase7_scan_cache.json may lag the DB on Autoscale — reading
+    # it directly caused false-stale reports even when the scan had just
+    # completed successfully and was visible in all other endpoints.
+    scan = _load_scan() or {}
     now = datetime.now(timezone.utc)
     age_s = scan_age_seconds(scan)
     stale = age_s is None or age_s > STALE_AFTER_S
+
+    # Build a machine-readable stale_reason so operators (and UIs) know exactly
+    # why the scan is considered stale — avoids the opaque "age unknown" message.
+    if not stale:
+        _stale_reason = None
+    elif age_s is None:
+        _stale_reason = (
+            "no_snapshot_ts"  # scan dict loaded but snapshot_ts field absent/unparseable
+            if scan
+            else "no_snapshot"  # _load_scan() returned nothing at all
+        )
+    else:
+        _stale_reason = "age_exceeded"  # snapshot_ts present but older than 90m
 
     # Market feed time = newest bar across recommendations
     feed_dates = [r.get("latest_bar_date") for r in scan.get("recommendations", [])
@@ -148,12 +166,15 @@ def staleness_report() -> Dict[str, Any]:
     return {
         "current_time": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
         "last_scan_time": scan.get("snapshot_ts"),
+        "scan_id": scan.get("scan_id"),
         "market_feed_time": latest_feed,
         "scan_age_seconds": round(age_s, 0) if age_s is not None else None,
         "scan_age_human": _fmt(age_s) if age_s is not None else None,
         "feed_age_days": feed_age_days,
         "stale_after_seconds": STALE_AFTER_S,
         "stale": stale,
+        # Machine-readable reason: null (fresh) | "no_snapshot" | "no_snapshot_ts" | "age_exceeded"
+        "stale_reason": _stale_reason,
         "buy_recommendations_disabled": stale,
         "allowed_actions_when_stale": ["REFRESH", "WATCH"],
         "warning": (f"Scan data is stale ({_fmt(age_s)} old — limit "

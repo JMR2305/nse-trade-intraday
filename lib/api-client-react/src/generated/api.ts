@@ -66,6 +66,7 @@ import type {
   PredictiveEvidenceResult,
   RunWalkForwardValidation200,
   ScanResult,
+  ScanTriggerAuditContext,
   Signal,
   StrategyInfo,
   StrategyLabEntry,
@@ -505,17 +506,17 @@ export const getRunLiveDataScanUrl = () => {
 }
 
 /**
- * Triggers a fresh Phase 7 canonical scan over the full watchlist. Responds immediately — the caller should poll GET /live-data/scan/status to detect completion (snapshot_ts advances when the scan finishes). Idempotent under concurrency (ALREADY_RUNNING if a scan is in flight) and rate-limited to one trigger per 30 s (RATE_LIMITED otherwise).
+ * Triggers a fresh Phase 7 canonical scan over the full watchlist. Responds immediately — the caller should poll GET /live-data/scan/status to detect completion (snapshot_ts advances when the scan finishes). Idempotent under concurrency (ALREADY_RUNNING if a scan is in flight) and rate-limited to one trigger per 30 s (RATE_LIMITED otherwise). Optional audit labels are recorded only for this explicit API trigger; credentials, tokens, cookies, and arbitrary request data are never persisted in scan history.
  * @summary Run Phase 7 canonical live-data scan (fire-and-forget; poll /live-data/scan/status for completion)
  */
-export const runLiveDataScan = async ( options?: RequestInit): Promise<LiveDataScanRunResult> => {
+export const runLiveDataScan = async (scanTriggerAuditContext?: ScanTriggerAuditContext, options?: RequestInit): Promise<LiveDataScanRunResult> => {
 
   return customFetch<LiveDataScanRunResult>(getRunLiveDataScanUrl(),
   {
     ...options,
-    method: 'POST'
-
-
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(scanTriggerAuditContext)
   }
 );}
 
@@ -524,8 +525,8 @@ export const runLiveDataScan = async ( options?: RequestInit): Promise<LiveDataS
 
 
 export const getRunLiveDataScanMutationOptions = <TError = ErrorType<LiveDataScanRunResult | ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runLiveDataScan>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof runLiveDataScan>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runLiveDataScan>>, TError,{data?: BodyType<ScanTriggerAuditContext>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof runLiveDataScan>>, TError,{data?: BodyType<ScanTriggerAuditContext>}, TContext> => {
 
 const mutationKey = ['runLiveDataScan'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -537,10 +538,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runLiveDataScan>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof runLiveDataScan>>, {data?: BodyType<ScanTriggerAuditContext>}> = (props) => {
+          const {data} = props ?? {};
 
-
-          return  runLiveDataScan(requestOptions)
+          return  runLiveDataScan(data,requestOptions)
         }
 
 
@@ -551,18 +552,18 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
   return  { mutationFn, ...mutationOptions }}
 
     export type RunLiveDataScanMutationResult = NonNullable<Awaited<ReturnType<typeof runLiveDataScan>>>
-
+    export type RunLiveDataScanMutationBody = BodyType<ScanTriggerAuditContext> | undefined
     export type RunLiveDataScanMutationError = ErrorType<LiveDataScanRunResult | ErrorResponse>
 
     /**
  * @summary Run Phase 7 canonical live-data scan (fire-and-forget; poll /live-data/scan/status for completion)
  */
 export const useRunLiveDataScan = <TError = ErrorType<LiveDataScanRunResult | ErrorResponse>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runLiveDataScan>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof runLiveDataScan>>, TError,{data?: BodyType<ScanTriggerAuditContext>}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof runLiveDataScan>>,
         TError,
-        void,
+        {data?: BodyType<ScanTriggerAuditContext>},
         TContext
       > => {
       return useMutation(getRunLiveDataScanMutationOptions(options));

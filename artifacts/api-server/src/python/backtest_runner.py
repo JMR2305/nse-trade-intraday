@@ -112,11 +112,88 @@ def resolve_sizing(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 # ── Universe resolution ──────────────────────────────────────────────────────
 
-def resolve_universe(cfg: Dict[str, Any]) -> List[str]:
+def _set_universe_resolution(
+    cfg: Dict[str, Any],
+    evidence: str,
+    *,
+    as_of_date: Optional[str] = None,
+    snapshot_at: Optional[str] = None,
+) -> None:
+    """Persist a human-readable account of the membership evidence used."""
+    source = (
+        "IMMUTABLE_HISTORICAL_SNAPSHOT"
+        if evidence == "HISTORICAL_SNAPSHOT"
+        else "CURRENT_ACTIVE_LIST_FALLBACK"
+        if evidence == "CURRENT_MEMBERSHIP_FALLBACK"
+        else "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+    )
+    cfg["universe_evidence"] = evidence
+    cfg["universe_resolution"] = {
+        "evidence": evidence,
+        "source": source,
+        "as_of_date": as_of_date,
+        "snapshot_at": snapshot_at,
+        "degraded": evidence == "CURRENT_MEMBERSHIP_FALLBACK",
+    }
+
+
+def resolve_universe(
+    cfg: Dict[str, Any],
+    universe_mode: Optional[str] = None,
+    as_of_date: Optional[str] = None,
+) -> List[str]:
     symbols = cfg.get("symbols")
     if symbols:
         return [str(s).upper() for s in symbols]
-    universe = str(cfg.get("universe") or "configured").lower()
+    universe = str(universe_mode or cfg.get("universe_mode") or cfg.get("universe") or "configured").lower()
+    if universe in ("custom_low_price_sector", "custom-low-price-sector"):
+        target_date = str(as_of_date or cfg.get("as_of_date") or cfg.get("end") or "")[:10]
+        try:
+            from custom_universe_store import (
+                get_active_symbols,
+                get_historical_universe_resolution,
+            )
+            historical = get_historical_universe_resolution(target_date)
+            if historical.get("status") == "HISTORICAL_SNAPSHOT":
+                _set_universe_resolution(
+                    cfg,
+                    "HISTORICAL_SNAPSHOT",
+                    as_of_date=historical.get("as_of_date") or target_date,
+                    snapshot_at=historical.get("snapshot_at"),
+                )
+                return list(historical.get("symbols") or [])
+            # Current membership is future information for a historical run.
+            # Keep the legacy fallback available only by an explicit operator
+            # opt-in, and persist evidence quality in the run configuration.
+            if (
+                historical.get("status") == "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+                and cfg.get("allow_current_universe_fallback") is True
+            ):
+                _set_universe_resolution(
+                    cfg,
+                    "CURRENT_MEMBERSHIP_FALLBACK",
+                    as_of_date=historical.get("as_of_date") or target_date,
+                )
+                logger = __import__("logging").getLogger(__name__)
+                logger.warning(
+                    "CUSTOM_LOW_PRICE_SECTOR has no snapshot on/before %s; "
+                    "using explicitly opted-in current membership",
+                    target_date or "unknown",
+                )
+                return get_active_symbols()
+            _set_universe_resolution(
+                cfg,
+                "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+                as_of_date=historical.get("as_of_date") or target_date,
+            )
+            return []
+        except Exception:
+            _set_universe_resolution(
+                cfg,
+                "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+                as_of_date=target_date,
+            )
+            return []
     if universe in ("nifty50", "nifty_50", "nifty"):
         try:
             from config import NIFTY_50
@@ -502,6 +579,11 @@ def _spawn_next_queued() -> None:
     Called after any run finishes (COMPLETED, FAILED, or checkpoint-CANCELLED)
     so the queue drains automatically.
 
+    Before promoting, the watchdog sweep is run to convert any RUNNING runs
+    whose worker process died silently (OOM kill, container restart) into FAILED.
+    This frees concurrency slots so the queue is never permanently blocked by a
+    ghost RUNNING row.
+
     On any spawn/log-open failure the promoted run is reverted to QUEUED
     *provided it is still PENDING* (i.e. no other process has already claimed
     it).  This prevents the run from waiting 30 minutes for the stale watchdog
@@ -510,6 +592,12 @@ def _spawn_next_queued() -> None:
     Failures are always swallowed at the outermost level — this helper must
     never crash the finishing worker.
     """
+    # Run the watchdog before checking the queue — clears ghost RUNNING slots.
+    try:
+        bp.sweep_watchdog_timeouts()
+    except Exception:
+        pass  # never block queue promotion on a watchdog failure
+
     next_rid = None
     try:
         next_rid = bp.promote_next_queued()
@@ -551,6 +639,15 @@ def execute_run(run_id: str) -> Dict[str, Any]:
     end = str(cfg.get("end"))[:10]
     capital = float(cfg.get("capital") or 100000.0)
     universe = resolve_universe(cfg)
+    if not universe:
+        reason = (
+            "No historical CUSTOM_LOW_PRICE_SECTOR snapshot exists on or "
+            "before this run's as-of date. Choose a later date or explicitly "
+            "opt in to current-membership fallback."
+        )
+        bp._emergency_mark_failed(run_id, reason)
+        return {"ok": False, "run_id": run_id, "error": reason,
+                "universe_evidence": cfg.get("universe_evidence")}
 
     # Atomic PENDING→RUNNING claim: a duplicate or retried backtest_exec must
     # never replay the same run twice (would corrupt trades/metrics/events).
@@ -570,16 +667,53 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         daily_dfs: Dict[str, pd.DataFrame] = {}
         intraday_dfs: Dict[str, Optional[pd.DataFrame]] = {}
         data_errors: Dict[str, str] = {}
+        mock_candle_symbols: List[str] = []
+
+        def _has_mock(candles: List[Dict[str, Any]]) -> bool:
+            """True when any candle is tagged source='mock'."""
+            return any(str(c.get("source") or "").lower() == "mock"
+                       for c in candles)
+
         for i, sym in enumerate(universe):
             d = hde.ensure_candles(sym, "1d", warm_start, end)
             if not d["ok"]:
                 data_errors[sym] = d["error"]
+                continue
+            # Reject mock-sourced daily candles — these are synthetic fallback
+            # data from market_data_engine (yfinance was rate-limited during
+            # cache population).  Running decisions on mock prices produces
+            # results that look real but are meaningless.
+            if _has_mock(d["candles"]):
+                mock_candle_symbols.append(sym)
+                data_errors[sym] = (
+                    f"{sym}: daily candles are synthetic (source='mock') — "
+                    f"yfinance was rate-limited when the cache was populated. "
+                    f"Clear the cache entry and retry after the rate limit clears."
+                )
+                emit("MOCK_DATA_WARNING", "SUPERVISOR", scan_id=run_id,
+                     mode="BACKTEST", run_id=run_id, symbol=sym,
+                     payload={"reason": "mock_candle_source",
+                              "interval": "1d", "symbol": sym})
                 continue
             daily_dfs[sym] = _to_df(d["candles"])
             if interval != "1d":
                 r = hde.ensure_candles(sym, interval, start, end)
                 if not r["ok"]:
                     data_errors[sym] = r["error"]
+                    continue
+                # Same check for intraday candles.
+                if _has_mock(r["candles"]):
+                    mock_candle_symbols.append(sym)
+                    data_errors[sym] = (
+                        f"{sym}: {interval} candles are synthetic "
+                        f"(source='mock') — yfinance was rate-limited when "
+                        f"the cache was populated. Clear the cache entry and "
+                        f"retry after the rate limit clears."
+                    )
+                    emit("MOCK_DATA_WARNING", "SUPERVISOR", scan_id=run_id,
+                         mode="BACKTEST", run_id=run_id, symbol=sym,
+                         payload={"reason": "mock_candle_source",
+                                  "interval": interval, "symbol": sym})
                     continue
                 intraday_dfs[sym] = _to_df(r["candles"])
                 per_symbol[sym] = [c for c in r["candles"]
@@ -595,10 +729,17 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         emit("SCAN_FETCH_COMPLETED", "SUPERVISOR", scan_id=run_id,
              mode="BACKTEST", run_id=run_id,
              payload={"symbols_ok": len(per_symbol),
-                      "symbols_failed": len(data_errors)})
+                      "symbols_failed": len(data_errors),
+                      "mock_candle_symbols": mock_candle_symbols})
         if not per_symbol:
+            mock_suffix = (
+                f" Symbols with synthetic data: {mock_candle_symbols}."
+                if mock_candle_symbols else ""
+            )
             raise RuntimeError(
-                f"No historical data for any symbol: {json.dumps(data_errors)[:400]}")
+                f"No historical data for any symbol: "
+                f"{json.dumps(data_errors)[:400]}{mock_suffix}"
+            )
 
         # 2. Candle-by-candle replay through the PRODUCTION pipeline.
         from live_scan_engine import _scan_one, derive_symbol_events
@@ -784,6 +925,12 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         metrics["ticks"] = tick_count
         metrics["symbols"] = len(per_symbol)
         metrics["data_errors"] = data_errors
+        # Result-level provenance: consumers should not have to infer evidence
+        # quality from a mutable-looking run configuration.
+        metrics["universe_evidence"] = cfg.get("universe_evidence")
+        metrics["universe_resolution"] = cfg.get("universe_resolution")
+        # Always present — empty list means no mock data was detected.
+        metrics["mock_candle_symbols"] = mock_candle_symbols
         # ── Performance telemetry (advisory — never changes decisions) ────────
         _total_s = time.perf_counter() - _perf_start
         _tt_sorted = sorted(_tick_times)

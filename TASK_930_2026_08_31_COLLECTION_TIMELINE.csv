@@ -1,0 +1,11 @@
+timestamp_ist,session_id,session_status,provider_status,provider_label,symbols_analysed,collection_batch_id,expected,persisted,certified,scanner_coverage_ok,scheduler_health,observation
+2026-08-31T08:51:20+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,true,DEGRADED,"Read-only baseline; provider health visible but no collection batch"
+2026-08-31T08:52:54+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,true,DEGRADED,"Latest scan warned as pinned to a different universe version"
+2026-08-31T08:55:42+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,true,DEGRADED,"Natural readiness period; session did not advance"
+2026-08-31T09:00:45+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,false,DOWN,"Collection window open; no natural batch; scanner readiness failed"
+2026-08-31T09:01:43+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,false,DOWN,"No natural Phase 5A collection"
+2026-08-31T09:05:47+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,false,DOWN,"No natural Phase 5A collection"
+2026-08-31T09:08:57+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,false,DOWN,"Final-proof window active; no candidate batch"
+2026-08-31T09:10:51+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,false,DOWN,"Final-proof window active; no candidate batch"
+2026-08-31T09:11:48+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,false,DOWN,"Final observation before cutoff; no candidate batch"
+2026-08-31T09:12:44+05:30,preopen-2026-08-31-dee23c,INITIALISING,LIVE,NSE Official,0,,0,0,false,false,DOWN,"Post-cutoff observation; certification stopped with scanner/readiness failure"

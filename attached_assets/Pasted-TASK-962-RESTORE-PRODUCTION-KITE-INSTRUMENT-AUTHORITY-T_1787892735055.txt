@@ -1,0 +1,735 @@
+TASK #962 — RESTORE PRODUCTION KITE INSTRUMENT AUTHORITY
+THEN COMPLETE TASK #961 MIGRATION END-TO-END
+
+CURRENT PRODUCTION STATUS:
+
+Published production identity already passed:
+
+commit =
+17ff7ca46b900f4adb25fad550fab6ca8fea1623
+
+build =
+apexquant-17ff7ca46b90
+
+Task #961 already proved:
+
+- exact CUSTOM_LOW_PRICE_SECTOR candidate count = 23
+- exact approved symbol set = PASS
+- approved set hash = PASS
+- zero OPEN positions
+- zero EXIT_PENDING positions
+- production safety baseline = PASS
+- migration NOT executed
+
+CURRENT ONLY BLOCKER:
+
+PRODUCTION KITE INSTRUMENT CACHE IS INVALID / STALE
+
+Observed:
+instrument rows available = 1
+valid mappings = 0/23
+
+Task #961 migration readiness therefore correctly failed closed.
+
+GOAL:
+
+Restore authoritative production Zerodha Kite instrument-reference data,
+prove exact 23/23 mappings, then CONTINUE THE SAME TASK through:
+
+KITE INSTRUMENT RESTORATION
+→ TASK #961 READINESS
+→ GUARDED BASELINE MIGRATION
+→ VERSIONED UNIVERSE ACTIVATION
+→ ALL-CONSUMER VERIFICATION
+→ SCANNER/PREOPEN RECOVERY
+→ SAFETY VERIFICATION
+→ NEXT NATURAL SESSION READY
+
+DO NOT stop after merely repairing the cache.
+
+==================================================
+NON-NEGOTIABLE SAFETY
+==================================================
+
+DO NOT:
+
+- change the approved 23-symbol universe
+- substitute symbols
+- add/remove symbols
+- bypass mapping validation
+- mark mappings valid manually
+- fabricate instrument tokens
+- copy tokens from stale reports
+- fall back to Yahoo/NSE for Kite instrument identity
+- weaken stale-cache validation
+- use historical health snapshots as mapping authority
+- bypass versioned universe authority
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- place any broker order
+- modify portfolio/ledger/capital
+- trigger manual Phase 5A/5B/5C
+- trigger manual market scans
+- retry/replay/backfill certification sessions
+- modify historical evidence
+
+==================================================
+PHASE 1 — DIAGNOSE WHY PRODUCTION HAS ONLY 1 INSTRUMENT
+==================================================
+
+Before mutation, determine exactly why production instrument-reference storage
+contains only one usable instrument.
+
+Inspect:
+
+- Kite instrument sync implementation
+- production instrument table/cache
+- last successful full sync
+- last attempted sync
+- row count before/after last sync
+- sync logs
+- token/API status
+- exchange filtering
+- segment filtering
+- transaction behavior
+- cache replacement semantics
+- TTL/freshness semantics
+- startup initialization
+- scheduled refresh process
+- Task #938 cache-race changes
+- any partial-write/truncate/replacement path
+
+Return one primary ROOT_CAUSE.
+
+Do not repair until root cause is identified.
+
+==================================================
+PHASE 2 — VERIFY KITE AUTHENTICATION
+==================================================
+
+READ ONLY.
+
+Require:
+
+Kite connected = true
+token status = VALID
+token expired = false
+mock mode = false
+
+Do not place orders.
+
+If authentication is invalid:
+
+STOP with exact authentication blocker.
+
+Do not fake instrument data.
+
+==================================================
+PHASE 3 — INSPECT AUTHORITATIVE KITE INSTRUMENT SOURCE
+==================================================
+
+Use Zerodha Kite's instrument-reference source intended by the application.
+
+Determine expected full instrument count.
+
+Require that production retrieves a realistic complete NSE instrument master,
+not 1 row.
+
+Record:
+
+retrieval timestamp
+provider
+raw row count
+NSE row count
+NSE cash/EQ row count
+parse failures
+duplicate tokens
+duplicate symbols
+unsupported instruments
+
+==================================================
+PHASE 4 — SAFE INSTRUMENT MASTER REFRESH
+==================================================
+
+If and only if Kite authentication and provider retrieval are valid:
+
+perform ONE controlled instrument-reference refresh.
+
+Requirements:
+
+- fetch complete provider data first
+- validate before replacing active cache
+- use transaction/staging if supported
+- never replace a healthy cache with a partial fetch
+- require minimum sanity thresholds
+- preserve previous good cache until new dataset validates
+- atomic promotion only after validation
+
+Do not truncate first and hope the fetch succeeds.
+
+==================================================
+PHASE 5 — PREVENT RECURRENCE
+==================================================
+
+Audit and fix any dangerous refresh behavior found.
+
+Required invariant:
+
+PARTIAL OR FAILED KITE INSTRUMENT FETCH
+MUST NOT REPLACE
+LAST KNOWN VALID COMPLETE INSTRUMENT MASTER
+
+Add:
+
+- fetch completeness validation
+- atomic swap/promotion
+- last-known-good preservation
+- row-count sanity guard
+- provider timestamp
+- freshness metadata
+- sync status
+- failure reason
+- durable audit/log evidence
+
+Task #938 cache-race protection must remain intact.
+
+==================================================
+PHASE 6 — EXACT 23-SYMBOL MAPPING
+==================================================
+
+After successful instrument refresh, validate each approved symbol:
+
+BANKBARODA
+BANKINDIA
+CANBK
+FEDERALBNK
+IDFCFIRSTB
+KTKBANK
+MAHABANK
+PNB
+UNIONBANK
+COALINDIA
+GAIL
+HUDCO
+IRCON
+IRFC
+MRPL
+NBCC
+NMDC
+NTPC
+PFC
+RECLTD
+RVNL
+SAIL
+WIPRO
+
+For each report:
+
+symbol
+exchange
+segment
+instrument_type
+instrument_token
+mapping_status
+instrument_reference_timestamp
+
+Require:
+
+mapped = 23
+missing = 0
+duplicate token = 0
+duplicate symbol = 0
+invalid exchange = 0
+invalid segment = 0
+invalid instrument type = 0
+stale mapping = 0
+
+No count-only proof.
+
+==================================================
+PHASE 7 — VERIFY INSTRUMENT CACHE FRESHNESS
+==================================================
+
+Require production instrument-reference metadata to show:
+
+complete = true
+fresh = true
+provider = Zerodha/Kite authoritative source
+row_count = realistic complete count
+last_successful_sync = current valid sync
+
+The previous one-row state must no longer be authoritative.
+
+==================================================
+PHASE 8 — REGRESSION TESTS FOR CACHE FAILURE
+==================================================
+
+Add tests for:
+
+- complete fetch replaces prior valid cache safely
+- partial 1-row response DOES NOT replace valid cache
+- empty response DOES NOT replace valid cache
+- provider timeout preserves last known good
+- malformed response preserves last known good
+- duplicate tokens fail promotion
+- stale reference data blocks universe migration
+- 23/23 mappings required
+- concurrent syncs cannot race
+- Task #938 cache-race semantics preserved
+- scanner cannot use partial instrument authority
+- Phase5A cannot use incomplete mappings
+
+Run all relevant suites.
+
+==================================================
+PHASE 9 — RE-RUN TASK #961 PRODUCTION READINESS
+==================================================
+
+Once Kite instrument authority is proven healthy:
+
+call authenticated:
+
+GET /api/universe/v1/baseline-migration
+
+Require:
+
+ready = true
+
+candidate count = 23
+
+exact set =
+approved 23
+
+exact hash =
+22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016
+
+Kite mappings =
+23/23
+
+OPEN =
+0
+
+EXIT_PENDING =
+0
+
+Phase20 safety =
+PASS
+
+existing versioned state =
+safe for initial migration
+
+If any readiness gate fails:
+
+STOP BEFORE MIGRATION.
+
+Report ONE exact blocker.
+
+==================================================
+PHASE 10 — EXECUTE TASK #961 BASELINE MIGRATION
+==================================================
+
+ONLY when production readiness = true:
+
+execute exactly one authenticated migration with:
+
+MIGRATE CUSTOM_LOW_PRICE_SECTOR BASELINE 23
+
+Capture:
+
+request/correlation ID
+actor
+timestamp
+revision ID
+version
+status
+effective_from
+symbol count
+set hash
+mapping completeness
+audit-event ID
+
+No blind retry.
+
+==================================================
+PHASE 11 — VERIFY VERSIONED UNIVERSE
+==================================================
+
+Require:
+
+universe =
+CUSTOM_LOW_PRICE_SECTOR
+
+revision =
+present
+
+version =
+V1 / equivalent
+
+membership =
+23
+
+exact set =
+approved 23
+
+set hash =
+expected hash
+
+mapping coverage =
+23/23
+
+no duplicate member
+no duplicate token
+no conflicting ACTIVE revision
+
+==================================================
+PHASE 12 — EFFECTIVE-TIME CONTRACT
+==================================================
+
+Preserve Task #960 semantics.
+
+The version must become effective prospectively according to the approved
+next-natural-session contract.
+
+Do NOT retroactively attach it to an already-running or historical session.
+
+Report:
+
+effective_from
+effective status now
+next eligible trading session
+
+==================================================
+PHASE 13 — VERIFY ALL RUNTIME CONSUMERS
+==================================================
+
+Mandatory.
+
+Verify the same durable universe authority/revision is consumed by:
+
+1. canonical scanner
+2. scanner readiness
+3. Phase 5A
+4. pre-open scheduler
+5. market-data coverage
+6. Mission Control
+7. strategy context
+8. advisory/multi-bot system
+9. signal generation
+10. future paper-entry eligibility
+11. future broker-execution eligibility
+
+For each return where available:
+
+universe_key
+revision_id
+version
+expected_count
+set_hash
+
+No independent hard-coded symbol membership may remain authoritative.
+
+==================================================
+PHASE 14 — SCANNER RECOVERY
+==================================================
+
+READ ONLY.
+
+Require:
+
+revision_not_found = false
+scanner_coverage_ok = true
+
+scanner expected count = 23
+
+scanner authority =
+new durable revision
+
+Do not manually trigger a scan.
+
+==================================================
+PHASE 15 — PRE-OPEN RECOVERY
+==================================================
+
+READ ONLY.
+
+Require:
+
+pre-open no longer reports UNIVERSE_UNAVAILABLE
+
+It must resolve:
+
+CUSTOM_LOW_PRICE_SECTOR
+revision present
+expected = 23
+mapping = 23/23
+
+Do NOT manually trigger Phase 5A.
+
+==================================================
+PHASE 16 — TASK #947 TIMING PRESERVATION
+==================================================
+
+Verify:
+
+automatic Phase5A:
+09:00 <= time < 09:12
+
+final-proof window:
+09:08 <= completed_at < 09:12
+
+no automatic Phase5A:
+09:12 <= time < 09:15
+
+freeze:
+09:15 exact verified final-proof batch
+
+freshness:
+age < 300 seconds
+age >= 300 = stale
+
+Do not alter.
+
+==================================================
+PHASE 17 — TASK #941/#942 PRESERVATION
+==================================================
+
+Verify:
+
+provider custom-universe scope = ALL
+query-scope cache isolation
+per-symbol immutable outcomes
+no fabricated snapshots
+Asia/Kolkata NSE timestamps
+exact MATCH parity
+exact freeze batch
+Pre-Open UI certification truthfulness
+
+==================================================
+PHASE 18 — DATA AUTHORITY / FALLBACK INCIDENTS
+==================================================
+
+Verify Mission Control Data Authority remains operational.
+
+Current quote authority should derive from real current-price evidence.
+
+Historical YFINANCE OHLCV must remain separate.
+
+Confirm fallback incident routes remain available.
+
+Do not fabricate an incident.
+
+==================================================
+PHASE 19 — KITE LIVE CURRENT-PRICE HEALTH
+==================================================
+
+If market is open and existing read-only health is available:
+
+Require ideally:
+
+current quote provider =
+ZERODHA_KITE
+
+coverage =
+23/23
+
+fallback =
+0
+
+stale =
+0
+
+synthetic =
+0
+
+unavailable =
+0
+
+Do not trigger a scan solely for this test.
+
+==================================================
+PHASE 20 — PORTFOLIO / LEDGER
+==================================================
+
+Require:
+
+source = phase20_ledger
+
+initial capital = ₹100,000
+
+open positions = 0
+EXIT_PENDING = 0
+
+historical closed trades = 6
+
+/api/portfolio
+=
+/api/portfolio/snapshot
+for financial state
+
+No mutation.
+
+==================================================
+PHASE 21 — EXECUTION SAFETY
+==================================================
+
+Require:
+
+automatic paper entries = false
+entry confirmation = null
+bootstrap = false
+automatic exits = true
+controlled execution = disabled
+execution_allowed = false
+live broker orders = disabled
+broker mode = PAPER_TRADING / RESEARCH ONLY
+
+==================================================
+PHASE 22 — FULL TEST GATE
+==================================================
+
+Run:
+
+instrument sync/cache tests
+Task #938 cache-race tests
+universe/versioning tests
+scanner coverage tests
+Phase5A tests
+scheduler/freeze tests
+readiness tests
+Kite mapping tests
+market-data authority tests
+Phase20 safety
+portfolio/ledger
+API suite
+dashboard full suite
+TypeScript
+Python compilation
+API build
+dashboard production build
+
+Require zero unexpected failures.
+
+==================================================
+PHASE 23 — HISTORICAL PRESERVATION
+==================================================
+
+Do not modify any prior Task #930 session.
+
+No:
+
+retry
+replay
+backfill
+relabel
+retroactive universe revision
+freeze-pointer mutation
+
+==================================================
+PHASE 24 — NEXT NATURAL SESSION READINESS
+==================================================
+
+At task completion require:
+
+production identity = verified
+
+Kite instrument authority = complete and fresh
+
+23/23 mappings = proven
+
+versioned universe revision = created
+
+scanner_coverage_ok = true
+
+pre-open universe = available
+
+Task #947 timing = present
+
+provider scope ALL = present
+
+automatic entries = false
+
+No manual Phase5A action performed.
+
+==================================================
+PHASE 25 — DO NOT STOP EARLY
+==================================================
+
+Do NOT finish after:
+
+"Kite mappings fixed"
+"instrument sync successful"
+"readiness now true"
+"migration ready"
+"migration complete"
+
+If every gate passes, continue all the way through:
+
+INSTRUMENT RESTORATION
+→ 23/23 MAPPING
+→ TASK #961 READINESS
+→ GUARDED MIGRATION
+→ VERSIONED AUTHORITY
+→ SCANNER/PREOPEN RECOVERY
+→ ALL-CONSUMER VERIFY
+→ SAFETY VERIFY
+→ NEXT NATURAL SESSION READY
+
+Stop early only for a genuine fail-closed blocker.
+
+==================================================
+OUTPUT
+==================================================
+
+Create:
+
+TASK_962_KITE_INSTRUMENT_ROOT_CAUSE.md
+TASK_962_INSTRUMENT_REFRESH_AND_CACHE_SAFETY.md
+TASK_962_23_SYMBOL_MAPPING_MATRIX.csv
+TASK_962_TASK961_READINESS_AND_MIGRATION.md
+TASK_962_VERSIONED_UNIVERSE_PROOF.md
+TASK_962_RUNTIME_CONSUMER_MATRIX.csv
+TASK_962_SCANNER_PREOPEN_RECOVERY.md
+TASK_962_TEST_AND_SAFETY_REPORT.md
+TASK_962_NEXT_NATURAL_SESSION_GATE.md
+TASK_962_FINAL_COMPLETION_SUMMARY.md
+
+FINAL VERDICT:
+
+A. PASS — KITE INSTRUMENT AUTHORITY RESTORED,
+   23/23 MAPPED,
+   VERSIONED UNIVERSE MIGRATED,
+   ALL CONSUMERS VERIFIED,
+   NEXT NATURAL SESSION READY
+
+B. KITE AUTHENTICATION FAILURE
+
+C. INSTRUMENT PROVIDER FETCH FAILURE
+
+D. INSTRUMENT CACHE SAFETY FAILURE
+
+E. 23-SYMBOL MAPPING FAILURE
+
+F. TASK #961 READINESS FAILURE
+
+G. BASELINE MIGRATION FAILURE
+
+H. VERSIONED AUTHORITY FAILURE
+
+I. SCANNER / PREOPEN RECOVERY FAILURE
+
+J. RUNTIME CONSUMER MISMATCH
+
+K. TASK #947 REGRESSION
+
+L. TEST FAILURE
+
+M. SAFETY REGRESSION
+
+FINAL RULE:
+
+Do not bypass Kite mapping validation merely to make migration succeed.
+
+Restore the authoritative instrument master correctly, then complete the
+existing Task #961 production migration end-to-end.

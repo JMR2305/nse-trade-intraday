@@ -1,0 +1,9 @@
+ist_time,event,session_id,collection_batch_id,source,provider_scope,expected,returned,normalized,persisted,live,stale,persistence_status,verified_batch_pointer,frozen_batch,raw_provider_timestamp_evidence,interpretation
+08:44,initialisation observed,preopen-2026-08-27-2396e6,,SCHEDULED,ALL,,,,,,,LIVE,,,"not collected","Provider health LIVE; no collection rows yet"
+08:53,readiness observed,preopen-2026-08-27-2396e6,,SCHEDULED,ALL,,,,,,,,"","",not collected,"Scheduler advanced naturally to readiness"
+09:00:24,exact live collection observed,preopen-2026-08-27-2396e6,not retained in evidence,SCHEDULED,ALL,23,23,23,23,23,0,MATCH,not retained at this point,,not retained,"Healthy collection point; not a freeze certificate"
+09:05,repeated exact live collection observed,preopen-2026-08-27-2396e6,not retained in evidence,SCHEDULED,ALL,23,23,23,23,23,0,MATCH,not retained at this point,,not retained,"Verified but not frozen"
+09:09,repeated exact live collection observed,preopen-2026-08-27-2396e6,not retained in evidence,SCHEDULED,ALL,23,23,23,23,23,0,MATCH,not retained at this point,,not retained,"Verified but not frozen"
+09:14:49,final observed collection failed,preopen-2026-08-27-2396e6,collection-6bbe038e85644fb7a42a364966691b88,SCHEDULED,ALL,23,23,23,23,0,23,COVERAGE_INCOMPLETE,collection-867b53a6ab4b48a58ae02582c4861c7e,,not retained,"Exact symbol presence but all rows stale; freeze correctly withheld"
+after status capture,subsequent stale current batch observed,preopen-2026-08-27-2396e6,collection-9119a23b4bf541838ae578db1cf6a7da,SCHEDULED,ALL,23,not retained,not retained,23,0,23,COVERAGE_INCOMPLETE,collection-867b53a6ab4b48a58ae02582c4861c7e,,not retained,"Reinforced failure; did not repair or replace the failed result"
+09:15,freeze boundary,preopen-2026-08-27-2396e6,,SCHEDULED,ALL,,,,,0,23,COVERAGE_INCOMPLETE,collection-867b53a6ab4b48a58ae02582c4861c7e,,not retained,"No manual retry or freeze; final verdict remains Phase 5A coverage failure"

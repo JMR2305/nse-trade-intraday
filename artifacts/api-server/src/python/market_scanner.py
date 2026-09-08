@@ -78,7 +78,9 @@ class ScanItem(TypedDict):
     net_pnl_pct:        float
     total_trades:       int
     sharpe_ratio:       float
-    low_evidence:       bool     # True when total_trades < 5 (too few to be reliable)
+    low_evidence:       bool     # True when total_trades < 5 (too few to be reliable).
+                                 # Evidence source: strategy walk-forward backtest trades ONLY.
+                                 # Paper trades do NOT contribute to this count.
     # Trade levels (paper only — indicative)
     entry_price:        float
     stop_loss:          float
@@ -103,6 +105,9 @@ class ScanItem(TypedDict):
     supertrend:         float
     supertrend_dir:     str      # UP | DOWN
     error:              str | None
+    # Bootstrap paper trade eligibility (computed post-scan by caller, default False).
+    # Parallel track to paper_eligible — never modifies BUY/WATCH decision logic.
+    bootstrap_eligible: bool = False
 
 
 class SectorStrength(TypedDict):
@@ -424,7 +429,17 @@ def run_market_scan(
 
     Paper trading only — no real orders are placed.
     """
-    universe = symbols if symbols else list(NIFTY_50)
+    universe_mode = "UNAVAILABLE"
+    universe_context: dict = {}
+    custom_metadata: dict[str, dict] = {}
+    if symbols is None:
+        from runtime_universe import resolve_active_universe
+        universe_context = resolve_active_universe()
+        universe = list(universe_context["enabled_symbols"])
+        universe_mode = str(universe_context["universe_key"])
+    else:
+        universe = list(symbols)
+        universe_mode = "EXPLICIT"
 
     # ── Priority 3 (#26): filter junk symbols so one bad entry can never
     # fail the full scan. Rejections are logged with reasons + audited.
@@ -440,7 +455,10 @@ def run_market_scan(
 
     items: list[ScanItem] = []
     for sym in universe:
-        items.append(scan_stock(sym, capital=capital))
+        item = scan_stock(sym, capital=capital)
+        if sym.upper() in custom_metadata:
+            item["sector"] = str(custom_metadata[sym.upper()].get("sector") or item["sector"])
+        items.append(item)
 
     # Rank by opportunity score (errors sink to the bottom)
     items.sort(key=lambda it: (it["error"] is None, it["opportunity_score"]), reverse=True)
@@ -539,4 +557,9 @@ def run_market_scan(
         summary=summary,
     )
     result["learning"] = learning_meta  # type: ignore[typeddict-unknown-key]
+    result["universe_mode"] = universe_mode  # type: ignore[typeddict-unknown-key]
+    result["universe_context"] = universe_context  # type: ignore[typeddict-unknown-key]
+    result["sector_counts"] = {
+        sector["sector"]: sector["stock_count"] for sector in sectors
+    }  # type: ignore[typeddict-unknown-key]
     return result

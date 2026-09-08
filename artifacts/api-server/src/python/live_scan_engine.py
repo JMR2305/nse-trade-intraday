@@ -66,6 +66,14 @@ MIN_RR_FOR_BUY      = 1.5        # RR gate: below this → WATCH minimum
 PAPER_ELIGIBLE_ACTIONS  = {"STRONG BUY", "BUY"}
 PAPER_ELIGIBLE_QUALITIES = {DataQuality.LIVE, DataQuality.NEAR_LIVE}
 
+# ── Bootstrap paper trade thresholds ─────────────────────────────────────────
+# Used ONLY when low_evidence blocks the normal BUY path.  The bootstrap path
+# is a strictly parallel track — it never modifies BUY_CONF, WATCH_CONF, or
+# paper_eligible. See bootstrap_eligible field on Phase7Recommendation.
+BOOTSTRAP_MIN_CONF      = 60.0   # calibrated_confidence floor
+BOOTSTRAP_MIN_OPP       = 50.0   # opportunity_score floor
+BOOTSTRAP_MIN_RR        = 1.5    # rr_ratio floor (same as BUY gate minimum)
+
 HOLDING_PERIOD_BY_STRATEGY = {
     "mean_reversion":  5,
     "macd_crossover": 12,
@@ -160,7 +168,10 @@ class Phase7Recommendation:
     profit_factor: float
     net_pnl_pct: float
     total_trades: int
-    low_evidence: bool          # True when total_trades < 5 (insufficient backtest evidence)
+    low_evidence: bool          # True when total_trades < 5 (insufficient 6-month backtest evidence).
+                                # Evidence source: strategy walk-forward backtest trades ONLY.
+                                # Paper trades do NOT contribute — low_evidence clears naturally as
+                                # the 6-month backtest window accumulates more signals over time.
     adx: float
     rsi: float
     volume_ratio: float
@@ -188,6 +199,14 @@ class Phase7Recommendation:
     data_quality_for_execution: str = ""
     reason_not_live_ltp: Optional[str] = None
     latest_price_time_ist: Optional[str] = None
+    # ── Bootstrap paper trade eligibility (parallel track to paper_eligible) ───
+    # True ONLY when low_evidence blocks the normal BUY path but Kite LTP is
+    # live and all hard risk gates pass.  Computed POST-overlay in run_live_scan()
+    # after quote_reliable / kite_session_verified_flag are set.
+    # NEVER affects normal BUY/WATCH confidence scores or paper_eligible.
+    # Purpose: seed the production paper ledger so the P20 exit cycle can be
+    # validated end-to-end before the 6-month backtest window fills naturally.
+    bootstrap_eligible: bool = False
 
 
 # ── Canonical scan ────────────────────────────────────────────────────────────
@@ -208,6 +227,44 @@ class Phase7ScanResult:
     phase: str = "7"
     label: str = "PAPER / LIVE DATA VALIDATION"
     timings: Dict[str, Any] = field(default_factory=dict)  # stage breakdown (s)
+    universe_mode: str = "NIFTY_50"
+    sector_counts: Dict[str, int] = field(default_factory=dict)
+    trigger_origin: str = "UNKNOWN"
+    universe_context: Dict[str, Any] = field(default_factory=dict)
+
+
+def _bootstrap_ineligibility_reason(r: "Phase7Recommendation") -> str:
+    """Return a human-readable reason why a symbol is NOT bootstrap_eligible.
+
+    Called only for WATCH/IGNORE symbols with low_evidence so the operator can
+    see exactly which threshold was missed.  Never raises.
+    """
+    if r.error is not None:
+        return f"scan error: {r.error}"
+    if not r.low_evidence:
+        return "sufficient backtest evidence — normal BUY path applies (not bootstrap)"
+    if r.final_action not in ("WATCH", "BUY", "STRONG BUY"):
+        return f"action={r.final_action}, needs WATCH or better"
+    if not r.all_gates_passed:
+        failed = []
+        for name, gate in [("price", r.gate_price), ("data_quality", r.gate_data_quality),
+                            ("rr", r.gate_rr), ("volume", r.gate_volume)]:
+            if not (gate or {}).get("passed"):
+                failed.append(f"{name}: {(gate or {}).get('reason', name)}")
+        return "risk gate failed — " + " | ".join(failed) if failed else "risk gates not all passed"
+    if r.calibrated_confidence < BOOTSTRAP_MIN_CONF:
+        return f"confidence {r.calibrated_confidence:.1f} < {BOOTSTRAP_MIN_CONF} threshold"
+    if r.opportunity_score < BOOTSTRAP_MIN_OPP:
+        return f"opportunity score {r.opportunity_score:.1f} < {BOOTSTRAP_MIN_OPP} threshold"
+    if r.rr_ratio < BOOTSTRAP_MIN_RR:
+        return f"RR {r.rr_ratio:.2f} < {BOOTSTRAP_MIN_RR} threshold"
+    if not r.quote_reliable:
+        return "Kite LTP not reliable — live quote required for bootstrap"
+    if not r.kite_session_verified_flag:
+        return "Kite session not verified — login required for bootstrap"
+    if r.data_quality not in PAPER_ELIGIBLE_QUALITIES:
+        return f"data quality {r.data_quality} — LIVE or NEAR_LIVE required"
+    return "unknown — check scan logs"
 
 
 def _holding_days(strategy_id: str) -> int:
@@ -645,7 +702,8 @@ def derive_symbol_events(recs: List[Phase7Recommendation], scan_id: str,
                          {"action": act,
                           "confidence": r.calibrated_confidence,
                           "opportunity_score": r.opportunity_score,
-                          "paper_eligible": r.paper_eligible}))
+                          "paper_eligible": r.paper_eligible,
+                          "bootstrap_eligible": r.bootstrap_eligible}))
     return batch
 
 
@@ -654,6 +712,8 @@ def run_live_scan(
     capital: float = INITIAL_CAPITAL,
     force: bool = False,
     heartbeat: Optional[Any] = None,
+    trigger_origin: str = "UNKNOWN",
+    universe_context: Optional[Dict[str, Any]] = None,
 ) -> Phase7ScanResult:
     """
     Run a full Phase 7 canonical scan.
@@ -669,7 +729,20 @@ def run_live_scan(
     """
     scan_id = uuid.uuid4().hex[:12]
     snapshot_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    universe = sorted(symbols if symbols else list(NIFTY_50))
+    universe_mode = "UNAVAILABLE"
+    custom_metadata: Dict[str, Dict[str, Any]] = {}
+    if symbols is None:
+        from runtime_universe import resolve_active_universe
+        universe_context = universe_context or resolve_active_universe()
+        universe = list(universe_context["enabled_symbols"])
+        universe_mode = str(universe_context["universe_key"])
+    else:
+        # Explicit callers are test/replay tools, never canonical runtime
+        # authority. Mark them clearly rather than pretending they were a
+        # configured active universe.
+        universe = list(symbols)
+        universe_mode = "EXPLICIT"
+    universe = sorted({str(symbol).upper() for symbol in universe if symbol})
     t0 = time.monotonic()
 
     if _log:
@@ -683,7 +756,8 @@ def run_live_scan(
         _pe_emit = lambda *a, **k: None          # type: ignore
         _pe_emit_many = lambda *a, **k: None     # type: ignore
     _pe_emit("SCAN_STARTED", "SUPERVISOR", scan_id=scan_id,
-             payload={"snapshot_ts": snapshot_ts, "universe_size": len(universe)})
+             payload={"snapshot_ts": snapshot_ts, "universe_size": len(universe),
+                      "universe_mode": universe_mode})
 
     # ── Phase 1: Fetch all data up-front (consistent snapshot) ────────────────
     _set_progress("FETCHING", scan_id, {"symbols_total": len(universe),
@@ -742,7 +816,10 @@ def run_live_scan(
                                    fetch_ts=snapshot_ts, fetch_latency_ms=0,
                                    retries_used=0, error="Symbol missing from fetch batch",
                                    bars=0)
-        recs.append(_scan_one(sym, fr, scan_id, snapshot_ts, capital))
+        rec = _scan_one(sym, fr, scan_id, snapshot_ts, capital)
+        if sym in custom_metadata:
+            rec.sector = str(custom_metadata[sym].get("sector") or rec.sector)
+        recs.append(rec)
 
     analysis_s = round(time.monotonic() - t_analysis0, 2)
 
@@ -780,6 +857,81 @@ def run_live_scan(
                 r.yfinance_last_close = round(float(r.entry_price), 2)
     ltp_overlay_s = round(time.monotonic() - t_ltp0, 2)
 
+    # ── Bootstrap eligibility pass (post-overlay) ─────────────────────────────
+    # Requires quote_reliable / kite_session_verified_flag which are only set
+    # by apply_overlay_to_rec() above — so this MUST run after the LTP loop.
+    # Strictly parallel to paper_eligible; never changes any decision field.
+    #
+    # Load the previous snapshot BEFORE the eligibility pass so we can detect
+    # flips once the new values are set.  A missing/corrupt previous snapshot
+    # never breaks the scan — change detection is purely advisory.
+    _prev_bootstrap: Dict[str, bool] = {}
+    _prev_scan_id: Optional[str] = None
+    try:
+        from scan_state_store import load_latest_snapshot as _load_prev_snap
+        _prev = _load_prev_snap()
+        if _prev and _prev.get("scan_id") != scan_id:
+            _prev_scan_id = _prev.get("scan_id")
+            _prev_bootstrap = {
+                r["symbol"]: bool(r.get("bootstrap_eligible"))
+                for r in (_prev.get("recommendations") or [])
+                if r.get("symbol")
+            }
+    except Exception:
+        pass
+
+    for r in recs:
+        if (r.error is None
+                and r.low_evidence                      # only when normal BUY blocked by thin backtest
+                and r.all_gates_passed                  # all hard risk gates pass
+                and r.final_action == "WATCH"           # not IGNORE — WATCH signals have better setups
+                and r.calibrated_confidence >= BOOTSTRAP_MIN_CONF
+                and r.opportunity_score >= BOOTSTRAP_MIN_OPP
+                and r.rr_ratio >= BOOTSTRAP_MIN_RR
+                and r.quote_reliable                    # Kite LTP must be live
+                and r.kite_session_verified_flag        # Kite session proven valid
+                and r.data_quality in PAPER_ELIGIBLE_QUALITIES):
+            r.bootstrap_eligible = True
+
+    # ── Bootstrap eligibility change detection ────────────────────────────────
+    # Emit BOOTSTRAP_ELIGIBILITY_CHANGED when a symbol's flag flips since the
+    # previous completed scan.  Advisory only — never raises, never modifies
+    # any recommendation field.
+    if _prev_bootstrap or _prev_scan_id:
+        try:
+            _elig_events: List[Dict[str, Any]] = []
+            for _r in recs:
+                if _r.error is not None or not _r.symbol:
+                    continue
+                _prev_val = _prev_bootstrap.get(_r.symbol, False)
+                _cur_val = _r.bootstrap_eligible
+                if _prev_val == _cur_val:
+                    continue
+                _inelig: Optional[str] = None
+                if not _cur_val:
+                    _inelig = _bootstrap_ineligibility_reason(_r)
+                _elig_events.append({
+                    "scan_id": scan_id,
+                    "symbol":  _r.symbol,
+                    "mode":    "LIVE",
+                    "event_type": "BOOTSTRAP_ELIGIBILITY_CHANGED",
+                    "stage":   "AI_DECISION",
+                    "payload": {
+                        "prev_eligible":       _prev_val,
+                        "cur_eligible":        _cur_val,
+                        "action":              _r.final_action,
+                        "confidence":          _r.calibrated_confidence,
+                        "opportunity_score":   _r.opportunity_score,
+                        "rr_ratio":            _r.rr_ratio,
+                        "ineligibility_reason": _inelig,
+                        "prev_scan_id":        _prev_scan_id,
+                    },
+                })
+            if _elig_events:
+                _pe_emit_many(_elig_events)
+        except Exception:
+            pass
+
     # Phase 23: per-symbol pipeline events derived from each recommendation —
     # one batch insert (never 50 round-trips), emitted from the authoritative
     # scan result itself so counts can never diverge from the scan.
@@ -810,7 +962,11 @@ def run_live_scan(
     quality_counts: Dict[str, int] = {}
     for r in recs:
         quality_counts[r.data_quality] = quality_counts.get(r.data_quality, 0) + 1
+    sector_counts: Dict[str, int] = {}
+    for rec in recs:
+        sector_counts[rec.sector] = sector_counts.get(rec.sector, 0) + 1
 
+    bootstrap_elig = sum(1 for r in valid if r.bootstrap_eligible)
     avg_score = round(sum(r.opportunity_score for r in valid) / len(valid), 1) if valid else 0.0
     best = valid[0] if valid else None
 
@@ -819,11 +975,14 @@ def run_live_scan(
 
     summary = {
         "scan_id": scan_id, "snapshot_ts": snapshot_ts,
-        "universe_size": len(universe), "symbols_analysed": len(recs),
+        "universe_size": len(universe), "universe_mode": universe_mode,
+        "universe": universe_context or {},
+        "sector_counts": sector_counts, "symbols_analysed": len(recs),
         "symbols_with_errors": sum(1 for r in recs if r.error),
         "strong_buy_count": strong_buy, "buy_count": buy,
         "watch_count": watch, "ignore_count": ignore,
         "paper_eligible_count": paper_elig,
+        "bootstrap_eligible_count": bootstrap_elig,
         "all_gates_passed_count": gates_all,
         "avg_opportunity_score": avg_score,
         "best_stock": best.symbol if best else None,
@@ -897,6 +1056,7 @@ def run_live_scan(
     for i, r in enumerate(recs, start=1):
         d = asdict(r)
         d["rank"] = i
+        d["universe_context"] = dict(universe_context or {})
         rec_dicts.append(d)
 
     # Stage timing breakdown (seconds). "analysis" covers indicator
@@ -927,6 +1087,10 @@ def run_live_scan(
         paper_eligible=overall_paper_eligible,
         safety=safety,
         timings=timings,
+        universe_mode=universe_mode,
+        sector_counts=sector_counts,
+        trigger_origin=trigger_origin,
+        universe_context=universe_context or {},
     )
 
     # ── Persist cache (Phase 19B: durable shared store + local warm cache) ───
@@ -950,12 +1114,24 @@ def run_live_scan(
             pass
     result.timings["db_write_s"] = round(time.monotonic() - t_persist0, 2)
 
+    # Durable advisory incident lifecycle.  This evaluates the exact persisted
+    # canonical scan through market_data_health; it never changes the scan,
+    # execution gates, provider policy, or any order path.
+    try:
+        from market_data_incidents import observe_scan_snapshot
+        result.timings["market_data_incident"] = observe_scan_snapshot(cache_data)
+    except Exception:
+        # Observability must not make a completed canonical scan fail.
+        result.timings["market_data_incident"] = {"action": "UNAVAILABLE"}
+
     _pe_emit("SCAN_COMPLETED", "SUPERVISOR", scan_id=scan_id, payload={
         "duration_s": duration_s, "universe_size": len(universe),
+        "universe_mode": universe_mode, "sector_counts": sector_counts,
         "buy_count": buy + strong_buy, "watch_count": watch,
         "ignore_count": ignore, "paper_eligible_count": paper_elig,
         "symbols_with_errors": summary["symbols_with_errors"],
         "timings": timings,
+        "universe": (universe_context or {}),
     })
     # Retention: keep the event table bounded under continuous operation.
     try:
@@ -1020,6 +1196,7 @@ def get_or_run_scan(
     capital: float = INITIAL_CAPITAL,
     force: bool = False,
     wait_for_lock: bool = True,
+    trigger_origin: str = "UNKNOWN",
 ) -> Dict[str, Any]:
     """
     Return cached scan if fresh enough, otherwise run a new scan.
@@ -1031,6 +1208,24 @@ def get_or_run_scan(
     _scan_lock_busy=True instead of polling — the tick records
     SKIPPED_ACTIVE_SCAN rather than inflating its own duration.
     """
+    runtime_context: Optional[Dict[str, Any]] = None
+    if symbols is None:
+        # Resolve before trusting any cache. A previous session's scan, or a
+        # scan from a different immutable version with the same symbol count,
+        # cannot become authority for this session.
+        from runtime_universe import resolve_active_universe
+        runtime_context = resolve_active_universe()
+    def _same_runtime_universe(snapshot: Optional[Dict[str, Any]]) -> bool:
+        if symbols is not None:
+            return True
+        context = (snapshot or {}).get("universe_context") or {}
+        return (
+            context.get("natural_session") == runtime_context.get("natural_session")
+            and
+            context.get("universe_id") == runtime_context.get("universe_id")
+            and context.get("version") == runtime_context.get("version")
+            and context.get("exact_set_hash") == runtime_context.get("exact_set_hash")
+        )
     if not force:
         cached = load_cached_scan()
         if cached:
@@ -1038,7 +1233,8 @@ def get_or_run_scan(
                 snap_ts = cached.get("snapshot_ts", "")
                 snap_dt = datetime.fromisoformat(snap_ts.replace("Z", "+00:00"))
                 age = (datetime.now(timezone.utc) - snap_dt).total_seconds()
-                if age < max_age_s:
+                same_universe = _same_runtime_universe(cached)
+                if age < max_age_s and same_universe:
                     cached["_from_cache"] = True
                     cached["_cache_age_s"] = round(age, 1)
                     return cached
@@ -1057,7 +1253,10 @@ def get_or_run_scan(
         acquire_scan_lock = None  # type: ignore[assignment]
 
     if acquire_scan_lock is None:
-        result = run_live_scan(symbols=symbols, capital=capital, force=force)
+        result = run_live_scan(
+            symbols=symbols, capital=capital, force=force,
+            trigger_origin=trigger_origin, universe_context=runtime_context,
+        )
         d = asdict(result)
         d["_from_cache"] = False
         d["_cache_age_s"] = 0.0
@@ -1071,29 +1270,33 @@ def get_or_run_scan(
     if not acquired:
         if not wait_for_lock:
             # Scheduler path: never poll — report busy immediately.
-            if prev:
+            if prev and _same_runtime_universe(prev):
                 prev["_from_cache"] = True
                 prev["_scan_lock_busy"] = True
                 return prev
             return {"_scan_lock_busy": True, "_from_cache": True,
-                    "scan_id": None, "snapshot_ts": None}
+                    "scan_id": None, "snapshot_ts": None,
+                    "universe_unavailable": True}
         # Another instance is scanning. Poll for its result instead of
         # duplicating work; fall back to the previous snapshot on timeout.
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
             time.sleep(3)
             latest = load_cached_scan()
-            if latest and latest.get("scan_id") != prev_scan_id:
+            if (latest and latest.get("scan_id") != prev_scan_id
+                    and _same_runtime_universe(latest)):
                 latest["_from_cache"] = True
                 latest["_joined_inflight_scan"] = True
                 latest["_lock_wait_s"] = round(time.monotonic() - t_lock0, 2)
                 return latest
-        if prev:
+        if prev and _same_runtime_universe(prev):
             prev["_from_cache"] = True
             prev["_scan_lock_busy"] = True
             prev["_lock_wait_s"] = round(time.monotonic() - t_lock0, 2)
             return prev
-        raise RuntimeError("Scan lock busy and no previous snapshot available")
+        raise RuntimeError(
+            "Scan lock busy and no snapshot matches the pinned runtime universe"
+        )
     lock_wait_s = round(time.monotonic() - t_lock0, 2)
 
     def _beat() -> None:
@@ -1103,8 +1306,10 @@ def get_or_run_scan(
             pass
 
     try:
-        result = run_live_scan(symbols=symbols, capital=capital, force=force,
-                               heartbeat=_beat)
+        result = run_live_scan(
+            symbols=symbols, capital=capital, force=force, heartbeat=_beat,
+            trigger_origin=trigger_origin, universe_context=runtime_context,
+        )
     except Exception as exc:
         # Failed scan must NEVER overwrite the last successful snapshot —
         # run_live_scan only persists on success, so just record the failure.

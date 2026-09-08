@@ -1,0 +1,208 @@
+PRE-TOMORROW FINAL READINESS AUDIT — READ ONLY
+
+GOAL:
+
+Determine whether production is clean and ready for tomorrow's natural Task #920
+NSE-session validation.
+
+DO NOT:
+- trigger Phase 5A/5B/5C
+- trigger a scan
+- retry/replay pre-open
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- place orders
+- modify settings
+- modify universe
+- modify portfolio/ledger
+- login/refresh Kite manually
+
+TASK 1 — PRODUCTION IDENTITY
+
+Confirm current production:
+
+environment = production
+git_commit = current approved deployed commit
+build_id = commit-derived build ID
+deployment_id = present
+
+If an observability-fix deployment occurred after RTV-3D:
+record the new exact commit/build and prove it is the intended release.
+
+TASK 2 — OBSERVABILITY FIX STATUS
+
+Verify whether the recent observability batch actually fixed:
+
+A. Mission Control build identity
+- no stale `UI apexquant-v1.0.0`
+- UI Build and API Build shown separately
+- genuine deployment comparison only
+
+B. Scanner coverage
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- expected count = 23
+- no 23/50 warning
+- no legacy NIFTY50 denominator
+
+C. Kite/current-price card
+- Kite connection status truthful
+- mappings = 23/23
+- actual current-price provider shown truthfully
+- Yahoo data must not be mislabeled Kite
+- Kite data must not be labeled fallback if it is actually live
+
+Report PASS/FAIL for each.
+
+TASK 3 — READINESS TRUTH
+
+Read the authoritative readiness endpoints.
+
+Require:
+
+active universe = CUSTOM_LOW_PRICE_SECTOR
+expected symbols = 23
+requested symbols = 23
+
+If market is closed, do not require fresh live quotes.
+
+Confirm no readiness gate still contains an unexplained hardcoded 50-symbol
+production requirement.
+
+TASK 4 — UNIVERSE / MAPPINGS
+
+Require:
+
+active symbols = 23
+valid mappings = 23/23
+missing = 0
+duplicate tokens = 0
+unexpected active symbols = 0
+
+TASK 5 — KITE
+
+READ ONLY.
+
+Confirm:
+
+credentials present = true
+token stored = true
+token valid = true
+token expired = false
+connected/authenticated = true
+daily login required = false
+
+If connection is false after market close, distinguish normal inactive state
+from authentication failure.
+
+Do not manually login.
+
+TASK 6 — SAFETY SETTINGS
+
+Require:
+
+auto_paper_entries = false
+confirmation = null
+bootstrap = false
+automatic exits = true
+controlled execution = DISABLED
+execution_allowed = false
+live broker order placement = false
+mode = PAPER_TRADING
+
+Any enabled entry/live execution:
+CRITICAL FAILURE.
+
+TASK 7 — PORTFOLIO / LEDGER
+
+Require:
+
+source = phase20_ledger
+
+initial capital = 100000.00
+cash = 99721.26
+equity = 99721.26
+realized P&L = -278.74
+unrealized = 0
+open positions = 0
+EXIT_PENDING = 0
+six historical closed round trips preserved
+
+No unexplained new trade today.
+
+TASK 8 — MANUAL SCAN PROVENANCE
+
+Inspect the previously observed:
+
+scan_id = e1ded4dfba2e
+origin = MANUAL
+job type = MANUAL_SCAN
+
+Determine, READ ONLY if possible:
+- actor/source
+- endpoint
+- request provenance
+- approval record
+- whether this could happen automatically while still being labeled MANUAL
+
+Do not delete or rewrite the record.
+
+If provenance cannot be established:
+keep #929 open but classify whether it blocks Task #920.
+
+TASK 9 — SCHEDULER HEALTH
+
+Confirm:
+
+scheduler = HEALTHY
+heartbeat current/recent
+no unexpected stuck jobs
+no automatic Phase 5A retry
+no replay of historical pre-open evidence
+no unexpected entry/bootstrap jobs
+
+TASK 10 — TASK #920 PRECONDITIONS
+
+Confirm tomorrow's natural session is ready to prove:
+
+expected_symbol_count = 23
+provider_collected_count = 23
+persisted_count = 23
+missing_count = 0
+duplicate_count = 0
+malformed_count = 0
+unexpected_count = 0
+failed_count = 0
+persistence_status = MATCH
+
+Also require:
+- origin = SCHEDULED
+- no DEFAULT_WATCHLIST substitution
+- freeze only after exact 23-symbol proof
+- scheduled downstream lifecycle
+- scheduled canonical scan
+- pure observation GETs
+- safety/portfolio parity preserved
+
+TASK 11 — FINAL CLASSIFICATION
+
+Return exactly one:
+
+A. READY FOR TOMORROW TASK #920
+B. READY WITH NON-BLOCKING OBSERVABILITY ISSUE
+C. NOT READY — READINESS AUTHORITY ISSUE
+D. NOT READY — KITE/MAPPING ISSUE
+E. NOT READY — SAFETY REGRESSION
+F. NOT READY — PORTFOLIO/LEDGER ISSUE
+G. NOT READY — DEPLOYMENT IDENTITY ISSUE
+
+Create:
+
+PRE_TOMORROW_FINAL_READINESS_AUDIT.md
+
+FINAL RULE:
+
+This audit is read-only.
+Do not attempt to "fix while checking".

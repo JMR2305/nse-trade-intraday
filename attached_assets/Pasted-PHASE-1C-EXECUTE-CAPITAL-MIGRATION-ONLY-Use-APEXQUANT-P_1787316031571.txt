@@ -1,0 +1,87 @@
+PHASE 1C — EXECUTE CAPITAL MIGRATION ONLY
+
+Use APEXQUANT_PHASE1_REVISED_CAPITAL_UNIVERSE_EXECUTION_PLAN.md as the controlling plan.
+
+Operator approval:
+I approve Phase 1C only — production capital migration from ₹5,00,000 to ₹1,00,000.
+
+Do not populate custom universe yet.
+Do not switch active universe yet.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change LTIM.
+Do not change thresholds.
+Do not touch Phase 20 safety files.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Before migration, verify:
+1. GET /api/phase20/settings
+   - auto_paper_entries=false
+   - bootstrap_paper_enabled=false
+   - auto_paper_exits=true
+   - initial_capital=500000
+
+2. GET /api/phase20/positions
+   - positions=[]
+
+3. GET /api/phase20/capital-migration/status
+   - exit_pending_count=0
+   - current_capital=500000
+   - status=CONFIRMATION_REQUIRED
+
+4. Capture:
+   - config_hash
+   - closed trade count
+   - realized P&L
+   - risk limits at ₹5,00,000
+
+Then execute:
+
+POST /api/phase20/capital-migration
+
+Confirmation text:
+I confirm there are no open or exit-pending paper positions and approve rebasing paper capital to ₹100,000.
+
+After migration, verify:
+1. GET /api/phase20/settings
+   - initial_capital=100000
+   - auto_paper_entries=false
+   - bootstrap_paper_enabled=false
+   - auto_paper_exits=true
+
+2. GET /api/phase20/capital-migration/status
+   - status=ALREADY_APPLIED
+   - current_capital=100000
+   - closed_history.preserved=true
+
+3. Verify derived limits:
+   - per_stock_exposure_cap=25000
+   - risk_per_trade=1000
+   - daily_loss_limit=3000
+   - circuit_breaker_daily_loss_limit=3000
+
+4. Confirm:
+   - closed trade count unchanged
+   - no open positions
+   - no EXIT_PENDING positions
+   - no trade rows modified
+   - no live orders
+   - active universe still NIFTY_50
+   - Phase 0C/0D safety code untouched
+
+Generate:
+
+APEXQUANT_PHASE1C_CAPITAL_MIGRATION_EVIDENCE_REPORT.md
+
+Include:
+1. Pre-migration settings.
+2. Migration response.
+3. Post-migration settings.
+4. Capital migration status.
+5. Risk-limit comparison before/after.
+6. Closed trade preservation proof.
+7. Confirmation auto entries/bootstrap remain disabled.
+8. Confirmation active universe unchanged.
+9. Confirmation no trades/positions changed.
+10. Confirmation no live orders.

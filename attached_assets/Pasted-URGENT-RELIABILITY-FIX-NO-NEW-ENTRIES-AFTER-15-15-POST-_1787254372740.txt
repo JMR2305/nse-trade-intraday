@@ -1,0 +1,166 @@
+URGENT RELIABILITY FIX — NO NEW ENTRIES AFTER 15:15 + POST-CLOSE FORCE-EXIT TRACEABILITY
+
+Use TODAYS_TRADE_EXIT_QUALITY_AUDIT.md as the controlling audit.
+
+Do not change strategy thresholds.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+CRITICAL FINDINGS FROM AUDIT:
+1. DRREDDY and DIVISLAB were correctly closed by MARKET_CLOSE_EXIT.
+2. New DRREDDY and TRENT entries were admitted at 15:25 and 15:26 IST.
+3. This happened because the only entry time gate was market_state=OPEN until 15:30.
+4. There is no no-new-entry cutoff before the 15:20 mandatory square-off window.
+5. Late DRREDDY/TRENT remained open after close.
+6. POST_CLOSE_FORCE_EXIT did not leave a traceable close or blocked-exit outcome.
+7. Quantity exists in Phase 20 ledger but may display as Not Available in UI.
+
+TASK 1 — ADD AUTHORITATIVE NO-NEW-ENTRY CUTOFF
+
+Add a hard intraday paper-entry cutoff:
+
+NO_NEW_INTRADAY_ENTRY_AFTER_IST = 15:15
+
+Rules:
+- Before 15:15 IST: entries may proceed if all gates pass.
+- At/after 15:15 IST: block all new entries.
+- From 15:15 onward: exits and safety actions only.
+- MARKET_CLOSE_EXIT still fires from 15:20.
+- POST_CLOSE_FORCE_EXIT still runs after 15:30.
+
+This cutoff must be enforced at the paper-entry admission boundary, not only in scheduler UI.
+
+Apply to:
+- normal AUTO paper entries
+- BOOTSTRAP_AUTO entries
+- allocation override entries
+- manual/diagnostic entry paths, unless explicitly operator-forced and clearly marked
+
+Blocked event:
+Emit `NO_NEW_ENTRY_CUTOFF_BLOCKED`.
+
+Event payload must include:
+- symbol
+- scan_id
+- attempted_entry_time_ist
+- cutoff_time_ist = 15:15
+- trigger_source
+- market_state
+- reason = "No new intraday entries after cutoff; exits only"
+
+TASK 2 — FAIL-CLOSED LEDGER ADMISSION CHECK
+
+Immediately before committing any paper BUY row:
+
+Check:
+- market_state == OPEN
+- current IST time < 15:15
+- quote_reliable == true
+- circuit breaker clear
+- no duplicate position
+- entry_execution_allowed == true
+
+If current time >= 15:15:
+- do not insert paper trade
+- do not debit cash
+- emit NO_NEW_ENTRY_CUTOFF_BLOCKED
+
+This must protect:
+- create_paper_entry()
+- BOOTSTRAP_AUTO
+- normal automatic entries
+- any execution path that inserts into phase20_paper_trades
+
+TASK 3 — FIX POST-CLOSE FORCE-EXIT TRACEABILITY
+
+Every open intraday paper position at/after 15:30 must end with exactly one durable outcome:
+
+1. POST_CLOSE_FORCE_EXIT
+2. MARKET_CLOSE_EXIT_BLOCKED
+3. OPERATOR_APPROVED_CARRY
+
+No silent open position is allowed.
+
+Implement/verify:
+- post-close force-exit runs once per IST day after 15:30
+- it scans all OPEN paper positions
+- it attempts to close each using price waterfall:
+  Kite LTP → local/yfinance latest price → fill_price_fallback
+- if fallback is used, mark `exit_price_source = fill_price_fallback`
+- if no price exists, emit `MARKET_CLOSE_EXIT_BLOCKED`
+- if position remains open, it must have a visible blocked reason
+- no open position may disappear from the EOD report
+
+Add event:
+`POST_CLOSE_FORCE_EXIT_ATTEMPTED`
+`POST_CLOSE_FORCE_EXIT_COMPLETED`
+`POST_CLOSE_FORCE_EXIT_BLOCKED`
+
+TASK 4 — IMMEDIATE CLEANUP OF CURRENT OPEN LATE TRADES
+
+Check production ledger for open trades from 20 August:
+
+- DRREDDY P20-8fc829b8c3, qty 20
+- TRENT P20-315e824378, qty 5
+
+If still OPEN:
+- close them using POST_CLOSE_FORCE_EXIT logic
+- mark exit source clearly
+- record realized P&L
+- emit durable event
+- update portfolio cash
+- confirm no live broker order API call
+
+Do not delete or mutate their entry evidence.
+Keep the audit trail showing they were late entries.
+
+TASK 5 — QUANTITY DISPLAY FIX
+
+The audit proves Phase 20 ledger has quantity:
+- DRREDDY closed qty 20
+- DIVISLAB closed qty 1
+- DRREDDY open qty 20
+- TRENT open qty 5
+
+Fix UI/API so closed-trades table reads canonical Phase 20 ledger quantity.
+
+Verify:
+- closed DRREDDY displays 20
+- closed DIVISLAB displays 1
+- no “Not available” placeholder for these Phase 20 trades
+- fallback/legacy records are only used when Phase 20 ledger is absent
+
+TASK 6 — TESTS
+
+Add tests:
+1. Entry before 15:15 can proceed if gates pass.
+2. Entry at 15:15 is blocked.
+3. Entry after 15:15 is blocked.
+4. BOOTSTRAP_AUTO after 15:15 is blocked.
+5. Normal AUTO after 15:15 is blocked.
+6. Allocation override after 15:15 is blocked.
+7. Block emits NO_NEW_ENTRY_CUTOFF_BLOCKED.
+8. No paper row inserted after cutoff.
+9. Cash not debited after cutoff block.
+10. MARKET_CLOSE_EXIT still closes positions after 15:20.
+11. POST_CLOSE_FORCE_EXIT produces exactly one outcome for every open position after 15:30.
+12. MARKET_CLOSE_EXIT_BLOCKED is emitted when no exit price exists.
+13. Quantity display uses canonical Phase 20 ledger.
+14. No live broker order API called.
+
+TASK 7 — PRODUCTION VERIFICATION
+
+After deploy, verify production:
+
+- no open positions from 20 August remain silently open
+- DRREDDY late entry has closed/blocked outcome
+- TRENT late entry has closed/blocked outcome
+- no new entries allowed after 15:15
+- MARKET_CLOSE_EXIT still works after 15:20
+- POST_CLOSE_FORCE_EXIT trace appears after 15:30
+- quantity displays correctly
+- no live orders
+
+Generate:
+APEXQUANT_NO_NEW_ENTRY_CUTOFF_AND_POST_CLOSE_FORCE_EXIT_FIX_REPORT.md

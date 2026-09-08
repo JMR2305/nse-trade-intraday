@@ -329,7 +329,7 @@ class TestRetryPendingNoPosition(unittest.TestCase):
         emitted: list = []
 
         with (
-            mock.patch("phase20_executor.get_ledger",
+            mock.patch("phase20_executor.get_exit_pending_trades",
                        return_value=[pending_trade]),
             mock.patch("paper_trader.execute_sell",
                        return_value=(False, "No position in TCS")),

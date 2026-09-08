@@ -23,6 +23,7 @@ import os
 import sys
 import types
 import unittest
+import pytest
 from typing import Any, Dict
 from unittest.mock import MagicMock, patch
 
@@ -34,11 +35,18 @@ if _PYTHON_DIR not in sys.path:
 
 # ── Stub helpers ──────────────────────────────────────────────────────────────
 
+_DEPENDENCIES = {}
+_STUB_SCOPE_ACTIVE = False
+
+
 def _stub(name: str, **attrs) -> types.ModuleType:
     mod = types.ModuleType(name)
     for k, v in attrs.items():
         setattr(mod, k, v)
-    sys.modules[name] = mod
+    if _STUB_SCOPE_ACTIVE:
+        sys.modules[name] = mod
+    else:
+        _DEPENDENCIES[name] = mod
     return mod
 
 
@@ -66,6 +74,17 @@ _stub("portfolio_store", load_state=lambda: _PORTFOLIO_STUB)
 # ── Phase 20 executor stubs for daily-risk check ──────────────────────────────
 # Import the real pre_trade after stubs are in place.
 from risk_validation.pre_trade import validate_pre_trade  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolated_dependencies():
+    global _STUB_SCOPE_ACTIVE
+    with patch.dict(sys.modules, _DEPENDENCIES):
+        _STUB_SCOPE_ACTIVE = True
+        try:
+            yield
+        finally:
+            _STUB_SCOPE_ACTIVE = False
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -260,6 +279,14 @@ class TestExecutorCapWiring(unittest.TestCase):
             "strategy_id": "strategy_ema_crossover",
             "strategy_name": "EMA Crossover",
             "sector": "PHARMA",
+            "universe_context": {
+                "natural_session": "2026-08-26",
+                "universe_key": "NIFTY_50",
+                "universe_id": 42,
+                "version": 7,
+                "symbol_count": 1,
+                "exact_set_hash": "fixture-hash",
+            },
             "sizing": {
                 "quantity": orig_qty,
                 "entry_price": price,

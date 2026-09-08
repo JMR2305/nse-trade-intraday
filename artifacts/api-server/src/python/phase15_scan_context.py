@@ -163,8 +163,25 @@ def build_scan_context() -> Dict[str, Any]:
                 "above_ema50": r.get("above_ema50"),
             },
             "data_quality": r.get("data_quality"),
+            "data_quality_for_indicators": r.get("data_quality_for_indicators"),
+            "data_quality_for_execution": r.get("data_quality_for_execution"),
             "data_age_days": r.get("data_age_days"),
             "bars_available": r.get("bars_available"),
+            # Paper-execution provenance is copied from the immutable canonical
+            # snapshot.  Phase 20 may use these fields for stricter allocation
+            # tiers, but indicator calculations remain yfinance daily bars.
+            "kite_ltp": r.get("kite_ltp"),
+            "kite_ltp_available": r.get("kite_ltp_available"),
+            "kite_session_verified_flag": r.get("kite_session_verified_flag"),
+            "kite_ltp_overlay_enabled": r.get("kite_ltp_overlay_enabled"),
+            "current_price_source": r.get("current_price_source"),
+            "execution_price_source": r.get("execution_price_source"),
+            "quote_reliable": r.get("quote_reliable"),
+            "indicator_source": r.get("indicator_source"),
+            "ohlcv_source": r.get("ohlcv_source"),
+            "yfinance_last_close": r.get("yfinance_last_close"),
+            "reason_not_live_ltp": r.get("reason_not_live_ltp"),
+            "latest_price_time_ist": r.get("latest_price_time_ist"),
             "gates": {
                 "price": r.get("gate_price"), "data_quality": r.get("gate_data_quality"),
                 "rr": r.get("gate_rr"), "volume": r.get("gate_volume"),

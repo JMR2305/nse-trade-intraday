@@ -1,11 +1,4 @@
-"""Task: Portfolio page must not show stale positions after an API-server
-restart.
-
-Verifies the snapshot builder's source ordering:
-1. PortfolioService (Postgres-backed snapshot repo) is the primary source.
-2. If the service is unavailable, the endpoint gracefully falls back to the
-   canonical/legacy paths (no regression).
-"""
+"""RTV-1: PortfolioLive financial truth is the canonical Phase-20 portfolio."""
 from __future__ import annotations
 
 import os
@@ -23,32 +16,14 @@ if str(_PY_ROOT) not in sys.path:
 import portfolio_snapshot as ps  # noqa: E402
 
 
-class TestServiceSourceFallback(unittest.TestCase):
-    def test_falls_back_when_service_unavailable(self):
-        with patch.object(
-            ps, "_positions_from_portfolio_service",
-            side_effect=RuntimeError("service down"),
-        ):
+class TestCanonicalSource(unittest.TestCase):
+    def test_canonical_snapshot_does_not_depend_on_service(self):
+        with patch.object(ps, "_positions_from_portfolio_service",
+                          side_effect=AssertionError("service must not be read")):
             snap = ps.get_portfolio_snapshot()
-        # Endpoint must still return a complete snapshot payload.
         self.assertIn("open_positions", snap)
         self.assertIn("equity", snap)
         self.assertNotEqual(snap.get("position_source"), "portfolio_service")
-
-    def test_valid_empty_service_book_does_not_fall_back(self):
-        # A service that successfully reports ZERO positions is authoritative;
-        # stale canonical/legacy sources must not repopulate the page.
-        with patch.object(
-            ps, "_positions_from_portfolio_service",
-            return_value=([], {"cash": 50000.0, "invested_cost": 0.0,
-                               "unrealised_pnl": 0.0, "initial_capital": 50000.0}),
-        ):
-            snap = ps.get_portfolio_snapshot()
-        self.assertEqual(snap["open_positions"], [])
-        self.assertEqual(snap["position_source"], "portfolio_service")
-        # Aggregates must come from the same (service) source
-        self.assertEqual(snap["cash"], 50000.0)
-        self.assertEqual(snap["invested_value"], 0.0)
 
     def test_all_corrupt_db_rows_raise_corrupt_snapshot_error(self):
         import asyncio
@@ -60,27 +35,36 @@ class TestServiceSourceFallback(unittest.TestCase):
             with self.assertRaises(CorruptSnapshotError):
                 asyncio.run(repo.get_latest_valid("default"))
 
-    def test_service_positions_win_when_available(self):
-        rows = [{
-            "symbol": "TESTSYM", "quantity": 1, "avg_entry_price": 100.0,
-            "last_price": 101.0, "market_value": 101.0, "unrealised_pnl": 1.0,
-            "unrealised_pnl_pct": 1.0, "side": "LONG", "strategy_id": None,
-            "sector": None, "opened_at": None,
-            "mark_source": "portfolio_service", "status": "OPEN",
-        }]
-        aggs = {"cash": 49899.0, "invested_cost": 100.0,
-                "unrealised_pnl": 1.0, "initial_capital": 50000.0}
-        with patch.object(
-            ps, "_positions_from_portfolio_service", return_value=(rows, aggs)
-        ):
+    def test_canonical_book_wins_over_independently_capitalized_service(self):
+        import canonical_portfolio
+        canonical = {
+            "source": "phase20_ledger",
+            "initial_capital": 100_000.0, "cash": 89_000.0,
+            "invested_value": 10_000.0, "unrealized_pnl": 1_000.0,
+            "equity": 101_000.0, "positions": [{
+                "symbol": "CANON", "quantity": 100, "avg_price": 100.0,
+                "mark_price": 110.0, "market_value": 11_000.0,
+                "unrealized_pnl": 1_000.0, "status": "OPEN",
+                "strategy_id": "test", "sector": "TECH", "opened_at": None,
+                "mark_source": "scan",
+            }],
+        }
+        # This deliberately contradictory service book must never be observed.
+        with patch.object(canonical_portfolio, "build_canonical_portfolio",
+                          return_value=canonical), \
+             patch.object(ps, "_positions_from_portfolio_service",
+                          side_effect=AssertionError("service must not be read")):
             snap = ps.get_portfolio_snapshot()
-        self.assertEqual(snap["position_source"], "portfolio_service")
-        self.assertEqual(snap["cash"], 49899.0)
-        self.assertEqual(snap["invested_value"], 100.0)
-        self.assertEqual(snap["unrealised_pnl"], 1.0)
-        self.assertEqual(
-            [p["symbol"] for p in snap["open_positions"]], ["TESTSYM"]
-        )
+        self.assertEqual(snap["source"], "phase20_ledger")
+        self.assertEqual(snap["initial_capital"], 100_000.0)
+        self.assertEqual(snap["cash"], 89_000.0)
+        self.assertEqual(snap["invested_value"], 10_000.0)
+        self.assertEqual(snap["current_value"], 11_000.0)
+        self.assertEqual(snap["equity"], 101_000.0)
+        self.assertEqual(snap["total_pnl"], 1_000.0)
+        self.assertEqual(snap["utilisation_pct"], round(11_000 / 101_000 * 100, 2))
+        self.assertEqual(snap["largest_position"]["symbol"], "CANON")
+        self.assertTrue(snap["calculated_at"])
 
 
 class TestRepositoryDbToggle(unittest.TestCase):

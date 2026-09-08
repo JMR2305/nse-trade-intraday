@@ -30,7 +30,7 @@ vi.mock("wouter", () => ({
 }));
 
 import { apiJson } from "@/lib/api";
-import { PipelinePanel } from "./MissionControl";
+import { EventStreamPanel, PipelinePanel } from "./MissionControl";
 
 const mockApi = apiJson as ReturnType<typeof vi.fn>;
 
@@ -190,5 +190,58 @@ describe("PipelinePanel auto-expand", () => {
 
     // Old stage must be collapsed now.
     expect(screen.getByTestId("mc-stage-toggle-scanner").getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("shows after-hours monitoring instead of SCANNING when the scheduler is idle", async () => {
+    render(
+      <QueryClientProvider client={makeQc()}>
+        <PipelinePanel
+          scanning={false}
+          afterHoursMonitoring
+          replayQ={replayQ as never}
+          scanQ={makeScanQ("SCANNER") as never}
+        />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mc-pipeline-after-hours-status").textContent)
+        .toContain("IDLE — MARKET CLOSED");
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("mc-pipeline-after-hours-note").textContent)
+        .toBe("After-hours monitoring only — execution disabled.");
+    });
+    expect(screen.queryByText("SCANNING")).toBeNull();
+  });
+});
+
+describe("EventStreamPanel allocation audit visibility", () => {
+  it("shows canonical allocation-event payload fields", async () => {
+    render(
+      <QueryClientProvider client={makeQc()}>
+        <EventStreamPanel streamEvents={[{
+          id: "alloc-1",
+          ts: new Date().toISOString(),
+          event_type: "ALLOCATION_OVERRIDE_APPROVED_3X",
+          stage: "EXECUTION",
+          symbol: "TCS",
+          payload: {
+            tier: "EXCEPTIONAL_QUALITY_3X",
+            requested_multiplier: 3,
+            effective_multiplier: 2.5,
+            final_notional: 20_000,
+            limiting_caps: ["per_stock"],
+            reason: "EXCEPTIONAL_QUALITY_3X_APPROVED",
+          },
+        }] as never} />
+      </QueryClientProvider>,
+    );
+
+    expect((await screen.findByTestId("mc-allocation-tier-alloc-1")).textContent)
+      .toBe("3X");
+    expect(screen.getByText("2.5x/3x req")).toBeTruthy();
+    expect(screen.getByText("₹20.0k")).toBeTruthy();
+    expect(screen.getByText("[cap: per_stock]")).toBeTruthy();
   });
 });

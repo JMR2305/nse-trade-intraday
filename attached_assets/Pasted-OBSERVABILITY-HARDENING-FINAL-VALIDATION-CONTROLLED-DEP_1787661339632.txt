@@ -1,0 +1,158 @@
+OBSERVABILITY HARDENING — FINAL VALIDATION + CONTROLLED DEPLOYMENT
+
+Use:
+OBSERVABILITY_HARDENING_IMPLEMENTATION_SUMMARY.md
+
+GOAL:
+
+Finish the remaining validation for the observability-hardening batch and deploy
+only if every final check passes.
+
+DO NOT:
+- change trading logic
+- change readiness logic
+- enable auto entries
+- enable bootstrap
+- enable controlled execution
+- enable live orders
+- trigger scans
+- trigger Phase 5A/5B/5C
+- retry/replay pre-open
+- modify portfolio/ledger
+- modify universe
+- alter Task #930 evidence
+
+TASK 1 — SOURCE SCOPE
+
+Confirm the current branch contains only:
+
+- current-price provenance observability changes
+- manual-scan provenance/audit changes
+- related tests
+- additive/backward-compatible persistence changes if any
+
+No unrelated runtime changes.
+
+TASK 2 — RERUN FINAL FRONTEND TESTS
+
+Run the standalone dashboard Vitest suite covering:
+- Mission Control provenance card
+- market-open provenance
+- market-closed last-known provenance
+- unavailable/not-proven state
+- manual-scan provenance rendering
+- legacy provenance unavailable rendering
+
+Require:
+0 failures
+
+TASK 3 — TYPESCRIPT
+
+Run:
+
+- dashboard TypeScript check
+- API TypeScript check
+- workspace TypeScript check
+
+Require:
+PASS
+
+TASK 4 — FRONTEND PRODUCTION BUILD
+
+Run the production dashboard/Vite build.
+
+Require:
+PASS
+
+Record any warning separately.
+Do not treat bundle-size warnings as failures unless they break build output.
+
+TASK 5 — BACKEND REGRESSION
+
+Reconfirm:
+
+focused Python tests = PASS
+Python compilation = PASS
+scheduler/origin tests = PASS
+scan-history tests = PASS
+readiness regression = PASS
+safety regression = PASS
+
+TASK 6 — SCHEMA SAFETY
+
+Inspect schema diff.
+
+Require:
+- no DROP
+- no TRUNCATE
+- no destructive migration
+- no historical row rewrite
+
+Any manual-scan provenance persistence must be additive/backward compatible.
+
+TASK 7 — CREATE APPROVED DEPLOYMENT COMMIT
+
+Only after Tasks 1–6 pass:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first 12 chars>
+
+TASK 8 — CONTROLLED PUBLISH
+
+Deploy only APPROVED_DEPLOY_COMMIT.
+
+Do not trigger any scan or pre-open lifecycle after deploy.
+
+TASK 9 — POST-DEPLOY READ-ONLY VERIFICATION
+
+Confirm:
+
+UI/API build identity = MATCH
+
+Current-price provenance:
+- Kite connection shown separately
+- mapping coverage shown separately
+- actual quote provider shown truthfully
+- last quote timestamp shown
+- market closed state = MARKET_CLOSED_LAST_KNOWN when appropriate
+- UNKNOWN used only when evidence is genuinely unavailable
+- no false Kite LTP label
+
+Manual scan audit:
+- future-manual-scan fields exist in API/schema
+- legacy e1ded4dfba2e remains unchanged
+- legacy row displays provenance unavailable/unknown
+- no scan is triggered for verification
+
+Safety:
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- mappings = 23/23
+- auto entries = false
+- bootstrap = false
+- controlled execution = disabled
+- live broker orders = disabled
+- portfolio/ledger unchanged
+
+TASK 10 — TASK #930 PROTECTION
+
+Confirm:
+- no Phase 5A/5B/5C action
+- no scan/retry/replay
+- no Task #930 evidence created or modified
+
+FINAL OUTPUT:
+
+OBSERVABILITY_HARDENING_FINAL_RELEASE_REPORT.md
+
+FINAL VERDICT:
+
+A. PASS — DEPLOYED AND VERIFIED
+B. FRONTEND TEST FAILURE
+C. TYPESCRIPT FAILURE
+D. BUILD FAILURE
+E. BACKEND REGRESSION
+F. SCHEMA FAILURE
+G. SOURCE SCOPE FAILURE
+H. DEPLOYMENT IDENTITY FAILURE
+I. SAFETY REGRESSION

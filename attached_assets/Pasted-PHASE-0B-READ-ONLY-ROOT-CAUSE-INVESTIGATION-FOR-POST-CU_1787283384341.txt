@@ -1,0 +1,203 @@
+PHASE 0B — READ-ONLY ROOT CAUSE INVESTIGATION FOR POST-CUTOFF ENTRY AND MISSED SAME-DAY EOD
+
+Use APEXQUANT_PHASE0A_OPTION_C_SAFETY_PAUSE_EVIDENCE_REPORT.md as the controlling report.
+
+Do not implement code yet.
+Do not change settings.
+Do not change capital.
+Do not change universe.
+Do not change LTIM.
+Do not change thresholds.
+Do not close positions.
+Do not call force-eod-close.
+Do not create migrations.
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current safe state:
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- TRENT and DRREDDY are already CLOSED by POST_CLOSE_FORCE_EXIT via cold-start safety net
+- no current OPEN positions
+- no further position mutation is needed now
+
+GOAL:
+Perform read-only root-cause investigation for:
+1. Why TRENT and DRREDDY were admitted after the 15:15 IST no-new-entry cutoff.
+2. Why same-day 15:20 MARKET_CLOSE_EXIT did not close them.
+3. Why POST_CLOSE_FORCE_EXIT only happened on cold-start the next day.
+4. Whether the deployed build at entry time was missing the final cutoff guard.
+5. Whether scheduler/EOD jobs missed, skipped, failed silently, or lacked durable outcome records.
+
+TASK 1 — FULL TRADE TIMELINE
+
+For each trade:
+- TRENT: P20-315e824378
+- DRREDDY: P20-8fc829b8c3
+
+Build a timeline from 2026-08-20 09:00 IST to 2026-08-21 00:10 IST.
+
+Include:
+- scan_id
+- signal_ts
+- decision_ts
+- simulated_order_ts
+- fill_ts
+- insert timestamp
+- trigger_source
+- entry rule / approval event
+- market state at decision time
+- market state at insert time
+- cutoff check result, if available
+- config_hash used
+- build ID / deployment revision used
+- scheduler tick that created the entry
+- EOD scheduler ticks
+- cold-start startup time
+- POST_CLOSE_FORCE_EXIT close time
+
+TASK 2 — POST-15:15 ENTRY ROOT CAUSE
+
+Investigate why entries were admitted at:
+- DRREDDY 15:25:10 IST
+- TRENT 15:26:22 IST
+
+Check:
+- market_hours.automatic_paper_entry_status()
+- phase20_executor._insert_row()
+- phase20_executor._market_entry_status()
+- run_auto_entries()
+- run_bootstrap_auto_entry()
+- paper_entry_admission.py
+- phase20_scheduler._manage_paper()
+- timezone conversion
+- database timestamp vs process timestamp
+- signal timestamp vs decision/fill timestamp
+- config_hash
+- deployed build/revision at that time
+- any stale worker or old deployment process
+- any alternative insert path into phase20_paper_trades
+
+Deliver:
+- exact root cause if proven
+- if not proven, list remaining candidates ranked by likelihood
+- exact evidence found
+- exact evidence missing
+- files/functions involved
+- proposed fix plan
+- required tests
+
+TASK 3 — SAME-DAY EOD FAILURE ROOT CAUSE
+
+Investigate why same-day EOD did not close the two rows at/after 15:20 IST.
+
+Check:
+- phase20_exits.manage_open_positions()
+- phase20_scheduler.py EOD path
+- eod_force_close_open_positions()
+- phase20_eod_status.py
+- phase20_kv keys:
+  - eod_squareoff:2026-08-20
+  - eod_squareoff_unresolved:2026-08-20
+  - startup_overnight_check:2026-08-21
+- phase20_scan_runs from 15:15 to 18:00 IST
+- phase20_scheduler_state
+- pipeline_events
+- phase20_notifications
+- paper sell service result
+- ledger update result
+- quote/price availability
+- EXIT_PENDING logic
+- MARKET_CLOSE_EXIT_BLOCKED event logic
+
+Deliver:
+- whether EOD job ran or not
+- whether it skipped the trades
+- whether it failed before evidence emission
+- whether KV claim suppressed retry
+- whether price was unavailable
+- whether paper sell or ledger close failed
+- why cold-start succeeded next day
+- proposed fix plan
+- required tests
+
+TASK 4 — COLD-START SAFETY NET TRACE
+
+Confirm the successful overnight closure mechanism.
+
+For each trade:
+- MARKET_CLOSE_OVERNIGHT_CARRY_DETECTED event ID
+- POST_CLOSE_FORCE_EXIT event ID, if any
+- ledger close row
+- exit_ts
+- exit_price
+- exit_rule
+- exit cost
+- realized P&L
+- portfolio/cash update
+- scheduler/startup process ID
+- config_hash/build ID used
+
+Confirm whether this mechanism is reliable enough as backup only, not primary EOD.
+
+TASK 5 — PROPOSE FIXES BUT DO NOT IMPLEMENT
+
+Propose exact fixes for:
+
+1. Final cutoff guard:
+- must block AUTO and BOOTSTRAP_AUTO after 15:15
+- decision/fill/insert time must govern, not signal time
+- final insert must fail closed
+- rejected candidates must emit durable cutoff event
+
+2. EOD:
+- explicit 15:20 EOD job independent of scan cadence
+- explicit 15:30 force-close job
+- durable per-trade EOD outcome record
+- no KV claim consumed without result
+- startup carry check before any new entry
+- operator warning for any prior-session OPEN row
+
+3. Audit:
+- admission audit for accepted/rejected entries
+- EOD audit for every open trade
+- build ID and config hash in every entry/exit decision
+
+TASK 6 — TEST PLAN
+
+List exact tests needed:
+- AUTO blocked after 15:15
+- BOOTSTRAP_AUTO blocked after 15:15
+- stale signal before cutoff cannot insert after cutoff
+- old/deployed build mismatch is visible in evidence
+- scheduler at 15:20 closes open positions
+- 15:30 force-close closes survivors
+- missed 15:20/15:30 triggers startup overnight carry before new entry
+- KV claim failure does not suppress retry
+- missing price creates EXIT_PENDING or blocked outcome
+- every EOD candidate gets a durable result
+- no live order path touched
+
+TASK 7 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE0B_POST_CUTOFF_AND_EOD_ROOT_CAUSE_REPORT.md
+
+Include:
+1. Executive conclusion.
+2. Full TRENT timeline.
+3. Full DRREDDY timeline.
+4. Post-15:15 entry root cause.
+5. Same-day EOD miss root cause.
+6. Cold-start force-close proof.
+7. Remaining unknowns.
+8. Proposed fixes, not implemented.
+9. Required tests.
+10. Whether Phase 1 remains BLOCKED or can move to remediation coding.
+11. Confirmation no code changed.
+12. Confirmation no settings changed.
+13. Confirmation no positions changed.
+14. Confirmation no live orders.

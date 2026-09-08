@@ -69,23 +69,17 @@ def _env_token_expired() -> bool:
 
 
 def _resolve_creds() -> tuple:
-    """Resolve (api_key, access_token). Token: env var first (unless its
-    recorded timestamp shows it expired at 06:00 IST), then the durable
-    token store (Postgres-backed — survives redeploys; expired tokens are
-    filtered out by the store itself)."""
+    """Resolve (api_key, access_token) with shared durable state first."""
     api_key = os.environ.get("ZERODHA_API_KEY") or ""
-    token = os.environ.get("ZERODHA_ACCESS_TOKEN") or ""
-    if token and _env_token_expired():
+    try:
+        import kite_token_store
+        token, from_store = kite_token_store.resolve_preferred_token()
+    except Exception:
+        token = os.environ.get("ZERODHA_ACCESS_TOKEN") or ""
+        from_store = False
+    if token and not from_store and _env_token_expired():
         token = ""
-    if not token:
-        try:
-            import kite_token_store
-            data = kite_token_store.load()
-            if data:
-                token = data.get("access_token") or ""
-        except Exception:
-            pass
-    return api_key, token
+    return api_key, token or ""
 
 
 def _get_kite_client():
@@ -141,9 +135,14 @@ def _fetch_quotes_from_kite(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
     for sym, ks in zip(symbols, kite_syms):
         q = raw.get(ks) or {}
         ohlc = q.get("ohlc") or {}
+        raw_ltp = q.get("last_price")
+        try:
+            has_live_ltp = float(raw_ltp) > 0
+        except (TypeError, ValueError):
+            has_live_ltp = False
         result[sym.upper()] = {
             "symbol": sym.upper(),
-            "ltp": q.get("last_price"),
+            "ltp": raw_ltp,
             "open": ohlc.get("open"),
             "high": ohlc.get("high"),
             "low": ohlc.get("low"),
@@ -153,9 +152,15 @@ def _fetch_quotes_from_kite(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
             "oi": q.get("oi"),
             "bid": (q.get("depth") or {}).get("buy", [{}])[0].get("price"),
             "ask": (q.get("depth") or {}).get("sell", [{}])[0].get("price"),
-            "data_source": "kite_live",
-            "data_quality": "LIVE",
+            # A successful bulk response does not prove every requested
+            # instrument was quoted.  Never attribute an empty/malformed
+            # per-symbol result to Kite live market data.
+            "data_source": "kite_live" if has_live_ltp else "kite_unavailable",
+            "data_quality": "LIVE" if has_live_ltp else "UNAVAILABLE",
             "fetched_at": fetched_at,
+            **({} if has_live_ltp else {
+                "reason_not_live": "Kite returned no valid last_price for symbol",
+            }),
         }
     return result
 
@@ -312,10 +317,11 @@ def provider_label() -> str:
 
 
 def invalidate_cache() -> None:
-    """Force next get_quotes() to fetch fresh data from Kite."""
-    global _quote_cache, _quote_cache_ts
+    """Force fresh quotes and session verification after a credential change."""
+    global _quote_cache, _quote_cache_ts, _verify_cache
     _quote_cache = {}
     _quote_cache_ts = 0.0
+    _verify_cache = {"ts": 0.0, "ok": False}
 
 
 if __name__ == "__main__":

@@ -1,3 +1,0 @@
-# Phase 11 position_sizing report,generated 2026-07-15T04:30:15.219608,engine 11.0,PAPER TRADING RESEARCH ONLY
-Symbol,Held Qty,Recommended Qty,Price,Risk Amount,Sizing Basis
-WIPRO,5,2,175.63,12.0,risk_budget = portfolio_value 5478.15 x 1.0% = 54.78; confidence 25.0 -> multiplier 0.5; qty_by_risk = 27.39 / stop_distance 6.00 = 4

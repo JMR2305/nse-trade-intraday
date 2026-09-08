@@ -138,9 +138,17 @@ export const RunScanResponse = zod.object({
 
 
 /**
- * Triggers a fresh Phase 7 canonical scan over the full watchlist. Responds immediately — the caller should poll GET /live-data/scan/status to detect completion (snapshot_ts advances when the scan finishes). Idempotent under concurrency (ALREADY_RUNNING if a scan is in flight) and rate-limited to one trigger per 30 s (RATE_LIMITED otherwise).
+ * Triggers a fresh Phase 7 canonical scan over the full watchlist. Responds immediately — the caller should poll GET /live-data/scan/status to detect completion (snapshot_ts advances when the scan finishes). Idempotent under concurrency (ALREADY_RUNNING if a scan is in flight) and rate-limited to one trigger per 30 s (RATE_LIMITED otherwise). Optional audit labels are recorded only for this explicit API trigger; credentials, tokens, cookies, and arbitrary request data are never persisted in scan history.
  * @summary Run Phase 7 canonical live-data scan (fire-and-forget; poll /live-data/scan/status for completion)
  */
+export const runLiveDataScanBodyAuditReferenceRegExp = new RegExp('^(?!API-|KEY-|TOKEN-|SECRET-)[A-Z]{2,12}-(?:\\d{1,8}|[A-Z0-9]{1,12}-20\\d{2}-\\d{2}-\\d{2})$');
+
+
+export const RunLiveDataScanBody = zod.object({
+  "approval_context": zod.enum(['OPERATOR_REQUEST', 'RELEASE_VALIDATION', 'INCIDENT_RESPONSE']).optional().describe('Server-recognised operational context; free-form text is rejected.'),
+  "audit_reference": zod.string().regex(runLiveDataScanBodyAuditReferenceRegExp).optional().describe('Structured approval\/audit ID; free-form text is rejected.')
+}).describe('Optional concise labels for an authorized manual\/API scan trigger. The server derives the authenticated actor and request ID; do not send credentials, tokens, cookies, or secrets in this object.\n')
+
 export const RunLiveDataScanResponse = zod.object({
   "started": zod.boolean().describe('True when the scan was initiated or is already running'),
   "status": zod.enum(['RUNNING', 'ALREADY_RUNNING', 'RATE_LIMITED']).describe('Current disposition of the scan request'),

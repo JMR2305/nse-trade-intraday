@@ -1,0 +1,388 @@
+RTV-1B — KITE SESSION PERSISTENCE DIAGNOSIS AND FIX
+
+Use as controlling evidence:
+- RTV1A_POST_KITE_CONNECTION_VERIFICATION.md
+- RTV1_SUMMARY.md
+
+Current confirmed state:
+- User completed Kite login
+- Runtime still reports LOGIN_REQUIRED
+- credentials_present=false
+- token_status=MISSING
+- connected=false
+- authenticated=false
+- token_stored=false
+- Kite token coverage remains 1/50
+- No instrument-cache hydration occurred
+- yfinance fallback is active
+- trading_data_ready=false
+- Portfolio parity = PASS
+- Safety flags = PASS
+
+Goal:
+Identify exactly why a successful Kite login is not producing a durable authenticated session visible to the running ApexQuant API and Python subprocesses.
+
+This task is limited to authentication/session persistence.
+
+Do not place broker orders.
+Do not enable live trading.
+Do not enable automatic paper entries.
+Do not enable bootstrap.
+Do not reset portfolio.
+Do not change active universe.
+Do not alter strategy logic.
+Do not change scan logic.
+Do not deploy until verification passes.
+Do not print credentials or tokens.
+
+TASK 1 — TRACE THE LOGIN FLOW END TO END
+
+Trace the actual runtime flow:
+
+User opens Kite login
+→ Zerodha authentication
+→ configured redirect URI
+→ callback endpoint
+→ request_token received
+→ generate_session()
+→ access_token returned
+→ token persistence
+→ Node runtime access
+→ Python subprocess access
+→ /api/kite/status
+→ quote/instrument hydration
+
+For every step report:
+
+- source file
+- function
+- endpoint
+- runtime process
+- expected input
+- expected output
+- whether executed
+- success/failure
+- persistence destination
+
+Do not expose any secret value.
+
+TASK 2 — VERIFY THE CALLBACK URL
+
+Confirm the actual configured callback/redirect URI used by the current Intraday Kite app.
+
+Expected Intraday callback should resolve to the running Intraday application, not the Swing project or another environment.
+
+Verify:
+
+- Kite developer-console redirect target expected by code
+- runtime callback endpoint
+- public deployed URL
+- development URL if separate
+- whether login was initiated from development or deployed environment
+- whether callback lands on the same environment whose API is being inspected
+
+Important:
+A login completed against one deployment must not be assumed available in another runtime.
+
+Report:
+
+LOGIN ENVIRONMENT = ?
+CALLBACK ENVIRONMENT = ?
+INSPECTED API ENVIRONMENT = ?
+
+These three must match, or the mismatch must be explicitly identified.
+
+TASK 3 — LOCATE TOKEN PERSISTENCE
+
+Find exactly where the access token is supposed to be stored after generate_session() succeeds.
+
+Check for:
+
+- PostgreSQL table
+- phase20_kv or other KV store
+- SQLite
+- JSON/session file
+- Replit Secret
+- environment variable
+- Node memory
+- Python memory
+- cookie/session storage
+- filesystem token cache
+
+Report:
+
+- expected persistence mechanism
+- actual persistence mechanism observed
+- persistence key/name
+- writer
+- reader
+- whether write occurred after login
+- whether reader sees it
+- whether token survives a subprocess spawn
+- whether token survives API restart
+- whether token survives Autoscale instance change
+
+Never print token contents.
+
+TASK 4 — CHECK NODE/PYTHON TOKEN VISIBILITY
+
+The API uses Node plus on-demand Python subprocesses.
+
+Verify:
+
+Node API
+→ token store
+→ spawn Python
+→ child environment / shared durable store
+→ Kite client initialization
+
+Determine whether the token is:
+
+A. only in Node memory
+B. only in browser session/cookie
+C. stored in a local file invisible to another instance
+D. stored in development filesystem but inspected runtime is deployed Autoscale
+E. missing because callback writer failed
+F. stored correctly but Python reader uses wrong path/key
+G. another identified cause
+
+This classification is mandatory.
+
+TASK 5 — CHECK AUTOSCALE / INSTANCE PERSISTENCE
+
+RTV-0 noted a public Autoscale deployment.
+
+Determine whether authentication is being saved to instance-local ephemeral storage.
+
+Verify:
+
+- number of runtime instances
+- whether callback request and later status request can hit different instances
+- whether token persistence is instance-local
+- whether filesystem storage is durable across Autoscale instances
+- whether development and deployed filesystems differ
+
+If token storage is local/ephemeral, classify as:
+
+ROOT CAUSE — NON-DURABLE / INSTANCE-LOCAL SESSION STORAGE
+
+The access token must be available to every runtime process that needs read-only Kite data.
+
+TASK 6 — VERIFY STATIC CREDENTIAL LOADING
+
+RTV1A reported:
+- provider key/secret configuration appears present
+- /api/kite/status reports credentials_present=false
+
+Reconcile this contradiction.
+
+Trace exact configuration names used by:
+
+- callback handler
+- Node API
+- Python Kite module
+- deployment runtime
+- development runtime
+
+For each required variable report:
+
+VARIABLE NAME
+EXPECTED BY
+PRESENT TO NODE: YES/NO
+PRESENT TO PYTHON: YES/NO
+PRESENT IN DEPLOYMENT: YES/NO/UNKNOWN
+PRESENT IN DEVELOPMENT: YES/NO/UNKNOWN
+
+Do not print variable values.
+
+If two modules expect different names, identify it explicitly.
+
+TASK 7 — CHECK generate_session RESULT HANDLING
+
+Inspect the callback code after:
+
+kite.generate_session(request_token, api_secret=...)
+
+Verify:
+
+- exception handling
+- response validation
+- access_token extraction
+- persistence call
+- persistence result
+- success redirect
+- error redirect
+- logging
+
+Ensure the application cannot report a successful login page if persistence failed.
+
+If login UI can display success while token persistence fails, classify this as a confirmed bug.
+
+TASK 8 — FIX ONLY THE CONFIRMED SESSION DEFECT
+
+After proving root cause, implement the smallest safe fix.
+
+Requirements:
+
+- token persisted durably
+- no token exposed to UI/logs
+- Python subprocess can read it
+- Node/API status can confirm token presence
+- survives normal process restart if appropriate
+- works with Autoscale/multi-instance topology
+- clear expiry/session-date handling
+- stale token rejected
+- logout/disconnect clears stored session safely
+
+Do not change API key/secret automatically.
+
+Do not hardcode tokens.
+
+Do not store access token in source control.
+
+Prefer an existing durable secure store already used by the project.
+
+If no suitable secure durable store exists, stop and report design options before implementing a new credential-storage architecture.
+
+TASK 9 — LOGIN STATUS SEMANTICS
+
+Ensure `/api/kite/status` accurately distinguishes:
+
+- credentials_configured
+- token_stored
+- token_valid
+- connected
+- login_required
+- session_date
+- token_age
+- last_successful_kite_call
+
+Do not expose token values.
+
+A successful callback must not imply connected=true until a read-only Kite API check succeeds.
+
+TASK 10 — AUTOMATIC INSTRUMENT HYDRATION AFTER AUTH
+
+Once authentication becomes valid:
+
+trigger the existing safe instrument-master hydration path automatically or confirm the configured existing trigger.
+
+Do not call order APIs.
+
+Expected:
+
+Kite authenticated
+→ fetch NSE instruments
+→ map active 50 symbols
+→ persist tokens
+→ validate coverage
+→ update health
+
+Require:
+
+valid tokens = 50
+missing tokens = 0
+coverage = 100%
+
+If symbol mapping failures remain, list them individually.
+
+TASK 11 — READ-ONLY POST-FIX TEST
+
+After the fix, complete login again only if manual login is required.
+
+Then verify:
+
+- credentials_present=true
+- token_status=VALID
+- token_stored=true
+- connected=true
+- authenticated=true
+- login_required=false
+- token coverage=50/50
+- no duplicate mappings
+
+Use read-only Kite quote/LTP calls for:
+
+- RELIANCE
+- TCS
+- INFY
+- HDFCBANK
+- ICICIBANK
+
+Expected:
+- Kite request succeeds
+- LTP returned where broker supplies it
+- source=KITE
+- quote provenance retained
+
+Do not call order endpoints.
+
+TASK 12 — SAFETY REGRESSION
+
+Confirm unchanged:
+
+- paper trading enabled
+- automatic paper entries disabled
+- bootstrap disabled
+- auto exits enabled
+- live broker order placement disabled
+- active universe NIFTY_50 / 50
+- canonical portfolio ₹100,000
+- /api/portfolio == /api/portfolio/snapshot
+- synthetic data still blocked from execution-grade use
+
+TASK 13 — TESTS
+
+Add focused tests for:
+
+- callback success + persistence success
+- persistence failure cannot report login success
+- token reader/writer use same store
+- Python subprocess can resolve stored token
+- token expiry handling
+- logout/disconnect clearing
+- missing token => LOGIN_REQUIRED
+- valid token => authenticated
+- Autoscale-safe persistence if applicable
+- instrument hydration after valid authentication
+
+Run relevant Kite/auth/config regression tests.
+
+Do not weaken existing tests.
+
+TASK 14 — OUTPUT
+
+Create:
+
+RTV1B_KITE_SESSION_PERSISTENCE_REPORT.md
+
+Include:
+
+- root cause
+- login environment
+- callback environment
+- inspected API environment
+- token writer
+- token reader
+- persistence mechanism
+- why the previous login did not reach runtime
+- files changed
+- tests
+- post-fix authentication state
+- post-fix token coverage
+- read-only quote verification
+- remaining live-session checks
+- safety flags before/after
+
+FINAL VERDICT must be one of:
+
+A. FIXED — AUTHENTICATED + 50/50 TOKENS
+B. CODE FIXED — MANUAL KITE RELOGIN REQUIRED
+C. ENVIRONMENT/CALLBACK MISMATCH — USER ACTION REQUIRED
+D. SECURE DURABLE TOKEN STORE DESIGN REQUIRED
+E. ROOT CAUSE FOUND — FIX NOT SAFE TO APPLY AUTOMATICALLY
+F. UNRESOLVED
+
+Do not proceed to scan/execution changes.
+
+Stop after RTV1B_KITE_SESSION_PERSISTENCE_REPORT.md.

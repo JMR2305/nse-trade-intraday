@@ -1,0 +1,200 @@
+PHASE 1D — PRODUCTION CUSTOM UNIVERSE POPULATION ONLY
+
+Use APEXQUANT_PHASE1B_DEV_CUSTOM_UNIVERSE_VALIDATION_REPORT.md as the controlling report.
+
+Operator approval:
+I approve Phase 1D only — populate production custom_universe_master and custom_universe_membership_history with the validated Option B ₹20–₹500 custom universe.
+
+Do not switch active universe yet.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change capital.
+Do not change thresholds.
+Do not touch Phase 20 executor/scheduler/exits/EOD safety files.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current production state must remain:
+- initial_capital=100000
+- active_intraday_universe=NIFTY_50
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- positions=[]
+
+APPROVED ACTIVE SYMBOLS — 23:
+
+IT:
+- WIPRO
+
+INFRA:
+- IRFC
+- NBCC
+- NMDC
+- IRCON
+- HUDCO
+- GAIL
+- SAIL
+- MRPL
+- RVNL
+- RECLTD
+- NTPC
+- PFC
+- COALINDIA
+
+BANK:
+- IDFCFIRSTB
+- PNB
+- CANBK
+- BANKINDIA
+- MAHABANK
+- UNIONBANK
+- BANKBARODA
+- KTKBANK
+- FEDERALBNK
+
+APPROVED INACTIVE AUDIT ROWS — 2:
+- IOB — inactive, excluded due spread/slippage risk
+- UCOBANK — inactive, excluded due spread/slippage risk
+
+DO NOT INCLUDE:
+- LTIM
+- HCLTECH
+- RATEGAIN
+- TANLA
+- PERSISTENT
+- COFORGE
+- MPHASIS
+- LT
+
+TASK 1 — PRE-POPULATION PRODUCTION SNAPSHOT
+
+Capture:
+1. GET /api/phase20/settings
+   - initial_capital=100000
+   - active_intraday_universe=NIFTY_50
+   - auto_paper_entries=false
+   - bootstrap_paper_enabled=false
+   - auto_paper_exits=true
+
+2. GET /api/phase20/positions
+   - positions=[]
+
+3. GET /api/universe/custom/status
+   - confirm current production active_count before population
+   - confirm production custom_universe_master current state
+
+4. GET /api/universe/custom/symbols
+   - capture current production rows before population
+
+TASK 2 — PRODUCTION POPULATION
+
+Populate production custom_universe_master using idempotent upsert only.
+
+Requirements:
+- 23 active rows
+- 2 inactive audit rows
+- correct sector values
+- yahoo_symbol set for every row
+- kite_symbol set for every row
+- instrument_token may be NULL initially
+- ohlcv_available=true for all 23 active symbols
+- reason_included stored for all active symbols
+- reason_excluded stored for IOB and UCOBANK
+- price_min=20
+- price_max=500
+- membership history snapshot inserted
+- no deletion of existing historical rows
+
+Use a one-time production-approved execution path. Do not permanently remove safety guards from the dev population script unless replaced by an explicit production confirmation guard.
+
+TASK 3 — POST-POPULATION VERIFICATION
+
+Verify production:
+
+1. GET /api/universe/custom/symbols
+   - total rows = 25
+   - active rows = 23
+   - inactive rows = 2
+   - IOB inactive
+   - UCOBANK inactive
+   - LTIM/HCLTECH/RATEGAIN/TANLA/PERSISTENT/COFORGE/MPHASIS/LT absent
+
+2. GET /api/universe/custom/status
+   - active_count=23
+   - excluded_count=2
+   - sector_counts:
+     - IT=1
+     - INFRA=13
+     - BANK=9
+   - ohlcv_cache_hit_rate_pct=100.0 or explain any miss
+
+3. Confirm active universe is still NIFTY_50.
+   - Do not switch to CUSTOM_LOW_PRICE_SECTOR yet.
+
+4. Confirm production settings unchanged:
+   - initial_capital=100000
+   - auto_paper_entries=false
+   - bootstrap_paper_enabled=false
+   - auto_paper_exits=true
+
+5. Confirm:
+   - positions=[]
+   - no trades created
+   - no positions closed
+   - no broker APIs called
+
+TASK 4 — KITE/YFINANCE MAPPING STATUS
+
+For each production row, report:
+- yahoo_symbol
+- kite_symbol
+- instrument_token
+- ohlcv_available
+- kite_ltp availability
+- whether token hydration is pending
+
+It is acceptable if instrument_token is NULL before Kite hydration, but report clearly that production scanning will rely on yfinance until token hydration is confirmed.
+
+TASK 5 — STATUS ENDPOINT PRICE BAND ISSUE
+
+The Phase 1B report says the status endpoint displays price_filter min=20 max=200 even though the approved band is 20–500.
+
+Do not switch active universe until this is corrected or explicitly documented.
+
+Check:
+- Does production /api/universe/custom/status display price_filter 20–500 after population?
+- If it still displays 20–200, mark this as a Phase 1E blocker or fix it safely before Phase 1E.
+
+TASK 6 — TESTS
+
+Run:
+python3 -m pytest tests/unit/test_custom_universe_store.py -v
+python3 -m pytest tests/unit/test_phase0c_safety_fixes.py -v
+
+Expected:
+- custom universe tests pass
+- Phase 0C safety tests pass
+
+TASK 7 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE1D_PRODUCTION_CUSTOM_UNIVERSE_POPULATION_REPORT.md
+
+Include:
+1. Pre-population production snapshot.
+2. Exact production symbol rows inserted/upserted.
+3. Active/inactive symbol counts.
+4. Sector counts.
+5. Membership history snapshot proof.
+6. Mapping verification table.
+7. Confirmation active universe still NIFTY_50.
+8. Confirmation capital still ₹1,00,000.
+9. Confirmation auto entries/bootstrap remain disabled.
+10. Confirmation no trades/positions changed.
+11. Confirmation no live orders.
+12. Price-filter display status: fixed, correct, or blocker before Phase 1E.
+13. Recommendation whether Phase 1E universe switch is safe.

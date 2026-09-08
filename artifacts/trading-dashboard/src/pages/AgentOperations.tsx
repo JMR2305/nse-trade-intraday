@@ -12,7 +12,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiJson } from "@/lib/api";
 import {
-  Bot, Activity, Radio, CheckCircle2, Zap, Database, BookOpen, Gauge,
+  Bot, Activity, Radio, CheckCircle2, Zap, Database, BookOpen, Gauge, RefreshCw, X,
 } from "lucide-react";
 import {
   PageHeader, SectionHeader, StatusBadge, KpiCard, HealthCard,
@@ -289,10 +289,105 @@ function SnapshotInfoCard({ title, icon: Icon, data, fields }: {
 }
 
 // ── Agent registry table ──────────────────────────────────────────────────────
+export function AgentDetailPanel({ agentId, onClose }: {
+  agentId: string;
+  onClose: () => void;
+}) {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["agent-fw", "agent-detail", agentId],
+    queryFn: () => apiJson(`agent-framework/agents/${encodeURIComponent(agentId)}`, undefined, 30_000),
+    refetchInterval: 5_000,
+    retry: 1,
+    staleTime: 0,
+  });
+  const detail = data as Record<string, any> | undefined;
+  const isRecoverable = detail?.recoverable === true || detail?.status === "INITIALIZING";
+  const isStale = detail?.stale === true;
+
+  return (
+    <div
+      className="mt-3 rounded-xl border border-border bg-card p-4"
+      data-testid="agent-detail-panel"
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Agent detail</p>
+          <h3 className="text-base font-semibold">{detail?.name ?? agentId}</h3>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close agent detail"
+          className="rounded-md p-1 text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {isLoading && (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          Loading agent details…
+        </div>
+      )}
+
+      {(isError || isRecoverable) && (
+        <div
+          className={`rounded-lg border p-3 ${
+            isStale
+              ? "border-orange-500/30 bg-orange-500/5"
+              : "border-amber-500/25 bg-amber-500/5"
+          }`}
+          data-testid={isStale ? "agent-detail-stale" : "agent-detail-recoverable"}
+          role="status"
+        >
+          <div className={`flex items-center gap-2 text-sm font-medium ${
+            isStale ? "text-orange-300" : "text-amber-300"
+          }`}>
+            <RefreshCw className="h-4 w-4 animate-spin" />
+            {isStale ? "Agent details are stale — retrying" : "Agent details are retrying"}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {detail?.message ?? (error as Error)?.message ??
+              "The Agent Framework is still initialising this agent. Retrying automatically."}
+          </p>
+        </div>
+      )}
+
+      {!isLoading && !isError && detail?.available && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            ["State", detail.state],
+            ["Health", detail.health_status ?? detail.health_score],
+            ["Heartbeat", detail.heartbeat_status],
+            ["Queue", detail.queue_depth],
+            ["Last heartbeat", detail.last_heartbeat],
+            ["Latest snapshot", detail.latest_snapshot_ts],
+            ["Published", detail.snapshots_published],
+            ["Dependencies", Array.isArray(detail.dependencies) ? detail.dependencies.join(", ") || "None" : detail.dependencies],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded bg-muted/30 p-2">
+              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className="truncate text-sm font-semibold">{value == null ? "—" : String(value)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!isLoading && !isError && !isRecoverable && detail && !detail.available && (
+        <p className="text-sm text-muted-foreground" role="status">
+          {detail.message ?? "Agent detail is unavailable."}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function AgentRegistryTable() {
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   // The canonical agent_list backend calls 12 agents in parallel — cold-start ~25 s.
   // Without an explicit timeout, apiJson's 15 s default kills the first call.
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey:        ["agent-fw", "agents"],
     queryFn:         () => apiJson("agent-framework/agents", undefined, 45_000),
     refetchInterval: REFETCH,
@@ -304,6 +399,18 @@ function AgentRegistryTable() {
   const agents = (r?.agents ?? []) as AgentRow[];
 
   if (isLoading) return <TableSkeleton rows={4} cols={6} />;
+
+  if (isError || (r?.recoverable && agents.length === 0)) {
+    return (
+      <EmptyState
+        icon={Bot}
+        title="Agent status temporarily unavailable"
+        description={r?.message ?? (error as Error)?.message ?? "The Agent Framework is starting up. This page will retry automatically."}
+        why="The live scanner remains available while agent status recovers."
+        actions={[]}
+      />
+    );
+  }
 
   if (!r?.available || agents.length === 0) {
     return (
@@ -318,13 +425,31 @@ function AgentRegistryTable() {
   }
 
   return (
-    <DataTable
-      columns={AGENT_COLUMNS}
-      data={agents}
-      rowKey={(row: AgentRow) => row.agent_id}
-      pageSize={20}
-      exportName="agent_registry"
-    />
+    <>
+      {r?.recoverable && (
+        <p
+          className="text-xs text-amber-300/90 rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 mb-3"
+          data-testid="agent-registry-recoverable"
+          role="status"
+        >
+          {r.message ?? "Showing the last known agent state while the Agent Framework recovers. Retrying automatically."}
+        </p>
+      )}
+      <DataTable
+        columns={AGENT_COLUMNS}
+        data={agents}
+        rowKey={(row: AgentRow) => row.agent_id}
+        pageSize={20}
+        exportName="agent_registry"
+        onRowClick={(row: AgentRow) => setSelectedAgentId(row.agent_id)}
+      />
+      {selectedAgentId && (
+        <AgentDetailPanel
+          agentId={selectedAgentId}
+          onClose={() => setSelectedAgentId(null)}
+        />
+      )}
+    </>
   );
 }
 

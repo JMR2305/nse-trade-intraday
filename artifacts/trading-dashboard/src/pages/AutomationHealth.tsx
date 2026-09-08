@@ -589,7 +589,8 @@ export default function AutomationHealth() {
                   {history.map((r: any, i: number) => {
                     const key = r.scan_id ?? `run-${i}`;
                     const isOpen = !!expanded[key];
-                    const hasDetail = r.error || (r.missing_symbols?.length) || (r.stale_symbols?.length) || r.timings;
+                    const provenance = r.provenance ?? r.details?.provenance;
+                    const hasDetail = r.error || (r.missing_symbols?.length) || (r.stale_symbols?.length) || r.timings || provenance;
                     return (
                       <Fragment key={key}>
                         <tr
@@ -604,7 +605,9 @@ export default function AutomationHealth() {
                           </td>
                           <td className="px-2 py-1.5">
                             <Badge variant="outline" className={cn("text-[9px] px-1",
-                              r.trigger_source === "SCHEDULED" ? "text-sky-400 border-sky-700" : "text-violet-400 border-violet-700")}>
+                              r.trigger_source === "SCHEDULED" ? "text-sky-400 border-sky-700"
+                                : r.trigger_source === "API_TRIGGERED" ? "text-amber-400 border-amber-700"
+                                  : "text-violet-400 border-violet-700")}>
                               {r.trigger_source ?? "N/A"}
                             </Badge>
                           </td>
@@ -648,6 +651,21 @@ export default function AutomationHealth() {
                               {r.stale_symbols?.length > 0 && (
                                 <div className="text-[10px] text-amber-300/80">
                                   Stale ({r.stale_symbols.length}): {r.stale_symbols.join(", ")}
+                                </div>
+                              )}
+                              {provenance && (
+                                <div className="grid gap-x-5 gap-y-0.5 sm:grid-cols-2 text-[10px]">
+                                  <Field label="Initiator" value={na(provenance.actor ?? provenance.actor_source)} />
+                                  <Field label="Trigger route" value={na(provenance.trigger_route)} />
+                                  {provenance.approval_context && (
+                                    <Field label="Approval context" value={provenance.approval_context} />
+                                  )}
+                                  {provenance.audit_reference && (
+                                    <Field label="Audit reference" value={provenance.audit_reference} />
+                                  )}
+                                  {provenance.request_id && (
+                                    <Field label="Request ID" value={shortId(provenance.request_id)} />
+                                  )}
                                 </div>
                               )}
                               {r.timings && (

@@ -1,0 +1,99 @@
+TASK #935 — COMPLETE BLOCKED FRONTEND RELEASE VALIDATION
+
+Use:
+OBSERVABILITY-HARDENING-FINAL-VALIDATION-CONTROLLED-DEP.md
+
+GOAL:
+Complete the remaining frontend validation for the already-implemented
+observability-hardening batch.
+
+DO NOT:
+- change runtime logic
+- change trading/readiness behavior
+- trigger scans
+- trigger Phase 5A/5B/5C
+- modify portfolio/ledger/universe/settings
+- enable automatic entries/bootstrap/live orders
+- alter Task #930 evidence
+
+TASK 1 — RERUN DASHBOARD VITEST
+
+Run:
+
+pnpm --filter @workspace/trading-dashboard test
+
+If the full suite hangs again:
+- identify the exact test/file causing the stall
+- run the relevant Mission Control/provenance tests directly
+- inspect open handles/timers/watch mode/module transform stalls
+- fix only test/runtime-test harness issues if needed
+- do not change production behavior merely to make tests pass
+
+Require a completed result with:
+0 failures
+
+TASK 2 — TYPESCRIPT
+
+Run:
+- dashboard TypeScript check
+- API TypeScript check
+- workspace TypeScript check
+
+Require PASS.
+
+TASK 3 — DASHBOARD PRODUCTION BUILD
+
+Run the production dashboard build.
+
+Require PASS.
+
+TASK 4 — SOURCE SCOPE RECHECK
+
+Confirm no new unrelated runtime changes were introduced while fixing the test
+environment.
+
+TASK 5 — FINAL RELEASE GATE
+
+Only after Tasks 1–4 pass:
+
+create:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first 12 chars>
+
+TASK 6 — CONTROLLED DEPLOYMENT
+
+Deploy only APPROVED_DEPLOY_COMMIT.
+
+Do not trigger any scan or pre-open lifecycle after deploy.
+
+TASK 7 — POST-DEPLOY READ-ONLY VERIFY
+
+Confirm:
+- UI/API build identity MATCH
+- provenance card truthful
+- legacy manual scan unchanged
+- future manual-scan provenance fields available
+- active universe = CUSTOM_LOW_PRICE_SECTOR
+- active count = 23
+- mappings = 23/23
+- auto entries = false
+- bootstrap = false
+- controlled execution = disabled
+- live broker orders = disabled
+- portfolio/ledger unchanged
+- Task #930 evidence untouched
+
+FINAL OUTPUT:
+
+TASK_935_FRONTEND_VALIDATION_AND_RELEASE_REPORT.md
+
+FINAL VERDICT:
+
+A. PASS — DEPLOYED AND VERIFIED
+B. VITEST STILL BLOCKED
+C. TYPESCRIPT FAILURE
+D. BUILD FAILURE
+E. SOURCE SCOPE FAILURE
+F. DEPLOYMENT IDENTITY FAILURE
+G. SAFETY REGRESSION

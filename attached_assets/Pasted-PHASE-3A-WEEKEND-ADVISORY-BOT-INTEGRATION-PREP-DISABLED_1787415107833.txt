@@ -1,0 +1,219 @@
+PHASE 3A — WEEKEND ADVISORY BOT INTEGRATION PREP, DISABLED BY DEFAULT
+
+Use these controlling reports:
+- APEXQUANT_PHASE2D_ADVISORY_BOT_MERGE_READINESS_PACKAGE.md
+- APEXQUANT_PHASE2C_ADVISORY_BOT_SAFETY_REVIEW_REPORT.md
+- APEXQUANT_PHASE1G_POST_PUBLISH_UPSERT_HARDENING_VERIFICATION_REPORT.md
+
+Goal:
+Code the remaining advisory-bot integration pieces before Monday market open, but keep everything disabled, manual-only, and safe for Monday testing.
+
+Do not merge to main.
+Do not deploy to production.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+Do not wire advisory bots to the scheduler.
+Do not wire advisory bots to paper-entry execution.
+Do not create any automatic trade path.
+PAPER ONLY.
+ADVISORY ONLY.
+
+Current production posture must remain unchanged:
+- initial_capital=100000
+- active_intraday_universe=CUSTOM_LOW_PRICE_SECTOR
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- positions=[]
+
+BRANCHING
+
+Create a new branch from the current advisory branch:
+
+phase3a-advisory-integration-disabled
+
+Base:
+phase2a-advisory-multi-bot-logic
+
+Do not modify main.
+
+TASK 1 — FEATURE FLAGS
+
+Add disabled-by-default flags:
+
+ADVISORY_BOTS_ENABLED=false
+ADVISORY_BOTS_API_ENABLED=false
+ADVISORY_BOTS_UI_ENABLED=false
+ADVISORY_BOTS_PERSIST_ENABLED=false
+ADVISORY_BOTS_SCHEDULER_ENABLED=false
+
+Rules:
+- Default false in all environments.
+- If flags are missing, treat them as false.
+- Production must remain disabled unless explicitly enabled later.
+- Scheduler flag must not be used to invoke anything yet; it is a future placeholder only.
+
+TASK 2 — DEV-ONLY MANUAL RUNNER
+
+Create a manual CLI/script runner for advisory bots.
+
+Requirements:
+- dev-only
+- manually invoked
+- uses read-only input
+- persist=false by default
+- no broker objects
+- no Phase 20 trade/position/settings write access
+- no production data loader unless separately approved
+
+Suggested file:
+artifacts/api-server/src/python/advisory_bots/manual_runner.py
+
+Runner should:
+1. read supplied fixture or latest completed scan snapshot only if safe;
+2. call run_advisory_analysis(..., persist=False);
+3. print ranked advisory outputs;
+4. clearly mark output as ADVISORY ONLY / NOT TRADE INSTRUCTIONS.
+
+TASK 3 — OPTIONAL READ-ONLY API, DISABLED BY DEFAULT
+
+Prepare a read-only advisory API route, but keep it disabled unless ADVISORY_BOTS_API_ENABLED=true.
+
+Do not expose it in production by default.
+
+Suggested endpoints:
+- GET /api/advisory/status
+- POST /api/advisory/run-preview
+
+Rules:
+- /status only returns whether advisory feature flags are enabled/disabled.
+- /run-preview must be manual-only and disabled by default.
+- /run-preview must not create trades.
+- /run-preview must not persist unless ADVISORY_BOTS_PERSIST_ENABLED=true and environment is explicitly non-production.
+- /run-preview must not call broker APIs.
+- /run-preview must not call settings write APIs.
+- /run-preview must not call Phase 20 entry APIs.
+- If ADVISORY_BOTS_API_ENABLED=false, return HTTP 404 or 403.
+
+TASK 4 — OPTIONAL UI PAGE, HIDDEN BY DEFAULT
+
+Prepare a hidden advisory dashboard page, but keep it inaccessible unless ADVISORY_BOTS_UI_ENABLED=true.
+
+UI should show:
+- advisory status
+- last run timestamp if available
+- universe health
+- data quality summary
+- top advisory candidates
+- strategy scores
+- risk flags
+- supervisor verdict
+
+UI must clearly display:
+ADVISORY ONLY — NOT ORDER INSTRUCTIONS
+
+Rules:
+- no trade buttons
+- no execute button
+- no enable-auto-entry button
+- no broker action
+- no position action
+- no settings mutation action
+- no scheduler control
+
+TASK 5 — MONDAY TESTING CHECKLIST GENERATOR
+
+Create a markdown checklist generator or report template for Monday.
+
+Generate:
+
+APEXQUANT_MONDAY_MARKET_TEST_AND_MERGE_CHECKLIST.md
+
+Checklist must include:
+
+Phase 1H required production checks:
+1. first scan universe_mode=CUSTOM_LOW_PRICE_SECTOR
+2. symbols_analysed=23
+3. symbols_with_errors=0
+4. no NIFTY_50 fallback
+5. positions=[]
+6. no AUTO trades
+7. no BOOTSTRAP_AUTO trades
+8. EOD status works after 15:20
+9. EOD outcomes has no ERROR rows
+
+Advisory merge checks:
+1. Phase 2D branch still clean
+2. Phase 3A branch still disabled by default
+3. no protected files touched
+4. tests pass
+5. operator approves merge
+6. deployment remains separate approval
+
+TASK 6 — TESTS
+
+Add tests proving:
+
+1. All new feature flags default false.
+2. API route is unavailable when disabled.
+3. UI route is hidden/unavailable when disabled.
+4. Manual runner defaults to persist=false.
+5. No scheduler hook exists.
+6. No execute/trade/order buttons exist in UI.
+7. No advisory API calls Phase 20 entry/trade/position/settings writes.
+8. No broker imports/calls exist.
+9. Existing advisory tests still pass.
+10. Phase 0C safety tests still pass.
+11. Custom universe tests still pass.
+
+Run:
+
+cd artifacts/api-server/src/python
+python3 -m pytest tests/unit/test_advisory_bots.py -v
+python3 -m pytest tests/unit/test_phase0c_safety_fixes.py -v
+python3 -m pytest tests/unit/test_custom_universe_store.py -v
+python3 -m py_compile advisory_bots/*.py phase24_store.py
+
+Also run relevant TypeScript/API/UI tests if API or UI files are added.
+
+TASK 7 — PROTECTED FILE DIFF GUARD
+
+Confirm these remain untouched:
+
+- phase20_executor.py
+- phase20_scheduler.py
+- phase20_exits.py
+- phase20_eod_outcomes.py
+- phase20_eod_status.py
+- paper_trader.py
+- broker_client.py
+- Kite/live-order modules
+- settings write handlers
+- deployment config
+- workflows
+- production execution config
+
+TASK 8 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE3A_WEEKEND_ADVISORY_INTEGRATION_DISABLED_REPORT.md
+
+Include:
+1. Branch name.
+2. Files created/modified.
+3. Feature flags and default values.
+4. Manual runner proof.
+5. API proof, if added.
+6. UI proof, if added.
+7. Proof all new integrations are disabled by default.
+8. Test results.
+9. Protected-file diff proof.
+10. Confirmation no merge.
+11. Confirmation no deployment.
+12. Confirmation no scheduler hook.
+13. Confirmation no trade/position/settings/broker path.
+14. Monday testing and merge recommendation.

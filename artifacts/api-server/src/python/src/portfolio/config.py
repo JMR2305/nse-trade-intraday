@@ -64,9 +64,9 @@ class PortfolioConfig(BaseModel):
 
     # ── Capital ───────────────────────────────────────────────────────
     initial_capital: Decimal = Field(
-        # Default aligned with the canonical paper-trading capital (₹50,000,
+        # Default aligned with the canonical paper-trading capital (₹100,000,
         # see portfolio_store.INITIAL_CAPITAL). Override via env if needed.
-        default_factory=lambda: _env_decimal("PORTFOLIO_INITIAL_CAPITAL", "50000"),
+        default_factory=lambda: _env_decimal("PORTFOLIO_INITIAL_CAPITAL", "100000"),
         description="Starting capital in base_currency",
         validate_default=True,
     )

@@ -1,0 +1,187 @@
+PHASE 0D — PRODUCTION DEPLOYMENT AND POST-DEPLOY SAFETY VERIFICATION ONLY
+
+Use APEXQUANT_PHASE0C_CORRECTED_SAFETY_ACCEPTANCE_REPORT.md as the controlling report.
+
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not change capital.
+Do not change active universe.
+Do not change LTIM.
+Do not change thresholds.
+Do not create trades.
+Do not close positions.
+Do not implement Phase 1 architecture.
+Do not implement multi-agent logic.
+Do not implement intraday strategy changes.
+Do not call broker order APIs.
+PAPER ONLY.
+
+Current required safe state must remain:
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- positions=[]
+
+GOAL:
+Deploy the Phase 0C safety fixes to production and verify production is actually running the corrected safety build.
+
+TASK 1 — PRE-DEPLOY SNAPSHOT
+
+Before deployment, capture:
+1. GET /api/phase20/settings
+2. GET /api/phase20/bootstrap-status
+3. GET /api/phase20/positions
+4. Current production config_hash
+5. Current deployed build ID / deployment revision
+6. Current /api/phase20/eod-status response
+7. Current /api/phase20/eod-outcomes response, if any
+
+Confirm before deploy:
+- auto_paper_entries=false
+- bootstrap_paper_enabled=false
+- auto_paper_exits=true
+- no OPEN positions
+- no live orders
+
+TASK 2 — WIRE READ-ONLY EOD OUTCOMES ROUTE IF MISSING
+
+The corrected report says /api/phase20/eod-outcomes is not wired and production currently returns 404.
+
+If the route is still missing, add a read-only route:
+
+GET /api/phase20/eod-outcomes
+
+Requirements:
+- read-only only
+- no mutation
+- no trade creation
+- no force close
+- no broker calls
+- returns recent rows from phase20_eod_outcomes
+- supports optional session_date filter
+- includes:
+  - session_date
+  - trade_id
+  - symbol
+  - job_type
+  - selected_outcome
+  - exit_rule
+  - exit_price
+  - exit_price_source
+  - realized_pnl
+  - build_id
+  - config_hash
+  - correlation_id
+  - created_at
+
+TASK 3 — SET BUILD ID FOR FUTURE EVIDENCE
+
+Set or verify APEXQUANT_BUILD_ID in production.
+
+Requirement:
+- Future Phase 20 entry/eod evidence must not store build_id="unknown".
+- Use a stable build ID, for example:
+  apexquant-phase0c-20260821
+or the actual deployed revision/build hash.
+
+Do not change any trading setting while doing this.
+
+TASK 4 — DEPLOY PHASE 0C SAFETY BUILD
+
+Deploy only the Phase 0C safety fixes.
+
+Confirm deployed code includes:
+1. _manage_paper entry-window pre-guard.
+2. _insert_row pre-lock and post-lock market entry checks.
+3. MAX_SIGNAL_AGE_MINUTES=20.
+4. AUTO stale/malformed timestamp fail-closed.
+5. BOOTSTRAP stale/malformed timestamp fail-closed before kv_claim_once.
+6. 15:20 close_all_for_intraday_squareoff.
+7. 15:30 force-close survivor path.
+8. phase20_eod_outcomes durable outcome table.
+9. eod-status exit_price_source propagation.
+10. no live order path touched.
+
+TASK 5 — POST-DEPLOY VERIFICATION
+
+After deployment, capture:
+
+1. GET /api/phase20/settings
+   - auto_paper_entries=false
+   - bootstrap_paper_enabled=false
+   - auto_paper_exits=true
+
+2. GET /api/phase20/bootstrap-status
+   - bootstrap_paper_enabled=false
+   - auto entries not enabled
+
+3. GET /api/phase20/positions
+   - positions=[]
+
+4. GET /api/phase20/eod-status
+   - response is valid
+   - exit_price_source field exists where applicable
+
+5. GET /api/phase20/eod-outcomes
+   - returns HTTP 200
+   - empty result is acceptable if no EOD has run yet
+   - route must not be 404
+
+6. Confirm phase20_eod_outcomes table exists in production, or will be auto-created on first EOD outcome write.
+
+7. Confirm APEXQUANT_BUILD_ID is visible to the app.
+
+8. Confirm no trade row was created, updated, or deleted during deploy verification.
+
+9. Confirm no live broker order API was called.
+
+TASK 6 — TESTS
+
+Run:
+python3 -m pytest tests/unit/test_phase0c_safety_fixes.py -v
+
+Report:
+- exact command
+- collected test count
+- passed/failed/skipped/xfailed
+- warning details
+- confirmation tests ran after final deployed code state
+
+Expected:
+- 22 passed
+- 0 failed
+- 0 skipped
+- 0 xfailed
+
+TASK 7 — NEXT MARKET SESSION WATCH PLAN
+
+Create a watch plan for the next market session while auto entries remain disabled.
+
+Verify:
+1. No AUTO or BOOTSTRAP_AUTO entries are created.
+2. Scheduler ticks normally.
+3. 15:20 squareoff job triggers or records no-open-position outcome.
+4. 15:30 force-close job triggers or records no-survivor outcome.
+5. EOD outcomes table records expected terminal evidence.
+6. Mission Control / AI Paper Trader do not show false healthy state if EOD outcome is missing.
+
+TASK 8 — DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE0D_PRODUCTION_DEPLOYMENT_AND_SAFETY_VERIFICATION_REPORT.md
+
+Include:
+1. Pre-deploy snapshot.
+2. Files/routes deployed.
+3. Build ID / deployment revision.
+4. EOD outcomes route proof.
+5. Post-deploy settings proof.
+6. Post-deploy positions proof.
+7. Post-deploy no-live-order proof.
+8. Test result proof.
+9. Production blockers remaining.
+10. Whether Phase 1 can resume on a separate branch while auto entries remain paused.
+11. Confirmation no capital/universe/LTIM/threshold changes.
+12. Confirmation no trades or positions changed.
+13. Confirmation no live orders.

@@ -418,9 +418,12 @@ class TestAdaptiveLearning(unittest.TestCase):
         self.assertEqual(state, "EMERGING")
 
     def test_lifecycle_active_on_consistent_trades(self):
+        from datetime import date
         from strategy_optimisation.adaptive_learning import _lifecycle_state
         records = [_rec(f"a{i}", pnl=500, ts="2026-07-29T14:30:00+05:30") for i in range(8)]
-        state = _lifecycle_state(records)
+        with patch("strategy_optimisation.adaptive_learning.date", wraps=date) as clock:
+            clock.today.return_value = date(2026, 7, 30)
+            state = _lifecycle_state(records)
         self.assertIn(state, ["ACTIVE", "DECLINING"])  # depends on win rate
 
     def test_trend_direction_improving(self):

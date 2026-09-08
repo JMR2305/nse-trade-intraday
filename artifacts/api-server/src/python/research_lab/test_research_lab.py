@@ -19,6 +19,7 @@ import sys
 import tempfile
 import time
 import unittest
+import pytest
 from unittest.mock import MagicMock, patch
 
 # ── Path bootstrap ────────────────────────────────────────────────────────────
@@ -26,6 +27,20 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _PYTHON_ROOT = os.path.dirname(_HERE)
 if _PYTHON_ROOT not in sys.path:
     sys.path.insert(0, _PYTHON_ROOT)
+
+
+@pytest.fixture(autouse=True)
+def _real_package_per_test():
+    """Reload cache helpers from real files, independent of earlier stubs."""
+    saved = dict(sys.modules)
+    try:
+        for name in list(sys.modules):
+            if name == "research_lab" or name.startswith("research_lab."):
+                sys.modules.pop(name, None)
+        yield
+    finally:
+        sys.modules.clear()
+        sys.modules.update(saved)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -280,8 +295,9 @@ class TestStringKpiCoercion(unittest.TestCase):
         import json
         import importlib
 
-        import research_lab.shared_services as mod
-        importlib.reload(mod)
+        with patch.dict(os.environ, {"RESEARCH_LAB_ENABLED": "true"}):
+            import research_lab.shared_services as mod
+            importlib.reload(mod)
 
         with tempfile.NamedTemporaryFile(
             suffix=".json", delete=False, mode="w"
@@ -297,13 +313,13 @@ class TestStringKpiCoercion(unittest.TestCase):
 
         try:
             mod._SNAPSHOT_CACHE_FILE = tmp_path
-            snap = mod.get_research_lab_snapshot()
+            with patch.dict(os.environ, {"RESEARCH_LAB_ENABLED": "true"}):
+                snap = mod.get_research_lab_snapshot()
             self.assertIsInstance(snap.get("grade"), str,
                 f"grade from cache type={type(snap.get('grade')).__name__!r}")
             self.assertIsInstance(snap.get("trend"), str,
                 f"trend from cache type={type(snap.get('trend')).__name__!r}")
         finally:
-            import os
             if os.path.exists(tmp_path):
                 os.unlink(tmp_path)
 

@@ -1,0 +1,26 @@
+category,field,observed,expected,status,notes
+IDENTITY,environment,production,production,PASS,Exact production identity gate passed
+IDENTITY,git_commit,4392f278ae25562f168f970e2b694f8c3d249d5c,4392f278ae25562f168f970e2b694f8c3d249d5c,PASS,Exact approved runtime commit
+IDENTITY,build_id,apexquant-4392f278ae25,apexquant-4392f278ae25,PASS,Exact approved derived build ID
+UNIVERSE,active_universe,CUSTOM_LOW_PRICE_SECTOR,CUSTOM_LOW_PRICE_SECTOR,PASS,Current configuration
+UNIVERSE,active_universe_count,23,23,PASS,Current denominator
+UNIVERSE,valid_token_count,23,23,PASS,All active rows mapped
+UNIVERSE,missing_token_count,0,0,PASS,No missing active tokens
+UNIVERSE,token_coverage_pct,100,100,PASS,Current-universe coverage
+QUOTE_PROVENANCE,kite_success_count,23,23,PASS,Direct read-only Kite quote request covered every active symbol
+QUOTE_PROVENANCE,fallback_count,0,0,PASS,Every direct quote reported kite_live
+QUOTE_PROVENANCE,synthetic_count,0,0,PASS,No direct quote was synthetic
+READINESS,symbols_on_kite,3,scan-derived historical count,OBSERVED,Latest historical scan has three Kite-backed records; this is not the direct quote count
+READINESS,symbols_on_fallback,0,scan-derived historical count,OBSERVED,Historical scan counter retained without rewriting history
+READINESS,symbols_stale,0,scan-derived historical count,OBSERVED,Historical scan counter retained without rewriting history
+READINESS,symbols_unavailable,20,scan-derived historical count,OBSERVED,Historical 50-symbol scan is incomplete for the current 23-symbol operating universe
+UNIVERSE,symbols_synthetic,0,0,PASS,Synthetic count
+READINESS,service_ready,True,True,PASS,Service available
+READINESS,data_ready,False,false until a fresh current-universe scan,PASS,Direct quote plumbing is verified but no new market scan was authorized
+READINESS,session_fresh,True,True,OBSERVED,Authenticated Kite session; not an open-session claim
+READINESS,trading_data_ready,False,False,PASS,Fail-closed; open-session/current-scan freshness still pending
+HISTORICAL_SCAN,latest_scan_id,76e307f291e7,present,OBSERVED,Kept separate from current mapping coverage
+HISTORICAL_SCAN,latest_scan_timestamp,2026-08-21T10:02:20Z,present,OBSERVED,Historical scan metadata preserved
+HISTORICAL_SCAN,latest_scan_universe,"['ADANIENT', 'ADANIPORTS', 'APOLLOHOSP', 'ASIANPAINT', 'AXISBANK', 'BAJAJ-AUTO', 'BAJAJFINSV', 'BAJFINANCE', 'BHARTIARTL', 'BRITANNIA', 'CIPLA', 'COALINDIA', 'DIVISLAB', 'DRREDDY', 'EICHERMOT', 'GRASIM', 'HCLTECH', 'HDFCBANK', 'HDFCLIFE', 'HEROMOTOCO', 'HINDALCO', 'HINDUNILVR', 'ICICIBANK', 'INDUSINDBK', 'INFY', 'ITC', 'JSWSTEEL', 'KOTAKBANK', 'LT', 'M&M', 'MARUTI', 'NESTLEIND', 'NTPC', 'ONGC', 'POWERGRID', 'RELIANCE', 'SBILIFE', 'SBIN', 'SHRIRAMFIN', 'SUNPHARMA', 'TATACONSUM', 'TATASTEEL', 'TCS', 'TECHM', 'TITAN', 'TMCV', 'TMPV', 'TRENT', 'ULTRACEMCO', 'WIPRO']",NIFTY_50-derived 50 symbols,OBSERVED,Not rewritten
+HISTORICAL_SCAN,latest_scan_symbol_count,50,50,OBSERVED,Not used as current token denominator
+HISTORICAL_SCAN,scan_fresh_for_session,False,False,PASS,No open-session claim

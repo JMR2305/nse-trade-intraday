@@ -1,0 +1,299 @@
+TASK #940 — ROOT CAUSE OF 3/23 NATURAL PHASE 5A PRE-OPEN COVERAGE
+
+Use:
+POST_OPEN_SESSION_HEALTH_AUDIT_2026_08_26.md
+
+CURRENT NATURAL FAILURE:
+
+session =
+preopen-2026-08-26-ccb21a
+
+origin =
+SCHEDULED
+
+expected =
+23
+
+provider_collected =
+3
+
+persisted =
+3
+
+normalized =
+3
+
+missing =
+20
+
+failed =
+20
+
+duplicates =
+0
+
+malformed =
+0
+
+unexpected =
+0
+
+persistence_status =
+COVERAGE_INCOMPLETE
+
+verified_batch =
+none
+
+frozen_batch =
+none
+
+COLLECTED SYMBOLS:
+
+COALINDIA
+NTPC
+WIPRO
+
+GOAL:
+
+Determine why today's natural Phase 5A provider path produced only 3 of the
+23 expected symbols, without manually rerunning or replaying pre-open.
+
+DO NOT:
+- trigger Phase 5A
+- trigger Phase 5B/5C
+- retry/replay/backfill pre-open
+- trigger a manual scan
+- fabricate no-data rows
+- change universe membership
+- change readiness logic
+- change trading logic
+- enable entries/bootstrap/live orders
+- modify portfolio/ledger/settings
+- rewrite the failed session
+
+TASK 1 — EXACT SET DIFFERENCE
+
+Build:
+
+EXPECTED_23
+COLLECTED_3
+MISSING_20
+
+For every missing symbol record:
+- active universe status
+- Kite mapping
+- provider symbol
+- provider request inclusion
+- provider response presence
+- normalization result
+- eligibility/filter outcome
+- failure reason
+
+TASK 2 — TRACE 23 → 3
+
+Trace counts and exact symbol sets through:
+
+durable active universe
+→ Phase 5A expected set
+→ provider request set
+→ raw provider response
+→ provider-manager normalization
+→ eligibility/filtering
+→ persistence candidate rows
+→ persisted rows
+
+Find the FIRST stage where 23 becomes 3.
+
+TASK 3 — PROVIDER RESPONSE CONTRACT
+
+Determine whether the NSE/pre-open provider returned only 3 symbols because:
+
+- only 3 had current pre-open activity
+- endpoint returns only securities with active IEP/order-book records
+- provider filtering occurred
+- market-segment mismatch
+- pagination/truncation
+- symbol-format mismatch
+- timing/window issue
+- provider partial failure
+- exchange/category eligibility rules
+
+Report raw response count before our filtering.
+
+TASK 4 — COMPARE COLLECTED VS MISSING SYMBOLS
+
+Compare COALINDIA, NTPC, WIPRO against the missing 20 for:
+
+- exchange
+- series
+- segment
+- instrument type
+- pre-open eligibility
+- previous close
+- IEP availability
+- order-book availability
+- volume presence
+- provider symbol format
+
+Look for a common property explaining the 3/23 split.
+
+TASK 5 — PRE-OPEN MARKET ELIGIBILITY
+
+Verify whether all 23 active symbols are actually eligible for the NSE pre-open
+session on 2026-08-26.
+
+If some symbols legitimately do not participate in pre-open:
+document the authoritative eligibility rule.
+
+Do not assume every cash-market symbol must produce a pre-open row.
+
+TASK 6 — COVERAGE CONTRACT REVIEW
+
+If the provider legitimately returns data only for symbols with pre-open
+participation, determine whether the correct durable contract should be:
+
+expected = 23
+live_preopen_data = 3
+explicit_no_data_or_not_eligible = 20
+persisted_coverage = 23
+
+rather than requiring:
+
+provider_collected = 23
+
+Do not weaken the gate.
+
+Every expected symbol must still get an explicit durable outcome.
+
+TASK 7 — FAILURE SEMANTICS
+
+Current report shows:
+
+missing = 20
+failed = 20
+
+Determine whether these 20 are:
+
+A. true pipeline failures
+B. provider returned no row
+C. not eligible for pre-open
+D. no indicative equilibrium price/order-book activity
+E. symbol mismatch
+F. provider/transport failure
+
+Use distinct durable statuses if necessary.
+
+TASK 8 — TIMING CHECK
+
+Review the exact scheduled collection time and NSE pre-open phase timing.
+
+Determine whether collection occurred:
+- before adequate pre-open data was available
+- during an expected data gap
+- after a provider window closed
+
+Do not change scheduler timing without evidence.
+
+TASK 9 — HISTORICAL COMPARISON
+
+Read-only compare prior natural Phase 5A sessions:
+
+- 2026-08-25
+- 2026-08-26
+
+Determine whether:
+- same symbols repeatedly return
+- collected set varies by day
+- provider always returns only participating stocks
+- today was anomalous
+
+Do not alter historical evidence.
+
+TASK 10 — SMALLEST CORRECT FIX
+
+Depending on proven cause:
+
+A. provider/filter bug
+B. symbol-normalization bug
+C. timing bug
+D. eligibility-model gap
+E. coverage-contract gap
+
+Implement only the smallest correct fix.
+
+If legitimate provider absence is expected:
+persist one explicit per-symbol outcome for all 23, e.g.
+
+LIVE_PREOPEN_DATA
+NO_PREOPEN_DATA
+NOT_ELIGIBLE
+PROVIDER_UNAVAILABLE
+NORMALIZATION_FAILED
+
+A verified Phase 5A batch must still account for all 23 expected symbols.
+
+TASK 11 — FREEZE CONTRACT
+
+Freeze must require:
+
+expected_symbols_accounted_for = 23
+
+not merely:
+rows_with_live_preopen_data = 23
+
+unless provider contract proves all 23 must always return live rows.
+
+No missing/unclassified symbol may pass freeze.
+
+TASK 12 — TESTS
+
+Add tests for:
+
+- 23 expected / 23 live
+- 23 expected / 3 live + 20 explicit no-data
+- not-eligible symbols
+- provider omission
+- symbol mismatch
+- provider failure
+- timing/window behavior
+- exact expected-set accounting
+- freeze blocked for unclassified symbols
+- freeze allowed only when all 23 have explicit durable outcomes
+
+TASK 13 — SAFETY REGRESSION
+
+Run:
+- Phase 5A tests
+- scheduler tests
+- provider tests
+- persistence tests
+- readiness tests
+- Phase 20 safety
+- portfolio/ledger
+- scan-origin tests
+- API/TypeScript/build/compilation
+
+TASK 14 — OUTPUT
+
+Create:
+
+1. TASK_940_PHASE5A_3_OF_23_ROOT_CAUSE.md
+2. TASK_940_SYMBOL_OUTCOME_MATRIX.csv
+3. TASK_940_PROVIDER_ELIGIBILITY_CONTRACT.md
+4. TASK_940_FIX_AND_TEST_REPORT.md
+5. TASK_940_NEXT_NATURAL_SESSION_GATE.md
+
+FINAL VERDICT:
+
+A. PROVIDER/FILTER BUG
+B. SYMBOL NORMALIZATION BUG
+C. PRE-OPEN ELIGIBILITY CONTRACT GAP
+D. TIMING/WINDOW DEFECT
+E. PROVIDER PARTIAL FAILURE
+F. COVERAGE ACCOUNTING GAP
+G. UNRESOLVED
+
+FINAL RULE:
+
+Do not retry today's failed Phase 5A.
+Preserve session preopen-2026-08-26-ccb21a as immutable evidence.

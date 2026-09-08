@@ -1,0 +1,135 @@
+PHASE 2D — ADVISORY BOT MERGE-READINESS PACKAGE ONLY
+
+Use APEXQUANT_PHASE2C_ADVISORY_BOT_SAFETY_REVIEW_REPORT.md as the controlling report.
+
+Do not merge to main.
+Do not deploy to production.
+Do not enable auto paper entries.
+Do not enable bootstrap.
+Do not create trades.
+Do not close positions.
+Do not call broker order APIs.
+Do not add scheduler hooks.
+Do not add production endpoints.
+Do not add UI routes yet.
+PAPER ONLY.
+ADVISORY ONLY.
+
+Goal:
+Prepare a merge-readiness package for the advisory bot branch, but do not merge it.
+
+Branch:
+phase2a-advisory-multi-bot-logic
+
+TASK 1 — FINAL DIFF SUMMARY
+
+Produce a clear file-by-file diff summary against main.
+
+Classify every changed file as one of:
+- advisory bot logic
+- advisory bot tests
+- additive advisory storage
+- documentation/report only
+- other
+
+If any file falls under "other", stop and explain.
+
+Confirm these remain untouched:
+- phase20_executor.py
+- phase20_scheduler.py
+- phase20_exits.py
+- phase20_eod_outcomes.py
+- phase20_eod_status.py
+- paper_trader.py
+- broker_client.py
+- Kite/live-order modules
+- settings write handlers
+- deployment config
+- workflows
+- production endpoint files
+- UI route files
+
+TASK 2 — MIGRATION / STORAGE READINESS REVIEW
+
+Review the four advisory tables:
+
+- advisory_bot_outputs
+- advisory_strategy_scores
+- advisory_decision_audit
+- advisory_universe_health
+
+Confirm:
+- additive only
+- append only
+- ON CONFLICT DO NOTHING
+- no update/delete API
+- advisory_only=true
+- paper_only=true
+- no FK to Phase 20 trade/position/portfolio/settings tables
+- no trigger touching Phase 20 tables
+- no shared mutation path with Phase 20
+- safe if DB unavailable due JSON fallback
+
+Do not apply production migration.
+Do not deploy migration.
+This is review-only.
+
+TASK 3 — MANUAL RUNBOOK
+
+Create a manual-only runbook explaining how an operator can invoke the advisory bot pipeline later in dev only.
+
+The runbook must state:
+- no scheduler hook exists
+- no production endpoint exists
+- persist=false by default
+- outputs are advisory only
+- no trade creation possible
+- no broker order possible
+- no settings mutation possible
+
+TASK 4 — ROLLBACK PLAN
+
+Create a rollback plan for the advisory branch.
+
+Include:
+- how to abandon branch before merge
+- how to revert advisory files after merge if needed
+- how to disable advisory storage usage
+- how to verify Phase 20 remains unaffected
+- how to confirm no trades/positions/orders were touched
+
+TASK 5 — TEST RE-RUN
+
+Run:
+
+cd artifacts/api-server/src/python
+python3 -m pytest tests/unit/test_advisory_bots.py -v
+python3 -m pytest tests/unit/test_phase0c_safety_fixes.py -v
+python3 -m pytest tests/unit/test_custom_universe_store.py -v
+python3 -m py_compile advisory_bots/*.py phase24_store.py
+git diff --check main...HEAD
+
+TASK 6 — FINAL DELIVERABLE
+
+Generate:
+
+APEXQUANT_PHASE2D_ADVISORY_BOT_MERGE_READINESS_PACKAGE.md
+
+Include:
+1. Branch name.
+2. Merge-readiness verdict.
+3. File-by-file diff summary.
+4. Files confirmed untouched.
+5. Storage/migration review.
+6. Manual invocation runbook.
+7. Rollback plan.
+8. Test results.
+9. Confirmation no merge.
+10. Confirmation no deployment.
+11. Confirmation no scheduler hook.
+12. Confirmation no endpoint/UI route.
+13. Confirmation no trades/positions/live orders.
+14. Explicit statement that final merge can only be considered after:
+   - Phase 1H Monday market-session watch passes;
+   - operator approves merge;
+   - operator separately approves any future deployment.

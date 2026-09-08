@@ -6,22 +6,57 @@ this module so every page shows identical numbers.
 Sources (in accordance with the platform's single-source-of-truth rules):
   • positions       — phase20 paper trade ledger (OPEN / EXIT_PENDING rows)
   • realized P&L    — phase20 ledger CLOSED rows (realized_pnl)
-  • initial capital — portfolio_store.INITIAL_CAPITAL (never hardcoded)
+  • initial capital — portfolio_store.get_initial_capital() (durable setting)
   • marks           — live Kite quotes when a verified broker session exists,
                       otherwise last canonical scan prices (mark_source flags)
 
 Cash accounting (identical to the Phase 4A dashboard):
-  cash   = INITIAL_CAPITAL − Σ(open cost) + Σ(realized_pnl of CLOSED rows)
-  equity = INITIAL_CAPITAL + Σ(realized) + Σ(unrealized MTM where marks known)
+  cash   = configured capital − Σ(open cost) + Σ(realized_pnl of CLOSED rows)
+  equity = configured capital + Σ(realized) + Σ(unrealized MTM where marks known)
 
 READ-ONLY: this module never mutates any store.
 """
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 OPEN_STATUSES = ("OPEN", "EXIT_PENDING")
+
+_AGE_TS_KEYS = ("fill_ts", "signal_ts", "snapshot_ts", "created_at")
+
+
+def _parse_ts_utc(raw: object) -> "datetime | None":
+    """Parse any ISO-8601 string into an *aware* UTC datetime.
+
+    Handles Z-suffix, explicit UTC offset, and naive local strings (treated
+    as UTC so subtraction from utcnow() never raises TypeError).
+    Returns None on any parse failure or empty input.
+    """
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
+def _pick_age_ts(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Return {"opened_at": <str|None>, "age_ts_source": <str|None>}.
+
+    Iterates the fallback chain in priority order and returns the first
+    timestamp value that is both non-empty AND parses without error (including
+    naive strings treated as UTC). A malformed or unparseable value is skipped.
+    """
+    for key in _AGE_TS_KEYS:
+        raw = row.get(key)
+        if raw and _parse_ts_utc(raw) is not None:
+            return {"opened_at": str(raw), "age_ts_source": key}
+    return {"opened_at": None, "age_ts_source": None}
 
 
 def _ledger_rows() -> List[Dict[str, Any]]:
@@ -69,7 +104,7 @@ def _live_marks(symbols: List[str]) -> Dict[str, float]:
 def build_canonical_portfolio() -> Dict[str, Any]:
     """Canonical portfolio snapshot derived exclusively from the ledger."""
     import portfolio_store
-    cap = float(portfolio_store.INITIAL_CAPITAL)
+    cap = float(portfolio_store.get_initial_capital())
 
     rows = _ledger_rows()
     open_rows = [r for r in rows if r.get("status") in OPEN_STATUSES]
@@ -117,7 +152,12 @@ def build_canonical_portfolio() -> Dict[str, Any]:
             "status": r.get("status"),
             "sector": sector,
             "strategy_id": r.get("strategy_id"),
-            "opened_at": r.get("fill_ts") or r.get("signal_ts"),
+            # Fallback chain for holding-age computation.
+            # Priority: fill_ts → signal_ts → snapshot_ts → created_at.
+            # Each candidate is parse-validated so a non-empty but malformed
+            # value (e.g. "N/A", legacy placeholder) does not block a later
+            # valid fallback. age_ts_source records which field was actually used.
+            **_pick_age_ts(r),
             "stop_loss": r.get("stop_loss"),
             "target": r.get("target"),
             "scan_id": r.get("scan_id"),
@@ -154,6 +194,69 @@ def build_canonical_portfolio() -> Dict[str, Any]:
                             for k, v in sorted(sector_exp.items(), key=lambda x: -x[1])},
         "mark_basis": ("live" if live and len(live) == len(open_rows)
                        else "mixed" if live else "scan"),
+    }
+
+
+def canonical_financial_contract(
+    snapshot: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Return the shared financial fields for every paper-portfolio API.
+
+    This deliberately accepts an already-built canonical snapshot so callers
+    can enrich the contract without triggering another ledger read.  Both
+    `/portfolio` and `/portfolio/snapshot` must use these values rather than
+    reconstructing cash, equity, or realised P&L from their own state stores.
+    """
+    c = snapshot if snapshot is not None else build_canonical_portfolio()
+    positions = list(c.get("positions") or [])
+    initial_capital = round(float(c.get("initial_capital") or 0.0), 2)
+    cash = round(float(c.get("cash") or 0.0), 2)
+    invested_value = round(float(c.get("invested_value") or 0.0), 2)
+    realized_pnl = round(float(c.get("realized_pnl") or 0.0), 2)
+    unrealized_raw = c.get("unrealized_pnl")
+    unrealized_pnl = (
+        round(float(unrealized_raw), 2)
+        if unrealized_raw is not None
+        else None
+    )
+    # Production snapshots always carry equity. The fallback preserves the
+    # pre-existing adapter behaviour for reduced fixtures and older snapshots
+    # that only expose the canonical accounting components.
+    equity = round(
+        float(c["equity"])
+        if c.get("equity") is not None
+        else cash + invested_value + (unrealized_pnl or 0.0),
+        2,
+    )
+    current_market_value = round(
+        sum(float(position.get("market_value") or 0.0) for position in positions),
+        2,
+    )
+
+    return {
+        "financial_contract_version": "phase20-ledger-v1",
+        "source": c.get("source") or "phase20_ledger",
+        "scan_id": c.get("scan_id"),
+        "portfolio_version": c.get("portfolio_version"),
+        "mark_basis": c.get("mark_basis"),
+        "equity_complete": bool(c.get("equity_complete", True)),
+        "initial_capital": initial_capital,
+        "cash": cash,
+        "equity": equity,
+        "total_equity": equity,
+        "total_value": equity,
+        "invested_value": invested_value,
+        "current_value": current_market_value,
+        "current_market_value": current_market_value,
+        "realized_pnl": realized_pnl,
+        "realised_pnl": realized_pnl,
+        "unrealized_pnl": unrealized_pnl,
+        "unrealised_pnl": unrealized_pnl,
+        "total_pnl": round(equity - initial_capital, 2),
+        "positions": positions,
+        "open_positions": positions,
+        "open_position_count": int(c.get("open_position_count") or len(positions)),
+        "sector_exposure": dict(c.get("sector_exposure") or {}),
     }
 
 

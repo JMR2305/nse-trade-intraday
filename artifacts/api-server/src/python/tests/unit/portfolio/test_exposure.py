@@ -31,7 +31,13 @@ from src.portfolio.exposure import (
     check_sector_exposure,
 )
 
-_NOW = datetime.now(timezone.utc)
+_NOW = None
+
+
+@pytest.fixture(autouse=True)
+def _refresh_fixture_timestamp(monkeypatch):
+    # Freshness starts at test setup, not potentially minutes-old collection.
+    monkeypatch.setitem(globals(), "_NOW", datetime.now(timezone.utc))
 
 
 def _make_config(**kw) -> PortfolioConfig:

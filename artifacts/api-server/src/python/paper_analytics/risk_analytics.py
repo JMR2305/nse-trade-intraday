@@ -131,7 +131,7 @@ def get_risk_analytics() -> Dict[str, Any]:
     Reuses risk_optimisation snapshot + portfolio_performance equity data.
     """
     from portfolio_performance.performance_engine import (
-        load_performance_data, INITIAL_CAPITAL,
+        load_performance_data, _initial_capital,
     )
     from portfolio_performance.equity_curve import (
         _points_from_history, _annotate_drawdown,
@@ -140,19 +140,20 @@ def get_risk_analytics() -> Dict[str, Any]:
     from portfolio_performance.statistics import compute_risk_metrics
 
     d       = load_performance_data()
+    initial_capital = _initial_capital()
     closed  = d["closed_trades"]
     history = d["pnl_history"]
 
     daily_pts = _points_from_history(history)
     _annotate_drawdown(daily_pts)
-    dd_stats  = compute_drawdown_stats(daily_pts, INITIAL_CAPITAL)
+    dd_stats  = compute_drawdown_stats(daily_pts, initial_capital)
     risk_stats = compute_risk_metrics(closed)
 
     returns   = _daily_returns(daily_pts)
     sharpe    = _sharpe(returns)
     sortino   = _sortino(returns)
 
-    total_ret_pct = ((d["total_value"] - INITIAL_CAPITAL) / INITIAL_CAPITAL * 100) if INITIAL_CAPITAL else 0.0
+    total_ret_pct = ((d["total_value"] - initial_capital) / initial_capital * 100) if initial_capital else 0.0
     calmar   = _calmar(total_ret_pct, dd_stats["max_drawdown_pct"])
     vol      = _volatility(returns)
 

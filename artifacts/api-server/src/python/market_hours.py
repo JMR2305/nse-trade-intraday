@@ -28,6 +28,9 @@ PRE_OPEN_START = dtime(9, 0)
 MARKET_OPEN    = dtime(9, 15)
 MARKET_CLOSE   = dtime(15, 30)
 POST_CLOSE_END = dtime(16, 0)
+# New intraday paper positions need enough time to be managed before the
+# mandatory 15:20 square-off.  This is deliberately earlier than market close.
+PAPER_ENTRY_CUTOFF = dtime(15, 15)
 
 _HOLIDAY_FILE = os.path.join(os.path.dirname(__file__), "nse_holidays.json")
 
@@ -96,6 +99,43 @@ def market_state(ts: Optional[datetime] = None) -> str:
     return "CLOSED"
 
 
+def automatic_paper_entry_status(
+        ts: Optional[datetime] = None) -> Dict[str, Any]:
+    """Return whether a new automatic intraday paper position may be opened.
+
+    The normal NSE session remains OPEN through 15:30 IST, but automated paper
+    entries stop at 15:15 IST so no new exposure is created during the
+    mandatory 15:20 square-off window.  Existing positions, exits, and other
+    safety actions are intentionally not governed by this predicate.
+    """
+    t = (ts.astimezone(IST) if ts else now_ist())
+    state = market_state(t)
+    cutoff_reached = state == "OPEN" and t.time() >= PAPER_ENTRY_CUTOFF
+
+    if state != "OPEN":
+        reason = "NSE market is not confirmed OPEN — automatic paper entry blocked"
+    elif cutoff_reached:
+        reason = (
+            "Automatic intraday paper-entry cutoff (15:15 IST) has been "
+            "reached — no new positions may open before 15:20 square-off"
+        )
+    else:
+        reason = None
+
+    return {
+        "allowed": reason is None,
+        "market_state": state,
+        "cutoff_ist": PAPER_ENTRY_CUTOFF.strftime("%H:%M"),
+        "cutoff_reached": cutoff_reached,
+        "reason": reason,
+    }
+
+
+def automatic_paper_entry_allowed(ts: Optional[datetime] = None) -> bool:
+    """Whether a new automatic intraday paper entry is permitted."""
+    return bool(automatic_paper_entry_status(ts).get("allowed"))
+
+
 def next_transition(ts: Optional[datetime] = None) -> Dict[str, Any]:
     """Next session boundary (open or close) from the given time."""
     t = (ts.astimezone(IST) if ts else now_ist())
@@ -132,6 +172,7 @@ def market_status(ts: Optional[datetime] = None) -> Dict[str, Any]:
     """Full market-status payload used by API / SSE."""
     t = (ts.astimezone(IST) if ts else now_ist())
     state = market_state(t)
+    entry_status = automatic_paper_entry_status(t)
     holidays = _load_holidays()
     holiday_name = is_holiday(t.date(), holidays)
     upcoming: List[Dict[str, str]] = []
@@ -153,7 +194,10 @@ def market_status(ts: Optional[datetime] = None) -> Dict[str, Any]:
             "open": "09:15",
             "close": "15:30",
             "post_close": "16:00",
+            "automatic_paper_entry_cutoff": PAPER_ENTRY_CUTOFF.strftime("%H:%M"),
         },
+        "automatic_paper_entry_allowed": entry_status["allowed"],
+        "automatic_paper_entry_reason": entry_status["reason"],
         "holiday_today": holiday_name,
         "next_transition": next_transition(t),
         "upcoming_holidays": upcoming,

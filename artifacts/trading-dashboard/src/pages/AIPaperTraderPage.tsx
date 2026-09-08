@@ -19,7 +19,7 @@ import {
   BarChart2, Wallet, Layers, Trophy, Info,
   CalendarDays, RotateCcw, PieChart,
   Power, CheckCircle2, XCircle, AlertTriangle, Bot, Cpu, Shield, RefreshCcw,
-  GitBranch, ArrowDown, ChevronDown, Timer, Gauge,
+  GitBranch, ArrowDown, ChevronDown, Timer, Gauge, LogIn,
 } from "lucide-react";
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
@@ -93,13 +93,51 @@ interface OpenPosition {
   expected_return_entry: number; expected_return_current: number;
   target: number; stop_loss: number; strategy: string;
   market_regime: string; risk_level: string; holding_label: string;
+  /** Days held since fill_ts (float, e.g. 2.5 = two and a half days) */
+  holding_days?: number;
+  /**
+   * Which timestamp field was used to compute holding_days.
+   * "fill_ts" = normal case. "signal_ts" | "snapshot_ts" | "created_at" = fallback.
+   * null means no usable timestamp was found (holding_days will also be null).
+   */
+  age_ts_source?: string | null;
+  /** True when holding_days >= max_holding_days - 2 — show amber alert */
+  near_time_exit?: boolean;
+  /** Configured max holding days from settings (default 10) */
+  max_holding_days?: number;
+  // Bootstrap provenance fields — present when trigger_source="BOOTSTRAP_AUTO"
+  trigger_source?: string;
+  fill_model?: string;
+
+  // Phase 11 / Phase 20 Quality Allocation Fields
+  allocation_tier?: string;
+  allocation_reason?: string;
+  allocation_requested_multiplier?: number;
+  allocation_effective_multiplier?: number;
+  allocation_base_notional?: number;
+  allocation_final_notional?: number;
+  allocation_risk_amount?: number;
+  allocation_risk_pct?: number;
+  allocation_limiting_caps?: string[];
+  allocation_stock_exposure_pct?: number;
+  allocation_sector_exposure_pct?: number;
+  allocation_portfolio_exposure_pct?: number;
+  allocation_preview?: boolean;
+  allocation_preview_not_executed?: boolean;
+  allocation_scan_id?: string;
+  allocation_snapshot_ts?: string;
+  allocation_evaluated_at?: string;
+  allocation_settings_config_hash?: string;
 }
 interface ClosedPosition {
   symbol: string; buy_time: string; sell_time: string;
-  entry_price: number; exit_price: number; quantity: number;
+  entry_price: number; exit_price: number; quantity: number | null;
   pnl: number; pnl_pct: number; holding_label: string;
   exit_reason: string; ai_confidence: number; strategy: string;
   lesson_learned: string;
+  // Bootstrap provenance — present for Phase 20 auto-entries
+  trigger_source?: string;
+  fill_model?: string;
 }
 interface TimelineEvent {
   ts: string; type: string; label: string; detail?: string;
@@ -111,6 +149,26 @@ interface Recommendation {
   expected_return: number; estimated_holding: string;
   entry: number; stop_loss: number; target: number;
   reasoning: string; strategy: string;
+
+  // Phase 11 / Phase 20 Quality Allocation Fields
+  allocation_tier?: string;
+  allocation_reason?: string;
+  allocation_requested_multiplier?: number;
+  allocation_effective_multiplier?: number;
+  allocation_base_notional?: number;
+  allocation_final_notional?: number;
+  allocation_risk_amount?: number;
+  allocation_risk_pct?: number;
+  allocation_limiting_caps?: string[];
+  allocation_stock_exposure_pct?: number;
+  allocation_sector_exposure_pct?: number;
+  allocation_portfolio_exposure_pct?: number;
+  allocation_preview?: boolean;
+  allocation_preview_not_executed?: boolean;
+  allocation_scan_id?: string;
+  allocation_snapshot_ts?: string;
+  allocation_evaluated_at?: string;
+  allocation_settings_config_hash?: string;
 }
 interface RecsData { items: Recommendation[]; count: number; }
 interface AIPerf {
@@ -153,6 +211,51 @@ interface ReplayData {
 interface CapitalConfig {
   current_capital: number; starting_capital: number; capital_mode: string;
   capital_mode_label: string; last_reset_date: string | null;
+}
+
+export interface Phase20Settings {
+  initial_capital?: number;
+  quality_allocation_override_enabled?: boolean;
+  quality_allocation_2x_enabled?: boolean;
+  quality_allocation_3x_enabled?: boolean;
+  quality_allocation_2x_min_confidence?: number;
+  quality_allocation_2x_min_opportunity_score?: number;
+  quality_allocation_2x_min_trade_quality_score?: number;
+  quality_allocation_2x_min_risk_reward?: number;
+  quality_allocation_2x_risk_budget_pct?: number;
+  quality_allocation_3x_min_confidence?: number;
+  quality_allocation_3x_min_opportunity_score?: number;
+  quality_allocation_3x_min_trade_quality_score?: number;
+  quality_allocation_3x_min_risk_reward?: number;
+  quality_allocation_3x_risk_budget_pct?: number;
+  quality_allocation_3x_max_atr_pct?: number;
+  quality_allocation_3x_max_stop_distance_pct?: number;
+  quality_allocation_absolute_cap?: number;
+  quality_allocation_3x_sector_override_enabled?: boolean;
+  quality_allocation_3x_sector_override_cap_pct?: number;
+}
+
+interface Phase20SettingsEnvelope {
+  success?: boolean;
+  settings?: Phase20Settings;
+}
+
+interface CapitalMigrationStatus {
+  success?: boolean;
+  status?: "APPLIED" | "ALREADY_APPLIED" | "BLOCKED_OPEN_POSITIONS"
+    | "BLOCKED_STATE_UNREADABLE" | "CONFIRMATION_REQUIRED";
+  message?: string;
+  current_capital?: number;
+  target_capital?: number;
+  auto_paper_entries?: boolean;
+  open_count?: number;
+  exit_pending_count?: number;
+  confirmation_text?: string;
+  active_positions?: Array<{
+    trade_id?: string;
+    symbol?: string;
+    status?: string;
+  }>;
 }
 interface TopupEntry {
   date: string; type: string; amount: number; reason: string; balance_after: number;
@@ -252,6 +355,56 @@ function toArr<T>(v: unknown): T[] {
   return [];
 }
 
+function closedTradeQuantityLabel(quantity: number | null | undefined): string {
+  return typeof quantity === "number" && Number.isFinite(quantity)
+    ? String(quantity)
+    : "Not recorded";
+}
+
+// ── Bootstrap status type ─────────────────────────────────────────────────────
+
+/**
+ * Shape returned by GET /api/phase20/bootstrap-status.
+ * Fields mirror the exact executor gate predicates from run_bootstrap_auto_entry()
+ * in priority order: auto_paper_entries → circuit_breaker → kite → cutoff → candidates.
+ */
+interface BootstrapStatus {
+  success: boolean;
+  bootstrap_paper_enabled: boolean;
+  // Gate 1: post-normalisation from get_settings() — False when unconfirmed too
+  auto_paper_entries: boolean;
+  auto_paper_entries_confirmed_at: string | null;
+  // Gate 2: circuit breaker (fail-closed — unreadable state counts as tripped)
+  circuit_breaker_tripped: boolean;
+  circuit_breaker_detail: string;
+  // Gate 3: Kite session verified.
+  // kite_verified=true requires kite_session_verified=true.
+  // Overlay-only (overlay_enabled=true, session_verified=false) is NOT sufficient:
+  // kite_ltp_overlay.py sets per-candidate kite_session_verified_flag=bool(session_ok),
+  // so without a live session all candidates fail the executor's per-candidate filter
+  // (phase20_executor.py line 875) and no bootstrap entry can fire.
+  kite_verified: boolean;
+  kite_session_verified: boolean;
+  kite_overlay_enabled: boolean;
+  // Gate 4: closed-trade cutoff
+  closed_bootstrap_trades: number;
+  bootstrap_max_closed_trades: number;
+  bootstrap_cutoff_reached: boolean;
+  // Candidate counts
+  bootstrap_eligible_count: number;
+  watch_count: number;
+  snapshot_ts: string | null;
+  scan_id: string | null;
+  top_candidates: {
+    symbol: string;
+    confidence: number;
+    opportunity_score: number;
+    rr_ratio: number;
+    bootstrap_eligible: boolean;
+    entry_price: number;
+  }[];
+}
+
 // ── Shared micro-components ───────────────────────────────────────────────────
 
 function SecTitle({
@@ -287,6 +440,125 @@ function RiskBadge({ level }: { level: string }) {
     : level === "HIGH" ? "bg-rose-900/50 text-rose-300 border-rose-700/50"
     : "bg-amber-900/50 text-amber-300 border-amber-700/50";
   return <Badge className={`text-xs px-1.5 py-0 ${cls}`}>{level}</Badge>;
+}
+
+export function AllocationTierBadge({ tier }: { tier?: string }) {
+  if (!tier || tier === "NORMAL") return null;
+  const is3x = tier === "EXCEPTIONAL_QUALITY_3X";
+  const cls = is3x
+    ? "bg-fuchsia-900/60 text-fuchsia-300 border-fuchsia-700/60 shadow-[0_0_12px_rgba(217,70,239,0.2)]"
+    : "bg-blue-900/60 text-blue-300 border-blue-700/60 shadow-[0_0_8px_rgba(59,130,246,0.15)]";
+  return (
+    <Badge
+      variant="outline"
+      className={`text-[10px] font-bold tracking-widest uppercase px-1.5 py-0 ${cls}`}
+      data-testid="allocation-tier-badge"
+    >
+      {is3x ? "3X QUALITY" : "2X QUALITY"}
+    </Badge>
+  );
+}
+
+export function AllocationSummary({ data }: { data: Partial<Recommendation> | Partial<OpenPosition> }) {
+  if (!data.allocation_tier && !data.allocation_requested_multiplier) return null;
+  const isPreview = data.allocation_preview_not_executed === true;
+
+  return (
+    <div
+      className="mt-2 text-[10px] bg-slate-900/80 border border-slate-700/50 rounded p-2 grid gap-1.5 relative overflow-hidden"
+      data-testid="allocation-summary-card"
+    >
+      {data.allocation_tier === "EXCEPTIONAL_QUALITY_3X" && (
+        <div className="absolute top-0 right-0 w-8 h-8 bg-fuchsia-500/10 blur-xl rounded-full pointer-events-none" />
+      )}
+
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/60 pb-1.5">
+        <div className="flex items-center gap-2">
+          <span className="text-slate-400 font-medium">ALLOCATION</span>
+          {data.allocation_tier && <AllocationTierBadge tier={data.allocation_tier} />}
+          {isPreview && (
+            <Badge
+              variant="outline"
+              className="border-amber-500/30 bg-amber-500/10 text-amber-300 text-[9px] px-1.5 py-0"
+              data-testid="allocation-preview-label"
+            >
+              PREVIEW · NOT EXECUTED
+            </Badge>
+          )}
+        </div>
+
+        {data.allocation_effective_multiplier !== undefined && (
+          <div className="flex items-center gap-1 font-mono">
+            <span className="text-slate-500">Mult:</span>
+            <span
+              className={data.allocation_effective_multiplier < (data.allocation_requested_multiplier || 0) ? "text-amber-400" : "text-emerald-400"}
+              data-testid="allocation-effective-multiplier"
+            >
+              {data.allocation_effective_multiplier}x
+            </span>
+            {data.allocation_requested_multiplier && data.allocation_requested_multiplier !== data.allocation_effective_multiplier && (
+              <span className="text-slate-500 line-through text-[9px] ml-1">({data.allocation_requested_multiplier}x req)</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-2 gap-y-1 mt-1">
+        {data.allocation_base_notional !== undefined && data.allocation_final_notional !== undefined && (
+          <div className="flex justify-between">
+            <span className="text-slate-500">Notional</span>
+            <span className="font-mono text-slate-300" data-testid="allocation-notional">
+              {fmtK(data.allocation_base_notional)} <span className="text-slate-500">→</span> {fmtK(data.allocation_final_notional)}
+            </span>
+          </div>
+        )}
+
+        {data.allocation_risk_amount !== undefined && (
+          <div className="flex justify-between">
+            <span className="text-slate-500">Risk</span>
+            <span className="font-mono text-slate-300" data-testid="allocation-risk">
+              ₹{fmt(data.allocation_risk_amount)} {data.allocation_risk_pct !== undefined && `(${data.allocation_risk_pct.toFixed(2)}%)`}
+            </span>
+          </div>
+        )}
+
+        {(data.allocation_stock_exposure_pct !== undefined || data.allocation_sector_exposure_pct !== undefined) && (
+          <div className="flex justify-between col-span-2" data-testid="allocation-exposure">
+            <span className="text-slate-500">Post-Trade Exposure</span>
+            <span className="font-mono text-slate-400 text-[9px]">
+              {data.allocation_stock_exposure_pct !== undefined && `Stock: ${data.allocation_stock_exposure_pct.toFixed(1)}%`}
+              {data.allocation_sector_exposure_pct !== undefined && ` | Sector: ${data.allocation_sector_exposure_pct.toFixed(1)}%`}
+              {data.allocation_portfolio_exposure_pct !== undefined && ` | Port: ${data.allocation_portfolio_exposure_pct.toFixed(1)}%`}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {(data.allocation_limiting_caps && data.allocation_limiting_caps.length > 0) && (
+        <div className="flex gap-1.5 mt-0.5 text-amber-500/80 bg-amber-950/20 px-1.5 py-1 rounded">
+          <span className="shrink-0 mt-0.5 w-1.5 h-1.5 rounded-full bg-amber-500/50" />
+          <span className="leading-tight">Capped by: {data.allocation_limiting_caps.join(", ")}</span>
+        </div>
+      )}
+
+      {data.allocation_reason && (
+        <div className="text-slate-400 italic text-[9px] leading-tight border-t border-slate-800/60 pt-1 mt-0.5">
+          {data.allocation_reason}
+        </div>
+      )}
+      {isPreview && (
+        <div className="font-mono text-slate-500 text-[9px] leading-tight">
+          Current-scan estimate
+          {data.allocation_scan_id
+            ? ` · Scan ${data.allocation_scan_id}`
+            : ""}
+          {data.allocation_evaluated_at
+            ? ` · Evaluated ${data.allocation_evaluated_at}`
+            : ""}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function ConfBar({ value }: { value: number }) {
@@ -352,6 +624,37 @@ function S0AutonomousSession() {
       refetchInterval: 30_000, staleTime: 15_000, retry: 1,
     });
 
+  // Capital edit state
+  const { data: p20SettingsEnvelope } = useQuery<Phase20SettingsEnvelope>({
+    queryKey: ["apt", "p20-settings-capital"],
+    queryFn:  () => apiJson("/phase20/settings"),
+    staleTime: 60_000, retry: 1,
+  });
+  const p20Settings = p20SettingsEnvelope?.settings;
+  const {
+    data: capitalMigration,
+    isLoading: capitalMigrationLoading,
+    isError: capitalMigrationError,
+    refetch: refetchCapitalMigration,
+  } = useQuery<CapitalMigrationStatus>({
+    queryKey: ["apt", "capital-migration-status"],
+    queryFn: () => apiJson("/phase20/capital-migration/status"),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+  const configuredCapital = typeof p20Settings?.initial_capital === "number"
+    ? p20Settings.initial_capital
+    : typeof capitalMigration?.current_capital === "number"
+      ? capitalMigration.current_capital
+      : null;
+  const migrationApplied = capitalMigration?.status === "APPLIED"
+    || capitalMigration?.status === "ALREADY_APPLIED";
+  const migrationUnreadable = capitalMigrationError
+    || capitalMigration?.status === "BLOCKED_STATE_UNREADABLE";
+  const [capitalEdit, setCapitalEdit] = useState(false);
+  const [capitalConfirmation, setCapitalConfirmation] = useState("");
+
   // Canonical agent status — same source as AI Operations Centre (/ops-centre/agents)
   const { data: agents, isLoading: agentsLoad, refetch: refetchAgents } =
     useQuery<CanonicalAgentStatus>({
@@ -383,6 +686,28 @@ function S0AutonomousSession() {
     mutationFn: () =>
       apiJson("/phase11/session/disable-autonomous", { method: "POST" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["apt", "session-status"] }),
+  });
+
+  const capitalMut = useMutation({
+    mutationFn: (confirmationText: string) =>
+      apiJson<CapitalMigrationStatus>("/phase20/capital-migration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          confirmation_text: confirmationText,
+          reviewed_by: "dashboard-operator",
+        }),
+      }),
+    onSuccess: () => {
+      setCapitalConfirmation("");
+      setCapitalEdit(false);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["apt", "p20-settings-capital"] });
+      qc.invalidateQueries({ queryKey: ["apt", "capital-migration-status"] });
+      qc.invalidateQueries({ queryKey: ["apt", "session-status"] });
+      qc.invalidateQueries({ queryKey: ["apt", "portfolio"] });
+    },
   });
 
   const initialized = sess?.initialized_today ?? false;
@@ -529,17 +854,145 @@ function S0AutonomousSession() {
               {sessLoad ? "…" : `Mode ${sess?.capital_mode ?? "A"}`}
             </span>
           </div>
-          <span className="text-xs text-slate-600">{crmMode ? "Continuous Research" : "Daily ₹50K"}</span>
+          <span className="text-xs text-slate-600">
+            {crmMode
+              ? "Continuous Research"
+              : configuredCapital == null
+                ? "Capital unavailable"
+                : `Daily ₹${(configuredCapital / 1_000).toFixed(0)}K`}
+          </span>
         </div>
 
-        {/* Starting Capital */}
+        {/* Starting Capital — guarded migration boundary */}
         <div className="rounded-xl border bg-slate-900/60 border-slate-800/40 p-3">
           <span className="text-xs text-slate-500">Daily Capital</span>
-          <span className="text-sm font-bold text-blue-400 font-mono">
-            {sessLoad ? "…" : `₹${((sess?.starting_capital ?? 50_000) / 1_000).toFixed(0)}K`}
-          </span>
-          <br />
-          <span className="text-xs text-slate-600">Resets each day</span>
+          {capitalEdit ? (
+            <div className="mt-1 flex flex-col gap-1">
+              {migrationUnreadable ? (
+                <div className="rounded border border-rose-700/40 bg-rose-950/30 px-2 py-1.5">
+                  <p className="text-[10px] font-medium text-rose-300">
+                    Migration blocked: authoritative position state is unreadable
+                  </p>
+                  <p className="text-[9px] text-rose-400/80 mt-0.5">
+                    Capital cannot change until PostgreSQL ledger state is available.
+                  </p>
+                </div>
+              ) : capitalMigration?.status === "BLOCKED_OPEN_POSITIONS" ? (
+                <div className="rounded border border-amber-700/40 bg-amber-950/30 px-2 py-1.5">
+                  <p className="text-[10px] font-medium text-amber-300">
+                    Rebase blocked: {capitalMigration.open_count ?? 0} open,{" "}
+                    {capitalMigration.exit_pending_count ?? 0} exit-pending
+                  </p>
+                  <p className="text-[9px] text-amber-400/80 mt-0.5">
+                    {capitalMigration.auto_paper_entries === false
+                      ? "Automatic entries are paused."
+                      : "Applying the guarded migration will pause automatic entries."}{" "}
+                    Resolve every paper position first.
+                  </p>
+                  {(capitalMigration.active_positions ?? []).slice(0, 3).map((p) => (
+                    <p key={p.trade_id} className="text-[9px] font-mono text-slate-400">
+                      {p.symbol ?? "—"} · {p.status ?? "—"}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <p className="text-[9px] text-slate-500">
+                    Paste the exact confirmation. The server rechecks OPEN and
+                    EXIT_PENDING positions under a database lock before changing cash.
+                  </p>
+                  <p className="text-[9px] text-teal-400/80">
+                    {capitalMigration?.confirmation_text ?? "Loading confirmation…"}
+                  </p>
+                  <input
+                    type="text"
+                    value={capitalConfirmation}
+                    onChange={e => setCapitalConfirmation(e.target.value)}
+                    className="w-full rounded bg-slate-800 border border-teal-700/50 text-teal-300 text-[10px] px-2 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    placeholder="Paste exact confirmation"
+                    autoFocus
+                  />
+                </>
+              )}
+              <div className="flex gap-1">
+                <button
+                  disabled={
+                    capitalMut.isPending
+                    || migrationUnreadable
+                    || capitalMigration?.status === "BLOCKED_OPEN_POSITIONS"
+                    || migrationApplied
+                    || !capitalMigration?.confirmation_text
+                    || capitalConfirmation.trim() !== capitalMigration.confirmation_text
+                  }
+                  onClick={() => capitalMut.mutate(capitalConfirmation)}
+                  className="flex-1 text-[10px] font-medium rounded bg-teal-700/50 hover:bg-teal-700/70 text-teal-300 px-2 py-0.5 transition-colors disabled:opacity-50">
+                  {capitalMut.isPending ? "Checking…" : "Apply ₹100K"}
+                </button>
+                <button
+                  onClick={() => {
+                    setCapitalConfirmation("");
+                    setCapitalEdit(false);
+                  }}
+                  className="flex-1 text-[10px] font-medium rounded bg-slate-700/50 hover:bg-slate-700/70 text-slate-400 px-2 py-0.5 transition-colors">
+                  Cancel
+                </button>
+              </div>
+              <button
+                onClick={() => refetchCapitalMigration()}
+                className="text-[9px] text-slate-500 hover:text-teal-400 transition-colors text-left">
+                Recheck position state
+              </button>
+              {capitalMut.isError && (
+                <span className="text-[10px] text-rose-400">
+                  {(capitalMut.error as Error)?.message ?? "Migration failed"}
+                </span>
+              )}
+              <span className="text-[10px] text-slate-600">
+                Paper only · closed trades and realized P&amp;L are preserved
+              </span>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => setCapitalEdit(true)}
+                disabled={
+                  capitalMigrationLoading
+                  || capitalMigrationError
+                  || !capitalMigration
+                  || migrationApplied
+                }
+                className="block text-sm font-bold text-blue-400 font-mono hover:text-teal-400 transition-colors text-left mt-0.5 disabled:text-emerald-400 disabled:cursor-default"
+                title={migrationApplied ? "Guarded capital target applied" : "Review guarded migration"}>
+                {configuredCapital == null
+                  ? "—"
+                  : `₹${(configuredCapital / 1_000).toFixed(0)}K`}
+                {!migrationApplied && configuredCapital != null && configuredCapital !== 100_000
+                  ? " → ₹100K"
+                  : migrationApplied
+                    ? " ✓"
+                    : ""}
+              </button>
+              <span className={`text-xs ${
+                migrationUnreadable
+                  ? "text-rose-500"
+                  : capitalMigration?.status === "BLOCKED_OPEN_POSITIONS"
+                  ? "text-amber-500"
+                  : migrationApplied
+                    ? "text-emerald-600"
+                    : "text-slate-600"
+              }`}>
+                {capitalMigrationLoading
+                  ? "Checking guarded migration status…"
+                  : migrationUnreadable
+                    ? "Position state unreadable — migration blocked"
+                    : capitalMigration?.status === "BLOCKED_OPEN_POSITIONS"
+                  ? "Blocked by active paper positions"
+                  : migrationApplied
+                    ? "Guarded baseline applied"
+                    : "Guarded migration requires review"}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -626,7 +1079,10 @@ function S0AutonomousSession() {
       {crmMode && (
         <div className="mt-3 rounded-lg bg-violet-950/30 border border-violet-800/40 px-3 py-2 text-xs text-violet-300">
           🔄 <strong>Continuous Research Mode</strong> is active (Mode B).
-          Capital will automatically top up to ₹{((sess?.starting_capital ?? 50_000) / 1_000).toFixed(0)}K
+          Capital will automatically top up to{" "}
+          {typeof sess?.starting_capital === "number"
+            ? `₹${(sess.starting_capital / 1_000).toFixed(0)}K`
+            : "—"}
           when available cash falls below ₹{((sess?.topup_threshold ?? 10_000) / 1_000).toFixed(0)}K.
           Every top-up is logged in the Capital tab.
         </div>
@@ -716,6 +1172,9 @@ interface PipelineStats {
    *  "Waiting for today's first fresh scan" state. */
   session_mismatch?: boolean;
   session_message?: string | null;
+  /** ISO timestamp (IST) for when the next scan is expected.
+   *  Present when session_mismatch is true so the UI can show a countdown. */
+  next_scan_expected_ist?: string | null;
 }
 
 // ── Cadence stats type ────────────────────────────────────────────────────────
@@ -725,6 +1184,8 @@ interface CadenceStats {
   scheduling_mode: string;
   expected_scans_today: number;
   completed_scans_today: number;
+  /** SCAN_COMPLETED events since the last scheduler/process restart (subset of completed) */
+  session_scans_today: number;
   skipped_scans_today: number;
   avg_gap_minutes: number | null;
   min_gap_minutes: number | null;
@@ -738,14 +1199,35 @@ interface CadenceStats {
   market_minutes: number;
 }
 
+// ── Cadence badge helper (exported for tests) ─────────────────────────────────
+// Only EXPLICIT closed states force the neutral "Market closed" badge — an
+// unavailable/UNKNOWN health source must never be presented as a confirmed
+// closure, and "Review" is reserved for genuinely degraded in-session coverage.
+export function cadenceBadgeState(
+  marketState: string | undefined,
+  coverageOk: boolean,
+  gapOk: boolean,
+): { label: "Market closed" | "On Track" | "Review"; marketClosed: boolean } {
+  const closed = ["CLOSED", "POST_CLOSE", "HOLIDAY"].includes(marketState ?? "");
+  if (closed) return { label: "Market closed", marketClosed: true };
+  return { label: coverageOk && gapOk ? "On Track" : "Review", marketClosed: false };
+}
+
 // ── SCadencePanel — Intraday Scan Cadence ─────────────────────────────────────
-function SCadencePanel() {
+export function SCadencePanel() {
   const { data, isLoading, refetch } = useQuery<CadenceStats>({
     queryKey: ["apt", "cadence"],
     queryFn:  () => apiJson("/phase20/cadence-stats"),
     refetchInterval: 60_000,
     staleTime: 30_000,
     retry: 1,
+  });
+
+  // Reuse the health-v2 cache populated by S1 — market open/closed state
+  const { data: hv2 } = useQuery<HealthV2>({
+    queryKey: ["apt", "hv2"],
+    queryFn:  () => apiJson("/live-data/health-v2"),
+    refetchInterval: 30_000, staleTime: 15_000, retry: 1,
   });
 
   function fmtMin(v: number | null | undefined) {
@@ -767,6 +1249,7 @@ function SCadencePanel() {
   }
 
   const completed  = data?.completed_scans_today ?? 0;
+  const sessionScans = data?.session_scans_today ?? 0;
   const expected   = data?.expected_scans_today ?? 0;
   const skipped    = data?.skipped_scans_today ?? 0;
   const pct        = expected > 0 ? Math.round((completed / expected) * 100) : 0;
@@ -774,6 +1257,11 @@ function SCadencePanel() {
   const avgGap     = data?.avg_gap_minutes;
   const cfgInt     = data?.configured_interval_minutes ?? 5;
   const gapOk      = avgGap == null || avgGap <= cfgInt * 1.3;
+
+  // Market-closed detection — same health-v2 source as the rest of the page.
+  const badge = cadenceBadgeState(hv2?.market?.state, coverageOk, gapOk);
+  const marketClosed = badge.marketClosed;
+  const lastScanIst  = hv2?.snapshot_ts ? istTime(hv2.snapshot_ts) : null;
 
   return (
     <div className="border border-slate-800/50 rounded-xl p-4 bg-slate-900/40">
@@ -785,11 +1273,14 @@ function SCadencePanel() {
             Intraday Scan Cadence
           </h2>
           {!isLoading && (
-            <Badge className={`text-xs ${coverageOk && gapOk
-              ? "bg-emerald-950 border-emerald-700/50 text-emerald-300"
-              : "bg-amber-950 border-amber-700/50 text-amber-300"
+            <Badge className={`text-xs ${
+              badge.label === "Market closed"
+                ? "bg-slate-800 border-slate-600/50 text-slate-300"
+                : badge.label === "On Track"
+                  ? "bg-emerald-950 border-emerald-700/50 text-emerald-300"
+                  : "bg-amber-950 border-amber-700/50 text-amber-300"
             }`}>
-              {coverageOk && gapOk ? "On Track" : "Review"}
+              {badge.label}
             </Badge>
           )}
         </div>
@@ -798,6 +1289,13 @@ function SCadencePanel() {
           <RefreshCcw className="w-3 h-3" />
         </button>
       </div>
+
+      {!isLoading && marketClosed && (
+        <p className="text-[10px] text-slate-500 -mt-2 mb-3">
+          {lastScanIst ? `Last scan at ${lastScanIst} IST — ` : ""}
+          BUY recommendations resume after next scan.
+        </p>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -824,7 +1322,10 @@ function SCadencePanel() {
               <p className={`text-xl font-bold font-mono ${coverageOk ? "text-emerald-300" : "text-amber-300"}`}>
                 {completed}<span className="text-xs text-slate-400 ml-1">/ {expected}</span>
               </p>
-              <p className="text-[9px] text-slate-500 mt-0.5">{pct}% of expected</p>
+              <p className="text-[9px] text-slate-500 mt-0.5">Full day (IST) · {pct}% of expected</p>
+              <p className="text-[9px] text-slate-600 mt-0.5">
+                Since last restart: <span className="font-mono text-slate-500">{sessionScans}</span>
+              </p>
             </div>
 
             {/* Skipped scans */}
@@ -891,6 +1392,485 @@ function SCadencePanel() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── NextScanCountdown — live countdown to the next expected scan ──────────────
+// Updates every 30 s. When within 5 min of the expected time, shows
+// "Scan starting soon…" with a pulse animation.
+function NextScanCountdown({ expectedIso }: { expectedIso?: string | null }) {
+  const [label, setLabel] = useState<string>("");
+  const [soon, setSoon]   = useState(false);
+
+  useEffect(() => {
+    function compute() {
+      // Parse the ISO timestamp from the backend (includes IST offset).
+      // Fall back to 09:15 IST today (or tomorrow if already past).
+      let target: Date;
+      if (expectedIso) {
+        target = new Date(expectedIso);
+      } else {
+        // Build today's 09:15 IST = 03:45 UTC
+        const now = new Date();
+        const t = new Date(Date.UTC(
+          now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 3, 45, 0,
+        ));
+        if (t <= now) t.setUTCDate(t.getUTCDate() + 1);
+        target = t;
+      }
+
+      const now    = new Date();
+      const diffMs = target.getTime() - now.getTime();
+
+      if (diffMs <= 0) {
+        // Target passed — either overdue or scan should be in progress
+        setSoon(false);
+        setLabel("Scan overdue — auto-scan should start shortly");
+        return;
+      }
+
+      const diffMin = Math.round(diffMs / 60_000);
+      if (diffMin <= 5) {
+        setSoon(true);
+        setLabel("Scan starting soon…");
+        return;
+      }
+
+      const timeStr = target.toLocaleTimeString("en-IN", {
+        hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata",
+      });
+      const h = Math.floor(diffMin / 60);
+      const m = diffMin % 60;
+      setSoon(false);
+      setLabel(
+        `Next scan expected at ${timeStr} IST` +
+        (h > 0 ? ` (in ${h}h ${m}m)` : ` (in ${m}m)`),
+      );
+    }
+
+    compute();
+    const id = setInterval(compute, 30_000);
+    return () => clearInterval(id);
+  }, [expectedIso]);
+
+  if (!label) return null;
+  return (
+    <div className={`flex items-center justify-center gap-1.5 text-xs mt-1 ${
+      soon ? "text-teal-300 animate-pulse" : "text-slate-500"
+    }`}>
+      <Timer className="w-3 h-3 flex-shrink-0" />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SBootstrapStatus — Bootstrap Mode Readiness Card
+// Visible only when bootstrap_paper_enabled=true; guides operators through the
+// single remaining step (Kite login) when the session is not yet verified.
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * SBootstrapStatus — Bootstrap Mode Readiness Card
+ *
+ * Two-query pattern: a cheap settings fetch gates the expensive bootstrap-status
+ * query so the Python process + DB query never run when bootstrap is disabled.
+ *
+ * State machine mirrors run_bootstrap_auto_entry() gate priority order exactly:
+ *   entries_off → circuit_breaker → no_kite → complete → scanning → ready
+ */
+function SBootstrapStatus() {
+  // Single query: the Python endpoint short-circuits immediately when
+  // bootstrap_paper_enabled=False (no DB query, no circuit-breaker evaluation),
+  // so polling every 60 s is cheap regardless of the flag state.
+  const qc = useQueryClient();
+  const { data, refetch } = useQuery<BootstrapStatus>({
+    queryKey: ["apt", "bootstrap-status"],
+    queryFn:  () => apiJson("/phase20/bootstrap-status"),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const enableMut = useMutation({
+    mutationFn: () =>
+      apiJson("/phase20/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patch: { bootstrap_paper_enabled: true } }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["apt", "bootstrap-status"] });
+      setTimeout(() => refetch(), 800);
+    },
+  });
+
+  // If data hasn't arrived yet, stay silent.
+  if (!data) return null;
+
+  // ── DISABLED state: show an "Enable Bootstrap Mode" card ──────────────────
+  if (!data.bootstrap_paper_enabled) {
+    return (
+      <div className="border rounded-xl p-4 bg-slate-900/40 border-slate-700/40"
+           data-testid="bootstrap-status-card">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-slate-400" />
+            <span className="text-sm font-semibold text-slate-200">Bootstrap Mode</span>
+          </div>
+          <span className="text-xs px-2 py-0.5 rounded border bg-slate-800 border-slate-600/50 text-slate-400">
+            DISABLED
+          </span>
+        </div>
+        <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+          Bootstrap Mode lets the AI automatically place the <em>first</em> paper trade
+          when there is no trading history yet. Enable it to kick-start the live paper
+          portfolio. It auto-disables after a configurable number of bootstrap trades.
+        </p>
+        <button
+          onClick={() => enableMut.mutate()}
+          disabled={enableMut.isPending}
+          className="w-full py-2 px-4 rounded-lg text-sm font-medium
+                     bg-teal-700 hover:bg-teal-600 disabled:opacity-50
+                     text-white transition-colors flex items-center justify-center gap-2"
+        >
+          {enableMut.isPending
+            ? <><RefreshCcw className="w-3.5 h-3.5 animate-spin" /> Enabling…</>
+            : <><Power className="w-3.5 h-3.5" /> Enable Bootstrap Mode</>}
+        </button>
+        {enableMut.isError && (
+          <p className="text-xs text-rose-400 mt-2 text-center">
+            Failed to enable — try again
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  const {
+    auto_paper_entries,
+    circuit_breaker_tripped,
+    circuit_breaker_detail,
+    kite_verified,
+    kite_session_verified,
+    kite_overlay_enabled,
+    bootstrap_eligible_count: eligCount,
+    watch_count: watchCount,
+    closed_bootstrap_trades: closedTrades,
+    bootstrap_max_closed_trades: maxTrades,
+    bootstrap_cutoff_reached: cutoffReached,
+    top_candidates: cands = [],
+    snapshot_ts,
+  } = data;
+
+  const topCand = cands[0];
+
+  // ── Derive top-level card state ────────────────────────────────────────────
+  // Priority order mirrors run_bootstrap_auto_entry() gate order exactly:
+  //   auto_paper_entries → circuit_breaker → kite_ltp → cutoff → candidates
+  type CardState =
+    | "entries_off"       // Gate 1: auto_paper_entries false (or unconfirmed — same field)
+    | "circuit_breaker"   // Gate 2: breaker tripped or unreadable (fail-closed)
+    | "no_kite"           // Gate 3: kite_session_verified=false (overlay-only not enough)
+    | "complete"          // Gate 4: closed trades ≥ max — auto-disabled
+    | "scanning"          // Gates pass, no bootstrap-eligible candidates yet
+    | "ready";            // Eligible candidates found; scheduler will attempt entries
+
+  const cardState: CardState = !auto_paper_entries
+    ? "entries_off"
+    : circuit_breaker_tripped
+      ? "circuit_breaker"
+      : !kite_verified
+        ? "no_kite"
+        : cutoffReached
+          ? "complete"
+          : eligCount === 0
+            ? "scanning"
+            : "ready";
+
+  // ── Appearance by state ────────────────────────────────────────────────────
+  const cardCls: Record<CardState, string> = {
+    entries_off:     "bg-slate-900/40 border-slate-700/40",
+    circuit_breaker: "bg-rose-950/20 border-rose-700/40",
+    no_kite:         "bg-amber-950/20 border-amber-700/40",
+    complete:        "bg-slate-900/40 border-slate-700/40",
+    scanning:        "bg-teal-950/20 border-teal-700/40",
+    ready:           "bg-emerald-950/20 border-emerald-700/40",
+  };
+
+  const badgeCls: Record<CardState, string> = {
+    entries_off:     "bg-slate-800 border-slate-600/50 text-slate-400",
+    circuit_breaker: "bg-rose-950 border-rose-700/50 text-rose-300",
+    no_kite:         "bg-amber-950 border-amber-700/50 text-amber-300",
+    complete:        "bg-slate-800 border-slate-600/50 text-slate-400",
+    scanning:        "bg-teal-950 border-teal-700/50 text-teal-300",
+    ready:           "bg-emerald-950 border-emerald-700/50 text-emerald-300",
+  };
+
+  const badgeLabel: Record<CardState, string> = {
+    entries_off:     "Blocked",
+    circuit_breaker: "Paused",
+    no_kite:         "Armed",
+    complete:        "Complete",
+    scanning:        "Active",
+    ready:           "Active",
+  };
+
+  const headerIcon: Record<CardState, React.ReactNode> = {
+    entries_off:     <XCircle className="w-4 h-4 text-slate-400" />,
+    circuit_breaker: <XCircle className="w-4 h-4 text-rose-400" />,
+    no_kite:         <AlertTriangle className="w-4 h-4 text-amber-400" />,
+    complete:        <CheckCircle2 className="w-4 h-4 text-slate-400" />,
+    scanning:        <Activity className="w-4 h-4 text-teal-400" />,
+    ready:           <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+  };
+
+  // ── Kite tile colour — use composite kite_verified for the tile border,
+  //    but display the specific source (session vs overlay) as sub-text.
+  const kiteTileCls = kite_verified
+    ? "bg-emerald-950/40 border-emerald-700/40"
+    : "bg-rose-950/40 border-rose-700/40";
+
+  // kite_verified=true only when kite_session_verified=true; overlay-only
+  // (session absent) leaves kite_verified=false because per-candidate
+  // kite_session_verified_flag is also false → no bootstrap entry can fire.
+  // When overlay is configured but session is absent, say "Login required"
+  // so the operator knows exactly what to do, with a parenthetical hint that
+  // the overlay feature is ready to provide prices once they log in.
+  const kiteSourceLabel = kite_session_verified
+    ? kite_overlay_enabled
+      ? "Overlay enabled"           // session live + overlay → prices from Kite overlay
+      : "Session token live"        // session live + no overlay → prices from Kite session
+    : kite_overlay_enabled
+      ? "Login required (overlay configured)"   // overlay ready, session absent
+      : "Login required";
+
+  return (
+    <div
+      className={`border rounded-xl p-4 ${cardCls[cardState]}`}
+      data-testid="bootstrap-status-card"
+      data-card-state={cardState}
+    >
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          {headerIcon[cardState]}
+          <h2 className="font-semibold text-xs tracking-widest uppercase text-slate-400">
+            Bootstrap Mode
+          </h2>
+          <Badge className={`text-xs px-2 py-0 ${badgeCls[cardState]}`}>
+            {badgeLabel[cardState]}
+          </Badge>
+        </div>
+        <button
+          onClick={() => refetch()}
+          className="text-xs text-slate-500 hover:text-teal-400 flex items-center gap-1 transition-colors"
+        >
+          <RefreshCcw className="w-3 h-3" />
+        </button>
+      </div>
+
+      {/* ── ENTRIES OFF (Gate 1) — auto_paper_entries is false or unconfirmed ── */}
+      {cardState === "entries_off" && (
+        <div className="space-y-2">
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Auto Paper Entries is currently OFF. Bootstrap cannot place entries until
+            auto-entries are enabled and the explicit confirmation is recorded. Enabling
+            without confirming also results in this state — both steps are required.
+          </p>
+          <div className="rounded-lg border border-slate-700/50 bg-slate-800/30 px-3 py-2">
+            <p className="text-[10px] text-slate-400/80">
+              Go to <strong>Settings → Auto Paper Entries</strong> to enable and confirm.
+              This two-step gate prevents accidental paper entries.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── CIRCUIT BREAKER (Gate 2) — tripped or unreadable (fail-closed) ── */}
+      {cardState === "circuit_breaker" && (
+        <div className="space-y-2">
+          <p className="text-xs text-rose-300 leading-relaxed">
+            The entry circuit breaker is tripped — all automated entries including
+            bootstrap are paused pending manual review. This is a safety gate; no
+            new bootstrap positions will open until an operator resumes the breaker.
+          </p>
+          {circuit_breaker_detail && (
+            <div className="rounded-lg border border-rose-800/40 bg-rose-950/20 px-3 py-2">
+              <p className="text-[10px] text-rose-400/80 font-mono break-words">
+                {circuit_breaker_detail}
+              </p>
+            </div>
+          )}
+          <p className="text-[10px] text-slate-600 leading-snug">
+            Go to <strong>Operations → Circuit Breaker</strong> to review the trigger
+            reason and resume entries when ready.
+          </p>
+        </div>
+      )}
+
+      {/* ── COMPLETE (Gate 4) — closed-trade cutoff reached ── */}
+      {cardState === "complete" && (
+        <p className="text-xs text-slate-400 leading-relaxed">
+          Bootstrap auto-disabled: the paper ledger now has{" "}
+          <span className="font-semibold text-slate-200">{closedTrades}</span> closed
+          trades — at or above the {maxTrades}-trade threshold. No further bootstrap
+          entries will be placed. The live-evidence learning cycle can now run normally.
+        </p>
+      )}
+
+      {/* ── NO_KITE / SCANNING / READY (Gates 3+) — show status grid ── */}
+      {(cardState === "no_kite" || cardState === "scanning" || cardState === "ready") && (
+        <div className="flex flex-wrap gap-4 items-start">
+
+          {/* Status tiles */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-1 min-w-0">
+
+            {/* Kite LTP — requires a verified Kite session; overlay is an optional
+                price source after login, not a substitute for authentication. */}
+            <div className={`rounded-xl border p-3 ${kiteTileCls}`}>
+              <span className="text-xs text-slate-500">Kite LTP</span>
+              <div className="flex items-center gap-1 mt-0.5">
+                {kite_verified
+                  ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                  : <XCircle className="w-3.5 h-3.5 text-rose-400" />}
+                <span className={`text-sm font-bold ${kite_verified ? "text-emerald-400" : "text-rose-400"}`}>
+                  {kite_verified ? "Live" : "Offline"}
+                </span>
+              </div>
+              <span className="text-xs text-slate-600">{kiteSourceLabel}</span>
+            </div>
+
+            {/* WATCH symbols */}
+            <div className="rounded-xl border bg-slate-900/60 border-slate-800/40 p-3">
+              <span className="text-xs text-slate-500">WATCH Symbols</span>
+              <span className="text-sm font-bold text-slate-100 block mt-0.5">{watchCount}</span>
+              <span className="text-xs text-slate-600">
+                {kite_verified ? "eligible once gates pass" : "ready once Kite live"}
+              </span>
+            </div>
+
+            {/* Eligible now */}
+            <div className={`rounded-xl border p-3 ${eligCount > 0
+              ? "bg-teal-950/40 border-teal-700/40"
+              : "bg-slate-900/60 border-slate-800/40"}`}>
+              <span className="text-xs text-slate-500">Eligible Now</span>
+              <span className={`text-sm font-bold block mt-0.5 ${eligCount > 0 ? "text-teal-300" : "text-slate-400"}`}>
+                {eligCount}
+              </span>
+              <span className="text-xs text-slate-600">passed all risk gates</span>
+            </div>
+
+            {/* Top candidate */}
+            <div className="rounded-xl border bg-slate-900/60 border-slate-800/40 p-3">
+              <span className="text-xs text-slate-500">Top Candidate</span>
+              {topCand ? (
+                <>
+                  <span className="text-sm font-bold text-amber-300 block mt-0.5">{topCand.symbol}</span>
+                  <span className="text-xs text-slate-600 font-mono">
+                    conf {topCand.confidence.toFixed(1)}% · R:R {topCand.rr_ratio.toFixed(1)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm font-bold text-slate-500 block mt-0.5">—</span>
+                  <span className="text-xs text-slate-600">waiting for scan</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Action / guidance column */}
+          <div className="flex flex-col gap-2 min-w-[220px]">
+
+            {/* NO_KITE — Kite login prompt */}
+            {cardState === "no_kite" && (
+              <>
+                <p className="text-xs text-amber-300 leading-relaxed">
+                  All settings are confirmed. A verified Kite session is required before
+                  bootstrap entries can fire — log in below. The Kite LTP overlay will
+                  then supply live execution prices once authenticated, but it cannot
+                  substitute for session authentication itself (each candidate requires
+                  kite_session_verified_flag=true before the executor will select it).
+                </p>
+                <a
+                  href="/api/kite/login"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg
+                    bg-amber-700/30 hover:bg-amber-700/50 text-amber-200
+                    border border-amber-600/50 hover:border-amber-500/60 transition-colors"
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  Authenticate Kite (Zerodha)
+                </a>
+                <p className="text-[10px] text-slate-600 leading-snug">
+                  Opens Zerodha login in a new tab. After 2FA the session is saved
+                  automatically — no restart required.
+                </p>
+              </>
+            )}
+
+            {/* SCANNING — all gates pass, no eligible candidates yet */}
+            {cardState === "scanning" && (
+              <p className="text-xs text-teal-300 leading-relaxed">
+                Kite LTP is live and all prerequisites are met. No WATCH symbols
+                currently pass the bootstrap risk gates (conf ≥ 60, R:R ≥ 1.5).
+                Bootstrap will attempt entries on the next scan when a candidate
+                clears all gates.
+                Auto-disables at {maxTrades} closed trades ({closedTrades} so far).
+              </p>
+            )}
+
+            {/* READY — eligible candidates found; executor will attempt entries */}
+            {cardState === "ready" && (
+              <p className="text-xs text-emerald-300 leading-relaxed">
+                {eligCount} WATCH symbol{eligCount !== 1 ? "s pass" : " passes"} all
+                bootstrap risk gates. The scheduler will attempt paper entries on the
+                next tick. Each candidate is still subject to per-entry checks
+                (position limits, exposure caps, existing-open-bootstrap guard) before
+                any trade is placed — eligible does not guarantee a fill.
+                Max ₹15,000 per position · paper only · no live orders.
+                Auto-disables at {maxTrades} closed trades ({closedTrades} so far).
+              </p>
+            )}
+
+            {/* Candidate mini-list */}
+            {cands.length > 1 && (
+              <div className="rounded-lg border border-slate-800/50 bg-slate-900/40 p-2">
+                <p className="text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
+                  Top Candidates
+                </p>
+                <div className="space-y-1">
+                  {cands.slice(0, 5).map(c => (
+                    <div key={c.symbol} className="flex items-center justify-between gap-2">
+                      <span className={`text-xs font-bold ${
+                        c.bootstrap_eligible ? "text-teal-300" : "text-amber-300"
+                      }`}>{c.symbol}</span>
+                      <span className="text-[10px] font-mono text-slate-500">
+                        {c.confidence.toFixed(1)}% · R:R {c.rr_ratio.toFixed(1)}
+                        {c.bootstrap_eligible && (
+                          <span className="ml-1 text-teal-400">✓</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Footer ── */}
+      <p className="text-[10px] text-slate-600 mt-3 leading-snug">
+        Bootstrap seeds the paper ledger while the 6-month backtest window fills naturally.
+        Normal BUY confidence thresholds and paper_eligible logic are unchanged.
+        {snapshot_ts && (
+          <span className="ml-1">Last scan: {istTime(snapshot_ts)} IST.</span>
+        )}
+      </p>
     </div>
   );
 }
@@ -1207,6 +2187,7 @@ function SPipelineStats() {
               <p className="text-xs font-semibold text-slate-300">
                 {data.session_message ?? "Waiting for today's first fresh scan"}
               </p>
+              <NextScanCountdown expectedIso={data.next_scan_expected_ist} />
               <p className="text-[10px] text-slate-500">
                 The latest scan is from a previous trading session.
                 BUY candidates and execution cards are hidden until a fresh scan runs today.
@@ -1810,6 +2791,79 @@ export function PnlSparkline({
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// SExitPendingAlert — amber warning when any position is stuck in EXIT_PENDING
+// ══════════════════════════════════════════════════════════════════════════════
+
+interface ExitPendingRow {
+  trade_id: string;
+  symbol: string;
+  fill_ts: string | null;
+  exit_ts: string | null;
+  exit_rule: string | null;
+  age_hours: number;
+  age_days: number;
+}
+interface ExitPendingData {
+  exit_pending_count: number;
+  stale_count: number;
+  has_stale: boolean;
+  positions: ExitPendingRow[];
+  stale_positions: ExitPendingRow[];
+}
+
+function SExitPendingAlert() {
+  const { data, isLoading } = useQuery<ExitPendingData>({
+    queryKey: ["apt", "exit-pending-alert"],
+    queryFn:  () => apiJson("/phase20/exit-pending-alert"),
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  if (isLoading || !data?.has_stale) return null;
+
+  const stale = data.stale_positions;
+  const worst = stale.reduce((a, b) => a.age_hours > b.age_hours ? a : b, stale[0]);
+
+  return (
+    <div className="rounded-xl border border-amber-700/60 bg-amber-950/30 px-4 py-3">
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-300 flex items-center gap-2 flex-wrap">
+            {stale.length} position{stale.length !== 1 ? "s" : ""} stuck in EXIT PENDING
+            <Badge className="text-xs bg-amber-900/70 border-amber-700/50 text-amber-200 px-1.5 py-0">
+              {worst.age_days.toFixed(1)}d longest
+            </Badge>
+          </p>
+          <p className="text-xs text-amber-400/80 mt-0.5">
+            Kite LTP appears unavailable — the exit engine cannot get current prices
+            to resolve these positions. They will be force-closed once{" "}
+            <code className="font-mono text-amber-300">max_holding_days</code> is exceeded,
+            or when Kite LTP comes back online. No real money is at risk.
+            {" "}<a href="#holdings-section"
+              className="underline underline-offset-2 text-amber-300 hover:text-amber-200 transition-colors">
+              See Age column ↓
+            </a>
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {stale.map(p => (
+              <span key={p.trade_id}
+                className="inline-flex items-center gap-1 text-xs font-mono bg-amber-900/40 border border-amber-700/40 text-amber-300 rounded px-2 py-0.5"
+                title={`Exit rule: ${p.exit_rule ?? "—"} | Pending since: ${p.exit_ts ?? p.fill_ts ?? "unknown"}`}>
+                <Clock className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                {p.symbol}
+                <span className="text-amber-500 font-normal">{p.age_days.toFixed(1)}d</span>
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // S4 — Current Holdings (with P&L sparklines)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -1860,6 +2914,7 @@ function S4Holdings() {
     refetchInterval: 30_000, staleTime: 15_000, retry: 1,
   });
   const list = toArr<OpenPosition>(data);
+  const nearExitCount = list.filter(p => p.near_time_exit).length;
 
   // Fetch timeline for sparkline price history — shared with S5 via same
   // query key so no extra network request is made when both are mounted.
@@ -1881,9 +2936,16 @@ function S4Holdings() {
   const priceSnapshots: Record<string, number[]> = phData?.snapshots ?? {};
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
+    <div id="holdings-section" className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <SecTitle icon={Layers} title={`Current Holdings (${list.length})`} />
+        <div className="flex items-center gap-2">
+          <SecTitle icon={Layers} title={`Current Holdings (${list.length})`} />
+          {nearExitCount > 0 && (
+            <Badge className="text-xs bg-amber-900/70 border-amber-700/50 text-amber-300 px-1.5 py-0 -mt-3">
+              {nearExitCount} near TIME_EXIT
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-3 ml-auto">
           {list.length > 0 && (
             <span className="text-xs text-slate-600 flex items-center gap-1">
@@ -1908,7 +2970,7 @@ function S4Holdings() {
                 {[
                   "Stock","Momentum","Buy Time","Buy ₹","Qty","Cur ₹",
                   "Value","P/L","P/L %","Target","S/L","Exp Ret",
-                  "Confidence","Strategy","Risk","Duration",
+                  "Confidence","Strategy","Risk","Age","Duration","Allocation",
                 ].map(h => (
                   <th key={h} className="pb-2 pr-3 text-left text-slate-500 font-medium">{h}</th>
                 ))}
@@ -1920,9 +2982,36 @@ function S4Holdings() {
                   p.stock, p.buy_price, p.current_price, tlEvents,
                   priceSnapshots[p.stock],
                 );
+                const maxHold = p.max_holding_days ?? 10;
+                const ageDays = p.holding_days;
+                const ageSrc  = p.age_ts_source ?? null;
+                const ageLabel = ageDays == null ? "—"
+                  : ageDays < 1    ? `${Math.round(ageDays * 24)}h`
+                  : `${ageDays.toFixed(1)}d`;
+                const ageNear = p.near_time_exit ?? false;
+                // Build the Age tooltip — surface which timestamp was used when
+                // fill_ts was absent so operators know the value is an estimate.
+                const ageFallbackNote = ageSrc && ageSrc !== "fill_ts"
+                  ? ` (estimated from ${ageSrc} — fill_ts unavailable)`
+                  : "";
+                const ageTitle = ageDays == null
+                  ? "Fill timestamp unavailable — age cannot be computed for this position"
+                  : ageNear
+                    ? `${ageDays.toFixed(1)}d held${ageFallbackNote} — within 2 days of max_holding_days (${maxHold}d). May be force-closed soon.`
+                    : `${ageDays.toFixed(1)} days held${ageFallbackNote} (max ${maxHold}d)`;
                 return (
                   <tr key={p.stock} className="border-b border-slate-800/30 hover:bg-slate-800/20 transition-colors">
-                    <td className="py-2 pr-3 font-bold text-slate-100">{p.stock}</td>
+                    <td className="py-2 pr-3 font-bold text-slate-100">
+                      {p.stock}
+                      {(p.trigger_source === "BOOTSTRAP_AUTO" || p.fill_model === "bootstrap_paper") && (
+                        <span
+                          className="ml-1.5 inline-flex items-center text-[8px] font-semibold bg-amber-950/70 border border-amber-600/60 text-amber-300 rounded px-1 py-0.5 leading-none align-middle"
+                          title="Bootstrap paper trade: low_evidence (backtest < 5 trades) blocked normal BUY path. Kite LTP live, all risk gates passed. Max ₹15,000 position. Paper only — no live order."
+                        >
+                          BOOTSTRAP
+                        </span>
+                      )}
+                    </td>
                     {/* ── Sparkline cell ── */}
                     <td className="py-2 pr-4">
                       <div title={`${p.stock} price trend — ${sparkPts.length} pts${priceSnapshots[p.stock]?.length ? ` (${priceSnapshots[p.stock].length} intraday snapshots)` : ""}. Entry ₹${p.buy_price.toFixed(2)} → Current ₹${p.current_price.toFixed(2)}`}>
@@ -1947,7 +3036,30 @@ function S4Holdings() {
                     <td className="py-2 pr-3 w-28"><ConfBar value={p.ai_confidence} /></td>
                     <td className="py-2 pr-3 text-violet-300">{p.strategy}</td>
                     <td className="py-2 pr-3"><RiskBadge level={p.risk_level} /></td>
+                    {/* ── Age column ── */}
+                    <td className="py-2 pr-3">
+                      <span
+                        className={`inline-flex items-center gap-1 font-mono rounded px-1.5 py-0.5 ${
+                          ageNear
+                            ? "bg-amber-900/40 border border-amber-700/50 text-amber-300"
+                            : ageDays == null
+                              ? "text-slate-600 italic"
+                              : "text-slate-400"
+                        }`}
+                        title={ageTitle}
+                      >
+                        {ageNear && <AlertTriangle className="w-3 h-3 text-amber-400 flex-shrink-0" />}
+                        {ageLabel}
+                      </span>
+                    </td>
                     <td className="py-2 pr-3 text-slate-400">{p.holding_label}</td>
+                    <td className="py-2 pr-3 align-top min-w-[280px]">
+                      {(p.allocation_tier || p.allocation_requested_multiplier) ? (
+                        <AllocationSummary data={p} />
+                      ) : (
+                        <span className="text-slate-600 text-xs italic mt-1.5 inline-block">Standard</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -2047,6 +3159,7 @@ function S6RecQueue({ data, loading }: { data?: RecsData; loading: boolean }) {
               <div><p className="text-slate-500">Hold Time</p><p className="text-slate-300">{r.estimated_holding}</p></div>
             </div>
             {r.reasoning && <p className="text-xs text-slate-500 line-clamp-2">{r.reasoning}</p>}
+            <AllocationSummary data={r} />
           </div>
         ))}
       </div>
@@ -2058,7 +3171,7 @@ function S6RecQueue({ data, loading }: { data?: RecsData; loading: boolean }) {
 // S7 — Today's Closed Trades
 // ══════════════════════════════════════════════════════════════════════════════
 
-function S7ClosedTrades({ data, loading }: { data?: unknown; loading: boolean }) {
+export function S7ClosedTrades({ data, loading }: { data?: unknown; loading: boolean }) {
   const list = toArr<ClosedPosition>(data);
   return (
     <div className="bg-slate-900/60 border border-slate-800/50 rounded-xl p-4">
@@ -2080,12 +3193,27 @@ function S7ClosedTrades({ data, loading }: { data?: unknown; loading: boolean })
             <tbody>
               {list.map((c, i) => (
                 <tr key={`${c.symbol}-${i}`} className="border-b border-slate-800/30 hover:bg-slate-800/20">
-                  <td className="py-2 pr-3 font-bold text-slate-100">{c.symbol}</td>
+                  <td className="py-2 pr-3 font-bold text-slate-100">
+                    {c.symbol}
+                    {(c.trigger_source === "BOOTSTRAP_AUTO" || c.fill_model === "bootstrap_paper") && (
+                      <span
+                        className="ml-1.5 inline-flex items-center text-[8px] font-semibold bg-amber-950/70 border border-amber-600/60 text-amber-300 rounded px-1 py-0.5 leading-none align-middle"
+                        title="Bootstrap paper trade — seeded the paper ledger when low_evidence blocked the normal BUY path. Paper only, no live order."
+                      >
+                        BOOTSTRAP
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2 pr-3 text-slate-400">{istDateTime(c.buy_time)}</td>
                   <td className="py-2 pr-3 text-slate-400">{istDateTime(c.sell_time)}</td>
                   <td className="py-2 pr-3 font-mono">₹{fmt(c.entry_price, 2)}</td>
                   <td className="py-2 pr-3 font-mono">₹{fmt(c.exit_price, 2)}</td>
-                  <td className="py-2 pr-3 font-mono">{c.quantity}</td>
+                  <td
+                    className="py-2 pr-3 font-mono"
+                    data-testid={`closed-trade-quantity-${c.symbol}`}
+                  >
+                    {closedTradeQuantityLabel(c.quantity)}
+                  </td>
                   <td className={`py-2 pr-3 font-mono font-bold ${pnlCls(c.pnl)}`}>{fmtK(c.pnl)}</td>
                   <td className={`py-2 pr-3 font-mono font-bold ${pnlCls(c.pnl_pct)}`}>{(c.pnl_pct ?? 0).toFixed(2)}%</td>
                   <td className="py-2 pr-3 text-slate-400">{c.exit_reason}</td>
@@ -2517,6 +3645,113 @@ function S11Replay() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
+// S20QualityAllocationPolicy — Compact Read-Only View of Phase 20 Settings
+// ══════════════════════════════════════════════════════════════════════════════
+
+export function QualityAllocationPolicyView({ settings: s }: { settings: Phase20Settings }) {
+  const enabled = Boolean(s.quality_allocation_override_enabled);
+  const tierClass = enabled ? "" : "opacity-60";
+
+  return (
+    <div
+      className="bg-slate-900/60 border border-blue-900/40 rounded-xl p-3 shadow-[0_0_15px_rgba(59,130,246,0.05)]"
+      data-testid="quality-allocation-policy"
+    >
+      <div className="flex flex-wrap items-center gap-4 text-xs">
+        <div className="flex items-center gap-2 border-r border-slate-800/60 pr-4">
+          <Badge
+            className={enabled
+              ? "bg-blue-900/60 text-blue-300 border-blue-700/60 px-1.5 py-0"
+              : "bg-slate-800 text-slate-400 border-slate-700 px-1.5 py-0"}
+            data-testid="quality-allocation-policy-state"
+          >
+            Q. ALLOC {enabled ? "ON" : "OFF"}
+          </Badge>
+          <span className="text-slate-400">
+            {enabled ? "Quality Allocation Policy Active" : "Normal 1x sizing only"}
+          </span>
+        </div>
+
+        <div className={`flex items-center gap-1.5 border-r border-slate-800/60 pr-4 ${tierClass}`}>
+          <Badge className="bg-blue-900/40 text-blue-400 border-blue-800/50 px-1.5 py-0 text-[10px]">
+            2X {s.quality_allocation_2x_enabled ? "ON" : "OFF"}
+          </Badge>
+          <span className="text-slate-300">
+            C/O/Q{" "}
+            <span className="font-mono text-white">
+              {s.quality_allocation_2x_min_confidence ?? "—"}/
+              {s.quality_allocation_2x_min_opportunity_score ?? "—"}/
+              {s.quality_allocation_2x_min_trade_quality_score ?? "—"}
+            </span>
+          </span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-300">R:R {s.quality_allocation_2x_min_risk_reward ?? "—"}</span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-300">Risk {s.quality_allocation_2x_risk_budget_pct ?? "—"}%</span>
+        </div>
+
+        <div className={`flex items-center gap-1.5 border-r border-slate-800/60 pr-4 ${tierClass}`}>
+          <Badge className="bg-fuchsia-900/40 text-fuchsia-400 border-fuchsia-800/50 px-1.5 py-0 text-[10px]">
+            3X {s.quality_allocation_3x_enabled ? "ON" : "OFF"}
+          </Badge>
+          <span className="text-slate-300">
+            C/O/Q{" "}
+            <span className="font-mono text-white">
+              {s.quality_allocation_3x_min_confidence ?? "—"}/
+              {s.quality_allocation_3x_min_opportunity_score ?? "—"}/
+              {s.quality_allocation_3x_min_trade_quality_score ?? "—"}
+            </span>
+          </span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-300">R:R {s.quality_allocation_3x_min_risk_reward ?? "—"}</span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-300">Risk {s.quality_allocation_3x_risk_budget_pct ?? "—"}%</span>
+          <span className="text-slate-500">|</span>
+          <span className="text-slate-400">
+            ATR≤{s.quality_allocation_3x_max_atr_pct ?? "—"}% · Stop≤{s.quality_allocation_3x_max_stop_distance_pct ?? "—"}% · 2 scans
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5 border-r border-slate-800/60 pr-4">
+          <span className="text-slate-400">
+            Abs Cap:{" "}
+            <span className="font-mono text-slate-300">
+              {s.quality_allocation_absolute_cap !== undefined
+                ? fmtK(s.quality_allocation_absolute_cap)
+                : "—"}
+            </span>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <Badge className={s.quality_allocation_3x_sector_override_enabled
+            ? "bg-amber-900/40 text-amber-400 border-amber-800/50 px-1.5 py-0 text-[10px]"
+            : "bg-slate-800 text-slate-400 border-slate-700 px-1.5 py-0 text-[10px]"}
+          >
+            SECTOR OVERRIDE {s.quality_allocation_3x_sector_override_enabled ? "ON" : "OFF"}
+          </Badge>
+          <span className="text-slate-300">
+            Cap {s.quality_allocation_3x_sector_override_cap_pct ?? "—"}%
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function S20QualityAllocationPolicy() {
+  const { data: env, isLoading } = useQuery<Phase20SettingsEnvelope>({
+    queryKey: ["apt", "p20-settings-capital"],
+    queryFn:  () => apiJson("/phase20/settings"),
+    staleTime: 60_000, retry: 1,
+  });
+
+  if (isLoading) return null;
+  const s = env?.settings;
+  return s ? <QualityAllocationPolicyView settings={s} /> : null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // S12 — Capital Reset
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -2632,6 +3867,9 @@ export default function AIPaperTraderPage() {
         {/* S0 — Autonomous Session Status */}
         <S0AutonomousSession />
 
+        {/* Quality Allocation Policy Strip */}
+        <S20QualityAllocationPolicy />
+
         {/* Pipeline Funnel — shows stocks→signals→gates→orders at a glance */}
         <SPipelineStats />
 
@@ -2646,6 +3884,12 @@ export default function AIPaperTraderPage() {
           <div className="xl:col-span-2"><S2Portfolio data={portfolio} loading={portLoad} /></div>
           <S3AIStatus portfolio={portfolio} recs={recs} />
         </div>
+
+        {/* Bootstrap Status — below Portfolio / AI Agent so it's visible on mobile */}
+        <SBootstrapStatus />
+
+        {/* EXIT_PENDING alert — shown when positions have been stuck > 24 h */}
+        <SExitPendingAlert />
 
         {/* S4 */}
         <S4Holdings />

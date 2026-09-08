@@ -94,6 +94,23 @@ class TestEmitAndQuery(PipelineEventsBase):
         pe.FALLBACK_FILE = self._tmp
         self.assertEqual(pe.query_events(scan_id="x"), [])
 
+    def test_dedupe_key_records_one_durable_event(self):
+        """A repeated safety outcome must remain one append-only event."""
+        key = "market-close-outcome:2026-08-20:P20-late-trent"
+        self.assertTrue(pe.emit(
+            "MARKET_CLOSE_EXIT_BLOCKED", "PORTFOLIO",
+            symbol="TRENT", payload={"trade_id": "P20-late-trent"},
+            dedupe_key=key,
+        ))
+        self.assertTrue(pe.emit(
+            "MARKET_CLOSE_EXIT_BLOCKED", "PORTFOLIO",
+            symbol="TRENT", payload={"trade_id": "P20-late-trent"},
+            dedupe_key=key,
+        ))
+        events = pe.query_events(event_type="MARKET_CLOSE_EXIT_BLOCKED")
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["symbol"], "TRENT")
+
     def test_query_returns_empty_on_missing_file(self):
         self.assertEqual(pe.query_events(scan_id="none"), [])
 

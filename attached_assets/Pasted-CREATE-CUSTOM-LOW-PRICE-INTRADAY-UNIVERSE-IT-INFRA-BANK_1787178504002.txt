@@ -1,0 +1,291 @@
+CREATE CUSTOM LOW-PRICE INTRADAY UNIVERSE — IT + INFRA + BANK STOCKS BELOW ₹200
+
+Goal:
+Create a new intraday trading universe for ApexQuant AI using NSE stocks priced below ₹200 from these sectors:
+1. IT / Information Technology
+2. Infrastructure
+3. Banking
+
+Reason:
+NIFTY 50 stock prices are high, resulting in low share quantity for paper trades. A low-price universe should improve position sizing, trade count, and intraday learning while keeping risk controls intact.
+
+Do not enable live orders.
+Do not call broker order APIs.
+PAPER ONLY.
+Do not remove the existing NIFTY 50 universe; add this as a selectable custom universe.
+
+TASK 1 — CREATE NEW UNIVERSE TYPE
+
+Add a new universe mode:
+
+LOW_PRICE_SECTOR_UNIVERSE
+
+Supported universe modes should become:
+- NIFTY_50
+- CUSTOM_LOW_PRICE_SECTOR
+- MANUAL_WATCHLIST, if already present
+
+The default can remain NIFTY_50 until operator switches it, or use a config flag:
+
+ACTIVE_INTRADAY_UNIVERSE=CUSTOM_LOW_PRICE_SECTOR
+
+TASK 2 — UNIVERSE SELECTION RULES
+
+Build the active stock list dynamically each morning.
+
+Universe criteria:
+- exchange = NSE
+- instrument type = EQ
+- price source = Kite LTP preferred
+- live/current price <= ₹200
+- price floor >= ₹20 to avoid extremely risky penny stocks, unless operator changes this
+- sector in allowed list:
+  - IT
+  - Information Technology
+  - Software
+  - Technology
+  - Infrastructure
+  - Construction
+  - Power
+  - Telecom
+  - Railways
+  - Ports
+  - Roads
+  - Utilities
+  - Banks
+  - Banking
+  - PSU Bank
+  - Private Bank
+- must have OHLCV history available in local cache or yfinance fallback
+- must pass liquidity filter
+- must not be suspended
+- must not be in ASM/GSM/illiquid risk list if available
+- must not have extreme spread if bid/ask data is available
+
+TASK 3 — LIQUIDITY FILTER
+
+For intraday, do not include low-volume junk stocks only because price is below ₹200.
+
+Add filters:
+- min_avg_daily_volume_20d
+- min_avg_daily_turnover_20d
+- min_today_volume after market open
+- max_spread_pct if bid/ask is available
+- exclude stocks with repeated upper/lower circuit behavior
+- exclude symbols with missing OHLCV history
+
+Suggested defaults:
+- min price: ₹20
+- max price: ₹200
+- min 20-day average volume: 5,00,000 shares
+- min 20-day average turnover: ₹5 crore
+- max bid/ask spread: 0.30% if available
+- require at least 120 daily bars
+
+TASK 4 — SOURCE OF STOCK LIST
+
+Create a new local table:
+
+custom_universe_master:
+- symbol
+- yahoo_symbol
+- kite_symbol
+- instrument_token
+- company_name
+- sector
+- industry
+- allowed_universe
+- price_min
+- price_max
+- is_active
+- reason_included
+- reason_excluded
+- last_ltp
+- last_ltp_source
+- avg_volume_20d
+- avg_turnover_20d
+- ohlcv_available
+- last_verified_at
+- created_at
+- updated_at
+
+Seed this table from:
+- Kite instruments dump for NSE EQ symbols
+- local company/sector master if available
+- yfinance sector/company info as fallback
+- manual curated sector mapping where automated sector is missing
+
+TASK 5 — DAILY UNIVERSE REFRESH
+
+Add daily job:
+
+refresh_low_price_sector_universe()
+
+Run:
+- pre-market around 08:45–09:05 IST
+- again after first market scan using live Kite LTP
+- optionally post-market for tomorrow preparation
+
+Flow:
+1. Load all NSE EQ instruments.
+2. Filter sector = IT / Infra / Bank.
+3. Fetch Kite LTP in batches.
+4. Keep only ₹20–₹200 stocks.
+5. Verify 120+ OHLCV bars.
+6. Calculate 20-day average volume and turnover.
+7. Apply liquidity filter.
+8. Write active list to custom_universe_master.
+9. Emit LOW_PRICE_UNIVERSE_REFRESH_COMPLETED event.
+10. Display included/excluded counts.
+
+TASK 6 — DO NOT USE STATIC PRICE LIST
+
+Do not hardcode a permanent “below ₹200” list.
+
+Prices move. A stock that is ₹198 today may be ₹205 tomorrow.
+The active universe must be recalculated daily using Kite LTP.
+
+However, allow a manual seed list for initial testing, but final production universe must be dynamic.
+
+TASK 7 — SCANNER INTEGRATION
+
+Modify the scanner so it can use the selected universe.
+
+If ACTIVE_INTRADAY_UNIVERSE=NIFTY_50:
+- use existing NIFTY 50 universe
+
+If ACTIVE_INTRADAY_UNIVERSE=CUSTOM_LOW_PRICE_SECTOR:
+- use active rows from custom_universe_master
+- scan only symbols with is_active=true
+- show active count on Mission Control
+
+The scan output should show:
+- universe name
+- active symbol count
+- included sectors
+- price range
+- symbols removed due price > ₹200
+- symbols removed due low liquidity
+- symbols removed due missing OHLCV
+- symbols removed due Kite LTP unavailable
+
+TASK 8 — CACHE INTEGRATION
+
+Integrate with OHLCV cache.
+
+For every symbol in custom universe:
+- check daily_ohlcv_cache
+- if missing, fetch and store using yfinance fallback
+- if unavailable, exclude from active universe
+- do not slow down live scans by full yfinance fetch during market hours
+- prefill cache pre-market or post-market
+
+Add:
+- custom_universe_ohlcv_cache_status
+- cache hit rate
+- missing history count
+- stale history count
+
+TASK 9 — RISK AND POSITION SIZING
+
+Keep all existing risk rules:
+- capital = ₹100,000, if migration is complete
+- per-stock cap = 25%
+- sector cap = 40%
+- portfolio deployed cap = 80%
+- risk per trade = 1%
+- daily loss limit = 3%
+- bootstrap cap = ₹15,000 unless changed
+- allocation override 2x/3x only if already implemented and all gates pass
+
+Important:
+Low price does not automatically mean high allocation.
+The stock must still pass:
+- confidence
+- opportunity score
+- R:R
+- stop-loss risk
+- liquidity
+- spread
+- data quality
+- quote reliability
+- circuit breaker
+- duplicate position guard
+
+TASK 10 — UI CHANGES
+
+Update Mission Control / AI Paper Trader / Live Data Health:
+
+Show:
+- Active Universe: CUSTOM_LOW_PRICE_SECTOR
+- Price filter: ₹20–₹200
+- Sectors: IT, Infra, Bank
+- Active symbols count
+- Included symbols list
+- Excluded symbols list with reasons
+- OHLCV cache status
+- Kite LTP status
+- liquidity status
+- top candidates under ₹200
+- quantity impact compared to NIFTY 50
+
+Add a page/card:
+“Low Price Universe Builder”
+
+It should show:
+- refresh universe button
+- last refresh time
+- active symbols
+- removed symbols
+- price, sector, volume, turnover
+- whether symbol is eligible for scan
+
+TASK 11 — BACKTESTING
+
+Backtesting should support:
+- NIFTY_50 universe
+- CUSTOM_LOW_PRICE_SECTOR universe
+- date-specific universe membership
+
+Avoid lookahead:
+- if backtesting historical date, use only stocks that would have qualified on that date using historical close/volume data
+- do not use today’s price filter for old backtests unless explicitly running “current universe backtest”
+
+TASK 12 — TESTS
+
+Add tests:
+1. Custom universe filters NSE EQ stocks only.
+2. Price filter keeps ₹20–₹200 only.
+3. IT sector stocks are included.
+4. Infrastructure sector stocks are included.
+5. Bank sector stocks are included.
+6. Low-liquidity stocks are excluded.
+7. Missing OHLCV stocks are excluded.
+8. Kite LTP unavailable excludes or warns correctly.
+9. Scanner uses custom universe when configured.
+10. Scanner still supports NIFTY_50 mode.
+11. UI reports correct active count.
+12. No live broker order API called.
+13. Risk caps still apply.
+14. Backtest uses correct universe without lookahead.
+
+TASK 13 — REPORT
+
+Generate:
+
+APEXQUANT_CUSTOM_LOW_PRICE_IT_INFRA_BANK_UNIVERSE_REPORT.md
+
+Include:
+1. Why NIFTY 50 is not ideal for current intraday sizing.
+2. Final universe design.
+3. Active stock list below ₹200.
+4. Sector split: IT / Infra / Bank.
+5. Price, volume, turnover for every included stock.
+6. Excluded symbols and reasons.
+7. OHLCV cache status.
+8. Kite LTP verification.
+9. Scanner integration.
+10. UI/API changes.
+11. Test results.
+12. Production readiness.
+13. Confirmation no live orders.

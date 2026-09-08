@@ -1,0 +1,317 @@
+TASK #948 — DEPLOY AND VERIFY TASK #947 PRE-FREEZE TIMING FIX
+
+GOAL:
+
+Safely deploy the already-implemented Task #947 pre-freeze lifecycle correction
+and prove that production contains the new timing/freeze contract without
+triggering any Phase 5A lifecycle manually.
+
+TASK #947 APPROVED BEHAVIOR:
+
+1. Automatic Phase 5A collection runs from 09:00 up to but not including
+   09:12 IST.
+
+2. No automatic collection occurs during 09:12–09:15 matching/transition.
+
+3. Scheduler-origin collections persist:
+   origin = SCHEDULED
+
+4. Direct/refresh collections persist:
+   origin = MANUAL
+
+5. Final certificate candidate must:
+   - be SCHEDULED
+   - complete on the current trading date
+   - complete between 09:08:00 inclusive and 09:12:00 exclusive
+   - have expected = provider = persisted
+   - have failed = 0
+   - have persistence_status = MATCH
+   - contain exact batch-ID parity
+   - contain explicit LIVE / is_stale=false rows
+   - contain complete immutable outcome evidence
+
+6. Freeze at 09:15 uses that exact final-proof batch.
+
+7. The normal NSE timestamp freshness rule remains:
+   age < 300 seconds = eligible
+   age >= 300 seconds = stale
+
+DO NOT:
+- weaken freshness thresholds
+- manually run Phase 5A
+- manually freeze
+- replay/retry/backfill prior sessions
+- change universe
+- change provider scope
+- change trading settings
+- enable automatic entries
+- enable bootstrap
+- enable controlled execution
+- enable live broker orders
+- modify portfolio/ledger
+- rewrite Task #930 evidence
+
+==================================================
+1. SOURCE / DIFF REVIEW
+==================================================
+
+Identify:
+
+current HEAD
+Task #947 commit
+files changed
+
+Confirm the runtime diff is limited to the intended:
+
+pre-open scheduling
+origin/provenance
+freeze-authority validation
+tests/documentation
+
+Report any unrelated runtime changes.
+
+STOP if unrelated trading/execution changes are mixed in.
+
+==================================================
+2. VERIFY TIMING LOGIC
+==================================================
+
+Source-inspect and prove:
+
+09:00 <= automatic collection time < 09:12
+
+and:
+
+09:12 <= time < 09:15
+does NOT create a new automatic Phase 5A collection.
+
+Verify 09:15 freeze does not initiate a new provider collection.
+
+==================================================
+3. VERIFY FINAL-PROOF WINDOW
+==================================================
+
+Source-inspect and prove freeze candidate requires:
+
+09:08:00 <= completed_at < 09:12:00
+
+origin = SCHEDULED
+
+same trading date
+
+persistence_status = MATCH
+
+exact expected/live/persisted symbol parity
+
+complete outcome matrix
+
+explicit LIVE evidence
+
+is_stale = false
+
+same exact collection batch ID
+
+==================================================
+4. MANUAL ORIGIN SEPARATION
+==================================================
+
+Confirm:
+
+automatic intelligence tick -> SCHEDULED
+
+public/direct/refresh path -> MANUAL
+
+A MANUAL batch must never be promotable to the 09:15 certificate.
+
+==================================================
+5. REGRESSION TEST GATE
+==================================================
+
+Re-run at minimum:
+
+pre-open lifecycle/custom-universe tests
+pre-open intelligence tick tests
+NSE provider/timestamp tests
+persistence/freeze tests
+readiness tests
+market-data authority tests
+Phase20 safety tests
+portfolio/ledger tests
+Python compilation
+API TypeScript
+dashboard TypeScript
+dashboard full test suite
+production build
+
+Expected prior evidence includes:
+
+47 lifecycle/coverage passed
+88 intelligence/provider tests passed
+59 core pre-open passed
+62 Phase20 passed
+48 market-data/portfolio group passed
+91 readiness passed
+1007 dashboard tests passed
+
+Require zero unexpected failures.
+
+==================================================
+6. APPROVED DEPLOY COMMIT
+==================================================
+
+Only after all gates pass:
+
+APPROVED_DEPLOY_COMMIT = <full SHA>
+EXPECTED_BUILD_ID = apexquant-<first12>
+
+Report exact runtime files in this commit.
+
+==================================================
+7. CONTROLLED PUBLISH
+==================================================
+
+Deploy only the approved Task #947 commit.
+
+Do not trigger any lifecycle after deployment.
+
+==================================================
+8. PRODUCTION IDENTITY
+==================================================
+
+READ ONLY.
+
+Verify:
+
+environment = production
+git_commit = APPROVED_DEPLOY_COMMIT
+build_id = EXPECTED_BUILD_ID
+deployment_id = present
+
+UI/API identity must match where exposed.
+
+Any identity mismatch:
+STOP.
+
+==================================================
+9. RUNTIME TIMING PRESENCE
+==================================================
+
+Without waiting for or manually triggering Phase 5A, verify deployed
+configuration/source/runtime contains:
+
+collection stop boundary = 09:12
+final-proof window = 09:08–09:12
+freeze boundary = 09:15
+automatic origin = SCHEDULED
+manual/refresh origin = MANUAL
+
+Do not invoke a collection to prove this.
+
+==================================================
+10. SAFETY BASELINE
+==================================================
+
+READ ONLY.
+
+Confirm:
+
+active universe = CUSTOM_LOW_PRICE_SECTOR
+active count = 23
+mapping coverage = 23/23
+
+automatic paper entries = false
+entry confirmation = null
+bootstrap = false
+automatic exits = true
+controlled execution = disabled
+execution_allowed = false
+live broker orders = disabled
+mode = PAPER_TRADING / RESEARCH ONLY
+
+portfolio source = phase20_ledger
+open positions = 0
+EXIT_PENDING = 0
+six historical closed trades preserved
+
+==================================================
+11. HISTORICAL PRESERVATION
+==================================================
+
+Confirm the failed 2026-08-27 Task #930 session remains unchanged.
+
+Do not reclassify it.
+
+It must remain:
+
+FAILED / NOT CERTIFIED
+
+with:
+frozen_collection_batch = null
+
+No replay
+No retry
+No backfill
+
+==================================================
+12. NEXT NATURAL SESSION GATE
+==================================================
+
+Prepare the next natural pre-open observation.
+
+Required sequence:
+
+09:00–<09:12:
+natural SCHEDULED collections allowed
+
+09:08–<09:12:
+one qualifying fully live exact batch may become final-proof candidate
+
+09:12–09:15:
+NO new automatic Phase 5A collection
+
+09:15:
+freeze must independently re-read and freeze that exact final-proof batch
+
+Certification requires:
+
+expected = 23
+live = 23
+persisted = 23
+outcomes = 23
+missing = 0
+duplicate = 0
+malformed = 0
+unexpected = 0
+failed = 0
+source_status = LIVE
+is_stale = false at capture
+persistence_status = MATCH
+verified batch = final-proof batch
+frozen batch = same final-proof batch
+
+==================================================
+13. OUTPUT
+==================================================
+
+Create:
+
+TASK_948_DEPLOY_SCOPE_AND_TEST_REPORT.md
+TASK_948_RUNTIME_IDENTITY_AND_SAFETY.md
+TASK_948_TASK947_PRODUCTION_PRESENCE.md
+TASK_948_NEXT_NATURAL_PREOPEN_GATE.md
+
+FINAL VERDICT:
+
+A. PASS — TASK #947 DEPLOYED, NEXT NATURAL SESSION READY
+B. SOURCE SCOPE FAILURE
+C. TEST FAILURE
+D. DEPLOYMENT IDENTITY FAILURE
+E. TIMING CONTRACT NOT PRESENT
+F. FREEZE CONTRACT NOT PRESENT
+G. SAFETY REGRESSION
+
+FINAL RULE:
+
+Do not manually exercise Phase 5A to prove the deployment.
+Deployment verification must remain read-only.
+The next natural NSE pre-open session is the only permitted certification test.

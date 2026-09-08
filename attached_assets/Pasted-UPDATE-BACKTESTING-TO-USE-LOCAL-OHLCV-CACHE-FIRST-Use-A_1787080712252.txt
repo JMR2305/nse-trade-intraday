@@ -1,0 +1,82 @@
+UPDATE BACKTESTING TO USE LOCAL OHLCV CACHE FIRST
+
+Use APEXQUANT_OHLCV_CACHE_MIGRATION_SUMMARY.md as the controlling document.
+
+Do not change live trading rules.
+Do not enable live orders.
+PAPER ONLY.
+
+Current state:
+- Live scans now use daily_ohlcv_cache first.
+- yfinance is fallback for missing cache.
+- Backtest engine is still unchanged and uses its own historical_data_engine / in-memory cache.
+- New cache tests confirm as-of date slicing is supported with no lookahead.
+
+Goal:
+Backtesting should use the same persistent local OHLCV cache as live scans.
+
+TASK 1 — AUDIT CURRENT BACKTEST PATH
+
+Find:
+- backtesting_engine.py
+- historical_data_engine.py
+- validation/replay engines
+- any yf.download/yfinance usage in backtesting
+
+Report:
+- what source backtesting uses now
+- whether it fetches yfinance directly
+- whether it uses in-memory cache only
+- whether it can read daily_ohlcv_cache today
+
+TASK 2 — CHANGE BACKTEST DATA SOURCE
+
+Implement this priority:
+
+1. daily_ohlcv_cache
+2. yfinance fallback for missing ranges
+3. write fetched missing ranges back to daily_ohlcv_cache
+4. fail clearly if neither cache nor yfinance can provide data
+
+TASK 3 — NO LOOKAHEAD
+
+For every backtest run:
+- load only bars with trading_date <= backtest evaluation date
+- never use future rows
+- log cache date range used
+- log first_date, last_date, bars_used
+- include source label in backtest report
+
+TASK 4 — PRESERVE EVENT ISOLATION
+
+Backtest/replay events must remain isolated:
+- use emit_replay / BACKTEST mode
+- no live ORDER_* contamination
+- no P20 live-paper ledger mutation
+- no broker API calls
+
+TASK 5 — TESTS
+
+Add tests:
+1. Backtest reads from daily_ohlcv_cache when cache is complete.
+2. Backtest fetches only missing ranges from yfinance.
+3. Backtest writes fetched missing data back to cache.
+4. Backtest as-of slicing prevents lookahead.
+5. Backtest events remain BACKTEST/REPLAY only.
+6. Live paper ledger is not mutated.
+7. No live broker API called.
+
+TASK 6 — REPORT
+
+Generate:
+APEXQUANT_BACKTESTING_LOCAL_OHLCV_CACHE_INTEGRATION_REPORT.md
+
+Include:
+1. Current backtest data source before change.
+2. Files changed.
+3. New cache-first data path.
+4. yfinance fallback policy.
+5. No-lookahead proof.
+6. Event isolation proof.
+7. Test results.
+8. Confirmation no live orders.

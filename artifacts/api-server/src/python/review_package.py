@@ -240,6 +240,20 @@ def _implementation_summary(t15: dict, t16: dict, t17: dict, t18: dict, t19: dic
   auto paper entries default OFF and require the exact typed confirmation "ENABLE PAPER ONLY".
   No real Zerodha orders are possible. PAPER / RESEARCH ONLY.
 
+## Phase 4A controlled paper-entry framework (disabled)
+- **Review-only controls** — the controlled-entry framework is disabled by default,
+  dry-run-only when later reviewed, requires Phase 1H PASS and operator approval,
+  and never contains an entry, broker, settings-write, scheduler, or live-order path.
+- **Readiness evidence** — a pure checker accepts caller-supplied evidence only and
+  returns GO_FOR_OPERATOR_REVIEW, NO_GO, or BLOCKED. It does not load production
+  state or change configuration.
+- **Dry-run bridge** — advisory candidates can be estimated in memory with the
+  visible marker "DRY RUN ONLY — NOT A TRADE — NOT AN ORDER"; outputs contain no
+  executable quantity or order payload.
+- **Status surface** — the optional status route is 404 by default and remains
+  authenticated/read-only when explicitly enabled. It reports BLOCKED until a
+  future operator supplies separately reviewed evidence.
+
 ## Phase 22 final production fix (latest — session sharing & scan performance)
 - **Daily Zerodha session model** — Kite tokens expire at the next 06:00 IST after
   creation. Expiry checks are fail-safe: a missing or unparseable token timestamp is
@@ -652,6 +666,12 @@ def build_package(screenshots_dir: str | None = None) -> dict:
                 phase22_summary or {"available": False, "reason": INSUFFICIENT})
     _write_json(os.path.join(json_dir, "phase22_daily_report.json"),
                 phase22_daily or {"available": False, "reason": INSUFFICIENT})
+    _write_json(os.path.join(json_dir, "phase4a_controlled_entry_status.json"), {
+        "available": False,
+        "reason": "Disabled-by-default review framework; no runtime evidence or entry activity is generated.",
+        "dry_run_only": True,
+        "execution_allowed": False,
+    })
 
     # 4/5. Reports
     open(os.path.join(PACKAGE_DIR, "implementation_summary.md"), "w").write(
@@ -707,6 +727,8 @@ def build_package(screenshots_dir: str | None = None) -> dict:
          "Phase 19 — Route /kite-connect; read-only; no order placement"],
         ["Mobile responsive sidebar (hamburger menu)", "Yes", "Yes", "Yes",
          "Phase 19 — slide-in sidebar + overlay backdrop on mobile"],
+        ["Controlled paper-entry re-enable framework", "Yes", "Yes", "Yes",
+         "Phase 4A — disabled by default; read-only readiness, dry-run estimates, no execution path"],
         ["Auto paper trading engine (default OFF, exact confirmation)", "Yes", "Yes", "Yes",
          "Phase 20 — EXIT_PENDING on stale data; one OPEN trade per symbol (DB unique index)"],
         ["Advisory analytics (advisory-only flags, no auto changes)", "Yes", "Yes", "Yes",
@@ -750,7 +772,11 @@ def build_package(screenshots_dir: str | None = None) -> dict:
     # 7. test_results.csv
     t13 = _run_tests("test_phase13.py")
     t14 = _run_tests("test_phase14.py")
+    t4a_controlled_entry = _run_tests("tests/unit/test_phase4a_controlled_paper_entry.py")
     test_rows = [
+        ["Unit Tests — Phase 4A controlled-entry safety suite",
+         t4a_controlled_entry["passed"] if t4a_controlled_entry["ran"] else NA,
+         t4a_controlled_entry["failed"] if t4a_controlled_entry["ran"] else NA, 0],
         ["Unit Tests — Phase 22 session & bulk-fetch suite", t22s["passed"] if t22s["ran"] else NA,
          t22s["failed"] if t22s["ran"] else NA, 0],
         ["Unit Tests — Phase 22 suite", t22["passed"] if t22["ran"] else NA,

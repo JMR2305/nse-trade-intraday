@@ -73,6 +73,9 @@ router.post("/backtest/run", async (req, res) => {
       capital: Number(b.capital) || 100000,
       symbols: Array.isArray(b.symbols) && b.symbols.length ? b.symbols : undefined,
       universe: b.universe || "configured",
+      universe_mode: b.universe_mode || undefined,
+      as_of_date: b.as_of_date || undefined,
+      allow_current_universe_fallback: b.allow_current_universe_fallback === true,
       // Capital-deployment settings (all optional; defaults preserve
       // historical behaviour — scale-in OFF, 1% risk, 25% cap).
       sizing: b.sizing && typeof b.sizing === "object" ? b.sizing : undefined,

@@ -251,6 +251,317 @@ def insert_missed_opp(scan_id: str, symbol: str, record: Dict[str, Any],
     return _with_db(in_db, in_file)
 
 
+# ── Phase 2B advisory multi-bot audit store (append-only) ─────────────────────
+#
+# These records are deliberately separate from Phase 20 trade, position, and
+# portfolio state.  They store only advisory evidence and have no update/delete
+# API.  The explicit allow-list below prevents the generic writer from being
+# pointed at any other table.
+
+ADVISORY_OUTPUTS_FILE = os.path.join(_DIR, "advisory_bot_outputs.json")
+ADVISORY_STRATEGY_SCORES_FILE = os.path.join(_DIR, "advisory_strategy_scores.json")
+ADVISORY_DECISION_AUDIT_FILE = os.path.join(_DIR, "advisory_decision_audit.json")
+ADVISORY_UNIVERSE_HEALTH_FILE = os.path.join(_DIR, "advisory_universe_health.json")
+
+ADVISORY_TABLES = frozenset({
+    "advisory_bot_outputs",
+    "advisory_strategy_scores",
+    "advisory_decision_audit",
+    "advisory_universe_health",
+})
+_ADVISORY_FILES = {
+    "advisory_bot_outputs": ADVISORY_OUTPUTS_FILE,
+    "advisory_strategy_scores": ADVISORY_STRATEGY_SCORES_FILE,
+    "advisory_decision_audit": ADVISORY_DECISION_AUDIT_FILE,
+    "advisory_universe_health": ADVISORY_UNIVERSE_HEALTH_FILE,
+}
+_ADVISORY_DECISIONS = (
+    "WATCH",
+    "CANDIDATE",
+    "REJECTED",
+    "BLOCKED_DATA_QUALITY",
+    "INSUFFICIENT_CONTEXT",
+    "SUPERVISOR_BLOCKED",
+)
+_ADVISORY_REQUIRED = (
+    "timestamp", "scan_id", "symbol", "bot_name", "strategy_name",
+    "score", "decision", "reason", "data_quality", "risk_flags",
+    "build_id", "config_hash", "advisory_only", "paper_only",
+)
+
+
+def _ensure_advisory_schema(conn) -> None:
+    """Create Phase 2B advisory tables only; never references Phase 20 tables."""
+    with conn.cursor() as cur:
+        for table, unique_key in (
+            (
+                "advisory_bot_outputs",
+                "scan_id, bot_name, symbol, strategy_name, build_id, config_hash",
+            ),
+            (
+                "advisory_strategy_scores",
+                "scan_id, symbol, strategy_name, build_id, config_hash",
+            ),
+            (
+                "advisory_decision_audit",
+                "scan_id, symbol, build_id, config_hash",
+            ),
+            (
+                "advisory_universe_health",
+                "scan_id, build_id, config_hash",
+            ),
+        ):
+            cur.execute(f"""
+                CREATE TABLE IF NOT EXISTS {table} (
+                    id              TEXT PRIMARY KEY,
+                    observed_at     TIMESTAMPTZ NOT NULL,
+                    scan_id         TEXT NOT NULL,
+                    symbol          TEXT NOT NULL,
+                    bot_name        TEXT NOT NULL,
+                    strategy_name   TEXT NOT NULL,
+                    score           NUMERIC(8,2) NOT NULL,
+                    decision        TEXT NOT NULL CHECK (
+                        decision IN (
+                            'WATCH', 'CANDIDATE', 'REJECTED',
+                            'BLOCKED_DATA_QUALITY', 'INSUFFICIENT_CONTEXT',
+                            'SUPERVISOR_BLOCKED'
+                        )
+                    ),
+                    reason          TEXT NOT NULL,
+                    data_quality    JSONB NOT NULL,
+                    risk_flags      JSONB NOT NULL,
+                    build_id        TEXT NOT NULL,
+                    config_hash     TEXT NOT NULL,
+                    advisory_only   BOOLEAN NOT NULL DEFAULT TRUE CHECK (advisory_only IS TRUE),
+                    paper_only      BOOLEAN NOT NULL DEFAULT TRUE CHECK (paper_only IS TRUE),
+                    record          JSONB NOT NULL,
+                    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                    UNIQUE ({unique_key})
+                )
+            """)
+            for column in ("advisory_only", "paper_only"):
+                cur.execute(f"""
+                    ALTER TABLE {table}
+                    ADD COLUMN IF NOT EXISTS {column} BOOLEAN NOT NULL DEFAULT TRUE
+                """)
+                constraint = f"ck_{table}_{column}_true"
+                cur.execute(
+                    "SELECT 1 FROM pg_constraint WHERE conname = %s",
+                    (constraint,),
+                )
+                if cur.fetchone() is None:
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM {table} "
+                        f"WHERE {column} IS DISTINCT FROM TRUE"
+                    )
+                    invalid_count = int(cur.fetchone()[0])
+                    if invalid_count:
+                        raise ValueError(
+                            f"{table} contains {invalid_count} rows without {column}=true; "
+                            f"refusing to add the {column} constraint"
+                        )
+                    cur.execute(
+                        f"ALTER TABLE {table} ADD CONSTRAINT {constraint} "
+                        f"CHECK ({column} IS TRUE)"
+                    )
+    conn.commit()
+
+
+def _advisory_record_id(table: str, record: Dict[str, Any]) -> str:
+    """Stable idempotency key for immutable advisory evidence."""
+    material = {
+        "table": table,
+        "scan_id": record["scan_id"],
+        "symbol": record["symbol"],
+        "bot_name": record["bot_name"],
+        "strategy_name": record["strategy_name"],
+        "build_id": record["build_id"],
+        "config_hash": record["config_hash"],
+    }
+    import hashlib
+    digest = hashlib.sha256(
+        json.dumps(material, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return f"ADV:{digest}"
+
+
+def _validate_advisory_record(table: str, record: Dict[str, Any]) -> Dict[str, Any]:
+    if table not in ADVISORY_TABLES:
+        raise ValueError(f"table is not approved for advisory storage: {table}")
+    # Direct callers are held to the same boundary as audit_bot.  This prevents
+    # storage from becoming an escape hatch around supervisor validation.
+    from advisory_bots.contracts import assert_advisory_output
+    assert_advisory_output(record)
+    missing = [key for key in _ADVISORY_REQUIRED if key not in record or record[key] is None]
+    if missing:
+        raise ValueError(f"missing advisory fields: {', '.join(missing)}")
+    if record.get("paper_only") is not True:
+        raise ValueError("paper_only=true is required")
+    if record.get("advisory_only") is not True:
+        raise ValueError("advisory_only=true is required")
+    if record.get("decision") not in _ADVISORY_DECISIONS:
+        raise ValueError("decision is not an approved advisory value")
+    if not isinstance(record.get("risk_flags"), list):
+        raise ValueError("risk_flags must be a list")
+    try:
+        score = float(record["score"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError("score must be numeric") from exc
+    if score < 0 or score > 100:
+        raise ValueError("score must be between 0 and 100")
+    clean = dict(record)
+    clean["score"] = round(score, 2)
+    clean["id"] = clean.get("id") or _advisory_record_id(table, clean)
+    return clean
+
+
+def _insert_advisory_row(cur, table: str, clean: Dict[str, Any]) -> bool:
+    cur.execute(
+        f"""INSERT INTO {table} (
+            id, observed_at, scan_id, symbol, bot_name, strategy_name,
+            score, decision, reason, data_quality, risk_flags,
+            build_id, config_hash, advisory_only, paper_only, record
+        ) VALUES (
+            %(id)s, %(timestamp)s, %(scan_id)s, %(symbol)s, %(bot_name)s,
+            %(strategy_name)s, %(score)s, %(decision)s, %(reason)s,
+            %(data_quality)s, %(risk_flags)s, %(build_id)s, %(config_hash)s,
+            %(advisory_only)s, %(paper_only)s, %(record)s
+        ) ON CONFLICT DO NOTHING""",
+        {
+            **clean,
+            "data_quality": json.dumps(clean["data_quality"], default=str),
+            "risk_flags": json.dumps(clean["risk_flags"], default=str),
+            "record": json.dumps(clean, default=str),
+        },
+    )
+    return cur.rowcount == 1
+
+
+def _write_advisory_file_batch(staged: Dict[str, List[Dict[str, Any]]]) -> None:
+    """Best-effort all-or-restore transaction for JSON fallback files."""
+    transaction_id = uuid.uuid4().hex
+    temporary: Dict[str, str] = {}
+    backups: Dict[str, str] = {}
+    existed: Dict[str, bool] = {}
+    replaced: List[str] = []
+    try:
+        for table, rows in staged.items():
+            path = _ADVISORY_FILES[table]
+            temporary[table] = f"{path}.{transaction_id}.tmp"
+            existed[table] = os.path.exists(path)
+            if existed[table]:
+                backups[table] = f"{path}.{transaction_id}.bak"
+                with open(path, "rb") as source, open(backups[table], "wb") as target:
+                    target.write(source.read())
+            with open(temporary[table], "w") as output:
+                json.dump(rows, output, indent=1, default=str)
+        for table in staged:
+            os.replace(temporary[table], _ADVISORY_FILES[table])
+            replaced.append(table)
+    except Exception:
+        for table in reversed(replaced):
+            path = _ADVISORY_FILES[table]
+            if existed[table]:
+                os.replace(backups[table], path)
+            elif os.path.exists(path):
+                os.unlink(path)
+        raise
+    finally:
+        for path in [*temporary.values(), *backups.values()]:
+            if os.path.exists(path):
+                os.unlink(path)
+
+
+def insert_advisory_batch(records_by_table: Dict[str, List[Dict[str, Any]]]) -> Dict[str, int]:
+    """Append a complete advisory audit batch atomically or not at all.
+
+    Every record is validated before a database transaction or fallback file
+    replacement begins.  PostgreSQL uses one commit for all four advisory
+    tables; the JSON fallback stages every file and restores any replaced file
+    if a write fails.
+    """
+    normalized: Dict[str, List[Dict[str, Any]]] = {}
+    for table, records in records_by_table.items():
+        if table not in ADVISORY_TABLES:
+            raise ValueError(f"table is not approved for advisory storage: {table}")
+        if not isinstance(records, list):
+            raise ValueError("advisory batch records must be lists")
+        normalized[table] = [_validate_advisory_record(table, record) for record in records]
+    if not normalized:
+        return {table: 0 for table in ADVISORY_TABLES}
+
+    def in_db() -> Dict[str, int]:
+        conn = _connect()
+        try:
+            _ensure_advisory_schema(conn)
+            inserted = {table: 0 for table in ADVISORY_TABLES}
+            with conn.cursor() as cur:
+                for table, records in normalized.items():
+                    for record in records:
+                        if _insert_advisory_row(cur, table, record):
+                            inserted[table] += 1
+            conn.commit()
+            return inserted
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def in_file() -> Dict[str, int]:
+        staged: Dict[str, List[Dict[str, Any]]] = {}
+        inserted = {table: 0 for table in ADVISORY_TABLES}
+        for table, records in normalized.items():
+            rows = _read_json(_ADVISORY_FILES[table], [])
+            ids = {row.get("id") for row in rows}
+            staged_rows = list(rows)
+            for record in records:
+                if record["id"] not in ids:
+                    staged_rows.append(record)
+                    ids.add(record["id"])
+                    inserted[table] += 1
+            if inserted[table]:
+                staged[table] = staged_rows
+        if staged:
+            _write_advisory_file_batch(staged)
+        return inserted
+
+    return in_db() if db_available() else in_file()
+
+
+def insert_advisory_record(table: str, record: Dict[str, Any]) -> bool:
+    """Append one advisory record through the same atomic batch boundary."""
+    return bool(insert_advisory_batch({table: [record]}).get(table))
+
+
+def list_advisory_records(table: str, limit: int = 500) -> List[Dict[str, Any]]:
+    """Read advisory evidence.  No update or delete operation exists."""
+    if table not in ADVISORY_TABLES:
+        raise ValueError(f"table is not approved for advisory storage: {table}")
+    limit = max(1, min(int(limit), 5_000))
+
+    def in_db(conn):
+        _ensure_advisory_schema(conn)
+        with conn.cursor() as cur:
+            cur.execute(
+                f"""SELECT record FROM {table}
+                    ORDER BY observed_at DESC, created_at DESC LIMIT %s""",
+                (limit,),
+            )
+            rows = cur.fetchall()
+        out = []
+        for (record,) in rows:
+            out.append(json.loads(record) if isinstance(record, str) else record)
+        return out
+
+    def in_file():
+        rows = _read_json(_ADVISORY_FILES[table], [])
+        rows.sort(key=lambda item: str(item.get("timestamp") or ""), reverse=True)
+        return rows[:limit]
+
+    return _with_db(in_db, in_file)
+
+
 def list_missed_opps(limit: int = 500) -> List[Dict[str, Any]]:
     def in_db(conn):
         with conn.cursor() as cur:

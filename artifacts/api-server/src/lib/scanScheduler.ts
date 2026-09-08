@@ -3,6 +3,7 @@ import path from "path";
 import { logger } from "./logger";
 import { PYTHON_DIR, PYTHON_BIN } from "./python-env";
 import { dispatchSignalPushNotifications, processPushDeliveryQueue } from "./pushNotifier";
+import { eventBus } from "./events";
 
 // Phase 20 — market-hours auto-scan scheduler.
 //
@@ -22,6 +23,11 @@ import { dispatchSignalPushNotifications, processPushDeliveryQueue } from "./pus
 // Paper trading / research only — no live orders anywhere.
 
 const TICK_INTERVAL_MIN = 1;
+// A scan can legitimately take 7–22 minutes when the cold cache fallback is
+// needed, and scheduled_scan_tick also owns paper position management. Never
+// terminate or overlap that transactional child from Node. Report a prolonged
+// run promptly while retaining the lane until the child actually exits.
+const SCHEDULED_SCAN_SLOW_MS = 5 * 60 * 1000;
 
 function runPython(args: string[]): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -37,9 +43,18 @@ function runPython(args: string[]): Promise<unknown> {
         reject(new Error(stderr || `Python exited with code ${code}`));
         return;
       }
-      try {
-        resolve(JSON.parse(stdout.trim()));
-      } catch {
+      // Find the last line that is valid JSON (subsystems may print
+      // structured log lines before the result).
+      const lines = stdout.trim().split("\n");
+      let parsed: unknown = undefined;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        try { parsed = JSON.parse(line); break; } catch { /* skip */ }
+      }
+      if (parsed !== undefined) {
+        resolve(parsed);
+      } else {
         reject(new Error(`Failed to parse Python output: ${stdout.slice(0, 300)}`));
       }
     });
@@ -48,40 +63,131 @@ function runPython(args: string[]): Promise<unknown> {
 }
 
 let timer: NodeJS.Timeout | null = null;
-let tickInFlight = false;
+// The scan is single-flight, independently from the per-minute advisory
+// lanes. A stuck scan therefore cannot suppress time-sensitive advisory work.
+let scheduledScanInFlight = false;
+const advisoryCommandsInFlight = new Set<string>();
+let pushDeliveryInFlight = false;
+
+// ── Cold-start OHLCV readiness barrier ────────────────────────────────────────
+// Prevents scheduled_scan_tick from firing while the cold-start cache check
+// (or its triggered backfill) is still in progress.  Without this gate a fresh
+// production server would start scanning against the still-empty cache and fall
+// back to the 7–22 min live yfinance download the feature was designed to avoid.
+//
+// The flag starts true and is cleared (in the ohlcv_cold_start_check .finally()
+// handler) once the Python process resolves or rejects — including after the
+// owner instance finishes backfill and non-owner instances finish polling.
+// On any Node-level error the .catch()/.finally() chain still clears the gate
+// so scans are never blocked permanently.
+let _ohlcvColdStartPending = true;
+
+// Module-level reference to the tick closure so tests can invoke it directly
+// without depending on fake-timer machinery.  Assigned in startScanScheduler().
+let _tick: (() => Promise<void>) | null = null;
+
+/** @internal — reset all mutable state; call before each test. */
+export function _resetColdStartCheckForTests(): void {
+  _ohlcvColdStartPending = false;
+  scheduledScanInFlight = false;
+  advisoryCommandsInFlight.clear();
+  pushDeliveryInFlight = false;
+  _tick = null;
+  if (timer) { clearInterval(timer); timer = null; }
+}
+
+/** @internal — directly invoke one scheduler tick (bypasses setInterval timing). */
+export async function _runTickForTests(): Promise<void> {
+  if (!_tick) throw new Error("startScanScheduler() not called — _tick is null");
+  return _tick();
+}
+
+/**
+ * Run each advisory command at most once at a time.  Their own time-gating is
+ * in Python, so a slow invocation must not cause a second process for the same
+ * command on the next minute's tick.
+ */
+function runAdvisoryPython(
+  command: string,
+  onResult: (result: unknown) => void,
+  onError: (error: unknown) => void,
+): void {
+  if (advisoryCommandsInFlight.has(command)) return;
+  advisoryCommandsInFlight.add(command);
+  void runPython([command]).then(onResult).catch(onError).finally(() => {
+    advisoryCommandsInFlight.delete(command);
+  });
+}
 
 export function startScanScheduler(): void {
   if (process.env["DISABLE_SCAN_SCHEDULER"] === "true") {
     logger.info("Scan scheduler disabled via DISABLE_SCAN_SCHEDULER");
     return;
   }
+  // Mark the OHLCV readiness gate as pending for this scheduler instance.
+  // Must happen before any tick fires, so the first tick always sees the gate
+  // up and defers the scan until ohlcv_cold_start_check settles.
+  // (Also re-arms correctly after _resetColdStartCheckForTests() in tests.)
+  _ohlcvColdStartPending = true;
+
   const intervalMs = TICK_INTERVAL_MIN * 60 * 1000;
 
-  const tick = async (): Promise<void> => {
-    if (tickInFlight) return; // never stack ticks in this process
-    tickInFlight = true;
-    try {
-      const result = (await runPython([
-        "scheduled_scan_tick",
-      ])) as Record<string, unknown>;
-      if (result?.["ran_scan"]) {
-        logger.info(
-          { scan_id: result["scan_id"], snapshot_ts: result["snapshot_ts"] },
-          "Scheduled market scan completed",
+  _tick = async (): Promise<void> => {
+    // ── OHLCV readiness gate ─────────────────────────────────────────────────
+    // This gate applies only to the scan lane. Advisory lanes below continue
+    // while a cache backfill or a scheduled scan is in progress.
+    if (_ohlcvColdStartPending) {
+      logger.info("Scheduled scan deferred — cold-start OHLCV cache check in progress");
+    } else if (!scheduledScanInFlight) {
+      scheduledScanInFlight = true;
+      eventBus.publish("scan.started", { source: "scheduler", ts: new Date().toISOString() });
+      const slowWatchdog = setTimeout(() => {
+        logger.warn(
+          { elapsedMs: SCHEDULED_SCAN_SLOW_MS },
+          "Scheduled scan still running; advisory lanes remain active",
         );
-        // Advisory push alerts for high-confidence signals; never blocks
-        // or influences the scan/trading pipeline.
-        dispatchSignalPushNotifications().catch((err: unknown) => {
-          logger.warn({ err: err instanceof Error ? err.message : String(err) },
-            "Signal push dispatch failed");
+        eventBus.publish("scan.slow", {
+          source: "scheduler",
+          elapsed_ms: SCHEDULED_SCAN_SLOW_MS,
         });
-      }
-    } catch (err) {
-      // Failed scheduled scan: last successful snapshot is preserved by design.
-      logger.warn({ err: err instanceof Error ? err.message : String(err) },
-        "Scheduled scan tick failed (previous snapshot preserved)");
-    } finally {
-      tickInFlight = false;
+      }, SCHEDULED_SCAN_SLOW_MS);
+      slowWatchdog.unref();
+      void runPython(["scheduled_scan_tick"]).then((raw) => {
+        const result = raw as Record<string, unknown>;
+        if (result?.["ran_scan"]) {
+          eventBus.publish("scan.completed", {
+            source: "scheduler",
+            scan_id: result["scan_id"],
+            snapshot_ts: result["snapshot_ts"],
+          });
+          logger.info(
+            { scan_id: result["scan_id"], snapshot_ts: result["snapshot_ts"] },
+            "Scheduled market scan completed",
+          );
+          // Advisory push alerts for high-confidence signals; never blocks
+          // or influences the scan/trading pipeline.
+          dispatchSignalPushNotifications().catch((err: unknown) => {
+            logger.warn({ err: err instanceof Error ? err.message : String(err) },
+              "Signal push dispatch failed");
+          });
+        } else {
+          const reason = String(result?.["reason"] ?? "");
+          eventBus.publish(
+            reason.toUpperCase().includes("BUSY") ? "scan.busy" : "scan.scheduled.tick",
+            { source: "scheduler", reason },
+          );
+        }
+      }).catch((err: unknown) => {
+        logger.warn({ err: err instanceof Error ? err.message : String(err) },
+          "Scheduled scan tick failed (previous snapshot preserved)");
+        eventBus.publish("scan.failed", {
+          source: "scheduler",
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }).finally(() => {
+        clearTimeout(slowWatchdog);
+        scheduledScanInFlight = false;
+      });
     }
 
     // Phase 5A — Pre-Open Intelligence tick.
@@ -90,7 +196,7 @@ export function startScanScheduler(): void {
     // No-ops outside phase windows and on non-trading days.
     // Provider failure is caught and returned as DEGRADED/UNAVAILABLE — never crashes.
     // Paper / advisory only — no orders.
-    runPython(["preopen_intelligence_tick"]).then((r) => {
+    runAdvisoryPython("preopen_intelligence_tick", (r) => {
       const res = r as Record<string, unknown>;
       if (res?.["ran"]) {
         logger.info(
@@ -100,7 +206,7 @@ export function startScanScheduler(): void {
           "Pre-Open Intelligence phase executed",
         );
       }
-    }).catch((err: unknown) => {
+    }, (err: unknown) => {
       logger.warn({ err: err instanceof Error ? err.message : String(err) },
         "Pre-Open Intelligence tick failed (non-fatal)");
     });
@@ -109,7 +215,7 @@ export function startScanScheduler(): void {
     // Runs on every minute; the Python side owns all IST time-gating and
     // checkpoint deduplication. No-ops outside checkpoint windows and on
     // non-trading days. Paper / advisory only — no orders.
-    runPython(["preopen_validation_tick"]).then((r) => {
+    runAdvisoryPython("preopen_validation_tick", (r) => {
       const res = r as Record<string, unknown>;
       if (res?.["ran"]) {
         logger.info(
@@ -118,7 +224,7 @@ export function startScanScheduler(): void {
           "Pre-Open Validation checkpoint collected",
         );
       }
-    }).catch((err: unknown) => {
+    }, (err: unknown) => {
       logger.warn({ err: err instanceof Error ? err.message : String(err) },
         "Pre-Open Validation tick failed (non-fatal)");
     });
@@ -128,7 +234,7 @@ export function startScanScheduler(): void {
     // No-ops outside checkpoint windows and on non-trading days.
     // SIGNAL_VALIDATION_ENABLED=false → Python returns DISABLED immediately.
     // Paper / advisory only — no orders, no strategy modification.
-    runPython(["signal_validation_tick"]).then((r) => {
+    runAdvisoryPython("signal_validation_tick", (r) => {
       const res = r as Record<string, unknown>;
       if (res?.["ran"]) {
         logger.info(
@@ -137,7 +243,7 @@ export function startScanScheduler(): void {
           "Signal Validation phase executed",
         );
       }
-    }).catch((err: unknown) => {
+    }, (err: unknown) => {
       logger.warn({ err: err instanceof Error ? err.message : String(err) },
         "Signal Validation tick failed (non-fatal)");
     });
@@ -145,23 +251,124 @@ export function startScanScheduler(): void {
     // Priority 4 (#41): drain the durable alert delivery queue every tick
     // (retries for push + email survive restarts and provider outages).
     // Runs even when no scan is due; never blocks or fails the tick.
-    processPushDeliveryQueue().catch((err: unknown) => {
-      logger.warn({ err: err instanceof Error ? err.message : String(err) },
-        "Push delivery queue processing failed");
-    });
-    runPython(["alert_queue_process"]).catch((err: unknown) => {
+    if (!pushDeliveryInFlight) {
+      pushDeliveryInFlight = true;
+      void processPushDeliveryQueue().catch((err: unknown) => {
+        logger.warn({ err: err instanceof Error ? err.message : String(err) },
+          "Push delivery queue processing failed");
+      }).finally(() => { pushDeliveryInFlight = false; });
+    }
+    runAdvisoryPython("alert_queue_process", () => {}, (err: unknown) => {
       logger.warn({ err: err instanceof Error ? err.message : String(err) },
         "Email alert queue processing failed");
     });
   };
 
-  timer = setInterval(() => { void tick(); }, intervalMs);
+  timer = setInterval(() => { void _tick!(); }, intervalMs);
   timer.unref();
   logger.info({ tickIntervalMin: TICK_INTERVAL_MIN },
     "Market-hours scan scheduler started (interval configured in Settings)");
+
+  // Record the scheduler process start time durably so the cadence panel can
+  // report SCAN_COMPLETED counts "since last restart". Non-fatal on failure.
+  runPython(["phase20_scheduler_started"]).catch((err: unknown) => {
+    logger.warn({ err: err instanceof Error ? err.message : String(err) },
+      "Failed to record scheduler process start time (non-fatal)");
+  });
+
+  // Cold-start overnight-carry safety check.
+  // Runs immediately at server startup to detect OPEN paper positions that
+  // survived from a prior session because the server was down during the
+  // POST_CLOSE/CLOSED window (15:30–18:00 IST).  The Python side is
+  // idempotent via kv_claim_once("startup_overnight_check:<today>") so
+  // multiple rapid restarts or Autoscale instances only execute once per
+  // IST calendar day.  Never blocks the scheduler or raises.
+  runPython(["phase20_startup_overnight_check"]).then((r) => {
+    const res = r as Record<string, unknown>;
+    const priorCount = res?.["prior_session_count"] as number | undefined;
+    if (priorCount && priorCount > 0) {
+      logger.warn(
+        {
+          yesterday: res["yesterday"],
+          symbols: res["symbols"],
+          prior_session_count: priorCount,
+          eod_force_close: res["eod_force_close"],
+        },
+        "Overnight carry detected at cold-start — EOD force-close executed",
+      );
+    } else if (res?.["ran"]) {
+      logger.info(
+        { reason: res["reason"], yesterday: res["yesterday"] },
+        "Startup overnight-carry check complete (no prior-session positions)",
+      );
+    }
+  }).catch((err: unknown) => {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Startup overnight-carry check failed (non-fatal)",
+    );
+  });
+
+  // Cold-start OHLCV cache check — with startup readiness barrier.
+  //
+  // On a fresh production deployment the daily_ohlcv_cache table is empty.
+  // The Python check detects this and runs backfill_all_symbols() (2–8 min).
+  // _ohlcvColdStartPending stays true throughout so tick() skips the market
+  // scan while the backfill is in progress.  Once the promise settles
+  // (success, Python-level failure, or Node error) the flag is cleared and
+  // normal scan scheduling resumes.
+  //
+  // On a warm server the Python check is a fast DB query (< 1 s) and the
+  // flag is cleared before the 15-second initial tick fires.
+  runPython(["ohlcv_cold_start_check"]).then((r) => {
+    const res = r as Record<string, unknown>;
+    const action = res?.["action"] as string | undefined;
+    if (action === "backfill") {
+      logger.warn(
+        {
+          was_fully_cold: res["was_fully_cold"],
+          cold_symbol_count: res["cold_symbol_count"],
+          total_symbols: res["total_symbols"],
+          symbols_updated: res["symbols_updated"],
+          symbols_failed: res["symbols_failed"],
+          duration_seconds: res["duration_seconds"],
+          status: res["status"],
+          recovery_hint: res["recovery_hint"],
+        },
+        "Cold-start OHLCV backfill completed — cache was empty on this server",
+      );
+    } else if (action === "backfill_failed") {
+      logger.error(
+        {
+          was_fully_cold: res["was_fully_cold"],
+          cold_symbol_count: res["cold_symbol_count"],
+          error: res["error"],
+          recovery_hint: res["recovery_hint"],
+        },
+        "Cold-start OHLCV backfill failed — first scan will use live yfinance (slow)",
+      );
+    } else if (res?.["ran"] && action === "no_op") {
+      logger.info(
+        {
+          cache_hit_rate_pct: res["cache_hit_rate_pct"],
+          total_symbols: res["total_symbols"],
+        },
+        "Cold-start OHLCV cache check: cache warm, no backfill needed",
+      );
+    }
+  }).catch((err: unknown) => {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "Cold-start OHLCV cache check failed (non-fatal — first scan may be slow)",
+    );
+  }).finally(() => {
+    // Always clear the gate — even on error, so scans are not blocked forever.
+    _ohlcvColdStartPending = false;
+  });
+
   // Kick one tick shortly after boot so a cold instance during market hours
   // converges quickly instead of waiting a full interval.
-  setTimeout(() => { void tick(); }, 15_000).unref();
+  setTimeout(() => { void _tick!(); }, 15_000).unref();
 }
 
 export function stopScanScheduler(): void {
