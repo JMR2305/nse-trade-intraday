@@ -378,6 +378,48 @@ def _bounded_worker_stderr(stderr_text: str | None, *, max_chars: int = 1200) ->
     return text
 
 
+# Exact messages emitted by task976_zb5_worker; never copy exception text.
+_WORKER_FAILURE_REASONS = {
+    "worker deadline exceeded": "WORKER_DEADLINE_EXCEEDED",
+    "worker exceeded 75-second bound": "WORKER_DEADLINE_EXCEEDED",
+    "external provider disabled": "EXTERNAL_ACCESS_BLOCKED",
+    "socket blocked": "EXTERNAL_ACCESS_BLOCKED",
+    "external socket destination blocked": "EXTERNAL_ACCESS_BLOCKED",
+    "datagram destination missing": "EXTERNAL_ACCESS_BLOCKED",
+    "broker/backtest-lifecycle module loaded": "FORBIDDEN_MODULE",
+    "real provider module loaded": "FORBIDDEN_MODULE",
+    "tier must be exactly 1, 2, or 3": "WORKER_SAFETY_ERROR",
+    "exact Task969 symbol set/hash required": "WORKER_SAFETY_ERROR",
+    "bars outside 60..2000": "WORKER_SAFETY_ERROR",
+    "_run_lab_walk execution was not proven": "WORKER_SAFETY_ERROR",
+    **{prefix + name: "FORBIDDEN_CALLABLE"
+       for prefix in ("forbidden callable: ", "forbidden callable reached: ")
+       for name in ("execute_buy", "execute_sell", "place_order", "run_backtest",
+                    "run_strategy_lab", "scheduled_scan_tick", "alert_queue_process")},
+}
+
+
+def _worker_failure_reason(stderr_text: str | None) -> str:
+    """Parse only the bounded worker failure envelope, independently of evidence."""
+    unknown = "UNKNOWN_WORKER_FAILURE"
+    if not isinstance(stderr_text, str) or not 0 < len(stderr_text) <= 1200:
+        return unknown
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result: raise ValueError("duplicate worker failure key")
+            result[key] = value
+        return result
+    try:
+        failure = json.loads(stderr_text, object_pairs_hook=unique_object)
+    except (ValueError, TypeError, RecursionError):
+        return unknown
+    if (not isinstance(failure, dict) or set(failure) != {"status", "error"}
+            or failure["status"] != "FAIL" or not isinstance(failure["error"], str)):
+        return unknown
+    return _WORKER_FAILURE_REASONS.get(failure["error"], unknown)
+
+
 def _bounded_worker_stdout_diagnostics(stdout_present: bool, json_ok: bool, parsed: Mapping[str, Any] | None) -> dict[str, Any]:
     def numeric(key: str, default: int = -1):
         if not isinstance(parsed, dict): return None
@@ -411,6 +453,7 @@ class WorkerOutcome:
     cleanup_ok: bool
     classification: str
     error_reason_if_any: str
+    worker_failure_reason: str = ""
 
 
 def classify_worker_outcome(outcome: WorkerOutcome) -> str:
@@ -459,6 +502,7 @@ def worker_outcome_to_dict(outcome: WorkerOutcome) -> dict[str, Any]:
         "cleanup_ok": outcome.cleanup_ok,
         "classification": classify_worker_outcome(outcome),
         "error_reason_if_any": outcome.error_reason_if_any,
+        "worker_failure_reason": outcome.worker_failure_reason,
         "parsed": _bounded_worker_stdout_diagnostics(
             outcome.stdout_present,
             outcome.json_parse_ok,
@@ -548,6 +592,7 @@ def collect_worker_with_diagnostic(
         cleanup_ok=bool(cleaned_ok),
         classification=classification,
         error_reason_if_any=error_reason_if_any or (classification if classification != "PASS_EVIDENCE" else ""),
+        worker_failure_reason=_worker_failure_reason(err_text) if stderr_present else "",
     )
 
 

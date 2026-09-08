@@ -32,6 +32,119 @@ class ZB5RunnerTests(unittest.TestCase):
         return {"DATABASE_URL": GOOD_URL, "TASK976_DISPOSABLE_ACK": "apexquant_disposable",
                 **{name: "false" for name in runner.SAFETY_FLAGS}}
 
+    def failure_proc(self, stderr, stdout="", returncode=1):
+        class Proc:
+            pid = 123
+            def communicate(self, timeout):
+                return stdout, stderr
+            def poll(self):
+                return self.returncode
+        proc = Proc()
+        proc.returncode = returncode
+        return proc
+
+    def controlled_failure(self, workload):
+        out, err = io.StringIO(), io.StringIO()
+        with patch.object(worker, "run_deterministic_workload", side_effect=workload), \
+             patch.object(worker.signal, "signal"), patch.object(worker.signal, "alarm"), \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = worker.main(["--tier", "3"])
+        self.assertEqual(code, 1)
+        self.assertEqual(out.getvalue(), "")
+        return self.failure_proc(err.getvalue(), out.getvalue(), code)
+
+    def assert_safe_failure(self, proc, reason):
+        outcome = runner.collect_worker_with_diagnostic(proc, 0, 0)
+        record = runner.worker_outcome_to_dict(outcome)
+        self.assertEqual(record["classification"], "NONZERO_EXIT")
+        self.assertEqual(record["returncode"], 1)
+        self.assertEqual(record.get("worker_failure_reason"), reason)
+        self.assertEqual(record["stderr_bounded"], "<REDACTED>")
+        self.assertIsNone(outcome.parsed)
+        self.assertFalse(outcome.json_parse_ok)
+        return record
+
+    def test_stderr_controlled_worker_deadline_reason(self):
+        def expired(tier):
+            worker.signal.signal.call_args.args[1](None, None)
+        proc = self.controlled_failure(expired)
+        record = self.assert_safe_failure(proc, "WORKER_DEADLINE_EXCEEDED")
+        self.assertNotIn("worker deadline exceeded", json.dumps(record))
+
+    def test_stderr_controlled_forbidden_callable_reason(self):
+        def forbidden(tier):
+            worker.require_safe_callable("place_order")
+        record = self.assert_safe_failure(self.controlled_failure(forbidden), "FORBIDDEN_CALLABLE")
+        self.assertNotIn("place_order", json.dumps(record))
+
+    def test_stderr_secrets_are_unknown_and_redacted(self):
+        secret = "DATABASE_URL=postgresql://u:p@host/db PGPASSWORD=password KITE_API_KEY=key token=secret-value"
+        for raw in (secret, json.dumps({"status": "FAIL", "error": secret}),
+                    json.dumps({"status": "FAIL", "error": "worker deadline exceeded " + secret})):
+            with self.subTest():
+                record = self.assert_safe_failure(self.failure_proc(raw), "UNKNOWN_WORKER_FAILURE")
+                for text in ("DATABASE_URL", "PGPASSWORD", "KITE_API_KEY", "secret-value", "postgresql", "token="):
+                    self.assertNotIn(text, json.dumps(record))
+
+    def test_stderr_malformed_or_unexpected_json_fails_closed(self):
+        for raw in ('{', '[]', 'null', '{"status":"FAIL","error":[]}',
+                    '{"status":"PASS","error":"worker deadline exceeded"}',
+                    '{"status":"FAIL","error":"worker deadline exceeded","extra":1}',
+                    '{"status":"PASS","status":"FAIL","error":"worker deadline exceeded"}',
+                    '{"status":"FAIL","error":"worker deadline exceeded"} trailing',
+                    '[' * 1100, ' ' * 1201):
+            with self.subTest():
+                self.assert_safe_failure(self.failure_proc(raw), "UNKNOWN_WORKER_FAILURE")
+
+    def test_stderr_known_worker_messages_normalize_exactly(self):
+        cases = [("worker exceeded 75-second bound", "WORKER_DEADLINE_EXCEEDED"),
+                 ("external provider disabled", "EXTERNAL_ACCESS_BLOCKED"),
+                 ("socket blocked", "EXTERNAL_ACCESS_BLOCKED"),
+                 ("external socket destination blocked", "EXTERNAL_ACCESS_BLOCKED"),
+                 ("datagram destination missing", "EXTERNAL_ACCESS_BLOCKED"),
+                 ("broker/backtest-lifecycle module loaded", "FORBIDDEN_MODULE"),
+                 ("real provider module loaded", "FORBIDDEN_MODULE"),
+                 ("tier must be exactly 1, 2, or 3", "WORKER_SAFETY_ERROR"),
+                 ("exact Task969 symbol set/hash required", "WORKER_SAFETY_ERROR"),
+                 ("bars outside 60..2000", "WORKER_SAFETY_ERROR"),
+                 ("_run_lab_walk execution was not proven", "WORKER_SAFETY_ERROR")]
+        cases += [(prefix + name, "FORBIDDEN_CALLABLE")
+                  for prefix in ("forbidden callable: ", "forbidden callable reached: ")
+                  for name in worker.FORBIDDEN_CALLABLES]
+        for message, reason in cases:
+            with self.subTest(message=message):
+                self.assert_safe_failure(self.failure_proc(json.dumps({"status": "FAIL", "error": message})), reason)
+        self.assert_safe_failure(self.failure_proc(json.dumps({"status": "FAIL", "error": "forbidden callable: secret"})),
+                                 "UNKNOWN_WORKER_FAILURE")
+
+    def test_stderr_normalization_leaves_pass_evidence_unchanged(self):
+        row = good_row()
+        rows, diagnostic = runner.collect_worker_evidence(
+            [(self.failure_proc("", json.dumps(row), 0), 0) for _ in range(3)], runner.tier_config(3))
+        self.assertEqual(rows, [row] * 3)
+        for record in diagnostic["worker_outcomes"]:
+            self.assertEqual(record["classification"], "PASS_EVIDENCE")
+            self.assertEqual(record.get("worker_failure_reason"), "")
+
+    def test_stderr_reasons_survive_canonical_tier3_evidence_failure(self):
+        messages = ["worker deadline exceeded", "forbidden callable reached: place_order", "unrecognized-secret"]
+        with self.assertRaisesRegex(runner.SafetyError, "^worker evidence count mismatch$") as caught:
+            runner.collect_worker_evidence([(self.failure_proc(json.dumps({"status": "FAIL", "error": message})), 0)
+                                            for message in messages], runner.tier_config(3))
+        diagnostic = caught.exception.worker_diagnostics
+        self.assertEqual(diagnostic["worker_evidence_rows"], 0)
+        self.assertEqual(diagnostic["worker_evidence_required"], 3)
+        self.assertEqual(diagnostic["worker_crashes"], 3)
+        self.assertEqual([r["classification"] for r in diagnostic["worker_outcomes"]], ["NONZERO_EXIT"] * 3)
+        self.assertEqual([r.get("worker_failure_reason") for r in diagnostic["worker_outcomes"]],
+                         ["WORKER_DEADLINE_EXCEEDED", "FORBIDDEN_CALLABLE", "UNKNOWN_WORKER_FAILURE"])
+        with patch.object(runner, "execute_with_deadline", side_effect=caught.exception), \
+             contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(runner.main(["--tier", "3"], env={}), 1)
+        self.assertIn("worker evidence count mismatch", err.getvalue())
+        self.assertIn("WORKER_DEADLINE_EXCEEDED", err.getvalue())
+        self.assertNotIn("unrecognized-secret", err.getvalue())
+
     def test_environment_requires_ack_and_exact_identity(self):
         with self.assertRaises(runner.SafetyError): runner.require_environment({})
         env = self.safe_env(); env["DATABASE_URL"] = GOOD_URL.replace("apexquant_disposable", "prod")
