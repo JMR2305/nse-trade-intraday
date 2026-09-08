@@ -365,6 +365,223 @@ class ResourceSampler:
     def stop(self): self.stop_event.set(); self.thread.join(1)
 
 
+def _bounded_worker_stderr(stderr_text: str | None, *, max_chars: int = 1200) -> str:
+    if not stderr_text:
+        return ""
+    text = stderr_text if isinstance(stderr_text, str) else ""
+    text = text.replace("\x00", "\u200b")
+    text = re.sub(r"\b(DATABASE_URL|PGHOST|PGPASSWORD|PGUSER|PGPORT|KITE_API_KEY|KITE_ACCESS_TOKEN|EXPO_ACCESS_TOKEN|KITE_API_SECRET)\b=[^\s]+", "<REDACTED>", text)
+    if len(text) > max_chars:
+        head = text[:max_chars // 2]
+        tail = text[-max_chars // 2:]
+        text = head + "\n\n<...truncated mid-stream...>\n\n" + tail
+    return text
+
+
+def _bounded_worker_stdout_diagnostics(stdout_present: bool, json_ok: bool, parsed: Mapping[str, Any] | None) -> dict[str, Any]:
+    def numeric(key: str, default: int = -1):
+        if not isinstance(parsed, dict): return None
+        value = parsed.get(key, default)
+        # Never stringify arbitrary worker fields into failure evidence.
+        return value if type(value) in (int, float) and -1 <= value <= 1_000_000_000 else None
+    return {
+        "stdout_present": bool(stdout_present),
+        "json_parse_ok": bool(json_ok),
+        "parsed_tier": numeric("tier"),
+        "parsed_duration_seconds": numeric("duration_seconds"),
+        "parsed_symbols_processed": numeric("symbols_processed"),
+        "parsed_bars_per_symbol": numeric("bars_per_symbol"),
+        "parsed_lab_walk_calls": numeric("lab_walk_calls", 0),
+    }
+
+
+@dataclass(frozen=True)
+class WorkerOutcome:
+    worker_index: int
+    started_microseconds: int
+    duration_monotonic_ms: float
+    communicate_timeout: bool
+    returncode: int | None
+    stderr_present: bool
+    stdout_present: bool
+    json_parse_ok: bool
+    parsed: Mapping[str, Any] | None
+    stderr_bounded: str
+    pid: int | None
+    cleanup_ok: bool
+    classification: str
+    error_reason_if_any: str
+
+
+def classify_worker_outcome(outcome: WorkerOutcome) -> str:
+    if not outcome.cleanup_ok:
+        return "CLEANUP_FAILURE"
+    if outcome.communicate_timeout:
+        return "COMMUNICATE_TIMEOUT"
+    if (outcome.json_parse_ok and isinstance(outcome.parsed, dict)
+            and "status" in outcome.parsed and outcome.parsed["status"] != "PASS"):
+        return "WORKER_REPORTED_FAILURE"
+    if outcome.returncode is not None and outcome.returncode != 0:
+        return "NONZERO_EXIT"
+    if outcome.stderr_present:
+        return "STDERR_OUTPUT"
+    if not outcome.stdout_present:
+        return "EMPTY_STDOUT"
+    if not outcome.json_parse_ok:
+        return "INVALID_JSON"
+    if outcome.returncode != 0:
+        return "OTHER"
+    if not isinstance(outcome.parsed, dict):
+        return "INVALID_JSON"
+    # The existing worker success contract has no status key. Accept that
+    # contract only after validating its complete evidence, never bare JSON.
+    try:
+        config = tier_config(outcome.parsed.get("tier"))
+        require_worker_evidence([outcome.parsed] * config.scanner_workers, config)
+    except (SafetyError, TypeError, ValueError, OverflowError):
+        return "INVALID_EVIDENCE"
+    return "PASS_EVIDENCE"
+
+
+def worker_outcome_to_dict(outcome: WorkerOutcome) -> dict[str, Any]:
+    return {
+        "worker_index": outcome.worker_index,
+        "pid": outcome.pid,
+        "started_monotonic_ms": outcome.started_microseconds / 1000,
+        "duration_monotonic_ms": outcome.duration_monotonic_ms,
+        "communicate_timeout": outcome.communicate_timeout,
+        "returncode": outcome.returncode,
+        "stderr_present": outcome.stderr_present,
+        "stdout_present": outcome.stdout_present,
+        "json_parse_ok": outcome.json_parse_ok,
+        "stderr_bounded": ("worker deadline exceeded" if outcome.stderr_bounded.strip() == "worker deadline exceeded"
+                           else "<REDACTED>" if outcome.stderr_present else ""),
+        "cleanup_ok": outcome.cleanup_ok,
+        "classification": classify_worker_outcome(outcome),
+        "error_reason_if_any": outcome.error_reason_if_any,
+        "parsed": _bounded_worker_stdout_diagnostics(
+            outcome.stdout_present,
+            outcome.json_parse_ok,
+            outcome.parsed,
+        ),
+    }
+
+
+def collect_worker_with_diagnostic(
+    proc: Any, worker_index: int, started_monotonic_us: int,
+) -> WorkerOutcome:
+    err_text = None
+    try:
+        pid = proc.pid
+    except AttributeError:
+        pid = None
+    start_monotonic = started_monotonic_us / 1_000_000
+    try:
+        out, err_text = proc.communicate(timeout=75)
+    except subprocess.TimeoutExpired:
+        stopped_ok = cleanup_process(proc)
+        return WorkerOutcome(
+            worker_index=worker_index,
+            started_microseconds=started_monotonic_us,
+            duration_monotonic_ms=(time.monotonic() - start_monotonic) * 1000.0,
+            communicate_timeout=True,
+            returncode=proc.poll() if proc.poll() is not None else None,
+            stderr_present=bool(err_text),
+            stdout_present=False,
+            json_parse_ok=False,
+            parsed=None,
+            stderr_bounded=_bounded_worker_stderr(err_text),
+            pid=pid,
+            cleanup_ok=bool(stopped_ok),
+            classification="COMMUNICATE_TIMEOUT" if stopped_ok else "CLEANUP_FAILURE",
+            error_reason_if_any="worker communicate(timeout=75) expired",
+        )
+
+    returncode = proc.returncode
+    stderr_present = bool(err_text)
+    stdout_present = bool(out)
+    json_ok = False
+    parsed = None
+    error_reason_if_any = ""
+
+    if stdout_present:
+        try:
+            parsed = json.loads(out)
+            json_ok = True
+            if isinstance(parsed, dict) and parsed.get("status") == "FAIL":
+                error_reason_if_any = ("worker deadline exceeded" if parsed.get("error") == "worker deadline exceeded"
+                                       else "worker reported failure")
+        except (ValueError, TypeError):
+            json_ok = False
+            parsed = None
+
+    cleaned_ok = cleanup_process(proc)
+    classification = classify_worker_outcome(WorkerOutcome(
+        worker_index=worker_index,
+        started_microseconds=started_monotonic_us,
+        duration_monotonic_ms=(time.monotonic() - start_monotonic) * 1000.0,
+        communicate_timeout=False,
+        returncode=returncode,
+        stderr_present=stderr_present,
+        stdout_present=stdout_present,
+        json_parse_ok=json_ok,
+        parsed=parsed,
+        stderr_bounded=_bounded_worker_stderr(err_text),
+        pid=pid,
+        cleanup_ok=bool(cleaned_ok),
+        classification="",
+        error_reason_if_any="",
+    ))
+
+    return WorkerOutcome(
+        worker_index=worker_index,
+        started_microseconds=started_monotonic_us,
+        duration_monotonic_ms=(time.monotonic() - start_monotonic) * 1000.0,
+        communicate_timeout=False,
+        returncode=returncode,
+        stderr_present=stderr_present,
+        stdout_present=stdout_present,
+        json_parse_ok=json_ok,
+        parsed=parsed,
+        stderr_bounded=_bounded_worker_stderr(err_text),
+        pid=pid,
+        cleanup_ok=bool(cleaned_ok),
+        classification=classification,
+        error_reason_if_any=error_reason_if_any or (classification if classification != "PASS_EVIDENCE" else ""),
+    )
+
+
+def spawn_worker(command: list[str], *, env: Mapping[str, str]) -> tuple[Any, int]:
+    proc = subprocess.Popen(command, env=env, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True)
+    launched_monotonic_us = time.monotonic_ns() // 1000
+    return proc, launched_monotonic_us
+
+
+def collect_worker_evidence(workers: list[tuple[Any, int]], config: TierConfig):
+    worker_data = []
+    diagnostics = []
+    for index, (proc, launched_monotonic_us) in enumerate(workers):
+        outcome = collect_worker_with_diagnostic(proc, index, launched_monotonic_us)
+        diagnostics.append(worker_outcome_to_dict(outcome))
+        if classify_worker_outcome(outcome) == "PASS_EVIDENCE":
+            worker_data.append(outcome.parsed)
+    operation_diagnostics = {
+        "worker_outcomes": diagnostics,
+        "worker_evidence_rows": len(worker_data),
+        "worker_evidence_required": config.scanner_workers,
+        "worker_crashes": len(workers) - len(worker_data),
+    }
+    try:
+        require_worker_evidence(worker_data, config)
+    except SafetyError as exc:
+        # Preserve the canonical exception text and carry safe structured evidence
+        # through the CLI failure path, before any success payload exists.
+        exc.worker_diagnostics = operation_diagnostics
+        raise
+    return worker_data, operation_diagnostics
+
+
 def cleanup_process(proc: Any) -> bool:
     if proc is None or proc.poll() is not None: return True
     proc.terminate()
@@ -422,8 +639,8 @@ def run_live(tier: int, env: Mapping[str, str]) -> dict[str, Any]:
                                     stderr=subprocess.DEVNULL, text=True)
             worker_script = Path(__file__).with_name("task976_zb5_worker.py")
             for _ in range(config.scanner_workers):
-                workers.append(subprocess.Popen([sys.executable, str(worker_script), "--tier", str(tier)],
-                    env=worker_env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
+                workers.append(spawn_worker([sys.executable, str(worker_script), "--tier", str(tier)],
+                    env=worker_env))
             ready = False
             for _ in range(50):
                 try:
@@ -447,18 +664,12 @@ def run_live(tier: int, env: Mapping[str, str]) -> dict[str, Any]:
                     if target > time.monotonic(): time.sleep(target-time.monotonic())
                 results = [future.result(timeout=6) for future in futures]
             db_peak_connection, db_peak_lock = db_sampler.stop(); db_sampler = None
-            worker_data = []; crashes = 0
-            for proc in workers:
-                try: out, err = proc.communicate(timeout=75)
-                except subprocess.TimeoutExpired:
-                    cleanup_process(proc); crashes += 1; continue
-                if proc.returncode or err: crashes += 1
-                elif out: worker_data.append(json.loads(out))
-            require_worker_evidence(worker_data, config)
+            worker_data, operation_diagnostics = collect_worker_evidence(workers, config)
+            crashes = operation_diagnostics["worker_crashes"]
             node.send_signal(signal.SIGUSR2); time.sleep(.2)
             node_data = json.loads(evidence_path.read_text()) if evidence_path.exists() else {}
             drained = cleanup_process(node); node = None
-            require_process_drain(drained and all(proc.poll() is not None for proc in workers),
+            require_process_drain(drained and all(proc.poll() is not None for proc, _ in workers),
                                   int(node_data.get("active_children", -1)))
         after = public_table_fingerprints(conn); after_fixture = _read_fixture(conn)
         db_after = read_db_observation(conn)
@@ -492,28 +703,39 @@ def run_live(tier: int, env: Mapping[str, str]) -> dict[str, Any]:
             oom_events=memory_failure_delta(memory_events_before, memory_events_after),
             safety_violations=crashes)
         verdict = evaluate(metrics)
-        return {"benchmark":"TASK976-ZB5", "tier":config.name, "start_utc":started_utc,
-            "end_utc":datetime.now(timezone.utc).isoformat(), "wall_seconds":time.monotonic()-started,
+        result_payload = {
+            "benchmark":"TASK976-ZB5",
+            "tier":config.name,
+            "start_utc":started_utc,
+            "end_utc":datetime.now(timezone.utc).isoformat(),
+            "wall_seconds":time.monotonic()-started,
             "requests":len(results), "errors":failures, "timeouts":timeouts,
             "throughput_rps":len(results)/(time.monotonic()-workload_start),
             "latency_min_ms":min(latencies), "latency_average_ms":statistics.fmean(latencies),
             "latency_p50_ms":statistics.median(latencies), "latency_p95_ms":sorted(latencies)[int(.95*(len(latencies)-1))],
             "latency_p99_ms":sorted(latencies)[int(.99*(len(latencies)-1))], "latency_max_ms":max(latencies),
-            "node":node_data, "workers":worker_data, "memory_peak_bytes":sampler.peak_memory,
+            "node":node_data,
+            "workers":worker_data,
+            "worker_diagnostics": operation_diagnostics,
+            "memory_peak_bytes":sampler.peak_memory,
             "database_before":db_before, "database_after":db_after,
             "database_peak":{"connection_fraction":db_peak_connection,
                              "max_lock_wait_s":db_peak_lock},
             "fixture_integrity":"PASS", "public_tables_preserved":"PASS", "database_writes":0,
-            "broker_orders":0, "provider_calls":0, "identity":{"host":identity.host,"port":identity.port,
-            "database":identity.database,"user":identity.user,"postgresql_major":16}, "verdict":verdict.level,
-            "reasons":verdict.reasons}
+            "broker_orders":0, "provider_calls":0,
+            "identity":{"host":identity.host,"port":identity.port,
+            "database":identity.database,"user":identity.user,"postgresql_major":16},
+            "verdict":verdict.level,
+            "reasons":verdict.reasons,
+        }
+        return result_payload
     finally:
         # Nested finally blocks ensure one deadline exception cannot skip later
         # drain, sampler, rollback, or close steps. Every wait is itself bounded;
         # a one-shot deadline seen here is preserved and re-raised after cleanup.
         cleanup_deadline = None
         try:
-            for proc in workers:
+            for proc, _ in workers:
                 try: cleanup_process(proc)
                 except DeadlineExceeded as exc: cleanup_deadline = cleanup_deadline or exc
         finally:
@@ -546,6 +768,8 @@ def main(argv: list[str] | None = None, env: Mapping[str, str] | None = None) ->
         result = execute_with_deadline(args.tier, lambda: run_live(args.tier, active))
         print(json.dumps(result, sort_keys=True)); return 0 if result["verdict"] in {"PASS","WARN"} else 1
     except Exception as exc:
+        if hasattr(exc, "worker_diagnostics"):
+            print("TASK976-ZB5 worker diagnostics: " + json.dumps(exc.worker_diagnostics, sort_keys=True), file=sys.stderr)
         print("TASK976-ZB5 result: FAIL\nTASK976-ZB5 error: " + redact(exc, active.get("DATABASE_URL", "")), file=sys.stderr); return 1
 
 

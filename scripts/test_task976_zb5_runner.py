@@ -14,10 +14,14 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
-from unittest.mock import Mock, patch
+from typing import Any
+from unittest.mock import patch
+
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import task976_zb5_runner as runner
+import task976_zb5_worker as worker
+from task976_zb5_timing_and_evidence_test import ZB5TimingAndEvidenceTests, good_row
 
 GOOD_URL = ("postgresql://apexquant_benchmark:very-secret@"
             "postgres16-benchmark.zeabur.internal:5432/apexquant_disposable")
@@ -71,6 +75,44 @@ class ZB5RunnerTests(unittest.TestCase):
                               c.scanner_workers, c.internal_deadline_s,
                               c.shell_timeout_s), values)
         with self.assertRaises(runner.SafetyError): runner.tier_config(0)
+
+    def test_tier3_timing_controls_are_documented_exactly(self):
+        import ast
+        runner_source = Path(runner.__file__).read_text()
+        worker_source = (Path(__file__).parent / "task976_zb5_worker.py").read_text()
+        probe_source = (Path(__file__).parent / "task976_zb5_node_probe.mjs").read_text()
+
+        self.assertEqual(runner.tier_config(3).scanner_workers, 3)
+        self.assertEqual(worker.worker_plan(3)[0], 504)
+        self.assertEqual(worker.worker_plan(3)[1], 75)
+
+        worker_plan_nodes = [node for node in ast.parse(worker_source).body
+                             if isinstance(node, ast.FunctionDef) and node.name == "worker_plan"]
+        self.assertEqual(len(worker_plan_nodes), 1)
+        worker_plan = worker_plan_nodes[0]
+        worker_plan_dict_nodes = [node for node in ast.walk(worker_plan)
+                                  if isinstance(node, ast.Dict)]
+        self.assertEqual(len(worker_plan_dict_nodes), 1)
+        worker_plan_dict = worker_plan_dict_nodes[0]
+        self.assertEqual([key.value for key in worker_plan_dict.keys], [1, 2, 3])
+
+        tier3_tuple = worker_plan_dict.values[2]
+        self.assertTrue(isinstance(tier3_tuple, ast.Tuple) and len(tier3_tuple.elts) == 2)
+        self.assertEqual(tier3_tuple.elts[0].value, 504)
+        self.assertEqual(tier3_tuple.elts[1].value, 75)
+
+        self.assertEqual(runner.tier_config(1).shell_timeout_s, 240)
+        self.assertEqual(runner.tier_config(2).shell_timeout_s, 300)
+        self.assertEqual(runner.tier_config(3).shell_timeout_s, 300)
+
+        self.assertEqual(runner.tier_config(1).internal_deadline_s, 180)
+        self.assertEqual(runner.tier_config(2).internal_deadline_s, 240)
+        self.assertEqual(runner.tier_config(3).internal_deadline_s, 240)
+
+        self.assertIn("19776", probe_source)
+        self.assertTrue(isinstance(probe_source, str))
+
+        self.assertNotIn("timeout --signal=TERM --kill-after=10s 600s", runner_source)
 
     def test_no_blanket_600_second_deadline(self):
         self.assertNotIn("600", Path(runner.__file__).read_text())
@@ -310,6 +352,388 @@ class ZB5RunnerTests(unittest.TestCase):
         self.assertEqual(contiguous, {"current_ms": 10000, "longest_ms": 10000})
         reset = calculate([[400, 350]] * 10 + [[50, 0], [400, 350]])
         self.assertEqual(reset, {"current_ms": 400, "longest_ms": 4000})
+
+    def test_worker_diagnostics_archive_each_outcome_deterministically(self):
+        from task976_zb5_runner import (
+            _bounded_worker_stderr,
+            _bounded_worker_stdout_diagnostics,
+            WorkerOutcome,
+            classify_worker_outcome,
+            collect_worker_with_diagnostic,
+            worker_outcome_to_dict,
+        )
+        pending = WorkerOutcome(
+            worker_index=2,
+            started_microseconds=1_000_000,
+            duration_monotonic_ms=14.0,
+            communicate_timeout=False,
+            returncode=None,
+            stderr_present=False,
+            stdout_present=True,
+            json_parse_ok=True,
+            parsed={"tier": 3, "duration_seconds": 42.0, "symbols_processed": 23,
+                   "bars_per_symbol": 504, "lab_walk_calls": 7},
+            stderr_bounded="",
+            pid=99,
+            cleanup_ok=True,
+            classification="",
+            error_reason_if_any="",
+        )
+        record = worker_outcome_to_dict(pending)
+        self.assertEqual(record["worker_index"], 2)
+        self.assertEqual(record["pid"], 99)
+        self.assertEqual(record["started_monotonic_ms"], 1000.0)
+        self.assertAlmostEqual(record["duration_monotonic_ms"], 14.0)
+        self.assertFalse(record["communicate_timeout"])
+        self.assertIsNone(record["returncode"])
+        self.assertFalse(record["stderr_present"])
+        self.assertTrue(record["stdout_present"])
+        self.assertTrue(record["json_parse_ok"])
+        self.assertEqual(record["classification"], "OTHER")
+        self.assertEqual(record["error_reason_if_any"], "")
+        parsed = record["parsed"]
+        self.assertEqual(parsed["parsed_tier"], 3)
+        self.assertEqual(parsed["parsed_duration_seconds"], 42.0)
+        self.assertEqual(parsed["parsed_symbols_processed"], 23)
+        self.assertEqual(parsed["parsed_bars_per_symbol"], 504)
+        self.assertEqual(parsed["parsed_lab_walk_calls"], 7)
+
+    def test_worker_diagnostics_classify_each_failure_mode(self):
+        from task976_zb5_runner import (
+            WorkerOutcome,
+            classify_worker_outcome,
+            worker_outcome_to_dict,
+        )
+        def make_outcome(**overrides: Any) -> WorkerOutcome:
+            defaults: dict[str, Any] = {
+                "worker_index": 0,
+                "started_microseconds": 0,
+                "duration_monotonic_ms": 0.0,
+                "communicate_timeout": False,
+                "returncode": 0,
+                "stderr_present": False,
+                "stdout_present": True,
+                "json_parse_ok": True,
+                "parsed": good_row(),
+                "stderr_bounded": "",
+                "pid": None,
+                "cleanup_ok": True,
+                "classification": "",
+                "error_reason_if_any": "",
+            }
+            defaults.update(overrides)
+            return WorkerOutcome(**defaults)
+
+        cases = [
+            ({"communicate_timeout": True}, "COMMUNICATE_TIMEOUT"),
+            ({"communicate_timeout": False, "returncode": 1}, "NONZERO_EXIT"),
+            ({"communicate_timeout": False, "returncode": 0, "stderr_present": True}, "STDERR_OUTPUT"),
+            ({"communicate_timeout": False, "returncode": 0, "stderr_present": False, "stdout_present": False}, "EMPTY_STDOUT"),
+            ({"communicate_timeout": False, "returncode": 0, "stderr_present": False, "stdout_present": True, "json_parse_ok": False}, "INVALID_JSON"),
+            ({"communicate_timeout": False, "returncode": 0, "stderr_present": False, "stdout_present": True,
+              "json_parse_ok": True, "parsed": {"status": "FAIL", "error": "worker deadline exceeded"}}, "WORKER_REPORTED_FAILURE"),
+            ({"communicate_timeout": False, "returncode": 0, "stderr_present": False, "stdout_present": True,
+              "json_parse_ok": True, "parsed": good_row()}, "PASS_EVIDENCE"),
+            ({"communicate_timeout": False, "returncode": 0, "stderr_present": False, "stdout_present": False,
+              "json_parse_ok": False, "parsed": None}, "EMPTY_STDOUT"),
+        ]
+        for override, expected in cases:
+            with self.subTest(override=override):
+                outcome = make_outcome(**override)
+                self.assertEqual(classify_worker_outcome(outcome), expected)
+                self.assertEqual(worker_outcome_to_dict(outcome)["classification"], expected)
+
+    def test_worker_diagnostics_preserve_worker_reported_reason(self):
+        from task976_zb5_runner import (
+            WorkerOutcome,
+            collect_worker_with_diagnostic,
+            worker_outcome_to_dict,
+        )
+
+        command_status_obj = object()
+        import json as _json
+        captured_stdout = _json.dumps({"status": "FAIL", "error": "worker deadline exceeded"})
+
+        class FakeWorkerProc:
+            def __init__(self, stdout: str | None, stderr: str | None, returncode: int):
+                self._stdout = stdout
+                self._stderr = stderr
+                self._returncode = returncode
+                self._called_communicate = False
+                self._pid = 77
+            @property
+            def pid(self) -> int:
+                return self._pid
+            @property
+            def returncode(self) -> int:
+                return self._returncode
+            def poll(self) -> int | None:
+                return self._returncode
+            def communicate(self, timeout: float = 75):
+                self._called_communicate = True
+                return (self._stdout, self._stderr)
+
+        proc = FakeWorkerProc(captured_stdout, "worker deadline exceeded\n", 1)
+        outcome = collect_worker_with_diagnostic(proc, worker_index=1, started_monotonic_us=0)
+        self.assertTrue(proc._called_communicate)
+        self.assertEqual(outcome.classification, "WORKER_REPORTED_FAILURE")
+        self.assertEqual(outcome.returncode, 1)
+        self.assertTrue(outcome.stderr_present)
+        self.assertTrue(outcome.json_parse_ok)
+        self.assertIsNotNone(outcome.parsed)
+        self.assertEqual(outcome.parsed.get("status"), "FAIL")
+        self.assertEqual(outcome.error_reason_if_any, "worker deadline exceeded")
+        record = worker_outcome_to_dict(outcome)
+        self.assertEqual(record["classification"], "WORKER_REPORTED_FAILURE")
+        self.assertEqual(record["error_reason_if_any"], "worker deadline exceeded")
+        self.assertIn("worker deadline exceeded", record["stderr_bounded"])
+        parsed = record["parsed"]
+        self.assertEqual(parsed["parsed_tier"], -1)
+        self.assertEqual(parsed["parsed_duration_seconds"], -1.0)
+        self.assertEqual(parsed["parsed_symbols_processed"], -1)
+        self.assertEqual(parsed["parsed_bars_per_symbol"], -1)
+        self.assertEqual(parsed["parsed_lab_walk_calls"], 0)
+
+    def test_worker_diagnostics_communicate_timeout_records_exact_reason(self):
+        from task976_zb5_runner import (
+            WorkerOutcome,
+            collect_worker_with_diagnostic,
+            worker_outcome_to_dict,
+        )
+
+        class TimeoutWorkerProc:
+            def __init__(self):
+                self._pid = 88
+                self._polled = False
+            @property
+            def pid(self) -> int:
+                return self._pid
+            def poll(self) -> int | None:
+                return 99 if self._polled else None
+            def terminate(self):
+                self._polled = True
+            def kill(self):
+                self._polled = True
+            def wait(self, timeout: float = 2):
+                self._polled = True
+                return 99
+            def communicate(self, timeout: float = 75):
+                raise subprocess.TimeoutExpired("worker", timeout)
+
+        proc = TimeoutWorkerProc()
+        outcome = collect_worker_with_diagnostic(proc, worker_index=0, started_monotonic_us=1234)
+        self.assertEqual(outcome.classification, "COMMUNICATE_TIMEOUT")
+        self.assertTrue(outcome.communicate_timeout)
+        self.assertEqual(outcome.returncode, 99)
+        self.assertEqual(outcome.pid, 88)
+        record = worker_outcome_to_dict(outcome)
+        self.assertEqual(record["classification"], "COMMUNICATE_TIMEOUT")
+        self.assertEqual(record["error_reason_if_any"], "worker communicate(timeout=75) expired")
+        self.assertIn("timeout=75", record["error_reason_if_any"])
+
+    def test_worker_diagnostics_empty_stdout_and_invalid_json_oneshot(self):
+        from task976_zb5_runner import (
+            WorkerOutcome,
+            collect_worker_with_diagnostic,
+            worker_outcome_to_dict,
+        )
+
+        class QuietWorkerProc:
+            def __init__(self, stdout, stderr, returncode):
+                self._stdout = stdout
+                self._stderr = stderr
+                self._returncode = returncode
+                self._pid = 90
+            @property
+            def pid(self) -> int:
+                return self._pid
+            @property
+            def returncode(self) -> int:
+                return self._returncode
+            def poll(self) -> int | None:
+                return self._returncode
+            def communicate(self, timeout: float = 75):
+                return (self._stdout, self._stderr)
+
+        empty = collect_worker_with_diagnostic(QuietWorkerProc(None, "some stderr\n", 0),
+                                              worker_index=2, started_monotonic_us=0)
+        self.assertEqual(empty.classification, "STDERR_OUTPUT")
+        self.assertTrue(empty.stderr_present)
+        self.assertFalse(empty.stdout_present)
+
+        bad_json = collect_worker_with_diagnostic(QuietWorkerProc("not-json", None, 0),
+                                                  worker_index=0, started_monotonic_us=0)
+        self.assertEqual(bad_json.classification, "INVALID_JSON")
+        self.assertTrue(bad_json.stdout_present)
+        self.assertFalse(bad_json.json_parse_ok)
+        record = worker_outcome_to_dict(bad_json)
+        self.assertEqual(record["classification"], "INVALID_JSON")
+        parsed = record["parsed"]
+        self.assertIsNone(parsed["parsed_tier"])
+        self.assertIsNone(parsed["parsed_duration_seconds"])
+
+    def test_worker_diagnostics_bound_and_redact_stderr(self):
+        from task976_zb5_runner import _bounded_worker_stderr
+        raw = (
+            "worker diagnostic log\n"
+            "DATABASE_URL=postgresql://u:p@host/db\n"
+            "KITE_API_KEY=secret-key\n"
+            + "x" * 5000
+        )
+        bounded = _bounded_worker_stderr(raw)
+        self.assertNotIn("DATABASE_URL=postgresql://u:p@host/db", bounded)
+        self.assertNotIn("KITE_API_KEY=secret-key", bounded)
+        self.assertIn("<REDACTED>", bounded)
+        self.assertIn("<...truncated mid-stream...>", bounded)
+
+    def test_worker_diagnostics_reject_extra_or_missing_evidence(self):
+        config = runner.tier_config(3)
+        good = {
+            "tier": 3, "symbols_processed": 23, "bars_per_symbol": 504,
+            "symbol_hash": runner.fixture.task969.APPROVED_SET_HASH,
+            "provider_calls": 0, "broker_calls": 0, "orders_submitted": 0,
+            "duration_seconds": 10.0, "lab_walk_calls": 7,
+        }
+        runner.require_worker_evidence([good, good, good], config)
+        for bad in ([], [good, good], [good, good, good, good],
+                    [{**good, "bars_per_symbol": 252}, good, good]):
+            with self.subTest(bad=bad), self.assertRaises(runner.SafetyError):
+                runner.require_worker_evidence(bad, config)
+
+    def test_tier3_worker_deadline_is_exactly_75_in_worker_side(self):
+        self.assertEqual(worker.worker_plan(3)[1], 75)
+        self.assertEqual(worker.worker_plan(2)[1], 75)
+        self.assertEqual(worker.worker_plan(1)[1], 75)
+        self.assertEqual(worker.worker_plan(3)[0], 504)
+        self.assertEqual(worker.worker_plan(2)[0], 252)
+        self.assertEqual(worker.worker_plan(1)[0], 252)
+
+    def test_tier3_worker_duration_validation_uses_worker_bound(self):
+        with self.assertRaises(worker.WorkerSafetyError):
+            worker.require_worker_duration(75.0000001)
+        worker.require_worker_duration(75.0)
+
+    def test_tier3_worker_bound_remains_identical_across_worker_plan_and_duration_check(self):
+        bound = worker.worker_plan(3)[1]
+        self.assertEqual(bound, 75)
+        with self.assertRaises(worker.WorkerSafetyError):
+            worker.require_worker_duration(float(bound) + 1e-9)
+        worker.require_worker_duration(float(bound))
+
+    def test_runner_uses_single_hardcoded_75_second_worker_collection_timeout(self):
+        source = Path(runner.__file__).read_text()
+        self.assertIn("communicate(timeout=75)", source)
+        import re
+        timeouts = re.findall(r"\.communicate\s*\(\s*timeout\s*=\s*([0-9]+)\s*\)", source)
+        self.assertEqual(timeouts, ["75"])
+
+    def test_tier3_requires_exactly_three_worker_evidence_rows(self):
+        config = runner.tier_config(3)
+        self.assertEqual(config.scanner_workers, 3)
+        good = {
+            "tier": 3, "symbols_processed": 23, "bars_per_symbol": 504,
+            "symbol_hash": runner.fixture.task969.APPROVED_SET_HASH,
+            "provider_calls": 0, "broker_calls": 0, "orders_submitted": 0,
+            "duration_seconds": 5.0, "lab_walk_calls": 1,
+        }
+        runner.require_worker_evidence([good, good, good], config)
+        with self.assertRaises(runner.SafetyError):
+            runner.require_worker_evidence([dict(good), dict(good)], config)
+
+    def test_provider_broker_and_orders_still_fail_closed_in_worker_evidence(self):
+        config = runner.tier_config(3)
+        good = {
+            "tier": 3, "symbols_processed": 23, "bars_per_symbol": 504,
+            "symbol_hash": runner.fixture.task969.APPROVED_SET_HASH,
+            "provider_calls": 0, "broker_calls": 0, "orders_submitted": 0,
+            "duration_seconds": 5.0, "lab_walk_calls": 1,
+        }
+        for field in ("provider_calls", "broker_calls", "orders_submitted"):
+            bad = dict(good)
+            bad[field] = 1
+            with self.subTest(field=field), self.assertRaises(runner.SafetyError):
+                runner.require_worker_evidence([bad, good, good], config)
+
+    def test_wrong_symbol_hash_fails_closed(self):
+        config = runner.tier_config(3)
+        good = {
+            "tier": 3, "symbols_processed": 23, "bars_per_symbol": 504,
+            "symbol_hash": "0" * 64,
+            "provider_calls": 0, "broker_calls": 0, "orders_submitted": 0,
+            "duration_seconds": 5.0, "lab_walk_calls": 1,
+        }
+        with self.assertRaises(runner.SafetyError):
+            runner.require_worker_evidence([good, good, good], config)
+
+    def test_wrong_bars_per_symbol_fails_closed(self):
+        config = runner.tier_config(3)
+        good = {
+            "tier": 3, "symbols_processed": 23, "bars_per_symbol": 252,
+            "symbol_hash": runner.fixture.task969.APPROVED_SET_HASH,
+            "provider_calls": 0, "broker_calls": 0, "orders_submitted": 0,
+            "duration_seconds": 5.0, "lab_walk_calls": 1,
+        }
+        with self.assertRaises(runner.SafetyError):
+            runner.require_worker_evidence([good, good, good], config)
+
+    def test_worker_duration_over_reviewed_bound_fails_closed(self):
+        config = runner.tier_config(3)
+        good = {
+            "tier": 3, "symbols_processed": 23, "bars_per_symbol": 504,
+            "symbol_hash": runner.fixture.task969.APPROVED_SET_HASH,
+            "provider_calls": 0, "broker_calls": 0, "orders_submitted": 0,
+            "duration_seconds": 75.000001, "lab_walk_calls": 1,
+        }
+        with self.assertRaises(runner.SafetyError):
+            runner.require_worker_evidence([good, good, good], config)
+
+    def test_tier1_and_tier2_behavior_unchanged(self):
+        for tier in (1, 2):
+            config = runner.tier_config(tier)
+            self.assertEqual(config.scanner_workers, 1 if tier == 1 else 2)
+            self.assertEqual(config.workload_duration_s, 120)
+            self.assertEqual(config.requests, 240 if tier == 1 else 720)
+            self.assertEqual(config.concurrency, 2 if tier == 1 else 6)
+            self.assertEqual(config.internal_deadline_s, 180 if tier == 1 else 240)
+            self.assertEqual(config.shell_timeout_s, 240 if tier == 1 else 300)
+            good = {
+                "tier": tier, "symbols_processed": 23, "bars_per_symbol": 252,
+                "symbol_hash": runner.fixture.task969.APPROVED_SET_HASH,
+                "provider_calls": 0, "broker_calls": 0, "orders_submitted": 0,
+                "duration_seconds": 10.0, "lab_walk_calls": 1,
+            }
+            expected_count = 1 if tier == 1 else 2
+            runner.require_worker_evidence([good] * expected_count, config)
+            with self.assertRaises(runner.SafetyError):
+                runner.require_worker_evidence([dict(good)] * (expected_count + 1), config)
+
+    def test_no_blanket_600_second_deadline_elsewhere(self):
+        runner_source = Path(runner.__file__).read_text()
+        self.assertNotIn("timeout --signal=TERM --kill-after=10s 600s", runner_source)
+        self.assertNotIn("communicate(timeout=600)", runner_source)
+        self.assertNotIn("alarm(600)", runner_source)
+        self.assertNotIn("worker_plan(3)[1] + 525", runner_source)
+
+    def test_worker_outcome_and_classification_helpers_mirror_runner(self):
+        from task976_zb5_runner import WorkerOutcome, classify_worker_outcome, worker_outcome_to_dict
+        outcome = WorkerOutcome(
+            worker_index=0,
+            started_microseconds=0,
+            duration_monotonic_ms=0.0,
+            communicate_timeout=False,
+            returncode=1,
+            stderr_present=True,
+            stdout_present=False,
+            json_parse_ok=False,
+            parsed=None,
+            stderr_bounded="",
+            pid=None,
+            cleanup_ok=True,
+            classification="",
+            error_reason_if_any="",
+        )
+        record = worker_outcome_to_dict(outcome)
+        self.assertEqual(record["classification"], classify_worker_outcome(outcome))
 
     def test_node_shadow_rejects_non_get_and_unknown_routes(self):
         with tempfile.TemporaryDirectory() as directory:
