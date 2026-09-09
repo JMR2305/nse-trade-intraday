@@ -208,16 +208,59 @@ def run_deterministic_workload(tier: int, *, scan_one: Callable = real_scan_one)
             "broker_calls": 0, "orders_submitted": 0}
 
 
+RESOURCE_FIELDS = {
+    "cpu_user_seconds": "ru_utime", "cpu_system_seconds": "ru_stime",
+    "max_rss": "ru_maxrss", "voluntary_ctx_switches": "ru_nvcsw",
+    "involuntary_ctx_switches": "ru_nivcsw",
+}
+
+
+def safe_resource_number(value: Any) -> int | float | None:
+    # Reject booleans, strings, nonfinite and excessively large values.
+    return value if type(value) in (int, float) and 0 <= value <= 2**53 - 1 else None
+
+
+def sanitize_resources(value: Any) -> dict[str, Any]:
+    fields = (*RESOURCE_FIELDS, "wall_seconds", "stage_elapsed_seconds")
+    raw = value if isinstance(value, dict) else {}
+    result = {key: safe_resource_number(raw.get(key)) for key in fields}
+    result["stage"] = raw.get("stage") if raw.get("stage") in ("initialization", "workload", "finalization") else None
+    result["max_rss_unit"] = raw.get("max_rss_unit") if raw.get("max_rss_unit") in ("KiB", "bytes", "platform_native") else None
+    result["evidence_ok"] = all(result[key] is not None for key in (*fields, "stage", "max_rss_unit"))
+    return result
+
+
+def worker_resources(stage: str, wall_seconds: float, stage_elapsed_seconds: float) -> dict[str, Any]:
+    """Read-only process lifetime counters; RSS is KiB on Linux, bytes on macOS.
+
+    Wall/stage clocks begin inside main, after module imports. They do not
+    replace the workload duration or the unchanged worker alarm.
+    """
+    try: usage = resource.getrusage(resource.RUSAGE_SELF)
+    except (OSError, ValueError, AttributeError): usage = None
+    raw = {key: getattr(usage, attr, None) for key, attr in RESOURCE_FIELDS.items()}
+    raw.update(stage=stage, wall_seconds=wall_seconds, stage_elapsed_seconds=stage_elapsed_seconds,
+               max_rss_unit="KiB" if sys.platform.startswith("linux") else "bytes" if sys.platform == "darwin" else "platform_native")
+    return sanitize_resources(raw)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(); parser.add_argument("--tier", type=int, required=True)
     args = parser.parse_args(argv)
+    observed_start = stage_start = time.monotonic(); stage = "initialization"
+    def diagnostics():
+        now = time.monotonic()
+        return worker_resources(stage, now-observed_start, now-stage_start)
     def expired(_sig, _frame): raise WorkerSafetyError("worker deadline exceeded")
     try:
         signal.signal(signal.SIGALRM, expired); signal.alarm(worker_plan(args.tier)[1])
+        stage = "workload"; stage_start = time.monotonic()
         with network_guard(): result = run_deterministic_workload(args.tier)
+        stage = "finalization"; stage_start = time.monotonic()
+        result["resources"] = diagnostics()
         print(json.dumps(result, sort_keys=True)); return 0
     except Exception as exc:
-        print(json.dumps({"status": "FAIL", "error": str(exc)[:160]}), file=sys.stderr); return 1
+        print(json.dumps({"status": "FAIL", "error": str(exc)[:160], "resources": diagnostics()}), file=sys.stderr); return 1
     finally: signal.alarm(0)
 
 

@@ -28,6 +28,152 @@ GOOD_URL = ("postgresql://apexquant_benchmark:very-secret@"
 
 
 class ZB5RunnerTests(unittest.TestCase):
+    def test_cpu_stat_parsing_and_absence(self):
+        full = "usage_usec 100\nuser_usec 70\nsystem_usec 30\nnr_periods 4\nnr_throttled 2\nthrottled_usec 10"
+        parsed = runner.parse_cpu_stat(full)
+        self.assertEqual(parsed["usage_usec"], 100)
+        self.assertEqual(parsed["throttled_usec"], 10)
+        self.assertIsNone(runner.parse_cpu_stat("usage_usec 2")["user_usec"])
+        for raw in (None, "usage_usec secret", "usage_usec -1", "usage_usec 1\nusage_usec 2", "usage_usec " + "9" * 100):
+            with self.subTest(raw=raw):
+                self.assertIsNone(runner.parse_cpu_stat(raw)["usage_usec"])
+
+    def test_cpu_quota_finite_fractional_unbounded_invalid(self):
+        for raw, mode, quota in [("200000 100000", "finite", 2.0), ("150000 100000", "finite", 1.5), ("max 100000", "unbounded", None), (None, "unavailable", None), ("secret", "invalid", None), ("2 0", "invalid", None), ("-1 100", "invalid", None)]:
+            with self.subTest(raw=raw):
+                result = runner.parse_cpu_max(raw)
+                self.assertEqual(result["quota_mode"], mode)
+                self.assertEqual(result["effective_cpu_quota"], quota)
+                self.assertNotIn("secret", json.dumps(result))
+
+    def test_cpu_deltas_reset_disappear_and_quota_change(self):
+        def snapshot(value, quota="200000 100000"):
+            with patch.object(runner, "_cgroup_value", side_effect=lambda name: quota if name == "cpu.max" else value):
+                return runner.cpu_snapshot()
+        before = snapshot("usage_usec 10\nuser_usec 6\nsystem_usec 4\nnr_periods 2\nnr_throttled 1\nthrottled_usec 3")
+        after = snapshot("usage_usec 20\nuser_usec 12\nsystem_usec 8\nnr_periods 4\nnr_throttled 2\nthrottled_usec 6")
+        delta = runner.cpu_delta(before, after)
+        self.assertEqual(delta["usage_usec_delta"], 10)
+        self.assertTrue(delta["evidence_ok"])
+        for bad in (snapshot(None), snapshot("usage_usec 1"), snapshot("usage_usec broken"), snapshot("usage_usec 20", "max 100000")):
+            self.assertFalse(runner.cpu_delta(before, bad)["evidence_ok"])
+        self.assertIsNone(runner.cpu_delta(after, before)["usage_usec_delta"])
+
+    def test_cpu_failure_output_survives_canonical_error(self):
+        failure = runner.SafetyError("worker evidence count mismatch")
+        failure.worker_diagnostics = {"worker_outcomes": []}
+        with patch.object(runner, "cpu_snapshot", return_value={"version": "unavailable", "quota": runner.parse_cpu_max(None), "counters": runner.parse_cpu_stat(None)}):
+            with self.assertRaises(runner.SafetyError) as caught:
+                runner.observe_cpu_run(lambda: (_ for _ in ()).throw(failure))
+        self.assertIs(caught.exception, failure)
+        self.assertFalse(failure.cpu_cgroup["evidence_ok"])
+        with patch.object(runner, "execute_with_deadline", side_effect=failure), contextlib.redirect_stderr(io.StringIO()) as output:
+            self.assertEqual(runner.main(["--tier", "3"], {}), 1)
+        self.assertIn("worker evidence count mismatch", output.getvalue())
+        self.assertIn("cpu_cgroup", output.getvalue())
+
+    def test_extended_worker_failure_resources_and_validation(self):
+        proc = self.controlled_failure(lambda tier: (_ for _ in ()).throw(worker.WorkerSafetyError("worker deadline exceeded")))
+        record = self.assert_safe_failure(proc, "WORKER_DEADLINE_EXCEEDED")
+        self.assertGreaterEqual(record["resources"]["cpu_user_seconds"], 0)
+        self.assertEqual(record["resources"]["stage"], "workload")
+        row = good_row()
+        row["resources"] = {"cpu_user_seconds": "secret"}
+        outcome = runner.collect_worker_with_diagnostic(self.failure_proc("", json.dumps(row), 0), 0, 0)
+        self.assertNotEqual(outcome.classification, "PASS_EVIDENCE")
+        self.assertNotIn("secret", json.dumps(runner.worker_outcome_to_dict(outcome)))
+
+    def test_cpu_observation_tracks_midrun_counter_loss(self):
+        good = {"version": "v2", "quota": runner.parse_cpu_max("200000 100000"), "counters": dict.fromkeys(runner.CPU_COUNTERS, 10)}
+        broken = {**good, "counters": {**good["counters"], "nr_throttled": None}}
+        observation = runner.CpuObservation()
+        observation.observe(good)
+        observation.observe(broken)
+        observation.observe(good)
+        self.assertFalse(observation.evidence_ok)
+
+    def test_node_cpu_failure_snapshot_is_bounded_and_safe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "node.json"
+            path.write_text(json.dumps({"cpu_user_ms": 12, "cpu_system_ms": 3, "secret": "do-not-emit"}))
+            proc = self.failure_proc("")
+            proc.send_signal = lambda sig: None
+            with patch.object(runner.time, "sleep"):
+                evidence = runner.node_cpu_snapshot(proc, path)
+            self.assertEqual(evidence, {"cpu_user_ms": 12, "cpu_system_ms": 3})
+            path.write_text("invalid-secret")
+            with patch.object(runner.time, "sleep"):
+                self.assertEqual(runner.node_cpu_snapshot(proc, path), {"cpu_user_ms": None, "cpu_system_ms": None})
+
+    def test_canonical_failure_keeps_container_and_all_worker_resources(self):
+        proc = self.controlled_failure(lambda tier: (_ for _ in ()).throw(worker.WorkerSafetyError("worker deadline exceeded")))
+        with self.assertRaises(runner.SafetyError) as caught:
+            runner.observe_cpu_run(lambda: runner.collect_worker_evidence([(proc, 0)] * 3, runner.tier_config(3)))
+        self.assertEqual(str(caught.exception), "worker evidence count mismatch")
+        self.assertEqual(len(caught.exception.worker_diagnostics["worker_outcomes"]), 3)
+        self.assertIn("evidence_ok", caught.exception.cpu_cgroup)
+        for outcome in caught.exception.worker_diagnostics["worker_outcomes"]:
+            self.assertEqual(outcome["worker_failure_reason"], "WORKER_DEADLINE_EXCEEDED")
+            self.assertIsNotNone(outcome["resources"]["cpu_user_seconds"])
+
+    def test_observability_success_does_not_change_verdict_or_worker_count(self):
+        resource_data = worker.worker_resources("finalization", 1, .1)
+        rows, diagnostics = runner.collect_worker_evidence(
+            [(self.failure_proc("", json.dumps({**good_row(), "resources": resource_data}), 0), 0) for _ in range(3)],
+            runner.tier_config(3))
+        self.assertEqual(len(rows), 3)
+        self.assertTrue(all(r["classification"] == "PASS_EVIDENCE" for r in diagnostics["worker_outcomes"]))
+        with patch.object(runner, "_cgroup_value", return_value=None):
+            result = runner.observe_cpu_run(lambda: {"verdict": "FAIL"})
+        self.assertEqual(result["verdict"], "FAIL")
+        self.assertFalse(result["cpu_cgroup"]["evidence_ok"])
+
+    def test_worker_observability_nulls_do_not_invent_platform_fields(self):
+        resources = worker.sanitize_resources(None)
+        row = {**good_row(), "resources": resources}
+        outcome = runner.collect_worker_with_diagnostic(self.failure_proc("", json.dumps(row), 0), 0, 0)
+        self.assertEqual(outcome.classification, "PASS_EVIDENCE")
+        self.assertIsNone(runner.worker_outcome_to_dict(outcome)["resources"]["max_rss"])
+        self.assertFalse(outcome.resources["evidence_ok"])
+        # Valid diagnostic-only payload cannot substitute for workload evidence.
+        outcome = runner.collect_worker_with_diagnostic(self.failure_proc("", json.dumps({"resources": resources}), 0), 0, 0)
+        self.assertEqual(outcome.classification, "INVALID_EVIDENCE")
+
+    def test_live_lifecycle_failure_retains_cpu_diagnostics_after_cleanup(self):
+        from types import SimpleNamespace
+        proc = self.controlled_failure(lambda tier: (_ for _ in ()).throw(worker.WorkerSafetyError("worker deadline exceeded")))
+        proc.send_signal = lambda sig: None
+        conn = unittest.mock.MagicMock()
+        sampler = unittest.mock.MagicMock(cpu_over_180_s=4)
+        sampler.cpu_observation = SimpleNamespace(evidence_ok=True, samples=2)
+        pool = unittest.mock.MagicMock()
+        pool.__enter__.return_value.submit.return_value.result.return_value = (200, .01, False)
+        response = unittest.mock.MagicMock()
+        response.__enter__.return_value.status = 200
+        with contextlib.ExitStack() as stack:
+            for owner, name, value in [
+                (runner, "require_environment", None), (runner, "require_live_identity", None),
+                (runner.fixture, "read_live_identity", {}), (runner, "_read_fixture", {}),
+                (runner, "read_db_observation", {}), (runner, "public_table_fingerprints", {}),
+                (runner.fixture.psycopg2, "connect", conn), (runner, "ResourceSampler", sampler),
+                (runner.subprocess, "Popen", proc), (runner.urllib.request, "urlopen", response),
+                (runner.concurrent.futures, "ThreadPoolExecutor", pool),
+                (runner, "node_cpu_snapshot", {"cpu_user_ms": 12, "cpu_system_ms": 3}),
+                (runner.time, "sleep", None), (runner.time, "monotonic", 1.0),
+            ]:
+                stack.enter_context(patch.object(owner, name, return_value=value))
+            db_sampler = stack.enter_context(patch.object(runner, "DatabaseSampler"))
+            db_sampler.return_value.stop.return_value = (0, 0)
+            with self.assertRaises(runner.SafetyError) as caught:
+                runner.run_live(3, self.safe_env())
+        self.assertEqual(str(caught.exception), "worker evidence count mismatch")
+        self.assertEqual(caught.exception.node_cpu["cpu_user_ms"], 12)
+        self.assertEqual(caught.exception.cpu_over_180_s, 4)
+        self.assertEqual(len(caught.exception.worker_diagnostics["worker_outcomes"]), 3)
+        self.assertIn("cpu_cgroup", vars(caught.exception))
+        conn.rollback.assert_called_once()
+        conn.close.assert_called_once()
+
     def safe_env(self):
         return {"DATABASE_URL": GOOD_URL, "TASK976_DISPOSABLE_ACK": "apexquant_disposable",
                 **{name: "false" for name in runner.SAFETY_FLAGS}}
@@ -354,6 +500,7 @@ class ZB5RunnerTests(unittest.TestCase):
             "memory.current": "183508992",
             "memory.max": "max",
             "cpu.stat": "usage_usec 1000\n",
+            "cpu.max": None,
         }
 
         def fake_cgroup_value(name):

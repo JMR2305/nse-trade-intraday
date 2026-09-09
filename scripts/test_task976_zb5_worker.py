@@ -15,6 +15,30 @@ import task976_zb5_worker as worker
 
 
 class ZB5WorkerTests(unittest.TestCase):
+    def test_resource_snapshot_missing_and_malformed(self):
+        from types import SimpleNamespace
+        with patch.object(worker.resource, "getrusage", return_value=SimpleNamespace(ru_utime=1.5, ru_stime=float("nan"), ru_maxrss=-1)):
+            result = worker.worker_resources("workload", 2.0, 1.0)
+        self.assertEqual(result["cpu_user_seconds"], 1.5)
+        self.assertIsNone(result["cpu_system_seconds"])
+        self.assertIsNone(result["max_rss"])
+        self.assertIsNone(result["voluntary_ctx_switches"])
+
+    def test_success_and_deadline_emit_resources_without_alarm_reset(self):
+        import contextlib, io, json
+        for fail in (False, True):
+            with self.subTest(fail=fail):
+                out, err = io.StringIO(), io.StringIO()
+                def workload(tier):
+                    if fail: raise worker.WorkerSafetyError("worker deadline exceeded")
+                    return {"tier": tier}
+                with patch.object(worker, "run_deterministic_workload", side_effect=workload), patch.object(worker.signal, "signal"), patch.object(worker.signal, "alarm") as alarm, contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    self.assertEqual(worker.main(["--tier", "3"]), int(fail))
+                payload = json.loads(err.getvalue() if fail else out.getvalue())
+                self.assertGreaterEqual(payload["resources"]["cpu_user_seconds"], 0)
+                self.assertEqual(payload["resources"]["stage"], "workload" if fail else "finalization")
+                self.assertEqual([call.args[0] for call in alarm.call_args_list], [75, 0])
+
     def test_exact_universe_and_hash(self):
         worker.require_exact_symbols(worker.CANONICAL_SYMBOLS)
         self.assertEqual(len(worker.CANONICAL_SYMBOLS), 23)

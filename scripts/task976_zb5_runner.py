@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import task976_zeabur_fixture as fixture
+from task976_zb5_worker import sanitize_resources, safe_resource_number
 
 SafetyError = fixture.SafetyError
 SAFETY_FLAGS = ("AUTO_EXECUTION_ENABLED", "LIVE_ORDERS_ENABLED",
@@ -300,6 +301,107 @@ def _cgroup_value(name: str) -> str | None:
 
 
 
+CPU_COUNTERS = ("usage_usec", "user_usec", "system_usec", "nr_periods", "nr_throttled", "throttled_usec")
+
+
+def parse_cpu_stat(raw: str | None) -> dict[str, int | None]:
+    result = dict.fromkeys(CPU_COUNTERS)
+    if not isinstance(raw, str) or len(raw) > 4096: return result
+    seen = set()
+    for line in raw.splitlines():
+        parts = line.split()
+        if not parts or parts[0] not in result: continue
+        key = parts[0]
+        if key in seen:
+            result[key] = None
+            continue
+        seen.add(key)
+        if len(parts) == 2 and parts[1].isascii() and parts[1].isdigit() and len(parts[1]) <= 16:
+            result[key] = safe_resource_number(int(parts[1]))
+    return result
+
+
+def parse_cpu_max(raw: str | None) -> dict[str, Any]:
+    result = {"quota_mode": "unavailable" if raw is None else "invalid", "quota_us": None,
+              "period_us": None, "effective_cpu_quota": None}
+    if not isinstance(raw, str) or len(raw) > 128: return result
+    parts = raw.split()
+    if len(parts) != 2: return result
+    def positive(token):
+        if not token.isascii() or not token.isdigit() or len(token) > 16: return None
+        value = safe_resource_number(int(token))
+        return value if value and value > 0 else None
+    period = positive(parts[1]); quota = positive(parts[0])
+    if period is None or (quota is None and parts[0] != "max"): return result
+    result.update(quota_mode="unbounded" if parts[0] == "max" else "finite",
+                  quota_us=quota, period_us=period,
+                  effective_cpu_quota=quota/period if quota is not None else None)
+    return result
+
+
+def cpu_snapshot() -> dict[str, Any]:
+    # Existing tooling uses cgroup-v2 mount paths. No guessed v1 conversion.
+    stat = _cgroup_value("cpu.stat"); quota = _cgroup_value("cpu.max")
+    return {"version": "v2" if quota is not None else "unavailable",
+            "quota": parse_cpu_max(quota), "counters": parse_cpu_stat(stat)}
+
+
+def cpu_delta(before: Mapping, after: Mapping) -> dict[str, Any]:
+    result = {"version": after["version"], "before": before, "after": after}
+    valid = before["version"] == after["version"] == "v2" and before["quota"] == after["quota"] and after["quota"]["quota_mode"] in ("finite", "unbounded")
+    for key in CPU_COUNTERS:
+        a, b = before["counters"][key], after["counters"][key]
+        result[key + "_delta"] = b-a if a is not None and b is not None and b >= a else None
+    result["evidence_ok"] = valid and all(result[key + "_delta"] is not None for key in CPU_COUNTERS)
+    return result
+
+
+class CpuObservation:
+    """Sticky validity: a later good sample cannot hide missing/reset counters."""
+    def __init__(self):
+        self.previous = None
+        self.evidence_ok = True
+        self.samples = 0
+
+    def observe(self, snapshot: Mapping) -> None:
+        reference = self.previous if self.previous is not None else snapshot
+        self.evidence_ok = self.evidence_ok and cpu_delta(reference, snapshot)["evidence_ok"]
+        self.previous = snapshot
+        self.samples += 1
+
+
+def node_cpu_snapshot(proc: Any, path: Path) -> dict[str, Any]:
+    result = {"cpu_user_ms": None, "cpu_system_ms": None}
+    try:
+        proc.send_signal(signal.SIGUSR2)
+        time.sleep(.2)  # Existing success-path flush bound; no worker timer reset.
+        with path.open() as stream: raw = stream.read(4097)
+        if len(raw) > 4096: return result
+        value = json.loads(raw)
+        if isinstance(value, dict):
+            result = {key: safe_resource_number(value.get(key)) for key in result}
+    except (OSError, ValueError, TypeError, AttributeError, RecursionError):
+        pass
+    return result
+
+
+def observe_cpu_run(lifecycle: Callable[[], Any]) -> Any:
+    before = cpu_snapshot(); observed_start = time.monotonic()
+    try:
+        result = lifecycle()
+    except Exception as exc:
+        exc.cpu_cgroup = cpu_delta(before, cpu_snapshot())
+        exc.cpu_cgroup["elapsed_seconds"] = safe_resource_number(time.monotonic()-observed_start)
+        exc.cpu_cgroup["sampling_evidence_ok"] = getattr(exc, "cpu_sampling_evidence_ok", None)
+        if exc.cpu_cgroup["sampling_evidence_ok"] is False: exc.cpu_cgroup["evidence_ok"] = False
+        raise
+    result["cpu_cgroup"] = cpu_delta(before, cpu_snapshot())
+    result["cpu_cgroup"]["elapsed_seconds"] = safe_resource_number(time.monotonic()-observed_start)
+    result["cpu_cgroup"]["sampling_evidence_ok"] = result.pop("cpu_sampling_evidence_ok", None)
+    if result["cpu_cgroup"]["sampling_evidence_ok"] is False: result["cpu_cgroup"]["evidence_ok"] = False
+    return result
+
+
 def resolve_memory_resource_evidence(
     sampler_ok: bool,
     peak_memory: int,
@@ -326,6 +428,7 @@ def resolve_memory_resource_evidence(
 class ResourceSampler:
     def __init__(self):
         self.stop_event = threading.Event(); self.peak_memory = 0; self.memory_over_85_s = 0
+        self.cpu_observation = CpuObservation()
         self.cpu_over_180_s = 0; self.ok = True; self.thread = threading.Thread(target=self._run, daemon=True)
     def _run(self):
         prior_t, prior_cpu = time.monotonic(), None
@@ -333,6 +436,9 @@ class ResourceSampler:
         while not self.stop_event.wait(.1):
             now = time.monotonic(); current = _cgroup_value("memory.current"); maximum = _cgroup_value("memory.max")
             cpu_text = _cgroup_value("cpu.stat")
+            cpu_max = _cgroup_value("cpu.max")
+            self.cpu_observation.observe({"version": "v2" if cpu_max is not None else "unavailable",
+                "quota": parse_cpu_max(cpu_max), "counters": parse_cpu_stat(cpu_text)})
             try:
                 memory = int(current)
                 if memory < 0:
@@ -399,9 +505,9 @@ _WORKER_FAILURE_REASONS = {
 }
 
 
-def _worker_failure_reason(stderr_text: str | None) -> str:
+def _worker_failure_envelope(stderr_text: str | None) -> dict:
     """Parse only the bounded worker failure envelope, independently of evidence."""
-    unknown = "UNKNOWN_WORKER_FAILURE"
+    unknown = {}
     if not isinstance(stderr_text, str) or not 0 < len(stderr_text) <= 1200:
         return unknown
     def unique_object(pairs):
@@ -414,10 +520,15 @@ def _worker_failure_reason(stderr_text: str | None) -> str:
         failure = json.loads(stderr_text, object_pairs_hook=unique_object)
     except (ValueError, TypeError, RecursionError):
         return unknown
-    if (not isinstance(failure, dict) or set(failure) != {"status", "error"}
+    if (not isinstance(failure, dict) or set(failure) not in ({"status", "error"}, {"status", "error", "resources"})
             or failure["status"] != "FAIL" or not isinstance(failure["error"], str)):
         return unknown
-    return _WORKER_FAILURE_REASONS.get(failure["error"], unknown)
+    return failure
+
+
+def _worker_failure_reason(stderr_text: str | None) -> str:
+    failure = _worker_failure_envelope(stderr_text)
+    return _WORKER_FAILURE_REASONS.get(failure.get("error"), "UNKNOWN_WORKER_FAILURE")
 
 
 def _bounded_worker_stdout_diagnostics(stdout_present: bool, json_ok: bool, parsed: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -454,6 +565,7 @@ class WorkerOutcome:
     classification: str
     error_reason_if_any: str
     worker_failure_reason: str = ""
+    resources: Mapping[str, Any] | None = None
 
 
 def classify_worker_outcome(outcome: WorkerOutcome) -> str:
@@ -476,6 +588,13 @@ def classify_worker_outcome(outcome: WorkerOutcome) -> str:
         return "OTHER"
     if not isinstance(outcome.parsed, dict):
         return "INVALID_JSON"
+    if "resources" in outcome.parsed:
+        resource_data = outcome.parsed["resources"]
+        safe = sanitize_resources(resource_data)
+        # Explicit nulls are valid absence; malformed diagnostics never become
+        # accepted success evidence. This is schema validation, not a CPU gate.
+        if not isinstance(resource_data, dict) or resource_data != safe:
+            return "INVALID_EVIDENCE"
     # The existing worker success contract has no status key. Accept that
     # contract only after validating its complete evidence, never bare JSON.
     try:
@@ -503,6 +622,7 @@ def worker_outcome_to_dict(outcome: WorkerOutcome) -> dict[str, Any]:
         "classification": classify_worker_outcome(outcome),
         "error_reason_if_any": outcome.error_reason_if_any,
         "worker_failure_reason": outcome.worker_failure_reason,
+        "resources": sanitize_resources(outcome.resources),
         "parsed": _bounded_worker_stdout_diagnostics(
             outcome.stdout_present,
             outcome.json_parse_ok,
@@ -593,6 +713,7 @@ def collect_worker_with_diagnostic(
         classification=classification,
         error_reason_if_any=error_reason_if_any or (classification if classification != "PASS_EVIDENCE" else ""),
         worker_failure_reason=_worker_failure_reason(err_text) if stderr_present else "",
+        resources=sanitize_resources(_worker_failure_envelope(err_text).get("resources") if stderr_present else parsed.get("resources") if isinstance(parsed, dict) else None),
     )
 
 
@@ -664,6 +785,10 @@ def _read_fixture(conn: Any) -> dict[str, Any]:
 
 
 def run_live(tier: int, env: Mapping[str, str]) -> dict[str, Any]:
+    return observe_cpu_run(lambda: _run_live(tier, env))
+
+
+def _run_live(tier: int, env: Mapping[str, str]) -> dict[str, Any]:
     config = tier_config(tier); identity = require_environment(env); conn = None; node = None; workers = []
     db_sampler = None
     sampler = ResourceSampler(); memory_events_before = _key_values(_cgroup_value("memory.events"))
@@ -709,7 +834,15 @@ def run_live(tier: int, env: Mapping[str, str]) -> dict[str, Any]:
                     if target > time.monotonic(): time.sleep(target-time.monotonic())
                 results = [future.result(timeout=6) for future in futures]
             db_peak_connection, db_peak_lock = db_sampler.stop(); db_sampler = None
-            worker_data, operation_diagnostics = collect_worker_evidence(workers, config)
+            try:
+                worker_data, operation_diagnostics = collect_worker_evidence(workers, config)
+            except SafetyError as exc:
+                # Read the existing Node evidence before temporary-file cleanup.
+                # Observability must not replace the canonical worker failure.
+                try: exc.node_cpu = node_cpu_snapshot(node, evidence_path)
+                except DeadlineExceeded:
+                    exc.node_cpu = {"cpu_user_ms": None, "cpu_system_ms": None}
+                raise
             crashes = operation_diagnostics["worker_crashes"]
             node.send_signal(signal.SIGUSR2); time.sleep(.2)
             node_data = json.loads(evidence_path.read_text()) if evidence_path.exists() else {}
@@ -762,6 +895,8 @@ def run_live(tier: int, env: Mapping[str, str]) -> dict[str, Any]:
             "node":node_data,
             "workers":worker_data,
             "worker_diagnostics": operation_diagnostics,
+            "cpu_over_180_s": safe_resource_number(sampler.cpu_over_180_s),
+            "cpu_sampling_evidence_ok": sampler.cpu_observation.evidence_ok if sampler.cpu_observation.samples else False,
             "memory_peak_bytes":sampler.peak_memory,
             "database_before":db_before, "database_after":db_after,
             "database_peak":{"connection_fraction":db_peak_connection,
@@ -774,6 +909,10 @@ def run_live(tier: int, env: Mapping[str, str]) -> dict[str, Any]:
             "reasons":verdict.reasons,
         }
         return result_payload
+    except Exception as exc:
+        exc.cpu_over_180_s = safe_resource_number(sampler.cpu_over_180_s)
+        exc.cpu_sampling_evidence_ok = sampler.cpu_observation.evidence_ok if sampler.cpu_observation.samples else False
+        raise
     finally:
         # Nested finally blocks ensure one deadline exception cannot skip later
         # drain, sampler, rollback, or close steps. Every wait is itself bounded;
@@ -813,6 +952,12 @@ def main(argv: list[str] | None = None, env: Mapping[str, str] | None = None) ->
         result = execute_with_deadline(args.tier, lambda: run_live(args.tier, active))
         print(json.dumps(result, sort_keys=True)); return 0 if result["verdict"] in {"PASS","WARN"} else 1
     except Exception as exc:
+        if hasattr(exc, "cpu_cgroup"):
+            print("TASK976-ZB5 cpu_cgroup: " + json.dumps(exc.cpu_cgroup, sort_keys=True), file=sys.stderr)
+        if hasattr(exc, "node_cpu"):
+            print("TASK976-ZB5 node_cpu: " + json.dumps(exc.node_cpu, sort_keys=True), file=sys.stderr)
+        if hasattr(exc, "cpu_over_180_s"):
+            print("TASK976-ZB5 cpu_over_180_s: " + json.dumps(exc.cpu_over_180_s), file=sys.stderr)
         if hasattr(exc, "worker_diagnostics"):
             print("TASK976-ZB5 worker diagnostics: " + json.dumps(exc.worker_diagnostics, sort_keys=True), file=sys.stderr)
         print("TASK976-ZB5 result: FAIL\nTASK976-ZB5 error: " + redact(exc, active.get("DATABASE_URL", "")), file=sys.stderr); return 1
