@@ -1,11 +1,17 @@
 """Offline Task971 regression checks; no application import or database access."""
 import ast
+import contextlib
+import io
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import unittest
+from unittest.mock import patch
 
+import task969_ci_report as ci_report
 from task969_ci_report import SOURCE_CORRECTIONS, verify_source_correction
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -75,6 +81,168 @@ for (const replacement of ['UNIQUE ("action", "correlation_id")', 'UNIQUE ("corr
 assert.throws(()=>assertSafeMigration(sql+'; DROP TABLE trading_universe_audit_events CASCADE;'), /BLOCKED/);
 '''
         subprocess.run(['node', '--input-type=module', '-e', js], cwd=ROOT, check=True)
+
+
+class Task978CandidateIdentity(unittest.TestCase):
+    """Exercise the identity gate using real reviewed Git history.
+
+    Read-only Git overrides model proposed committed mutations without creating
+    commits or changing the checkout. Only the proof output is redirected.
+    """
+
+    CANDIDATE = '7c4fc4876d7ed02d945177db6b4ed4c5c1c365c4'
+    ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
+    TASK976_PATHS = (
+        'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
+        'TASK976_ZB5_2VCPU_CAPACITY_BOUNDARY.md',
+        'scripts/task976_zb5_node_probe.mjs',
+        'scripts/task976_zb5_runner.py',
+        'scripts/task976_zb5_timing_and_evidence_test.py',
+        'scripts/task976_zb5_worker.py',
+        'scripts/task976_zeabur_benchmark.py',
+        'scripts/task976_zeabur_fixture.py',
+        'scripts/test_task976_zb5_runner.py',
+        'scripts/test_task976_zb5_worker.py',
+        'scripts/test_task976_zeabur_benchmark.py',
+        'scripts/test_task976_zeabur_fixture.py',
+    )
+
+    def run_identity(self, *, extra=(), overrides=None, env=None):
+        overrides = overrides or {}
+        real_git = ci_report.git
+        real_write = Path.write_text
+
+        def read_git(*args):
+            if args in overrides:
+                return overrides[args]
+            if args == ('rev-parse', 'HEAD'):
+                return self.CANDIDATE
+            if args == ('diff', '--name-only', 'HEAD'):
+                # Model the clean CI checkout; separately test dirty rejection.
+                return ''
+            result = real_git(*args)
+            if args == ('diff', '--name-only', self.ANCESTOR, self.CANDIDATE):
+                return '\n'.join([result, *extra])
+            return result
+
+        with tempfile.TemporaryDirectory(prefix='task978-identity-') as directory:
+            proof_path = Path(directory) / 'identity.json'
+
+            def write_proof(path, content, *args, **kwargs):
+                target = proof_path if path == ROOT / 'TASK_969_IDENTITY.json' else path
+                return real_write(target, content, *args, **kwargs)
+
+            environment = {
+                'GITHUB_SHA': self.CANDIDATE,
+                'GITHUB_REF': 'refs/heads/task967-migration-guard-hardening',
+                **(env or {}),
+            }
+            with patch.dict(os.environ, environment), \
+                    patch.object(ci_report, 'git', side_effect=read_git), \
+                    patch.object(Path, 'write_text', write_proof), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                ci_report.identity()
+            return json.loads(proof_path.read_text())
+
+    def test_exact_reviewed_candidate_is_accepted(self):
+        proof = self.run_identity()
+        self.assertEqual(proof['workflow_head'], self.CANDIDATE)
+        self.assertEqual(proof['reviewed_ancestor'], self.ANCESTOR)
+        self.assertTrue(set(self.TASK976_PATHS) <= set(proof['allowed_diff']))
+
+    def test_arbitrary_application_addition_or_edit_is_rejected(self):
+        for path in ['artifacts/api-server/src/task978_unreviewed.ts',
+                     'artifacts/api-server/src/index.ts']:
+            with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+                self.run_identity(extra=[path])
+
+    def test_unreviewed_migration_and_schema_files_are_rejected(self):
+        for path in ['lib/db/migrations/9999_unreviewed.sql',
+                     'lib/db/src/schema/task978_unreviewed.ts']:
+            with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+                self.run_identity(extra=[path])
+
+    def test_broker_and_order_path_changes_are_rejected(self):
+        for path in ['artifacts/api-server/src/routes/kite.ts',
+                     'artifacts/api-server/src/routes/trading.ts']:
+            with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+                self.run_identity(extra=[path])
+
+    def test_transfer_patch_is_never_accepted_as_committed_content(self):
+        name = 'TASK976_ZB5R4_FREEBUFF_TRANSFER.patch'
+        self.assertNotIn(name, self.run_identity()['allowed_diff'])
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(extra=[name])
+
+    def test_unknown_future_and_misspelled_files_are_rejected(self):
+        for path in ['scripts/task976_future.py', 'TASK976_FUTURE.md',
+                     'scripts/test_task976_zb5_timing_and_evidence_test.py']:
+            with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+                self.run_identity(extra=[path])
+
+    def test_every_reviewed_task976_file_is_content_pinned(self):
+        for path in self.TASK976_PATHS:
+            with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, 'Unexpected Task976'):
+                self.run_identity(overrides={
+                    ('rev-parse', f'{self.CANDIDATE}:{path}'): '0' * 40,
+                    ('ls-tree', self.CANDIDATE, '--', path): f'100644 blob {"0" * 40}\t{path}',
+                })
+
+    def test_task976_mode_type_and_deletion_changes_are_rejected(self):
+        path = 'scripts/task976_zb5_runner.py'
+        blob = '1f0507ad131816e2e12ca70999b1e2a799a7a704'
+        for entry in ['', f'100755 blob {blob}\t{path}',
+                      f'120000 blob {blob}\t{path}', f'040000 tree {blob}\t{path}']:
+            with self.subTest(entry=entry), self.assertRaisesRegex(RuntimeError, 'Unexpected Task976'):
+                self.run_identity(overrides={('ls-tree', self.CANDIDATE, '--', path): entry})
+
+    def test_task976_additions_must_be_absent_from_historical_base(self):
+        path = 'scripts/task976_zb5_runner.py'
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected Task976 file in reviewed base'):
+            self.run_identity(overrides={
+                ('ls-tree', self.ANCESTOR, '--', path): f'100644 blob {"0" * 40}\t{path}',
+            })
+
+    def test_task971_corrections_reject_additional_source_edits(self):
+        for path in SOURCE_CORRECTIONS:
+            after = ci_report.git('show', f'{self.CANDIDATE}:{path}')
+            with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, 'Unexpected Task971'):
+                self.run_identity(overrides={
+                    ('show', f'{self.CANDIDATE}:{path}'): after + '\nunauthorized edit',
+                })
+
+    def test_task972_test_blob_and_task973_order_queue_remain_pinned(self):
+        for path, label in [
+            ('artifacts/api-server/src/lib/pushNotifier.test.ts', 'Task972'),
+            ('artifacts/api-server/src/lib/alertQueue.ts', 'Task973'),
+        ]:
+            with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, f'Unexpected {label}'):
+                self.run_identity(overrides={
+                    ('rev-parse', f'{self.CANDIDATE}:{path}'): '0' * 40,
+                })
+
+    def test_task974_test_blob_remains_pinned(self):
+        path = 'artifacts/api-server/src/python/test_observability_center.py'
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected Task974'):
+            self.run_identity(overrides={
+                ('rev-parse', f'{self.CANDIDATE}:{path}'): '0' * 40,
+            })
+
+    def test_wrong_workflow_sha_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected workflow HEAD'):
+            self.run_identity(env={'GITHUB_SHA': '0' * 40})
+
+    def test_wrong_branch_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, 'only on the review branch'):
+            self.run_identity(env={'GITHUB_REF': 'refs/heads/main'})
+
+    def test_missing_reviewed_ancestor_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, 'absent from ancestry'):
+            self.run_identity(overrides={('log', '--format=%H %T', 'HEAD'): ''})
+
+    def test_dirty_tracked_worktree_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, 'Tracked worktree differs'):
+            self.run_identity(overrides={('diff', '--name-only', 'HEAD'): 'scripts/task969_ci_report.py'})
 
 
 if __name__ == '__main__':

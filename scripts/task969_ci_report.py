@@ -24,6 +24,25 @@ ALLOWED = {
     'scripts/task974_collection_diagnostics.py',
     'TASK_974_ORIGINAL_COLLECTION_FAILURES.md',
 }
+# Task978A: exact Task976 additions reviewed at candidate
+# 7c4fc4876d7ed02d945177db6b4ed4c5c1c365c4. These are content pins,
+# not unrestricted path permissions. All must be absent from the Task967 base
+# and remain regular non-executable files (the reviewed Git mode is 100644).
+# Keep the historical TREE and all Task971/972/973/974 checks unchanged.
+TASK976_REVIEWED_BLOBS = {
+    'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md': '97ae7e7e427474ac9f38501a2e55fd5d495c19d3',
+    'TASK976_ZB5_2VCPU_CAPACITY_BOUNDARY.md': 'b17bcf6abe6ca6daca67c8e279b999cf1d5dc690',
+    'scripts/task976_zb5_node_probe.mjs': 'f72405ecc16cf2373f1a3af487e1aea4c5ab0714',
+    'scripts/task976_zb5_runner.py': '1f0507ad131816e2e12ca70999b1e2a799a7a704',
+    'scripts/task976_zb5_timing_and_evidence_test.py': 'df4f7232ca9f9c5404ebd548ca6b826427126c6d',
+    'scripts/task976_zb5_worker.py': '7efa9554697c74e634d4dad3f16e510b79d80856',
+    'scripts/task976_zeabur_benchmark.py': '02743eaacb6e44ad5466af15d2b9a3eec1d04e8b',
+    'scripts/task976_zeabur_fixture.py': 'feae6cab4cc016eae73b4bbb86223745a3df1cff',
+    'scripts/test_task976_zb5_runner.py': '80d4287593ef20e9050b753c0f4be415acfac431',
+    'scripts/test_task976_zb5_worker.py': '6c31762f9f161339c3e72344e8df64c6b1a3f226',
+    'scripts/test_task976_zeabur_benchmark.py': '9c531eb2afca8800aa67d1625b99175ad51dbf20',
+    'scripts/test_task976_zeabur_fixture.py': 'b1206513ee743c2e5cffef1ff6bd2c3c7ee43307',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -262,9 +281,15 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
+    for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
+        if git('ls-tree', ancestor, '--', path):
+            raise RuntimeError(f'Unexpected Task976 file in reviewed base: {path}')
+        expected_entry = f'100644 blob {expected_blob}\t{path}'
+        if git('ls-tree', head, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task976 candidate content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -298,6 +323,7 @@ def identity():
         raise RuntimeError('Tracked worktree differs from workflow HEAD')
     proof = {'workflow_head': head, 'reviewed_ancestor': ancestor,
              'reviewed_tree': git('rev-parse', f'{ancestor}^{{tree}}'), 'allowed_diff': changed,
+             'task976_exact_candidate_blobs': TASK976_REVIEWED_BLOBS,
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
                  'before_blob': test_blobs[0], 'after_blob': test_blobs[1]},
