@@ -407,7 +407,20 @@ class TestCommitTimeMarketGuard(unittest.TestCase):
     def test_paper_ledger_admission_fails_closed_when_market_is_not_open(self):
         import phase20_executor as executor
 
-        with patch.object(executor, "_market_entry_allowed", return_value=False):
+        closed_market = {
+            "allowed": False,
+            "market_state": "CLOSED",
+            "reason": "NSE market-entry window is closed",
+        }
+        with patch.object(
+            executor, "_market_entry_status", return_value=closed_market
+        ), patch.object(
+            executor,
+            "db_available",
+            side_effect=AssertionError(
+                "market guard must reject before database availability is consulted"
+            ),
+        ):
             with self.assertRaises(executor.MarketClosedForEntry):
                 executor._insert_row({"status": "OPEN", "symbol": "RELIANCE"})
 
