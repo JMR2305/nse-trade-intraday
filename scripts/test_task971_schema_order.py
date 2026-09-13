@@ -90,7 +90,7 @@ class Task978CandidateIdentity(unittest.TestCase):
     commits or changing the checkout. Only the proof output is redirected.
     """
 
-    CANDIDATE = '01cb043b484d0233a169724651343713a6ed278d'
+    CANDIDATE = '18b775da0858061f39d62ede89c2984ab6342e58'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -155,7 +155,7 @@ class Task978CandidateIdentity(unittest.TestCase):
         expected = f'100644 blob ee56ecec998cb6a3c033cf67b3ba2f5048bbc17f\t{path}'
         proof = self.run_identity()
         self.assertEqual(proof['task978e2_exact_test_fixture'], {
-            'reviewed_commit': self.CANDIDATE,
+            'reviewed_commit': '01cb043b484d0233a169724651343713a6ed278d',
             'path': path,
             'blob': 'ee56ecec998cb6a3c033cf67b3ba2f5048bbc17f',
         })
@@ -180,6 +180,43 @@ class Task978CandidateIdentity(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
             self.run_identity(extra=[
                 'artifacts/api-server/src/python/tests/unit/test_task857_unreviewed.py'
+            ])
+
+    def test_task978j_fixture_is_exactly_blob_pinned(self):
+        path = 'artifacts/api-server/src/python/test_task482_trades.py'
+        blob = '70e34d14bcaa419c0ca50e16d7e784207cda69ae'
+        expected = f'100644 blob {blob}\t{path}'
+        proof = self.run_identity()
+        self.assertEqual(proof['task978j_exact_test_fixture'], {
+            'reviewed_commit': self.CANDIDATE,
+            'path': path,
+            'blob': blob,
+        })
+        self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
+
+    def test_task978j_fixture_content_mode_and_deletion_are_rejected(self):
+        path = 'artifacts/api-server/src/python/test_task482_trades.py'
+        blob = '70e34d14bcaa419c0ca50e16d7e784207cda69ae'
+        for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                      f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
+            with self.subTest(entry=entry), self.assertRaisesRegex(RuntimeError, 'Unexpected Task978J'):
+                self.run_identity(overrides={
+                    ('ls-tree', self.CANDIDATE, '--', path): entry,
+                })
+
+    def test_task978j_reviewed_commit_must_remain_in_candidate_lineage(self):
+        with self.assertRaisesRegex(RuntimeError, 'Task978J reviewed commit absent from ancestry'):
+            self.run_identity(overrides={
+                ('rev-list', 'HEAD'): ci_report.TASK978E2_REVIEWED_COMMIT,
+            })
+
+    def test_task978j_allowance_is_not_a_wildcard(self):
+        self.assertEqual(set(ci_report.TASK978J_REVIEWED_BLOBS), {
+            'artifacts/api-server/src/python/test_task482_trades.py'
+        })
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(extra=[
+                'artifacts/api-server/src/python/test_task482_trades_unreviewed.py'
             ])
 
     def test_arbitrary_application_addition_or_edit_is_rejected(self):

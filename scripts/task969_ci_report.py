@@ -52,6 +52,14 @@ TASK978E2_REVIEWED_BLOBS = {
     'artifacts/api-server/src/python/tests/unit/test_task857_job_classification.py':
         'ee56ecec998cb6a3c033cf67b3ba2f5048bbc17f',
 }
+# Task978J permits only the reviewed deterministic naive-IST test-fixture
+# blob. As with Task978E2, require both the reviewed commit in ancestry and
+# the exact regular-file blob at that commit and at HEAD.
+TASK978J_REVIEWED_COMMIT = '18b775da0858061f39d62ede89c2984ab6342e58'
+TASK978J_REVIEWED_BLOBS = {
+    'artifacts/api-server/src/python/test_task482_trades.py':
+        '70e34d14bcaa419c0ca50e16d7e784207cda69ae',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -290,7 +298,7 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
@@ -307,6 +315,14 @@ def identity():
             raise RuntimeError(f'Unexpected Task978E2 reviewed content: {path}')
         if git('ls-tree', head, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978E2 candidate content: {path}')
+    if TASK978J_REVIEWED_COMMIT not in git('rev-list', 'HEAD').splitlines():
+        raise RuntimeError('Task978J reviewed commit absent from ancestry')
+    for path, expected_blob in TASK978J_REVIEWED_BLOBS.items():
+        expected_entry = f'100644 blob {expected_blob}\t{path}'
+        if git('ls-tree', TASK978J_REVIEWED_COMMIT, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978J reviewed content: {path}')
+        if git('ls-tree', head, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978J candidate content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -345,6 +361,11 @@ def identity():
                  'reviewed_commit': TASK978E2_REVIEWED_COMMIT,
                  'path': next(iter(TASK978E2_REVIEWED_BLOBS)),
                  'blob': next(iter(TASK978E2_REVIEWED_BLOBS.values())),
+             },
+             'task978j_exact_test_fixture': {
+                 'reviewed_commit': TASK978J_REVIEWED_COMMIT,
+                 'path': next(iter(TASK978J_REVIEWED_BLOBS)),
+                 'blob': next(iter(TASK978J_REVIEWED_BLOBS.values())),
              },
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
