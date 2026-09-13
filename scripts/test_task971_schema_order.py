@@ -90,7 +90,7 @@ class Task978CandidateIdentity(unittest.TestCase):
     commits or changing the checkout. Only the proof output is redirected.
     """
 
-    CANDIDATE = '7c4fc4876d7ed02d945177db6b4ed4c5c1c365c4'
+    CANDIDATE = '01cb043b484d0233a169724651343713a6ed278d'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -149,6 +149,38 @@ class Task978CandidateIdentity(unittest.TestCase):
         self.assertEqual(proof['workflow_head'], self.CANDIDATE)
         self.assertEqual(proof['reviewed_ancestor'], self.ANCESTOR)
         self.assertTrue(set(self.TASK976_PATHS) <= set(proof['allowed_diff']))
+
+    def test_task978e2_fixture_is_exactly_blob_pinned(self):
+        path = 'artifacts/api-server/src/python/tests/unit/test_task857_job_classification.py'
+        expected = f'100644 blob ee56ecec998cb6a3c033cf67b3ba2f5048bbc17f\t{path}'
+        proof = self.run_identity()
+        self.assertEqual(proof['task978e2_exact_test_fixture'], {
+            'reviewed_commit': self.CANDIDATE,
+            'path': path,
+            'blob': 'ee56ecec998cb6a3c033cf67b3ba2f5048bbc17f',
+        })
+        self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
+
+    def test_task978e2_fixture_content_change_and_deletion_are_rejected(self):
+        path = 'artifacts/api-server/src/python/tests/unit/test_task857_job_classification.py'
+        for entry in ['', f'100644 blob {"0" * 40}\t{path}']:
+            with self.subTest(entry=entry), self.assertRaisesRegex(RuntimeError, 'Unexpected Task978E2'):
+                self.run_identity(overrides={
+                    ('ls-tree', self.CANDIDATE, '--', path): entry,
+                })
+
+    def test_task978e2_reviewed_commit_must_remain_in_candidate_lineage(self):
+        with self.assertRaisesRegex(RuntimeError, 'Task978E2 reviewed commit absent from ancestry'):
+            self.run_identity(overrides={('rev-list', 'HEAD'): self.ANCESTOR})
+
+    def test_task978e2_allowance_is_not_a_wildcard(self):
+        self.assertEqual(set(ci_report.TASK978E2_REVIEWED_BLOBS), {
+            'artifacts/api-server/src/python/tests/unit/test_task857_job_classification.py'
+        })
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(extra=[
+                'artifacts/api-server/src/python/tests/unit/test_task857_unreviewed.py'
+            ])
 
     def test_arbitrary_application_addition_or_edit_is_rejected(self):
         for path in ['artifacts/api-server/src/task978_unreviewed.ts',
