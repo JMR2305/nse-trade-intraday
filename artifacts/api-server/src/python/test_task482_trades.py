@@ -120,7 +120,7 @@ class TestSessionScope(unittest.TestCase):
         state = self._state()
         state["trades"].append(
             {"id": "naive1", "symbol": "HDFCBANK", "action": "BUY",
-             "timestamp": datetime.now().isoformat()})   # naive local time
+             "timestamp": datetime.now(_IST).replace(tzinfo=None).isoformat()})   # naive local time
         with patch.object(paper_trader, "_load_state", return_value=state):
             ids = {t["id"] for t in paper_trader.get_trades()}
         self.assertIn("naive1", ids)
