@@ -3,21 +3,23 @@
  * PAPER TRADING ONLY — research system.
  */
 import { Router, type IRouter } from "express";
-import { spawn } from "child_process";
-import path from "path";
-import fs from "fs";
 import { HealthCheckResponse } from "@workspace/api-zod";
-import { getStreamStats } from "./stream";
 import { runtimeIdentity } from "../lib/runtimeIdentity";
+import { healthOnlyNoSchedulers } from "../lib/commissioningMode";
 
 const router: IRouter = Router();
 
-import { PYTHON_DIR, PYTHON_BIN } from "../lib/python-env";
 const STARTED_AT = Date.now();
+const COMMISSIONING_MODE = healthOnlyNoSchedulers();
 
-function runPython(args: string[], timeoutMs = 20_000): Promise<unknown> {
+async function runPython(args: string[], timeoutMs = 20_000): Promise<unknown> {
+  const [{ spawn }, path, { PYTHON_DIR, PYTHON_BIN }] = await Promise.all([
+    import("node:child_process"),
+    import("node:path"),
+    import("../lib/python-env.js"),
+  ]);
   return new Promise((resolve, reject) => {
-    const proc = spawn(PYTHON_BIN, [path.join(PYTHON_DIR, "main.py"), ...args], { cwd: PYTHON_DIR });
+    const proc = spawn(PYTHON_BIN, [path.default.join(PYTHON_DIR, "main.py"), ...args], { cwd: PYTHON_DIR });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => { proc.kill("SIGKILL"); reject(new Error("timeout")); }, timeoutMs);
@@ -47,6 +49,14 @@ router.get("/health/live", (_req, res) => {
 
 // Readiness: python runtime + scan cache file reachable + portfolio config loaded.
 router.get("/health/ready", async (_req, res) => {
+  if (COMMISSIONING_MODE) {
+    res.json({
+      status: "ready",
+      commissioning_mode: true,
+      checks: { process: true },
+    });
+    return;
+  }
   const checks: Record<string, boolean> = {
     python_runtime: false,
     scan_cache_readable: false,
@@ -58,7 +68,15 @@ router.get("/health/ready", async (_req, res) => {
     checks["python_runtime"] = Boolean(ms && ms["state"]);
   } catch { /* stays false */ }
   try {
-    fs.accessSync(path.join(PYTHON_DIR, "phase7_scan_cache.json"), fs.constants.R_OK);
+    const [fs, path, { PYTHON_DIR }] = await Promise.all([
+      import("node:fs"),
+      import("node:path"),
+      import("../lib/python-env.js"),
+    ]);
+    fs.default.accessSync(
+      path.default.join(PYTHON_DIR, "phase7_scan_cache.json"),
+      fs.default.constants.R_OK,
+    );
     checks["scan_cache_readable"] = true;
   } catch { /* stays false */ }
   // Portfolio config: a load failure silently reverts risk limits to
@@ -103,10 +121,24 @@ router.get("/health/ready", async (_req, res) => {
 
 // Details: full observability payload (honest nulls on failure).
 router.get("/health/details", async (_req, res) => {
+  if (COMMISSIONING_MODE) {
+    const mem = process.memoryUsage();
+    res.json({
+      status: "ok",
+      commissioning_mode: true,
+      runtime_identity: runtimeIdentity(),
+      uptime_s: Math.round((Date.now() - STARTED_AT) / 1000),
+      node_version: process.version,
+      memory_rss_mb: Math.round(mem.rss / 1024 / 1024),
+      mode: "PAPER_TRADING_RESEARCH_ONLY",
+    });
+    return;
+  }
   let live: unknown = null;
   let liveError: string | null = null;
   try { live = await runPython(["live_health_v2"], 30_000); }
   catch (err) { liveError = err instanceof Error ? err.message : String(err); }
+  const { getStreamStats } = await import("./stream.js");
   const mem = process.memoryUsage();
   res.json({
     status: liveError ? "degraded" : "ok",

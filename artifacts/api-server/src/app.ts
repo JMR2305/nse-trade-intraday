@@ -2,9 +2,15 @@ import express, { type Express } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import pinoHttp from "pino-http";
-import router from "./routes";
 import { logger } from "./lib/logger";
 import { requestMetricsMiddleware } from "./lib/requestMetrics";
+import {
+  healthOnlyNoSchedulers,
+  loadRouterForMode,
+} from "./lib/commissioningMode";
+
+const commissioningMode = healthOnlyNoSchedulers();
+const router = await loadRouterForMode(commissioningMode);
 
 const app: Express = express();
 
@@ -113,9 +119,11 @@ app.use(express.urlencoded({ extended: true, limit: "256kb" }));
 // the middleware so infrastructure probes never require credentials.
 // Root redirect — visiting the bare domain sends the browser to the dashboard.
 // This runs before the /api middleware so it is never auth-gated.
-app.get("/", (_req, res) => {
-  res.redirect(302, "/trading-dashboard/");
-});
+if (!commissioningMode) {
+  app.get("/", (_req, res) => {
+    res.redirect(302, "/trading-dashboard/");
+  });
+}
 
 app.use("/api", requestMetricsMiddleware, router);
 

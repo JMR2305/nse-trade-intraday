@@ -1,7 +1,9 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { startScanScheduler } from "./lib/scanScheduler";
-import { startBacktestScheduler } from "./lib/backtestScheduler";
+import {
+  healthOnlyNoSchedulers,
+  startSchedulersForMode,
+} from "./lib/commissioningMode";
 
 const rawPort = process.env["PORT"];
 
@@ -24,8 +26,13 @@ const server = app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
-  startScanScheduler();
-  startBacktestScheduler();
+  void startSchedulersForMode(healthOnlyNoSchedulers()).catch((schedulerError: unknown) => {
+    logger.error(
+      { err: schedulerError },
+      "Fatal scheduler initialization failure",
+    );
+    process.exit(1);
+  });
 });
 
 // Graceful shutdown — close server, then exit (force-exit after 5s).
