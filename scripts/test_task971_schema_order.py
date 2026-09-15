@@ -90,7 +90,7 @@ class Task978CandidateIdentity(unittest.TestCase):
     commits or changing the checkout. Only the proof output is redirected.
     """
 
-    CANDIDATE = '18b775da0858061f39d62ede89c2984ab6342e58'
+    CANDIDATE = 'edb214dc37cd5c58fffd2c3451e4b84a0d0e9c9c'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -117,6 +117,8 @@ class Task978CandidateIdentity(unittest.TestCase):
                 return overrides[args]
             if args == ('rev-parse', 'HEAD'):
                 return self.CANDIDATE
+            if args == ('rev-list', 'HEAD'):
+                return real_git('rev-list', self.CANDIDATE)
             if args == ('diff', '--name-only', 'HEAD'):
                 # Model the clean CI checkout; separately test dirty rejection.
                 return ''
@@ -188,7 +190,7 @@ class Task978CandidateIdentity(unittest.TestCase):
         expected = f'100644 blob {blob}\t{path}'
         proof = self.run_identity()
         self.assertEqual(proof['task978j_exact_test_fixture'], {
-            'reviewed_commit': self.CANDIDATE,
+            'reviewed_commit': ci_report.TASK978J_REVIEWED_COMMIT,
             'path': path,
             'blob': blob,
         })
@@ -219,9 +221,46 @@ class Task978CandidateIdentity(unittest.TestCase):
                 'artifacts/api-server/src/python/test_task482_trades_unreviewed.py'
             ])
 
+    def test_task978t_commissioning_files_are_exactly_blob_pinned(self):
+        proof = self.run_identity()
+        self.assertEqual(proof['task978t_exact_commissioning_blobs'], {
+            'reviewed_commit': self.CANDIDATE,
+            'blobs': ci_report.TASK978T_REVIEWED_BLOBS,
+        })
+        for path, blob in ci_report.TASK978T_REVIEWED_BLOBS.items():
+            with self.subTest(path=path):
+                expected = f'100644 blob {blob}\t{path}'
+                self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
+
+    def test_task978t_content_mode_and_deletion_are_rejected(self):
+        for path, blob in ci_report.TASK978T_REVIEWED_BLOBS.items():
+            for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                          f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
+                with self.subTest(path=path, entry=entry), \
+                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978T'):
+                    self.run_identity(overrides={
+                        ('ls-tree', self.CANDIDATE, '--', path): entry,
+                    })
+
+    def test_task978t_reviewed_commit_must_remain_in_candidate_lineage(self):
+        with self.assertRaisesRegex(RuntimeError, 'Task978T reviewed commit absent from ancestry'):
+            self.run_identity(overrides={
+                ('rev-list', 'HEAD'): '\n'.join([
+                    ci_report.TASK978E2_REVIEWED_COMMIT,
+                    ci_report.TASK978J_REVIEWED_COMMIT,
+                ]),
+            })
+
+    def test_task978t_allowance_is_not_a_wildcard(self):
+        self.assertEqual(len(ci_report.TASK978T_REVIEWED_BLOBS), 9)
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(extra=[
+                'artifacts/api-server/src/routes/commissioning-unreviewed.ts'
+            ])
+
     def test_arbitrary_application_addition_or_edit_is_rejected(self):
         for path in ['artifacts/api-server/src/task978_unreviewed.ts',
-                     'artifacts/api-server/src/index.ts']:
+                     'artifacts/api-server/src/server.ts']:
             with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
                 self.run_identity(extra=[path])
 

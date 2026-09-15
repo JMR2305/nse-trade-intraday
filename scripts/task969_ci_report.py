@@ -60,6 +60,32 @@ TASK978J_REVIEWED_BLOBS = {
     'artifacts/api-server/src/python/test_task482_trades.py':
         '70e34d14bcaa419c0ca50e16d7e784207cda69ae',
 }
+# Task978T permits only the review-faithful commissioning-mode reconstruction
+# committed at the reviewed point below. Require that commit in ancestry and
+# the exact regular-file blob for every reviewed production/test path both at
+# that commit and at HEAD; directory, path-only, and future-content trust are
+# intentionally prohibited.
+TASK978T_REVIEWED_COMMIT = 'edb214dc37cd5c58fffd2c3451e4b84a0d0e9c9c'
+TASK978T_REVIEWED_BLOBS = {
+    'artifacts/api-server/src/app.malformedCommissioningFlag.test.ts':
+        'e793195ba4c820d2b2244c866e28d938ebaef720',
+    'artifacts/api-server/src/app.ts':
+        'e54474b8f7e0eddfceeb68cbcd29b0fb42b4f6cd',
+    'artifacts/api-server/src/commissioning.integration.test.ts':
+        '2d864b81d6626e9d9c1f5339a6b1481851ab16f8',
+    'artifacts/api-server/src/index.commissioning.test.ts':
+        'c09c8be808852208e4eb03ec58a0ca4396e12c8a',
+    'artifacts/api-server/src/index.ts':
+        '1b01a49f2562892b6b84c907cd256ac7f16295eb',
+    'artifacts/api-server/src/lib/commissioningMode.test.ts':
+        '726bfbec17c32b3ad6ce2e2310c2934686a10879',
+    'artifacts/api-server/src/lib/commissioningMode.ts':
+        'e7e0a757e7464c437fb47642028e0ca6647c58a1',
+    'artifacts/api-server/src/routes/commissioning.ts':
+        '5a1f77abda69515f1657b86f551c97570d05d6a3',
+    'artifacts/api-server/src/routes/health.ts':
+        '6a67b42a0ad5c6089be4ee500235ab9b2c54bdee',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -298,7 +324,7 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
@@ -323,6 +349,14 @@ def identity():
             raise RuntimeError(f'Unexpected Task978J reviewed content: {path}')
         if git('ls-tree', head, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978J candidate content: {path}')
+    if TASK978T_REVIEWED_COMMIT not in git('rev-list', 'HEAD').splitlines():
+        raise RuntimeError('Task978T reviewed commit absent from ancestry')
+    for path, expected_blob in TASK978T_REVIEWED_BLOBS.items():
+        expected_entry = f'100644 blob {expected_blob}\t{path}'
+        if git('ls-tree', TASK978T_REVIEWED_COMMIT, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978T reviewed content: {path}')
+        if git('ls-tree', head, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978T candidate content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -366,6 +400,10 @@ def identity():
                  'reviewed_commit': TASK978J_REVIEWED_COMMIT,
                  'path': next(iter(TASK978J_REVIEWED_BLOBS)),
                  'blob': next(iter(TASK978J_REVIEWED_BLOBS.values())),
+             },
+             'task978t_exact_commissioning_blobs': {
+                 'reviewed_commit': TASK978T_REVIEWED_COMMIT,
+                 'blobs': TASK978T_REVIEWED_BLOBS,
              },
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
