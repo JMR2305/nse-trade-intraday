@@ -1254,6 +1254,15 @@ def main() -> None:
             catalog_after_second=catalog_after_second,
         )
 
+    print("TASK969: validating Task978ZA standalone bootstrap in a separate disposable DB")
+    validation = subprocess.run(
+        [sys.executable, str(ROOT / "scripts" / "task978za_postgres_validation.py")],
+        cwd=ROOT,
+        check=False,
+    )
+    if validation.returncode != 0:
+        fail("Task978ZA standalone native PostgreSQL bootstrap validation failed")
+
     print()
     print("TASK969 NATIVE POSTGRESQL VALIDATION: PASS")
     print(f"Evidence: {EVIDENCE_JSON.name}")

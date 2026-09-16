@@ -1,0 +1,2348 @@
+{
+  "authority_class": "CLEAN_RECONSTRUCTED_AUTHORITY",
+  "clean_seed_manifest": {
+    "history_rows": 0,
+    "kite_token_rows": 0,
+    "phase20_settings": {
+      "auto_paper_entries": false,
+      "auto_paper_entries_confirmed_at": null,
+      "auto_paper_exits": true,
+      "bootstrap_paper_enabled": false,
+      "initial_capital": 100000.0
+    },
+    "universe": {
+      "effective_from": "2026-08-31T03:30:00Z",
+      "exact_set_hash": "22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016",
+      "sector_counts": {
+        "BANK": 9,
+        "INFRA": 13,
+        "IT": 1
+      },
+      "status": "ACTIVE",
+      "symbol_count": 23,
+      "symbols": [
+        "BANKBARODA",
+        "BANKINDIA",
+        "CANBK",
+        "FEDERALBNK",
+        "IDFCFIRSTB",
+        "KTKBANK",
+        "MAHABANK",
+        "PNB",
+        "UNIONBANK",
+        "COALINDIA",
+        "GAIL",
+        "HUDCO",
+        "IRCON",
+        "IRFC",
+        "MRPL",
+        "NBCC",
+        "NMDC",
+        "NTPC",
+        "PFC",
+        "RECLTD",
+        "RVNL",
+        "SAIL",
+        "WIPRO"
+      ],
+      "universe_id": 3,
+      "universe_key": "CUSTOM_LOW_PRICE_SECTOR",
+      "version": 1
+    }
+  },
+  "excluded_destructive_compatibility": [
+    {
+      "reason": "prohibited compatibility operation: RENAME COLUMN",
+      "source": "artifacts/api-server/src/python/src/portfolio/repositories/portfolio_event.py:89"
+    },
+    {
+      "reason": "prohibited compatibility operation: DROP",
+      "source": "artifacts/api-server/src/python/src/portfolio/repositories/reconciliation.py:75"
+    }
+  ],
+  "generator": "scripts/task978r_generate_schema.py",
+  "historically_equivalent_to_replit_db": false,
+  "kite_token_authority": {
+    "key": "kite_token_v1",
+    "table": "phase20_kv"
+  },
+  "objects": [
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "function",
+      "name": "reject_baseline_migration_history_mutation",
+      "owner": "artifacts/api-server/src/python/custom_universe_baseline_migration.py",
+      "source": "artifacts/api-server/src/python/custom_universe_baseline_migration.py:64"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "function",
+      "name": "reject_kite_instrument_sync_audit_mutation",
+      "owner": "artifacts/api-server/src/python/kite_instrument_cache.py",
+      "source": "artifacts/api-server/src/python/kite_instrument_cache.py:325"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "function",
+      "name": "task946_guard_member_write",
+      "owner": "artifacts/api-server/src/python/universe_version_store.py",
+      "source": "artifacts/api-server/src/python/universe_version_store.py:440"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "function",
+      "name": "task946_guard_revision_snapshot",
+      "owner": "artifacts/api-server/src/python/universe_version_store.py",
+      "source": "artifacts/api-server/src/python/universe_version_store.py:416"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "function",
+      "name": "task946_reject_history_mutation",
+      "owner": "artifacts/api-server/src/python/universe_version_store.py",
+      "source": "artifacts/api-server/src/python/universe_version_store.py:230"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "function",
+      "name": "task947_reject_management_history",
+      "owner": "artifacts/api-server/src/python/universe_management.py",
+      "source": "artifacts/api-server/src/python/universe_management.py:319"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "exp_trades_created_idx",
+      "owner": "artifacts/api-server/src/python/paper_exploration_engine.py",
+      "source": "artifacts/api-server/src/python/paper_exploration_engine.py:109"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "exp_trades_open_sym_uidx",
+      "owner": "artifacts/api-server/src/python/paper_exploration_engine.py",
+      "source": "artifacts/api-server/src/python/paper_exploration_engine.py:113"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_backtest_trades_open_tranche",
+      "owner": "artifacts/api-server/src/python/backtest_portfolio.py",
+      "source": "artifacts/api-server/src/python/backtest_portfolio.py:239"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_backtest_trades_run",
+      "owner": "artifacts/api-server/src/python/backtest_portfolio.py",
+      "source": "artifacts/api-server/src/python/backtest_portfolio.py:226"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_cert_runs_created",
+      "owner": "artifacts/api-server/src/python/certification_engine.py",
+      "source": "artifacts/api-server/src/python/certification_engine.py:83"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_custom_universe_history_date",
+      "owner": "artifacts/api-server/src/python/custom_universe_store.py",
+      "source": "artifacts/api-server/src/python/custom_universe_store.py:99"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_custom_universe_master_active",
+      "owner": "artifacts/api-server/src/python/custom_universe_store.py",
+      "source": "artifacts/api-server/src/python/custom_universe_store.py:81"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_p26_live_created",
+      "owner": "artifacts/api-server/src/python/phase26_live_store.py",
+      "source": "artifacts/api-server/src/python/phase26_live_store.py:71"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_p26_runs_created",
+      "owner": "artifacts/api-server/src/python/phase26_store.py",
+      "source": "artifacts/api-server/src/python/phase26_store.py:59"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_p26c_area_created",
+      "owner": "artifacts/api-server/src/python/phase26c_store.py",
+      "source": "artifacts/api-server/src/python/phase26c_store.py:60"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_p26d_date_created",
+      "owner": "artifacts/api-server/src/python/phase26_reports.py",
+      "source": "artifacts/api-server/src/python/phase26_reports.py:96"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_phase11_price_snaps_sym_ts",
+      "owner": "artifacts/api-server/src/python/phase11_autonomous.py",
+      "source": "artifacts/api-server/src/python/phase11_autonomous.py:84"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_pipeline_events_dedupe_key",
+      "owner": "artifacts/api-server/src/python/pipeline_events.py",
+      "source": "artifacts/api-server/src/python/pipeline_events.py:121"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_pipeline_events_mode_id",
+      "owner": "artifacts/api-server/src/python/pipeline_events.py",
+      "source": "artifacts/api-server/src/python/pipeline_events.py:117"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_pipeline_events_scan",
+      "owner": "artifacts/api-server/src/python/pipeline_events.py",
+      "source": "artifacts/api-server/src/python/pipeline_events.py:113"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "UNIQUE (portfolio_id, idempotency_key)"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_portfolio_events_pid_time",
+      "owner": "artifacts/api-server/src/python/src/portfolio/repositories/portfolio_event.py",
+      "source": "artifacts/api-server/src/python/src/portfolio/repositories/portfolio_event.py:62"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_portfolio_snapshots_pid",
+      "owner": "artifacts/api-server/src/python/src/portfolio/repositories/portfolio_snapshot.py",
+      "source": "artifacts/api-server/src/python/src/portfolio/repositories/portfolio_snapshot.py:103"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_preopen_health_date",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:241"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_preopen_outcomes_session_batch",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:187"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_preopen_rankings_date",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:204"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_preopen_recon_date_sym",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:267"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_preopen_sessions_date",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:103"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_preopen_snaps_date_sym",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:147"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_preopen_snaps_session",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:157"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_preopen_snaps_session_batch",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:161"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_preopen_watchlists_date_type",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:221"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_recon_discrepancies_resolved",
+      "owner": "artifacts/api-server/src/python/eod_reconciliation.py",
+      "source": "artifacts/api-server/src/python/eod_reconciliation.py:106"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_recon_discrepancies_run_id",
+      "owner": "artifacts/api-server/src/python/eod_reconciliation.py",
+      "source": "artifacts/api-server/src/python/eod_reconciliation.py:84"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_recon_runs_pid_time",
+      "owner": "artifacts/api-server/src/python/src/portfolio/repositories/reconciliation.py",
+      "source": "artifacts/api-server/src/python/src/portfolio/repositories/reconciliation.py:51"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_recon_runs_started_at",
+      "owner": "artifacts/api-server/src/python/eod_reconciliation.py",
+      "source": "artifacts/api-server/src/python/eod_reconciliation.py:88"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_sim_runs_created",
+      "owner": "artifacts/api-server/src/python/simulation_lab.py",
+      "source": "artifacts/api-server/src/python/simulation_lab.py:93"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_sle_validation_id",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_sle_validation_state_ts",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_sregime_unique_no_strategy",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_sregime_unique_with_strategy",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_srisk_unique_no_reason",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_srisk_unique_with_reason",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_svr_outcome_class",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_svr_strategy",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_svr_symbol",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_svr_trading_date",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_svr_validation_status",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_trading_universe_audit_lookup",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:9"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_trading_universe_members_symbol",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:7"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_trading_universe_validations_revision",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:13"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_trading_universes_lookup",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:3"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES validation_v2_runs"
+      ],
+      "dependencies": [
+        "validation_v2_runs"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_v2_dec_run",
+      "owner": "artifacts/api-server/src/python/validation_v2_engine.py",
+      "source": "artifacts/api-server/src/python/validation_v2_engine.py:192"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES validation_v2_runs"
+      ],
+      "dependencies": [
+        "validation_v2_runs"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_v2_dec_sym",
+      "owner": "artifacts/api-server/src/python/validation_v2_engine.py",
+      "source": "artifacts/api-server/src/python/validation_v2_engine.py:192"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES validation_v2_runs"
+      ],
+      "dependencies": [
+        "validation_v2_runs"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_v2_missed_run",
+      "owner": "artifacts/api-server/src/python/validation_v2_engine.py",
+      "source": "artifacts/api-server/src/python/validation_v2_engine.py:192"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES validation_v2_runs"
+      ],
+      "dependencies": [
+        "validation_v2_runs"
+      ],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_v2_trades_run",
+      "owner": "artifacts/api-server/src/python/validation_v2_engine.py",
+      "source": "artifacts/api-server/src/python/validation_v2_engine.py:192"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_val_daily_reports_date",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:189"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_val_factor_metrics_date",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:168"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_val_outcomes_date_sym",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:113"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_val_outcomes_date_sym_unique",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:121"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_val_outcomes_session",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:117"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_val_score_bands_date",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:147"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "idx_val_sessions_date",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:60"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "ix_eod_outcomes_session",
+      "owner": "artifacts/api-server/src/python/phase20_eod_outcomes.py",
+      "source": "artifacts/api-server/src/python/phase20_eod_outcomes.py:84"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "market_data_fallback_incidents_history",
+      "owner": "artifacts/api-server/src/python/market_data_incidents.py",
+      "source": "artifacts/api-server/src/python/market_data_incidents.py:118"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "market_data_fallback_incidents_one_active",
+      "owner": "artifacts/api-server/src/python/market_data_incidents.py",
+      "source": "artifacts/api-server/src/python/market_data_incidents.py:112"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "paper_trades_symbol_idx",
+      "owner": "artifacts/api-server/src/python/portfolio_store.py",
+      "source": "artifacts/api-server/src/python/portfolio_store.py:137"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "paper_trades_ts_idx",
+      "owner": "artifacts/api-server/src/python/portfolio_store.py",
+      "source": "artifacts/api-server/src/python/portfolio_store.py:140"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "phase20_open_symbol_uidx",
+      "owner": "artifacts/api-server/src/python/phase20_executor.py",
+      "source": "artifacts/api-server/src/python/phase20_executor.py:110"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "phase22_evidence_scan_sym_uidx",
+      "owner": "artifacts/api-server/src/python/phase22_evidence.py",
+      "source": "artifacts/api-server/src/python/phase22_evidence.py:99"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "signal_snapshots_scan_id_uidx",
+      "owner": "artifacts/api-server/src/python/signals_store.py",
+      "source": "artifacts/api-server/src/python/signals_store.py:86"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "signal_snapshots_ts_idx",
+      "owner": "artifacts/api-server/src/python/signals_store.py",
+      "source": "artifacts/api-server/src/python/signals_store.py:92"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "uidx_phase11_price_snaps_scan_sym",
+      "owner": "artifacts/api-server/src/python/phase11_autonomous.py",
+      "source": "artifacts/api-server/src/python/phase11_autonomous.py:91"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "uq_trading_universe_enabled_token",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:6"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "index",
+      "name": "uq_trading_universes_one_draft",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:4"
+    },
+    {
+      "constraints": [
+        "CHECK (\n        decision IN (\n            'WATCH', 'CANDIDATE', 'REJECTED',\n            'BLOCKED_DATA_QUALITY', 'INSUFFICIENT_CONTEXT',\n            'SUPERVISOR_BLOCKED'\n        )",
+        "CHECK (advisory_only IS TRUE)",
+        "CHECK (paper_only IS TRUE)",
+        "PRIMARY KEY",
+        "UNIQUE (scan_id, bot_name, symbol, strategy_name, build_id, config_hash)"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "advisory_bot_outputs",
+      "owner": "artifacts/api-server/src/python/phase24_store.py",
+      "source": "artifacts/api-server/src/python/phase24_store.py:314"
+    },
+    {
+      "constraints": [
+        "CHECK (\n        decision IN (\n            'WATCH', 'CANDIDATE', 'REJECTED',\n            'BLOCKED_DATA_QUALITY', 'INSUFFICIENT_CONTEXT',\n            'SUPERVISOR_BLOCKED'\n        )",
+        "CHECK (advisory_only IS TRUE)",
+        "CHECK (paper_only IS TRUE)",
+        "PRIMARY KEY",
+        "UNIQUE (scan_id, symbol, build_id, config_hash)"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "advisory_decision_audit",
+      "owner": "artifacts/api-server/src/python/phase24_store.py",
+      "source": "artifacts/api-server/src/python/phase24_store.py:314"
+    },
+    {
+      "constraints": [
+        "CHECK (\n        decision IN (\n            'WATCH', 'CANDIDATE', 'REJECTED',\n            'BLOCKED_DATA_QUALITY', 'INSUFFICIENT_CONTEXT',\n            'SUPERVISOR_BLOCKED'\n        )",
+        "CHECK (advisory_only IS TRUE)",
+        "CHECK (paper_only IS TRUE)",
+        "PRIMARY KEY",
+        "UNIQUE (scan_id, symbol, strategy_name, build_id, config_hash)"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "advisory_strategy_scores",
+      "owner": "artifacts/api-server/src/python/phase24_store.py",
+      "source": "artifacts/api-server/src/python/phase24_store.py:314"
+    },
+    {
+      "constraints": [
+        "CHECK (\n        decision IN (\n            'WATCH', 'CANDIDATE', 'REJECTED',\n            'BLOCKED_DATA_QUALITY', 'INSUFFICIENT_CONTEXT',\n            'SUPERVISOR_BLOCKED'\n        )",
+        "CHECK (advisory_only IS TRUE)",
+        "CHECK (paper_only IS TRUE)",
+        "PRIMARY KEY",
+        "UNIQUE (scan_id, build_id, config_hash)"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "advisory_universe_health",
+      "owner": "artifacts/api-server/src/python/phase24_store.py",
+      "source": "artifacts/api-server/src/python/phase24_store.py:314"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "UNIQUE(\"idempotency_key\")"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "alert_deliveries",
+      "owner": "lib/db/migrations/0001_alert_deliveries.sql",
+      "source": "lib/db/migrations/0001_alert_deliveries.sql:1"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "backtest_candle_meta",
+      "owner": "artifacts/api-server/src/python/historical_data_engine.py",
+      "source": "artifacts/api-server/src/python/historical_data_engine.py:73"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "backtest_candles",
+      "owner": "artifacts/api-server/src/python/historical_data_engine.py",
+      "source": "artifacts/api-server/src/python/historical_data_engine.py:51"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "backtest_corporate_actions",
+      "owner": "artifacts/api-server/src/python/historical_data_engine.py",
+      "source": "artifacts/api-server/src/python/historical_data_engine.py:85"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "backtest_runs",
+      "owner": "artifacts/api-server/src/python/backtest_portfolio.py",
+      "source": "artifacts/api-server/src/python/backtest_portfolio.py:170"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_backtest_trades_run",
+        "idx_backtest_trades_open_tranche"
+      ],
+      "kind": "table",
+      "name": "backtest_trades",
+      "owner": "artifacts/api-server/src/python/backtest_portfolio.py",
+      "source": "artifacts/api-server/src/python/backtest_portfolio.py:195"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES broker_reconciliation_runs"
+      ],
+      "dependencies": [
+        "broker_reconciliation_runs"
+      ],
+      "indexes": [
+        "idx_recon_discrepancies_run_id",
+        "idx_recon_discrepancies_resolved"
+      ],
+      "kind": "table",
+      "name": "broker_reconciliation_discrepancies",
+      "owner": "artifacts/api-server/src/python/eod_reconciliation.py",
+      "source": "artifacts/api-server/src/python/eod_reconciliation.py:68"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_recon_runs_started_at"
+      ],
+      "kind": "table",
+      "name": "broker_reconciliation_runs",
+      "owner": "artifacts/api-server/src/python/eod_reconciliation.py",
+      "source": "artifacts/api-server/src/python/eod_reconciliation.py:54"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_cert_runs_created"
+      ],
+      "kind": "table",
+      "name": "certification_runs",
+      "owner": "artifacts/api-server/src/python/certification_engine.py",
+      "source": "artifacts/api-server/src/python/certification_engine.py:72"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_custom_universe_master_active"
+      ],
+      "kind": "table",
+      "name": "custom_universe_master",
+      "owner": "artifacts/api-server/src/python/custom_universe_store.py",
+      "source": "artifacts/api-server/src/python/custom_universe_store.py:52"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_custom_universe_history_date"
+      ],
+      "kind": "table",
+      "name": "custom_universe_membership_history",
+      "owner": "artifacts/api-server/src/python/custom_universe_store.py",
+      "source": "artifacts/api-server/src/python/custom_universe_store.py:87"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "daily_ohlcv_cache",
+      "owner": "artifacts/api-server/src/python/ohlcv_cache_store.py",
+      "source": "artifacts/api-server/src/python/ohlcv_cache_store.py:81"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "daily_ohlcv_refresh_state",
+      "owner": "artifacts/api-server/src/python/ohlcv_cache_store.py",
+      "source": "artifacts/api-server/src/python/ohlcv_cache_store.py:98"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "data_quality_runs",
+      "owner": "artifacts/api-server/src/python/data_quality/history_store.py",
+      "source": "artifacts/api-server/src/python/data_quality/history_store.py:66"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "exp_trades_created_idx",
+        "exp_trades_open_sym_uidx"
+      ],
+      "kind": "table",
+      "name": "experimental_paper_trades",
+      "owner": "artifacts/api-server/src/python/paper_exploration_engine.py",
+      "source": "artifacts/api-server/src/python/paper_exploration_engine.py:70"
+    },
+    {
+      "constraints": [
+        "CHECK (status IN ('SUCCESS', 'FAILED', 'SKIPPED')",
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "kite_instrument_sync_audit",
+      "owner": "artifacts/api-server/src/python/kite_instrument_cache.py",
+      "source": "artifacts/api-server/src/python/kite_instrument_cache.py:310"
+    },
+    {
+      "constraints": [
+        "CHECK (status IN ('ACTIVE', 'RECOVERED')",
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "market_data_fallback_incidents_one_active",
+        "market_data_fallback_incidents_history"
+      ],
+      "kind": "table",
+      "name": "market_data_fallback_incidents",
+      "owner": "artifacts/api-server/src/python/market_data_incidents.py",
+      "source": "artifacts/api-server/src/python/market_data_incidents.py:87"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "nifty50_company_master",
+      "owner": "artifacts/api-server/src/python/nifty50_company_master_store.py",
+      "source": "artifacts/api-server/src/python/nifty50_company_master_store.py:48"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "paper_portfolio",
+      "owner": "lib/db/migrations/0000_initial_baseline.sql",
+      "source": "lib/db/migrations/0000_initial_baseline.sql:1"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "paper_trades_symbol_idx",
+        "paper_trades_ts_idx"
+      ],
+      "kind": "table",
+      "name": "paper_trades",
+      "owner": "lib/db/migrations/0000_initial_baseline.sql",
+      "source": "lib/db/migrations/0000_initial_baseline.sql:2"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase11_capital_topups",
+      "owner": "artifacts/api-server/src/python/phase11_autonomous.py",
+      "source": "artifacts/api-server/src/python/phase11_autonomous.py:48"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_phase11_price_snaps_sym_ts",
+        "uidx_phase11_price_snaps_scan_sym"
+      ],
+      "kind": "table",
+      "name": "phase11_price_snapshots",
+      "owner": "artifacts/api-server/src/python/phase11_autonomous.py",
+      "source": "artifacts/api-server/src/python/phase11_autonomous.py:74"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "ix_eod_outcomes_session"
+      ],
+      "kind": "table",
+      "name": "phase20_eod_outcomes",
+      "owner": "artifacts/api-server/src/python/phase20_eod_outcomes.py",
+      "source": "artifacts/api-server/src/python/phase20_eod_outcomes.py:59"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase20_kv",
+      "owner": "artifacts/api-server/src/python/paper_capital_migration.py",
+      "source": "artifacts/api-server/src/python/paper_capital_migration.py:101"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase20_notifications",
+      "owner": "artifacts/api-server/src/python/phase20_store.py",
+      "source": "artifacts/api-server/src/python/phase20_store.py:299"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "phase20_open_symbol_uidx"
+      ],
+      "kind": "table",
+      "name": "phase20_paper_trades",
+      "owner": "artifacts/api-server/src/python/phase20_executor.py",
+      "source": "artifacts/api-server/src/python/phase20_executor.py:65"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase20_scan_runs",
+      "owner": "artifacts/api-server/src/python/phase20_store.py",
+      "source": "artifacts/api-server/src/python/phase20_store.py:224"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase20_scheduler_state",
+      "owner": "artifacts/api-server/src/python/phase20_store.py",
+      "source": "artifacts/api-server/src/python/phase20_store.py:245"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase20_settings",
+      "owner": "artifacts/api-server/src/python/phase20_store.py",
+      "source": "artifacts/api-server/src/python/phase20_store.py:215"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "phase22_evidence_scan_sym_uidx"
+      ],
+      "kind": "table",
+      "name": "phase22_evidence",
+      "owner": "artifacts/api-server/src/python/phase22_evidence.py",
+      "source": "artifacts/api-server/src/python/phase22_evidence.py:59"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase24_missed_opps",
+      "owner": "artifacts/api-server/src/python/phase24_store.py",
+      "source": "artifacts/api-server/src/python/phase24_store.py:72"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase24_recommendations",
+      "owner": "artifacts/api-server/src/python/phase24_store.py",
+      "source": "artifacts/api-server/src/python/phase24_store.py:89"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "UNIQUE (period, period_key)"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase24_reports",
+      "owner": "artifacts/api-server/src/python/phase24_store.py",
+      "source": "artifacts/api-server/src/python/phase24_store.py:99"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase24_trade_intelligence",
+      "owner": "artifacts/api-server/src/python/phase24_store.py",
+      "source": "artifacts/api-server/src/python/phase24_store.py:62"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_p26d_date_created"
+      ],
+      "kind": "table",
+      "name": "phase26_daily_reports",
+      "owner": "artifacts/api-server/src/python/phase26_reports.py",
+      "source": "artifacts/api-server/src/python/phase26_reports.py:87"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "phase26_issues",
+      "owner": "artifacts/api-server/src/python/phase26_live_store.py",
+      "source": "artifacts/api-server/src/python/phase26_live_store.py:75"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_p26_live_created"
+      ],
+      "kind": "table",
+      "name": "phase26_live_snapshots",
+      "owner": "artifacts/api-server/src/python/phase26_live_store.py",
+      "source": "artifacts/api-server/src/python/phase26_live_store.py:62"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_p26_runs_created"
+      ],
+      "kind": "table",
+      "name": "phase26_validation_runs",
+      "owner": "artifacts/api-server/src/python/phase26_store.py",
+      "source": "artifacts/api-server/src/python/phase26_store.py:50"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_p26c_area_created"
+      ],
+      "kind": "table",
+      "name": "phase26c_results",
+      "owner": "artifacts/api-server/src/python/phase26c_store.py",
+      "source": "artifacts/api-server/src/python/phase26c_store.py:51"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_pipeline_events_scan",
+        "idx_pipeline_events_mode_id",
+        "idx_pipeline_events_dedupe_key"
+      ],
+      "kind": "table",
+      "name": "pipeline_events",
+      "owner": "artifacts/api-server/src/python/pipeline_events.py",
+      "source": "artifacts/api-server/src/python/pipeline_events.py:90"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "portfolio_config_overrides",
+      "owner": "artifacts/api-server/src/python/portfolio_config_overrides.py",
+      "source": "artifacts/api-server/src/python/portfolio_config_overrides.py:66"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "UNIQUE (portfolio_id, idempotency_key)"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_portfolio_events_pid_time"
+      ],
+      "kind": "table",
+      "name": "portfolio_events",
+      "owner": "artifacts/api-server/src/python/src/portfolio/repositories/portfolio_event.py",
+      "source": "artifacts/api-server/src/python/src/portfolio/repositories/portfolio_event.py:62"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_portfolio_snapshots_pid"
+      ],
+      "kind": "table",
+      "name": "portfolio_snapshots",
+      "owner": "artifacts/api-server/src/python/src/portfolio/repositories/portfolio_snapshot.py",
+      "source": "artifacts/api-server/src/python/src/portfolio/repositories/portfolio_snapshot.py:103"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES preopen_validation_sessions"
+      ],
+      "dependencies": [
+        "preopen_validation_sessions"
+      ],
+      "indexes": [
+        "idx_val_outcomes_date_sym",
+        "idx_val_outcomes_session",
+        "idx_val_outcomes_date_sym_unique"
+      ],
+      "kind": "table",
+      "name": "preopen_candidate_outcomes",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:66"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES preopen_sessions"
+      ],
+      "dependencies": [
+        "preopen_sessions"
+      ],
+      "indexes": [
+        "idx_preopen_outcomes_session_batch"
+      ],
+      "kind": "table",
+      "name": "preopen_collection_outcomes",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:169"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES preopen_validation_sessions"
+      ],
+      "dependencies": [
+        "preopen_validation_sessions"
+      ],
+      "indexes": [
+        "idx_val_daily_reports_date"
+      ],
+      "kind": "table",
+      "name": "preopen_daily_reports",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:174"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES preopen_validation_sessions"
+      ],
+      "dependencies": [
+        "preopen_validation_sessions"
+      ],
+      "indexes": [
+        "idx_val_factor_metrics_date"
+      ],
+      "kind": "table",
+      "name": "preopen_factor_metrics",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:153"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_preopen_health_date"
+      ],
+      "kind": "table",
+      "name": "preopen_provider_health",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:227"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES preopen_sessions"
+      ],
+      "dependencies": [
+        "preopen_sessions"
+      ],
+      "indexes": [
+        "idx_preopen_rankings_date"
+      ],
+      "kind": "table",
+      "name": "preopen_rankings",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:193"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES preopen_sessions"
+      ],
+      "dependencies": [
+        "preopen_sessions"
+      ],
+      "indexes": [
+        "idx_preopen_recon_date_sym"
+      ],
+      "kind": "table",
+      "name": "preopen_reconciliation",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:247"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES preopen_validation_sessions"
+      ],
+      "dependencies": [
+        "preopen_validation_sessions"
+      ],
+      "indexes": [
+        "idx_val_score_bands_date"
+      ],
+      "kind": "table",
+      "name": "preopen_score_band_metrics",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:127"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_preopen_sessions_date"
+      ],
+      "kind": "table",
+      "name": "preopen_sessions",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES preopen_sessions"
+      ],
+      "dependencies": [
+        "preopen_sessions"
+      ],
+      "indexes": [
+        "idx_preopen_snaps_date_sym",
+        "idx_preopen_snaps_session",
+        "idx_preopen_snaps_session_batch"
+      ],
+      "kind": "table",
+      "name": "preopen_snapshots",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:109"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_val_sessions_date"
+      ],
+      "kind": "table",
+      "name": "preopen_validation_sessions",
+      "owner": "artifacts/api-server/src/python/preopen_validation_db.py",
+      "source": "artifacts/api-server/src/python/preopen_validation_db.py:43"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES preopen_sessions"
+      ],
+      "dependencies": [
+        "preopen_sessions"
+      ],
+      "indexes": [
+        "idx_preopen_watchlists_date_type"
+      ],
+      "kind": "table",
+      "name": "preopen_watchlists",
+      "owner": "artifacts/api-server/src/python/preopen_db.py",
+      "source": "artifacts/api-server/src/python/preopen_db.py:210"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "push_subscriptions",
+      "owner": "lib/db/migrations/0000_initial_baseline.sql",
+      "source": "lib/db/migrations/0000_initial_baseline.sql:3"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_recon_runs_pid_time"
+      ],
+      "kind": "table",
+      "name": "reconciliation_runs",
+      "owner": "artifacts/api-server/src/python/src/portfolio/repositories/reconciliation.py",
+      "source": "artifacts/api-server/src/python/src/portfolio/repositories/reconciliation.py:51"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "runtime_universe_session_pins",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:10"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "scan_lock",
+      "owner": "artifacts/api-server/src/python/scan_state_store.py",
+      "source": "artifacts/api-server/src/python/scan_state_store.py:90"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "scan_state",
+      "owner": "artifacts/api-server/src/python/scan_state_store.py",
+      "source": "artifacts/api-server/src/python/scan_state_store.py:61"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "session_archives",
+      "owner": "artifacts/api-server/src/python/session_archive.py",
+      "source": "artifacts/api-server/src/python/session_archive.py:57"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "signal_ai_metrics",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "signal_daily_reports",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [
+        "idx_sle_validation_state_ts",
+        "idx_sle_validation_id"
+      ],
+      "kind": "table",
+      "name": "signal_lifecycle_events",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "signal_preopen_metrics",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "signal_price_checkpoints",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [
+        "idx_sregime_unique_no_strategy",
+        "idx_sregime_unique_with_strategy"
+      ],
+      "kind": "table",
+      "name": "signal_regime_metrics",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [
+        "idx_srisk_unique_no_reason",
+        "idx_srisk_unique_with_reason"
+      ],
+      "kind": "table",
+      "name": "signal_risk_metrics",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "signal_snapshots_scan_id_uidx",
+        "signal_snapshots_ts_idx"
+      ],
+      "kind": "table",
+      "name": "signal_snapshots",
+      "owner": "lib/db/migrations/0000_initial_baseline.sql",
+      "source": "lib/db/migrations/0000_initial_baseline.sql:4"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "signal_strategy_metrics",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [
+        "idx_svr_trading_date",
+        "idx_svr_symbol",
+        "idx_svr_strategy",
+        "idx_svr_validation_status",
+        "idx_svr_outcome_class"
+      ],
+      "kind": "table",
+      "name": "signal_validation_records",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES signal_validation_records",
+        "REFERENCES signal_validation_sessions",
+        "UNIQUE (trading_date, agreement_group)",
+        "UNIQUE (trading_date, confirmation_group)",
+        "UNIQUE (trading_date, regime, strategy_id)",
+        "UNIQUE (trading_date, risk_decision, rejection_reason)",
+        "UNIQUE (trading_date, signal_id)",
+        "UNIQUE (trading_date, strategy_id, grouping_key, grouping_value)",
+        "UNIQUE (validation_id, checkpoint_type)"
+      ],
+      "dependencies": [
+        "signal_validation_records",
+        "signal_validation_sessions"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "signal_validation_sessions",
+      "owner": "artifacts/api-server/src/python/signal_validation_db.py",
+      "source": "artifacts/api-server/src/python/signal_validation_db.py:42"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "signals_cache",
+      "owner": "lib/db/migrations/0000_initial_baseline.sql",
+      "source": "lib/db/migrations/0000_initial_baseline.sql:5"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_sim_runs_created"
+      ],
+      "kind": "table",
+      "name": "sim_runs",
+      "owner": "artifacts/api-server/src/python/simulation_lab.py",
+      "source": "artifacts/api-server/src/python/simulation_lab.py:80"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "sim_scenarios",
+      "owner": "artifacts/api-server/src/python/simulation_lab.py",
+      "source": "artifacts/api-server/src/python/simulation_lab.py:69"
+    },
+    {
+      "constraints": [
+        "CHECK (\n    \"action\" IN (\n      'DRAFT_CREATED', 'SYMBOL_ADDED', 'SYMBOL_REMOVED', 'SYMBOL_RESTORED',\n      'VALIDATION_RUN', 'ACTIVATION_REQUESTED', 'ACTIVATION_APPROVED',\n      'ACTIVATED', 'CANCELLED', 'BASELINE_IMPORTED'\n    )",
+        "PRIMARY KEY",
+        "UNIQUE (\"correlation_id\", \"action\")"
+      ],
+      "dependencies": [],
+      "indexes": [
+        "idx_trading_universe_audit_lookup"
+      ],
+      "kind": "table",
+      "name": "trading_universe_audit_events",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:8"
+    },
+    {
+      "constraints": [
+        "CHECK (\"action\" = 'BASELINE_MIGRATION')",
+        "CHECK (\"exact_symbol_count\" > 0)",
+        "PRIMARY KEY",
+        "REFERENCES \"trading_universes\"",
+        "UNIQUE (\"universe_key\", \"destination_version\")"
+      ],
+      "dependencies": [
+        "trading_universes"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "trading_universe_baseline_migrations",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:14"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES \"trading_universes\""
+      ],
+      "dependencies": [
+        "trading_universes"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "trading_universe_member_details",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:11"
+    },
+    {
+      "constraints": [
+        "CHECK (\n    \"enabled\" OR \"removed_at\" IS NOT NULL OR \"removed_by\" IS NOT NULL\n  )",
+        "CHECK (NOT \"enabled\" OR \"removed_at\" IS NULL)",
+        "PRIMARY KEY",
+        "REFERENCES \"trading_universes\"",
+        "UNIQUE (\"universe_id\", \"symbol\")"
+      ],
+      "dependencies": [
+        "trading_universes"
+      ],
+      "indexes": [
+        "uq_trading_universe_enabled_token",
+        "idx_trading_universe_members_symbol"
+      ],
+      "kind": "table",
+      "name": "trading_universe_members",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:5"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "UNIQUE (\"source_type\", \"source_reference\", \"source_set_hash\")"
+      ],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "table",
+      "name": "trading_universe_sources",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:1"
+    },
+    {
+      "constraints": [
+        "CHECK (\"result\" IN ('VALIDATION_PASS', 'VALIDATION_FAIL')",
+        "PRIMARY KEY",
+        "REFERENCES \"trading_universes\""
+      ],
+      "dependencies": [
+        "trading_universes"
+      ],
+      "indexes": [
+        "idx_trading_universe_validations_revision"
+      ],
+      "kind": "table",
+      "name": "trading_universe_validations",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:12"
+    },
+    {
+      "constraints": [
+        "CHECK (\n    \"status\" IN (\n      'DRAFT', 'PENDING_ACTIVATION', 'ACTIVE', 'SUPERSEDED', 'CANCELLED'\n    )",
+        "CHECK (\"enabled_symbol_count\" >= 0)",
+        "PRIMARY KEY",
+        "REFERENCES \"trading_universe_sources\"",
+        "UNIQUE (\"universe_key\", \"version\")"
+      ],
+      "dependencies": [
+        "trading_universe_sources"
+      ],
+      "indexes": [
+        "idx_trading_universes_lookup",
+        "uq_trading_universes_one_draft"
+      ],
+      "kind": "table",
+      "name": "trading_universes",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:2"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES validation_v2_runs"
+      ],
+      "dependencies": [
+        "validation_v2_runs"
+      ],
+      "indexes": [
+        "idx_v2_dec_run",
+        "idx_v2_dec_sym"
+      ],
+      "kind": "table",
+      "name": "validation_v2_decisions",
+      "owner": "artifacts/api-server/src/python/validation_v2_engine.py",
+      "source": "artifacts/api-server/src/python/validation_v2_engine.py:192"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES validation_v2_runs"
+      ],
+      "dependencies": [
+        "validation_v2_runs"
+      ],
+      "indexes": [
+        "idx_v2_missed_run"
+      ],
+      "kind": "table",
+      "name": "validation_v2_missed",
+      "owner": "artifacts/api-server/src/python/validation_v2_engine.py",
+      "source": "artifacts/api-server/src/python/validation_v2_engine.py:192"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES validation_v2_runs"
+      ],
+      "dependencies": [
+        "validation_v2_runs"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "validation_v2_optimizer_runs",
+      "owner": "artifacts/api-server/src/python/validation_v2_engine.py",
+      "source": "artifacts/api-server/src/python/validation_v2_engine.py:192"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES validation_v2_runs"
+      ],
+      "dependencies": [
+        "validation_v2_runs"
+      ],
+      "indexes": [],
+      "kind": "table",
+      "name": "validation_v2_runs",
+      "owner": "artifacts/api-server/src/python/validation_v2_engine.py",
+      "source": "artifacts/api-server/src/python/validation_v2_engine.py:192"
+    },
+    {
+      "constraints": [
+        "PRIMARY KEY",
+        "REFERENCES validation_v2_runs"
+      ],
+      "dependencies": [
+        "validation_v2_runs"
+      ],
+      "indexes": [
+        "idx_v2_trades_run"
+      ],
+      "kind": "table",
+      "name": "validation_v2_trades",
+      "owner": "artifacts/api-server/src/python/validation_v2_engine.py",
+      "source": "artifacts/api-server/src/python/validation_v2_engine.py:192"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "trigger",
+      "name": "trg_baseline_migration_audit_immutable",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:18"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "trigger",
+      "name": "trg_kite_instrument_sync_audit_immutable",
+      "owner": "artifacts/api-server/src/python/kite_instrument_cache.py",
+      "source": "artifacts/api-server/src/python/kite_instrument_cache.py:333"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "trigger",
+      "name": "trg_task946_audit_immutable",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:16"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "trigger",
+      "name": "trg_task946_member_guard",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:16"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "trigger",
+      "name": "trg_task946_member_history_guard",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:16"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "trigger",
+      "name": "trg_task946_revision_guard",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:16"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "trigger",
+      "name": "trg_task946_source_immutable",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:16"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "trigger",
+      "name": "trg_task947_details_immutable",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:17"
+    },
+    {
+      "constraints": [],
+      "dependencies": [],
+      "indexes": [],
+      "kind": "trigger",
+      "name": "trg_task947_validation_immutable",
+      "owner": "lib/db/migrations/0002_universe_authority_schema_parity.sql",
+      "source": "lib/db/migrations/0002_universe_authority_schema_parity.sql:17"
+    }
+  ],
+  "prohibited_historical_domains": [
+    "phase20_paper_trades",
+    "historical_ledger_rows",
+    "historical_audit_events",
+    "historical_scheduler_rows",
+    "historical_certification_rows",
+    "runtime_universe_session_pins",
+    "historical_token_rows",
+    "historical_validation_rows"
+  ]
+}
