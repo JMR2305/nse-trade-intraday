@@ -90,7 +90,7 @@ class Task978CandidateIdentity(unittest.TestCase):
     commits or changing the checkout. Only the proof output is redirected.
     """
 
-    CANDIDATE = 'edb214dc37cd5c58fffd2c3451e4b84a0d0e9c9c'
+    CANDIDATE = '8d87d74748baebe6ce1628c8e43ae98d68f579a9'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -224,7 +224,7 @@ class Task978CandidateIdentity(unittest.TestCase):
     def test_task978t_commissioning_files_are_exactly_blob_pinned(self):
         proof = self.run_identity()
         self.assertEqual(proof['task978t_exact_commissioning_blobs'], {
-            'reviewed_commit': self.CANDIDATE,
+            'reviewed_commit': ci_report.TASK978T_REVIEWED_COMMIT,
             'blobs': ci_report.TASK978T_REVIEWED_BLOBS,
         })
         for path, blob in ci_report.TASK978T_REVIEWED_BLOBS.items():
@@ -257,6 +257,52 @@ class Task978CandidateIdentity(unittest.TestCase):
             self.run_identity(extra=[
                 'artifacts/api-server/src/routes/commissioning-unreviewed.ts'
             ])
+
+    def test_task978za_bootstrap_files_are_exactly_blob_pinned(self):
+        proof = self.run_identity()
+        self.assertEqual(proof['task978za_exact_bootstrap_blobs'], {
+            'reviewed_commit': self.CANDIDATE,
+            'blobs': ci_report.TASK978ZA_REVIEWED_BLOBS,
+        })
+        for path, blob in ci_report.TASK978ZA_REVIEWED_BLOBS.items():
+            with self.subTest(path=path):
+                expected = f'100644 blob {blob}\t{path}'
+                self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
+
+    def test_task978za_content_mode_and_deletion_are_rejected(self):
+        for path, blob in ci_report.TASK978ZA_REVIEWED_BLOBS.items():
+            for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                          f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
+                with self.subTest(path=path, entry=entry), \
+                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZA'):
+                    self.run_identity(overrides={
+                        ('ls-tree', self.CANDIDATE, '--', path): entry,
+                    })
+
+    def test_task978za_reviewed_commit_must_remain_in_candidate_lineage(self):
+        with self.assertRaisesRegex(RuntimeError, 'Task978ZA reviewed commit absent from ancestry'):
+            self.run_identity(overrides={
+                ('rev-list', 'HEAD'): '\n'.join([
+                    ci_report.TASK978E2_REVIEWED_COMMIT,
+                    ci_report.TASK978J_REVIEWED_COMMIT,
+                    ci_report.TASK978T_REVIEWED_COMMIT,
+                ]),
+            })
+
+    def test_task978za_allowance_is_not_a_wildcard(self):
+        self.assertEqual(len(ci_report.TASK978ZA_REVIEWED_BLOBS), 11)
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(extra=['scripts/task978za_unreviewed.py'])
+
+    def test_task978za_task969_native_hook_is_content_pinned(self):
+        path = 'scripts/task969_postgres_validation.py'
+        self.assertIn(path, ci_report.TASK978ZA_REVIEWED_BLOBS)
+        blob = ci_report.TASK978ZA_REVIEWED_BLOBS[path]
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZA'):
+            self.run_identity(overrides={
+                ('ls-tree', self.CANDIDATE, '--', path):
+                    f'100644 blob {"0" * 40}\t{path}',
+            })
 
     def test_arbitrary_application_addition_or_edit_is_rejected(self):
         for path in ['artifacts/api-server/src/task978_unreviewed.ts',

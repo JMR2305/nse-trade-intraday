@@ -86,6 +86,35 @@ TASK978T_REVIEWED_BLOBS = {
     'artifacts/api-server/src/routes/health.ts':
         '6a67b42a0ad5c6089be4ee500235ab9b2c54bdee',
 }
+# Task978ZA permits only the reviewed deterministic, non-runtime authority
+# bootstrap commit. Every design, manifest, validator, native-hook, and test
+# file is pinned as an exact regular-file blob at both the reviewed commit and
+# validation HEAD. This does not authorize future bootstrap or directory edits.
+TASK978ZA_REVIEWED_COMMIT = '8d87d74748baebe6ce1628c8e43ae98d68f579a9'
+TASK978ZA_REVIEWED_BLOBS = {
+    'TASK978R_CLEAN_APPLICATION_AUTHORITY_RECONSTRUCTION_DESIGN.md':
+        '5ac6bfe749db32bb188408e5aba1fd21d3ec3680',
+    'docs/superpowers/plans/2026-09-16-task978za-authority-bootstrap.md':
+        '7fc3cc518d975ec588c4b6b2131e533edd626888',
+    'scripts/task969_postgres_validation.py':
+        '520f7cc88032b87cab454f26a48dee216a7eb0dd',
+    'scripts/task978r_application_authority_schema.sql':
+        '1077d1914d9addf45cd3607a9f15f05ccf7d11df',
+    'scripts/task978r_clean_authority.py':
+        '04b9bc70ef0a9c2c4ad3425af81ac0f25e7941ba',
+    'scripts/task978r_clean_authority_manifest.json':
+        '2e7dfa5c83786efecc069984f307217b53da44a9',
+    'scripts/task978r_generate_schema.py':
+        'bdfec4e924b87364ce0b1a03163f5e4d6409a063',
+    'scripts/task978za_postgres_validation.py':
+        '412212ea9449e66254e499d938a9036225c65753',
+    'scripts/test_task978r_clean_authority.py':
+        'c627c00b403e611a610da8e94977a72ab2989955',
+    'scripts/test_task978s_bootstrap_review.py':
+        '01c8848bb09c2be446cfa7af30d01378be46c46c',
+    'scripts/test_task978za_postgres_validation.py':
+        '27fe7afe95321ed9278a5e5428e372c158efd741',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -324,7 +353,7 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
@@ -357,6 +386,14 @@ def identity():
             raise RuntimeError(f'Unexpected Task978T reviewed content: {path}')
         if git('ls-tree', head, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978T candidate content: {path}')
+    if TASK978ZA_REVIEWED_COMMIT not in git('rev-list', 'HEAD').splitlines():
+        raise RuntimeError('Task978ZA reviewed commit absent from ancestry')
+    for path, expected_blob in TASK978ZA_REVIEWED_BLOBS.items():
+        expected_entry = f'100644 blob {expected_blob}\t{path}'
+        if git('ls-tree', TASK978ZA_REVIEWED_COMMIT, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978ZA reviewed content: {path}')
+        if git('ls-tree', head, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978ZA candidate content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -404,6 +441,10 @@ def identity():
              'task978t_exact_commissioning_blobs': {
                  'reviewed_commit': TASK978T_REVIEWED_COMMIT,
                  'blobs': TASK978T_REVIEWED_BLOBS,
+             },
+             'task978za_exact_bootstrap_blobs': {
+                 'reviewed_commit': TASK978ZA_REVIEWED_COMMIT,
+                 'blobs': TASK978ZA_REVIEWED_BLOBS,
              },
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
