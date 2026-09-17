@@ -432,10 +432,18 @@ def bootstrap(
     sql = _read_sql()
     import psycopg  # loaded only after the static identity gate
 
-    conn = psycopg.connect(database_url)
+    # The whole bootstrap must be one atomic, durably committed transaction.
+    # psycopg3 connections start transactions implicitly on first execute;
+    # without an explicit BEGIN here, conn.transaction() below would degrade
+    # to a mere SAVEPOINT inside that implicit transaction and conn.close()
+    # would silently roll the entire bootstrap back (Task969 CI: the bootstrap
+    # reported PASS while a fresh connection saw UndefinedTable on
+    # phase20_settings).  BEGIN-first keeps every statement inside exactly one
+    # transaction that the context manager commits on success.
+    conn = psycopg.connect(database_url, autocommit=False)
     try:
-        _verify_live_identity(conn, target)
         with conn.transaction():
+            _verify_live_identity(conn, target)
             with conn.cursor() as cur:
                 for statement in _split_statements(sql):
                     cur.execute(statement)

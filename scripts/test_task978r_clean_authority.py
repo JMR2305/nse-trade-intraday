@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import ast
 import importlib.util
 import json
 import pathlib
@@ -173,6 +174,172 @@ class TestCleanSeed(unittest.TestCase):
         source = MODULE_PATH.read_text(encoding="utf-8")
         self.assertIn("verification = _verify_authority(cur)", source)
         self.assertIn('"verification": verification', source)
+
+
+class TestDependencyClosure(unittest.TestCase):
+    """The standalone bootstrap must be relation-self-contained.
+
+    Every relation referenced by the clean seed SQL or by the bootstrap's
+    own verification SQL must be created by the standalone authority schema
+    itself (the checked-in generated SQL + manifest).  A future seed or
+    verification reference introduced without schema coverage must fail
+    here, before any database is touched.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.module = load_module()
+        cls.source = MODULE_PATH.read_text(encoding="utf-8")
+        cls.manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        cls.created_tables = {
+            obj["name"] for obj in cls.manifest["objects"] if obj["kind"] == "table"
+        }
+
+    @staticmethod
+    def _referenced_relations(sql_text: str) -> set[str]:
+        candidates: set[str] = set()
+        for match in re.finditer(
+            r'(?i)\b(?:FROM|JOIN|INSERT\s+INTO|UPDATE|REFERENCES|DELETE\s+FROM)\s+"?'
+            r'([A-Za-z_][A-Za-z0-9_]*)"?',
+            sql_text,
+        ):
+            candidates.add(match.group(1).lower())
+        return candidates
+
+    @classmethod
+    def _bootstrap_sql_fragments(cls) -> list[str]:
+        """Collect every SQL string the bootstrap module can execute."""
+        tree = ast.parse(cls.source)
+        fragments: list[str] = []
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "execute"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                fragments.append(node.args[0].value)
+        # Table names referenced through f-strings (e.g. the forbidden-history
+        # probe loop) are declared as local literal tuples inside functions;
+        # collect those too.  Module-level symbol tuples are not SQL.
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                for statement in node.body:
+                    if (
+                        isinstance(statement, ast.Assign)
+                        and len(statement.targets) == 1
+                        and isinstance(statement.targets[0], ast.Name)
+                        and isinstance(statement.value, ast.Tuple)
+                    ):
+                        for element in statement.value.elts:
+                            if isinstance(element, ast.Constant) and isinstance(element.value, str):
+                                fragments.append(f"FROM {element.value}")
+        fragments.extend(cls.module.seed_statements())
+        return fragments
+
+    def test_every_referenced_relation_is_created_by_the_standalone_schema(self):
+        fragments = self._bootstrap_sql_fragments()
+        self.assertGreater(len(fragments), 0)
+        referenced = self._referenced_relations("\n".join(fragments))
+        # PostgreSQL built-in catalog schemas/functions, seed-statement CTEs,
+        # and SQL keywords caught by the JOIN heuristic are not bootstrap-owned
+        # relations.
+        non_tables = {
+            name for name in referenced
+            if name.startswith("pg_")
+            or name in {"information_schema", "expected", "unnest", "lateral"}
+        }
+        unresolved = sorted(referenced - non_tables - self.created_tables)
+        self.assertEqual(unresolved, [], "bootstrap references relations the standalone schema never creates")
+
+    def test_phase20_settings_and_phase20_kv_are_referenced_and_created(self):
+        referenced = self._referenced_relations("\n".join(self._bootstrap_sql_fragments()))
+        for required in ("phase20_settings", "phase20_kv"):
+            self.assertIn(required, referenced, f"{required} is not exercised by the bootstrap")
+            self.assertIn(required, self.created_tables, f"{required} is absent from the standalone schema manifest")
+
+    def test_closure_fails_for_an_uncovered_future_reference(self):
+        # A relation referenced by bootstrap SQL but missing from the manifest
+        # must be flagged by the same closure computation the test above uses.
+        referenced = self._referenced_relations("SELECT count(*) FROM some_future_runtime_lazy_table")
+        unresolved = referenced - self.created_tables
+        self.assertEqual(unresolved, {"some_future_runtime_lazy_table"})
+
+
+class TestBootstrapDurability(unittest.TestCase):
+    """Task978ZC: the bootstrap must durably commit what it verified.
+
+    Regression for Task969 run 35055139734: bootstrap() executed an identity
+    probe before entering conn.transaction(), so psycopg3 had already opened
+    an implicit outer transaction; conn.transaction() silently degraded to a
+    SAVEPOINT and conn.close() rolled the entire bootstrap back.  The in-
+    transaction verification passed while a fresh connection saw
+    UndefinedTable: relation "phase20_settings" does not exist.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.source = MODULE_PATH.read_text(encoding="utf-8")
+        cls.tree = ast.parse(cls.source)
+
+    def _bootstrap_function(self) -> ast.FunctionDef:
+        for node in self.tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name == "bootstrap":
+                return node
+        raise AssertionError("bootstrap() is missing")
+
+    def test_transaction_opens_before_any_statement_executes(self):
+        function = self._bootstrap_function()
+        with_nodes = [
+            node for node in ast.walk(function)
+            if isinstance(node, ast.With)
+            and any(
+                isinstance(item.context_expr, ast.Call)
+                and isinstance(item.context_expr.func, ast.Attribute)
+                and item.context_expr.func.attr == "transaction"
+                for item in node.items
+            )
+        ]
+        self.assertEqual(len(with_nodes), 1, "bootstrap must use exactly one conn.transaction() block")
+        inside = {node.func.id for node in ast.walk(with_nodes[0])
+                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+        self.assertIn("_verify_live_identity", inside,
+                      "identity probe must run inside the transaction so no implicit "
+                      "outer transaction is open when conn.transaction() starts")
+
+    def test_identity_probe_no_longer_precedes_the_transaction(self):
+        function = self._bootstrap_function()
+        with_nodes = [
+            node for node in ast.walk(function)
+            if isinstance(node, ast.With)
+            and any(
+                isinstance(item.context_expr, ast.Call)
+                and isinstance(item.context_expr.func, ast.Attribute)
+                and item.context_expr.func.attr == "transaction"
+                for item in node.items
+            )
+        ]
+        outside = [
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id == "_verify_live_identity"
+            and not any(node in ast.walk(with_node) for with_node in with_nodes)
+        ]
+        self.assertEqual(outside, [], "identity probe found outside the bootstrap transaction")
+
+    def test_connection_is_opened_with_explicit_transaction_control(self):
+        function = self._bootstrap_function()
+        connect_calls = [
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "connect"
+        ]
+        self.assertEqual(len(connect_calls), 1)
+        keywords = {keyword.arg for keyword in connect_calls[0].keywords}
+        self.assertIn("autocommit", keywords, "connect must pin autocommit explicitly")
 
 
 if __name__ == "__main__":
