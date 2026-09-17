@@ -125,8 +125,11 @@ def authorize_target(target: TargetIdentity, *, expected_user: str = "") -> None
             and target.acknowledgement == "TASK978ZA_DISPOSABLE_AUTHORITY"
         )
     elif target.purpose == "TASK978ZA_ZEABUR_APPLICATION":
+        # Task978ZD: the authoritative Zeabur DATABASE_URL resolves the
+        # dedicated application service at the internal hostname below
+        # (the bare service name is not the resolvable data host).
         expected = (
-            target.host == "postgres16-apexquant-app.zeabur.internal"
+            target.host == "postgres16-apexquant-app-emon.zeabur.internal"
             and target.port == 5432
             and target.database == "apexquant_app"
             and bool(expected_user)

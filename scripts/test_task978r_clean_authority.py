@@ -106,6 +106,38 @@ class TestIdentityGate(unittest.TestCase):
                     acknowledgement="TASK978ZA_DISPOSABLE_AUTHORITY",
                 )
 
+    def test_exact_zeabur_application_identity_is_accepted(self):
+        """Task978ZD: only the exact Zeabur application host/database is authorized."""
+        target = self.module.parse_target_identity(
+            "postgresql://apexquant_app:secret@postgres16-apexquant-app-emon.zeabur.internal:5432/apexquant_app",
+            purpose="TASK978ZA_ZEABUR_APPLICATION",
+            acknowledgement="apexquant_app",
+        )
+        self.module.authorize_target(target, expected_user="apexquant_app")
+        self.assertEqual(target.host, "postgres16-apexquant-app-emon.zeabur.internal")
+        self.assertEqual(target.port, 5432)
+        self.assertEqual(target.database, "apexquant_app")
+        self.assertEqual(target.user, "apexquant_app")
+
+    def test_wrong_zeabur_host_and_missing_user_are_rejected(self):
+        """The bare service name, wrong DB, wrong user, and missing expected_user all fail closed."""
+        for url, expected_user in (
+            # Historical bare-service pin must no longer be accepted.
+            ("postgresql://apexquant_app:secret@postgres16-apexquant-app.zeabur.internal:5432/apexquant_app", "apexquant_app"),
+            ("postgresql://apexquant_app:secret@postgres16-apexquant-app-emon.zeabur.internal:5432/apexquant_disposable", "apexquant_app"),
+            ("postgresql://apexquant_app:secret@postgres16-apexquant-app-emon.zeabur.internal:5432/apexquant_app", "apexquant_benchmark"),
+            ("postgresql://apexquant_app:secret@postgres16-apexquant-app-emon.zeabur.internal:5432/apexquant_app", ""),
+            ("postgresql://apexquant_app:secret@postgres16-apexquant-app-emon.zeabur.internal:5433/apexquant_app", "apexquant_app"),
+        ):
+            with self.subTest(url=url, expected_user=expected_user), \
+                    self.assertRaises(self.module.IdentityRefused):
+                target = self.module.parse_target_identity(
+                    url,
+                    purpose="TASK978ZA_ZEABUR_APPLICATION",
+                    acknowledgement="apexquant_app",
+                )
+                self.module.authorize_target(target, expected_user=expected_user)
+
 
 class TestCleanSeed(unittest.TestCase):
     @classmethod

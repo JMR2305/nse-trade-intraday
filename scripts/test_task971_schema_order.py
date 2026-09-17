@@ -342,6 +342,38 @@ class Task978CandidateIdentity(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
             self.run_identity(extra=['scripts/task978zc_unreviewed.py'])
 
+    def test_task978zd_corrected_blobs_are_exactly_pinned(self):
+        self.assertEqual(len(ci_report.TASK978ZD_REVIEWED_BLOBS), 2)
+        for path, blob in ci_report.TASK978ZD_REVIEWED_BLOBS.items():
+            with self.subTest(path=path):
+                self.assertIn(path, ci_report.TASK978ZC_REVIEWED_BLOBS,
+                              'Task978ZD only corrects previously reviewed bootstrap blobs')
+                # The Task978ZC corrected blob must remain pinned at the
+                # Task978ZC reviewed commit.
+                self.assertEqual(
+                    ci_report.git('ls-tree', ci_report.TASK978ZC_REVIEWED_COMMIT, '--', path),
+                    f'100644 blob {ci_report.TASK978ZC_REVIEWED_BLOBS[path]}\t{path}',
+                )
+                # And the exact ZD-corrected blob must be present at HEAD.
+                self.assertEqual(
+                    ci_report.git('ls-tree', 'HEAD', '--', path),
+                    f'100644 blob {blob}\t{path}',
+                )
+
+    def test_task978zd_wrong_corrected_content_is_rejected(self):
+        for path, blob in ci_report.TASK978ZD_REVIEWED_BLOBS.items():
+            for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                          f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
+                with self.subTest(path=path, entry=entry), \
+                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZD'):
+                    self.run_identity(overrides={
+                        ('ls-tree', self.CANDIDATE, '--', path): entry,
+                    })
+
+    def test_task978zd_allowance_is_not_a_wildcard(self):
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(extra=['scripts/task978zd_unreviewed.py'])
+
     def test_arbitrary_application_addition_or_edit_is_rejected(self):
         for path in ['artifacts/api-server/src/task978_unreviewed.ts',
                      'artifacts/api-server/src/server.ts']:

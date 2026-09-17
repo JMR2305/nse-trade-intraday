@@ -127,6 +127,17 @@ TASK978ZC_REVIEWED_BLOBS = {
     'scripts/test_task978r_clean_authority.py':
         '61f6d1bd1614df71ec83f83970da3aac6f13d4f8',
 }
+# Task978ZD permits only the reviewed Zeabur application-host identity-pin
+# correction. The Task978ZC corrected blobs remain pinned at the Task978ZC
+# reviewed commit; the exact ZD-corrected blobs must be present at validation
+# HEAD. Path-only or future-content trust is intentionally prohibited.
+TASK978ZC_REVIEWED_COMMIT = 'ecf58ceb163073d30bc9867b3c979a95e7dd9df6'
+TASK978ZD_REVIEWED_BLOBS = {
+    'scripts/task978r_clean_authority.py':
+        'b609056cdf1c0db68c3332a055136362b2bd1c0b',
+    'scripts/test_task978r_clean_authority.py':
+        'ce8bf2d9f7aa8071e53052dd71191d7f0680d55b',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -365,7 +376,7 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
@@ -407,8 +418,15 @@ def identity():
         if path not in TASK978ZC_REVIEWED_BLOBS and git('ls-tree', head, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978ZA candidate content: {path}')
     for path, corrected_blob in TASK978ZC_REVIEWED_BLOBS.items():
+        if path in TASK978ZD_REVIEWED_BLOBS:
+            if git('ls-tree', TASK978ZC_REVIEWED_COMMIT, '--', path) != f'100644 blob {corrected_blob}\t{path}':
+                raise RuntimeError(f'Unexpected Task978ZC reviewed content: {path}')
+            continue
         if git('ls-tree', head, '--', path) != f'100644 blob {corrected_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZC corrected content: {path}')
+    for path, zd_blob in TASK978ZD_REVIEWED_BLOBS.items():
+        if git('ls-tree', head, '--', path) != f'100644 blob {zd_blob}\t{path}':
+            raise RuntimeError(f'Unexpected Task978ZD corrected content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
