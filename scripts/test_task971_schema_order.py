@@ -90,11 +90,11 @@ class Task978CandidateIdentity(unittest.TestCase):
     commits or changing the checkout. Only the proof output is redirected.
     """
 
-    # Task978ZC: the corrected standalone-bootstrap content commit. The
-    # Task978ZA reviewed commit (8d87d747...) remains the pinned reviewed base
-    # for every historical blob; this candidate carries only the exact
-    # TASK978ZC corrected blobs on top of the authorized tree.
-    CANDIDATE = '78481ac3700050dbed1f3fcfbbf9acfd9b66560b'
+    # Task978ZD: the reviewed Zeabur application-host identity-pin correction
+    # commit. The Task978ZA reviewed commit (8d87d747...) remains the pinned
+    # reviewed base for every historical blob; this candidate carries the exact
+    # TASK978ZC and TASK978ZD corrected blobs on top of the authorized tree.
+    CANDIDATE = '5c200294ec4252527f5d537f9bd018c8cdb8b589'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -116,14 +116,21 @@ class Task978CandidateIdentity(unittest.TestCase):
         real_git = ci_report.git
         real_write = Path.write_text
 
+        def canonicalize(arg):
+            # The gate under test resolves head references against the workflow
+            # checkout; model that consistently against the pinned candidate
+            # commit so overrides keyed on the candidate always match.
+            if arg == 'HEAD':
+                return self.CANDIDATE
+            if isinstance(arg, str) and arg.startswith('HEAD:'):
+                return self.CANDIDATE + arg[len('HEAD'):]
+            return arg
+
         def read_git(*args):
+            args = tuple(canonicalize(arg) for arg in args)
             if args in overrides:
                 return overrides[args]
-            if args == ('rev-parse', 'HEAD'):
-                return self.CANDIDATE
-            if args == ('rev-list', 'HEAD'):
-                return real_git('rev-list', self.CANDIDATE)
-            if args == ('diff', '--name-only', 'HEAD'):
+            if args == ('diff', '--name-only', self.CANDIDATE):
                 # Model the clean CI checkout; separately test dirty rejection.
                 return ''
             result = real_git(*args)
@@ -177,7 +184,7 @@ class Task978CandidateIdentity(unittest.TestCase):
 
     def test_task978e2_reviewed_commit_must_remain_in_candidate_lineage(self):
         with self.assertRaisesRegex(RuntimeError, 'Task978E2 reviewed commit absent from ancestry'):
-            self.run_identity(overrides={('rev-list', 'HEAD'): self.ANCESTOR})
+            self.run_identity(overrides={('rev-list', self.CANDIDATE): self.ANCESTOR})
 
     def test_task978e2_allowance_is_not_a_wildcard(self):
         self.assertEqual(set(ci_report.TASK978E2_REVIEWED_BLOBS), {
@@ -213,7 +220,7 @@ class Task978CandidateIdentity(unittest.TestCase):
     def test_task978j_reviewed_commit_must_remain_in_candidate_lineage(self):
         with self.assertRaisesRegex(RuntimeError, 'Task978J reviewed commit absent from ancestry'):
             self.run_identity(overrides={
-                ('rev-list', 'HEAD'): ci_report.TASK978E2_REVIEWED_COMMIT,
+                ('rev-list', self.CANDIDATE): ci_report.TASK978E2_REVIEWED_COMMIT,
             })
 
     def test_task978j_allowance_is_not_a_wildcard(self):
@@ -249,7 +256,7 @@ class Task978CandidateIdentity(unittest.TestCase):
     def test_task978t_reviewed_commit_must_remain_in_candidate_lineage(self):
         with self.assertRaisesRegex(RuntimeError, 'Task978T reviewed commit absent from ancestry'):
             self.run_identity(overrides={
-                ('rev-list', 'HEAD'): '\n'.join([
+                ('rev-list', self.CANDIDATE): '\n'.join([
                     ci_report.TASK978E2_REVIEWED_COMMIT,
                     ci_report.TASK978J_REVIEWED_COMMIT,
                 ]),
@@ -288,7 +295,7 @@ class Task978CandidateIdentity(unittest.TestCase):
     def test_task978za_reviewed_commit_must_remain_in_candidate_lineage(self):
         with self.assertRaisesRegex(RuntimeError, 'Task978ZA reviewed commit absent from ancestry'):
             self.run_identity(overrides={
-                ('rev-list', 'HEAD'): '\n'.join([
+                ('rev-list', self.CANDIDATE): '\n'.join([
                     ci_report.TASK978E2_REVIEWED_COMMIT,
                     ci_report.TASK978J_REVIEWED_COMMIT,
                     ci_report.TASK978T_REVIEWED_COMMIT,
@@ -322,21 +329,43 @@ class Task978CandidateIdentity(unittest.TestCase):
                     ci_report.git('ls-tree', ci_report.TASK978ZA_REVIEWED_COMMIT, '--', path),
                     f'100644 blob {ci_report.TASK978ZA_REVIEWED_BLOBS[path]}\t{path}',
                 )
-                # And the exact corrected blob must be present at HEAD.
-                self.assertEqual(
-                    ci_report.git('ls-tree', 'HEAD', '--', path),
-                    f'100644 blob {blob}\t{path}',
-                )
+                if path in ci_report.TASK978ZD_REVIEWED_BLOBS:
+                    # Task978ZD supersedes candidate-HEAD content for this
+                    # path; the exact ZC-corrected blob must therefore remain
+                    # pinned at the Task978ZC reviewed commit.
+                    self.assertEqual(
+                        ci_report.git('ls-tree', ci_report.TASK978ZC_REVIEWED_COMMIT, '--', path),
+                        f'100644 blob {blob}\t{path}',
+                    )
+                else:
+                    self.assertEqual(
+                        ci_report.git('ls-tree', self.CANDIDATE, '--', path),
+                        f'100644 blob {blob}\t{path}',
+                    )
 
     def test_task978zc_wrong_corrected_content_is_rejected(self):
         for path, blob in ci_report.TASK978ZC_REVIEWED_BLOBS.items():
-            for entry in ['', f'100644 blob {"0" * 40}\t{path}',
-                          f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
-                with self.subTest(path=path, entry=entry), \
-                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZC'):
-                    self.run_identity(overrides={
-                        ('ls-tree', self.CANDIDATE, '--', path): entry,
-                    })
+            if path in ci_report.TASK978ZD_REVIEWED_BLOBS:
+                # ZC content for ZD-superseded paths is pinned at the ZC
+                # reviewed commit; tampering must be rejected there. Candidate-
+                # HEAD content for these paths is exercised by the Task978ZD
+                # rejection tests.
+                entries = ['', f'100644 blob {"0" * 40}\t{path}',
+                           f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']
+                for entry in entries:
+                    with self.subTest(path=path, entry=entry), \
+                            self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZC reviewed'):
+                        self.run_identity(overrides={
+                            ('ls-tree', ci_report.TASK978ZC_REVIEWED_COMMIT, '--', path): entry,
+                        })
+            else:
+                for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                              f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
+                    with self.subTest(path=path, entry=entry), \
+                            self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZC corrected'):
+                        self.run_identity(overrides={
+                            ('ls-tree', self.CANDIDATE, '--', path): entry,
+                        })
 
     def test_task978zc_allowance_is_not_a_wildcard(self):
         with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
@@ -356,7 +385,7 @@ class Task978CandidateIdentity(unittest.TestCase):
                 )
                 # And the exact ZD-corrected blob must be present at HEAD.
                 self.assertEqual(
-                    ci_report.git('ls-tree', 'HEAD', '--', path),
+                    ci_report.git('ls-tree', self.CANDIDATE, '--', path),
                     f'100644 blob {blob}\t{path}',
                 )
 
@@ -462,11 +491,11 @@ class Task978CandidateIdentity(unittest.TestCase):
 
     def test_missing_reviewed_ancestor_is_rejected(self):
         with self.assertRaisesRegex(RuntimeError, 'absent from ancestry'):
-            self.run_identity(overrides={('log', '--format=%H %T', 'HEAD'): ''})
+            self.run_identity(overrides={('log', '--format=%H %T', self.CANDIDATE): ''})
 
     def test_dirty_tracked_worktree_is_rejected(self):
         with self.assertRaisesRegex(RuntimeError, 'Tracked worktree differs'):
-            self.run_identity(overrides={('diff', '--name-only', 'HEAD'): 'scripts/task969_ci_report.py'})
+            self.run_identity(overrides={('diff', '--name-only', self.CANDIDATE): 'scripts/task969_ci_report.py'})
 
 
 if __name__ == '__main__':
