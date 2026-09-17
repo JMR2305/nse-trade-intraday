@@ -90,7 +90,11 @@ class Task978CandidateIdentity(unittest.TestCase):
     commits or changing the checkout. Only the proof output is redirected.
     """
 
-    CANDIDATE = '8d87d74748baebe6ce1628c8e43ae98d68f579a9'
+    # Task978ZC: the corrected standalone-bootstrap content commit. The
+    # Task978ZA reviewed commit (8d87d747...) remains the pinned reviewed base
+    # for every historical blob; this candidate carries only the exact
+    # TASK978ZC corrected blobs on top of the authorized tree.
+    CANDIDATE = '78481ac3700050dbed1f3fcfbbf9acfd9b66560b'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -261,16 +265,18 @@ class Task978CandidateIdentity(unittest.TestCase):
     def test_task978za_bootstrap_files_are_exactly_blob_pinned(self):
         proof = self.run_identity()
         self.assertEqual(proof['task978za_exact_bootstrap_blobs'], {
-            'reviewed_commit': self.CANDIDATE,
+            'reviewed_commit': ci_report.TASK978ZA_REVIEWED_COMMIT,
             'blobs': ci_report.TASK978ZA_REVIEWED_BLOBS,
         })
         for path, blob in ci_report.TASK978ZA_REVIEWED_BLOBS.items():
             with self.subTest(path=path):
                 expected = f'100644 blob {blob}\t{path}'
-                self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
+                self.assertEqual(ci_report.git('ls-tree', ci_report.TASK978ZA_REVIEWED_COMMIT, '--', path), expected)
 
     def test_task978za_content_mode_and_deletion_are_rejected(self):
         for path, blob in ci_report.TASK978ZA_REVIEWED_BLOBS.items():
+            if path in ci_report.TASK978ZC_REVIEWED_BLOBS:
+                continue  # HEAD content for corrected paths is Task978ZC-pinned
             for entry in ['', f'100644 blob {"0" * 40}\t{path}',
                           f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
                 with self.subTest(path=path, entry=entry), \
@@ -303,6 +309,38 @@ class Task978CandidateIdentity(unittest.TestCase):
                 ('ls-tree', self.CANDIDATE, '--', path):
                     f'100644 blob {"0" * 40}\t{path}',
             })
+
+    def test_task978zc_corrected_blobs_are_exactly_pinned(self):
+        self.assertEqual(len(ci_report.TASK978ZC_REVIEWED_BLOBS), 2)
+        for path, blob in ci_report.TASK978ZC_REVIEWED_BLOBS.items():
+            with self.subTest(path=path):
+                self.assertIn(path, ci_report.TASK978ZA_REVIEWED_BLOBS,
+                              'Task978ZC only corrects previously reviewed bootstrap blobs')
+                # The historical reviewed blob must remain pinned at the
+                # Task978ZA reviewed commit.
+                self.assertEqual(
+                    ci_report.git('ls-tree', ci_report.TASK978ZA_REVIEWED_COMMIT, '--', path),
+                    f'100644 blob {ci_report.TASK978ZA_REVIEWED_BLOBS[path]}\t{path}',
+                )
+                # And the exact corrected blob must be present at HEAD.
+                self.assertEqual(
+                    ci_report.git('ls-tree', 'HEAD', '--', path),
+                    f'100644 blob {blob}\t{path}',
+                )
+
+    def test_task978zc_wrong_corrected_content_is_rejected(self):
+        for path, blob in ci_report.TASK978ZC_REVIEWED_BLOBS.items():
+            for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                          f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
+                with self.subTest(path=path, entry=entry), \
+                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZC'):
+                    self.run_identity(overrides={
+                        ('ls-tree', self.CANDIDATE, '--', path): entry,
+                    })
+
+    def test_task978zc_allowance_is_not_a_wildcard(self):
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(extra=['scripts/task978zc_unreviewed.py'])
 
     def test_arbitrary_application_addition_or_edit_is_rejected(self):
         for path in ['artifacts/api-server/src/task978_unreviewed.ts',
