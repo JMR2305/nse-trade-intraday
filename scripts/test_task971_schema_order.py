@@ -90,11 +90,12 @@ class Task978CandidateIdentity(unittest.TestCase):
     commits or changing the checkout. Only the proof output is redirected.
     """
 
-    # Task978ZD: the reviewed Zeabur application-host identity-pin correction
+    # Task978ZG: the reviewed repository-locked-driver bootstrap alignment
     # commit. The Task978ZA reviewed commit (8d87d747...) remains the pinned
     # reviewed base for every historical blob; this candidate carries the exact
-    # TASK978ZC and TASK978ZD corrected blobs on top of the authorized tree.
-    CANDIDATE = '5c200294ec4252527f5d537f9bd018c8cdb8b589'
+    # TASK978ZC, TASK978ZD, and TASK978ZG corrected blobs on top of the
+    # authorized tree.
+    CANDIDATE = 'afc3c58b017c8b81f16e7fd6689ab3192f2c7945'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -383,25 +384,62 @@ class Task978CandidateIdentity(unittest.TestCase):
                     ci_report.git('ls-tree', ci_report.TASK978ZC_REVIEWED_COMMIT, '--', path),
                     f'100644 blob {ci_report.TASK978ZC_REVIEWED_BLOBS[path]}\t{path}',
                 )
-                # And the exact ZD-corrected blob must be present at HEAD.
+                # Task978ZG supersedes candidate-HEAD content for this path;
+                # the exact ZD-corrected blob must therefore remain pinned at
+                # the Task978ZD reviewed commit.
                 self.assertEqual(
-                    ci_report.git('ls-tree', self.CANDIDATE, '--', path),
+                    ci_report.git('ls-tree', ci_report.TASK978ZD_REVIEWED_COMMIT, '--', path),
                     f'100644 blob {blob}\t{path}',
                 )
 
     def test_task978zd_wrong_corrected_content_is_rejected(self):
         for path, blob in ci_report.TASK978ZD_REVIEWED_BLOBS.items():
+            # ZD content for ZG-superseded paths is pinned at the ZD reviewed
+            # commit; tampering must be rejected there. Candidate-HEAD content
+            # for these paths is exercised by the Task978ZG rejection tests.
             for entry in ['', f'100644 blob {"0" * 40}\t{path}',
                           f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
                 with self.subTest(path=path, entry=entry), \
-                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZD'):
+                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZD reviewed'):
                     self.run_identity(overrides={
-                        ('ls-tree', self.CANDIDATE, '--', path): entry,
+                        ('ls-tree', ci_report.TASK978ZD_REVIEWED_COMMIT, '--', path): entry,
                     })
 
     def test_task978zd_allowance_is_not_a_wildcard(self):
         with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
             self.run_identity(extra=['scripts/task978zd_unreviewed.py'])
+
+    def test_task978zg_corrected_blobs_are_exactly_pinned(self):
+        self.assertEqual(len(ci_report.TASK978ZG_REVIEWED_BLOBS), 2)
+        for path, blob in ci_report.TASK978ZG_REVIEWED_BLOBS.items():
+            with self.subTest(path=path):
+                self.assertIn(path, ci_report.TASK978ZD_REVIEWED_BLOBS,
+                              'Task978ZG only corrects previously reviewed bootstrap blobs')
+                # The Task978ZD corrected blob must remain pinned at the
+                # Task978ZD reviewed commit.
+                self.assertEqual(
+                    ci_report.git('ls-tree', ci_report.TASK978ZD_REVIEWED_COMMIT, '--', path),
+                    f'100644 blob {ci_report.TASK978ZD_REVIEWED_BLOBS[path]}\t{path}',
+                )
+                # And the exact ZG-corrected blob must be present at HEAD.
+                self.assertEqual(
+                    ci_report.git('ls-tree', self.CANDIDATE, '--', path),
+                    f'100644 blob {blob}\t{path}',
+                )
+
+    def test_task978zg_wrong_corrected_content_is_rejected(self):
+        for path, blob in ci_report.TASK978ZG_REVIEWED_BLOBS.items():
+            for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                          f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
+                with self.subTest(path=path, entry=entry), \
+                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZG'):
+                    self.run_identity(overrides={
+                        ('ls-tree', self.CANDIDATE, '--', path): entry,
+                    })
+
+    def test_task978zg_allowance_is_not_a_wildcard(self):
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(extra=['scripts/task978zg_unreviewed.py'])
 
     def test_arbitrary_application_addition_or_edit_is_rejected(self):
         for path in ['artifacts/api-server/src/task978_unreviewed.ts',
