@@ -138,6 +138,21 @@ TASK978ZD_REVIEWED_BLOBS = {
     'scripts/test_task978r_clean_authority.py':
         'ce8bf2d9f7aa8071e53052dd71191d7f0680d55b',
 }
+# Task978ZG permits only the reviewed repository-locked-driver bootstrap
+# alignment: bootstrap() and its durability/driver regressions are corrected
+# to run on the locked psycopg2-binary==2.9.12 driver (pyproject.toml and
+# uv.lock; the driver already shipped in the Zeabur container) with one
+# atomic commit-after-verification transaction. The exact ZG-corrected blobs
+# must be present at validation HEAD; the Task978ZD corrected blobs remain
+# pinned at the Task978ZD reviewed commit. Path-only or future-content trust
+# is intentionally prohibited.
+TASK978ZD_REVIEWED_COMMIT = '5c200294ec4252527f5d537f9bd018c8cdb8b589'
+TASK978ZG_REVIEWED_BLOBS = {
+    'scripts/task978r_clean_authority.py':
+        '61e60f34979dcc03f06de7ee7c033964bdb7313c',
+    'scripts/test_task978r_clean_authority.py':
+        '95a032a6503f36d4e7f11f74ab49804ec1fa3999',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -425,8 +440,15 @@ def identity():
         if git('ls-tree', head, '--', path) != f'100644 blob {corrected_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZC corrected content: {path}')
     for path, zd_blob in TASK978ZD_REVIEWED_BLOBS.items():
+        if git('ls-tree', TASK978ZD_REVIEWED_COMMIT, '--', path) != f'100644 blob {zd_blob}\t{path}':
+            raise RuntimeError(f'Unexpected Task978ZD reviewed content: {path}')
+        if path in TASK978ZG_REVIEWED_BLOBS:
+            continue
         if git('ls-tree', head, '--', path) != f'100644 blob {zd_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZD corrected content: {path}')
+    for path, zg_blob in TASK978ZG_REVIEWED_BLOBS.items():
+        if git('ls-tree', head, '--', path) != f'100644 blob {zg_blob}\t{path}':
+            raise RuntimeError(f'Unexpected Task978ZG corrected content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
