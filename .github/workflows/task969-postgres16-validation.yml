@@ -62,9 +62,10 @@ jobs:
           set -o pipefail
           pnpm install --frozen-lockfile 2>&1 | tee task969-install.log
           git diff --exit-code -- package.json pnpm-lock.yaml pnpm-workspace.yaml
-      - name: Install native-validator dependency
+      - name: Install native-validator and locked bootstrap-driver dependencies
         id: validator_deps
-        run: python -m pip install 'psycopg[binary]==3.3.5'
+        run: |
+          python -m pip install 'psycopg[binary]==3.3.5' 'psycopg2-binary==2.9.12'
       - name: Migration guard adversarial suite
         id: guard
         run: |

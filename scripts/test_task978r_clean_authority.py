@@ -301,14 +301,18 @@ class TestDependencyClosure(unittest.TestCase):
 
 
 class TestBootstrapDurability(unittest.TestCase):
-    """Task978ZC: the bootstrap must durably commit what it verified.
+    """Task978ZC/ZG: the bootstrap must durably commit what it verified.
 
-    Regression for Task969 run 35055139734: bootstrap() executed an identity
-    probe before entering conn.transaction(), so psycopg3 had already opened
-    an implicit outer transaction; conn.transaction() silently degraded to a
-    SAVEPOINT and conn.close() rolled the entire bootstrap back.  The in-
-    transaction verification passed while a fresh connection saw
-    UndefinedTable: relation "phase20_settings" does not exist.
+    Regression for Task969 run 35055139734: a bootstrap that reported PASS
+    while a fresh connection saw UndefinedTable on phase20_settings proved
+    that verification without a durable commit is meaningless.
+    Task978ZG additionally pins the repository-locked PostgreSQL driver
+    (psycopg2-binary==2.9.12 per pyproject.toml and uv.lock — the exact
+    driver already shipped in the Zeabur container).  With psycopg2 and
+    autocommit disabled, every statement runs inside one implicit
+    transaction: conn.commit() after the verified seeding is the durability
+    boundary and conn.rollback() in the failure path is the atomicity
+    boundary.
     """
 
     @classmethod
@@ -322,56 +326,142 @@ class TestBootstrapDurability(unittest.TestCase):
                 return node
         raise AssertionError("bootstrap() is missing")
 
-    def test_transaction_opens_before_any_statement_executes(self):
-        function = self._bootstrap_function()
-        with_nodes = [
-            node for node in ast.walk(function)
-            if isinstance(node, ast.With)
-            and any(
-                isinstance(item.context_expr, ast.Call)
-                and isinstance(item.context_expr.func, ast.Attribute)
-                and item.context_expr.func.attr == "transaction"
-                for item in node.items
-            )
-        ]
-        self.assertEqual(len(with_nodes), 1, "bootstrap must use exactly one conn.transaction() block")
-        inside = {node.func.id for node in ast.walk(with_nodes[0])
-                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
-        self.assertIn("_verify_live_identity", inside,
-                      "identity probe must run inside the transaction so no implicit "
-                      "outer transaction is open when conn.transaction() starts")
-
-    def test_identity_probe_no_longer_precedes_the_transaction(self):
-        function = self._bootstrap_function()
-        with_nodes = [
-            node for node in ast.walk(function)
-            if isinstance(node, ast.With)
-            and any(
-                isinstance(item.context_expr, ast.Call)
-                and isinstance(item.context_expr.func, ast.Attribute)
-                and item.context_expr.func.attr == "transaction"
-                for item in node.items
-            )
-        ]
-        outside = [
-            node for node in ast.walk(function)
-            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-            and node.func.id == "_verify_live_identity"
-            and not any(node in ast.walk(with_node) for with_node in with_nodes)
-        ]
-        self.assertEqual(outside, [], "identity probe found outside the bootstrap transaction")
-
-    def test_connection_is_opened_with_explicit_transaction_control(self):
-        function = self._bootstrap_function()
-        connect_calls = [
+    @staticmethod
+    def _calls_with_attr(function: ast.FunctionDef, attr: str) -> list[ast.Call]:
+        return [
             node for node in ast.walk(function)
             if isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "connect"
+            and node.func.attr == attr
         ]
+
+    def test_bootstrap_uses_repository_locked_psycopg2_driver(self):
+        self.assertIn(
+            "import psycopg2  # loaded only after the static identity gate",
+            self.source,
+            "bootstrap must import the repository-locked psycopg2 driver",
+        )
+        connect_calls = self._calls_with_attr(self._bootstrap_function(), "connect")
         self.assertEqual(len(connect_calls), 1)
-        keywords = {keyword.arg for keyword in connect_calls[0].keywords}
-        self.assertIn("autocommit", keywords, "connect must pin autocommit explicitly")
+        self.assertEqual(
+            getattr(connect_calls[0].func, "value", None).id,
+            "psycopg2",
+            "connect must be called on the locked psycopg2 module",
+        )
+        # The undeclared psycopg3 package must not be imported or used
+        # anywhere (mentions in explanatory comments are permitted).
+        self.assertNotRegex(self.source, r"(?m)^\s*import psycopg\s*$")
+        self.assertNotIn("psycopg.connect(", self.source)
+        self.assertNotIn("psycopg2.sql", self.source)
+
+    def test_connection_pins_autocommit_false_for_one_atomic_transaction(self):
+        self.assertIn(
+            "conn.autocommit = False",
+            self.source,
+            "psycopg2 must run with autocommit disabled so the whole "
+            "bootstrap is one transaction",
+        )
+
+    def test_every_statement_executes_before_the_single_commit(self):
+        function = self._bootstrap_function()
+        commit_calls = self._calls_with_attr(function, "commit")
+        self.assertEqual(
+            len(commit_calls), 1,
+            "bootstrap must have exactly one conn.commit() durability boundary",
+        )
+        execute_nodes = [
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "execute"
+            and getattr(node.func.value, "id", None) == "cur"
+        ]
+        self.assertGreater(len(execute_nodes), 0)
+        self.assertLess(
+            max(node.lineno for node in execute_nodes), commit_calls[0].lineno,
+            "every statement must execute before the commit",
+        )
+        # The identity probe must still execute before any schema mutation
+        # (its inner catalog execute is the first statement of the
+        # transaction) so a refused target never touches the database.
+        self.assertIn("_verify_live_identity(conn, target)", self.source)
+        verify_nodes = [
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_verify_live_identity"
+        ]
+        self.assertEqual(len(verify_nodes), 1)
+        seed_call = next(
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "seed_statements"
+        )
+        self.assertLess(verify_nodes[0].lineno, seed_call.lineno,
+                        "identity probe must precede the seed statements")
+
+    def test_identity_probe_executes_before_seed_statements(self):
+        function = self._bootstrap_function()
+        verify_nodes = [
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_verify_live_identity"
+        ]
+        self.assertEqual(len(verify_nodes), 1)
+        seed_call = next(
+            node for node in ast.walk(function)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "seed_statements"
+        )
+        self.assertLess(verify_nodes[0].lineno, seed_call.lineno)
+
+    def test_rollback_is_the_atomic_failure_boundary(self):
+        function = self._bootstrap_function()
+        rollback_calls = self._calls_with_attr(function, "rollback")
+        self.assertEqual(len(rollback_calls), 1)
+        handlers = [
+            node for node in ast.walk(function)
+            if isinstance(node, ast.ExceptHandler)
+        ]
+        self.assertTrue(
+            any(rollback_calls[0] in ast.walk(handler) for handler in handlers),
+            "conn.rollback() must run inside the exception handler",
+        )
+        try_nodes = [node for node in ast.walk(function) if isinstance(node, ast.Try)]
+        self.assertEqual(len(try_nodes), 1)
+        finally_calls = self._calls_with_attr(try_nodes[0], "close")
+        self.assertEqual(len(finally_calls), 1, "connection must always be closed")
+
+    def test_failure_rolls_back_and_never_commits(self):
+        """Task978ZG: a mid-bootstrap failure must leave zero durable changes."""
+        module = load_module()
+        fake_conn = mock.MagicMock(name="psycopg2_connection")
+        fake_cursor = mock.MagicMock(name="cursor")
+        fake_conn.cursor.return_value.__enter__.return_value = fake_cursor
+        # First execute: live identity probe succeeds.  Second execute: the
+        # very first schema statement fails.
+        fake_cursor.fetchone.return_value = (
+            "task978za_disposable_authority", "task967", 160000,
+        )
+        fake_cursor.execute.side_effect = [None, RuntimeError("simulated DDL failure")]
+        fake_psycopg2 = mock.MagicMock(name="psycopg2")
+        fake_psycopg2.connect.return_value = fake_conn
+        with mock.patch.dict(sys.modules, {"psycopg2": fake_psycopg2}):
+            with self.assertRaises(RuntimeError):
+                module.bootstrap(
+                    "postgresql://task967:secret@127.0.0.1:5432/task978za_disposable_authority",
+                    purpose="TASK978ZA_NATIVE_PG16",
+                    acknowledgement="TASK978ZA_DISPOSABLE_AUTHORITY",
+                )
+        fake_psycopg2.connect.assert_called_once_with(
+            "postgresql://task967:secret@127.0.0.1:5432/task978za_disposable_authority",
+        )
+        fake_conn.rollback.assert_called_once()
+        fake_conn.commit.assert_not_called()
+        fake_conn.close.assert_called_once()
 
 
 if __name__ == "__main__":

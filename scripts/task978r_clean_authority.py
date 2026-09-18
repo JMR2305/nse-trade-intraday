@@ -433,26 +433,28 @@ def bootstrap(
         expected_user=expected_user,
     )
     sql = _read_sql()
-    import psycopg  # loaded only after the static identity gate
+    import psycopg2  # loaded only after the static identity gate
 
-    # The whole bootstrap must be one atomic, durably committed transaction.
-    # psycopg3 connections start transactions implicitly on first execute;
-    # without an explicit BEGIN here, conn.transaction() below would degrade
-    # to a mere SAVEPOINT inside that implicit transaction and conn.close()
-    # would silently roll the entire bootstrap back (Task969 CI: the bootstrap
-    # reported PASS while a fresh connection saw UndefinedTable on
-    # phase20_settings).  BEGIN-first keeps every statement inside exactly one
-    # transaction that the context manager commits on success.
-    conn = psycopg.connect(database_url, autocommit=False)
+    # Task978ZG: the bootstrap must run on the repository-locked PostgreSQL
+    # driver (pyproject.toml / uv.lock: psycopg2-binary==2.9.12) — exactly the
+    # driver already shipped in the Zeabur container — instead of the
+    # undeclared psycopg3 package the native validator installs only for CI.
+    # The whole bootstrap must be one atomic, durably committed transaction:
+    # with autocommit=False, psycopg2 opens a single transaction at the first
+    # statement and conn.commit() makes everything it verified durable
+    # together (Task969 CI run 35055139734 proved the necessity of the
+    # atomic-commit contract).  Any failure rolls the transaction back.
+    conn = psycopg2.connect(database_url)
     try:
-        with conn.transaction():
+        conn.autocommit = False
+        with conn.cursor() as cur:
             _verify_live_identity(conn, target)
-            with conn.cursor() as cur:
-                for statement in _split_statements(sql):
-                    cur.execute(statement)
-                for statement in seed_statements():
-                    cur.execute(statement)
-                verification = _verify_authority(cur)
+            for statement in _split_statements(sql):
+                cur.execute(statement)
+            for statement in seed_statements():
+                cur.execute(statement)
+            verification = _verify_authority(cur)
+        conn.commit()
         return {
             "status": "PASS",
             "database": target.database,
