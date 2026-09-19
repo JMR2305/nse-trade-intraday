@@ -839,6 +839,80 @@ def _today_ist_date() -> str:
     return now_ist.strftime("%Y-%m-%d")
 
 
+_FAILURE_EVIDENCE_LIMIT = 5
+
+
+def _bounded_failure_evidence(bf_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Task978ZL — bounded, non-secret per-symbol failure diagnostics.
+
+    Extracts a summary from a backfill result without dumping provider
+    payloads: total failed count, coarse per-reason counts, and only the
+    first _FAILURE_EVIDENCE_LIMIT failing symbols (name + short reason).
+    """
+    failed: list = list(bf_result.get("failed_symbols") or [])
+    detail: Dict[str, Any] = {}
+    raw_detail = bf_result.get("failure_details")
+    if isinstance(raw_detail, dict):
+        detail = raw_detail
+    reason_counts: Dict[str, int] = {}
+    first: list = []
+    for sym in failed[:_FAILURE_EVIDENCE_LIMIT]:
+        info = detail.get(sym)
+        if isinstance(info, dict):
+            reason = str(info.get("reason") or "unknown")[:80]
+        elif isinstance(info, str):
+            reason = info[:80]
+        else:
+            reason = "no_detail"
+        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        first.append({"symbol": str(sym)[:20], "reason": reason})
+    # Count any reasons for symbols beyond the first-N window.
+    if isinstance(raw_detail, dict):
+        for sym in failed[_FAILURE_EVIDENCE_LIMIT:]:
+            info = detail.get(sym)
+            if isinstance(info, dict):
+                reason = str(info.get("reason") or "unknown")[:80]
+            elif isinstance(info, str):
+                reason = info[:80]
+            else:
+                reason = "no_detail"
+            reason_counts[reason] = reason_counts.get(reason, 0) + 1
+    return {
+        "failed_symbol_count": len(failed),
+        "failure_reason_counts": reason_counts,
+        "first_n_failures": first,
+    }
+
+
+def _resolve_cold_start_universe() -> Dict[str, Any]:
+    """Task978ZL — resolve the cold-start OHLCV universe from durable authority.
+
+    The live scan binds to ``runtime_universe.resolve_active_universe()`` — the
+    durable, versioned, hash-verified authority.  The cold-start cache warm-up
+    must serve exactly that same set, never the static ``config.NIFTY_50``
+    legacy list (Task978ZK authority-binding defect).
+
+    Fail-closed: any resolution failure raises ``RuntimeUniverseUnavailable``
+    (or re-raises the original error).  Callers must NOT substitute a silent
+    NIFTY_50 fallback — an unresolvable authority blocks the backfill with a
+    structured failure instead.
+    """
+    from universe_version_store import normalize_symbols as _normalize
+    from runtime_universe import RuntimeUniverseUnavailable, resolve_active_universe
+    context = resolve_active_universe()
+    symbols = _normalize(context.get("enabled_symbols") or [])
+    if not symbols:
+        raise RuntimeUniverseUnavailable("Durable universe resolved no symbols")
+    return {
+        "symbols": symbols,
+        "universe_key": str(context.get("universe_key") or "UNKNOWN"),
+        "universe_id": int(context.get("universe_id") or 0),
+        "universe_version": int(context.get("version") or 0),
+        "exact_set_hash": str(context.get("exact_set_hash") or ""),
+        "authority_source": "runtime_universe.resolve_active_universe",
+    }
+
+
 def check_cold_cache_on_startup() -> Dict[str, Any]:
     """Cold-start OHLCV cache check with Autoscale-safe cross-instance coordination.
 
@@ -885,13 +959,37 @@ def check_cold_cache_on_startup() -> Dict[str, Any]:
     # active lease.
     _takeover_token: Optional[str] = None
 
-    # ── 1. Load universe ──────────────────────────────────────────────────────
+    # ── 1. Load universe from durable authority (Task978ZL) ──────────────────
+    # The cold-start warm-up must bind to the SAME durable, versioned,
+    # hash-verified universe as the live scan (runtime_universe authority),
+    # never the static config.NIFTY_50 legacy list.  Fail-closed: if the
+    # durable authority cannot be resolved we return a structured failure —
+    # no silent NIFTY_50 substitution, no fabricated symbols, no backfill.
     try:
-        from config import NIFTY_50 as _n50
-        symbols = list(_n50)
+        _authority = _resolve_cold_start_universe()
+        symbols = _authority["symbols"]
     except Exception as exc:
-        _log_cc.warning("check_cold_cache_on_startup: config import failed: %s", exc)
-        return {"ran": False, "error": f"config import: {str(exc)[:150]}"}
+        _log_cc.error(
+            "check_cold_cache_on_startup: durable universe authority "
+            "unavailable (%s). Failing closed — no backfill will run and "
+            "no fallback universe is substituted.",
+            str(exc)[:200],
+        )
+        return {
+            "ran": False,
+            "action": "authority_unavailable",
+            "failure_class": "UNIVERSE_AUTHORITY_UNAVAILABLE",
+            "authority_source": "runtime_universe.resolve_active_universe",
+            "error": str(exc)[:200],
+            "recovery_hint": (
+                "Verify application DB connectivity and the durable "
+                "universe authority, then restart"
+            ),
+        }
+    universe_key = _authority["universe_key"]
+    universe_id = _authority["universe_id"]
+    universe_version = _authority["universe_version"]
+    universe_hash = _authority["exact_set_hash"]
 
     # ── 2. Load cache store ───────────────────────────────────────────────────
     try:
@@ -946,6 +1044,12 @@ def check_cold_cache_on_startup() -> Dict[str, Any]:
             "reason": "cache_warm",
             "cache_hit_rate_pct": cache_hit_rate,
             "total_symbols": total,
+            "universe_key": universe_key,
+            "universe_id": universe_id,
+            "universe_version": universe_version,
+            "universe_exact_set_hash": universe_hash,
+            "resolved_symbol_count": len(symbols),
+            "authority_source": _authority["authority_source"],
         }
 
     is_fully_cold = len(uncached) == total
@@ -1044,6 +1148,12 @@ def check_cold_cache_on_startup() -> Dict[str, Any]:
                     "reason": "completed_by_peer",
                     "peer_result": done if isinstance(done, dict) else {},
                     "total_symbols": total,
+                    "universe_key": universe_key,
+                    "universe_id": universe_id,
+                    "universe_version": universe_version,
+                    "universe_exact_set_hash": universe_hash,
+                    "resolved_symbol_count": len(symbols),
+                    "authority_source": _authority["authority_source"],
                 }
 
             lease_meta = store.kv_get(lease_started_key)
@@ -1145,6 +1255,12 @@ def check_cold_cache_on_startup() -> Dict[str, Any]:
                 "reason": "peer_timeout",
                 "wait_timeout_s": _COLD_START_WAIT_TIMEOUT_S,
                 "total_symbols": total,
+                "universe_key": universe_key,
+                "universe_id": universe_id,
+                "universe_version": universe_version,
+                "universe_exact_set_hash": universe_hash,
+                "resolved_symbol_count": len(symbols),
+                "authority_source": _authority["authority_source"],
                 "recovery_hint": "POST /api/ohlcv-cache/backfill",
             }
         # is_owner = True (takeover) → fall through to owner block
@@ -1217,6 +1333,7 @@ def check_cold_cache_on_startup() -> Dict[str, Any]:
         }
         store.kv_set(done_key, completion_record)
 
+        failure_evidence = _bounded_failure_evidence(bf_result)
         return {
             "ran": True,
             "action": "backfill",
@@ -1224,10 +1341,22 @@ def check_cold_cache_on_startup() -> Dict[str, Any]:
             "was_fully_cold": is_fully_cold,
             "cold_symbol_count": len(cold_set),
             "total_symbols": total,
+            "universe_key": universe_key,
+            "universe_id": universe_id,
+            "universe_version": universe_version,
+            "universe_exact_set_hash": universe_hash,
+            "resolved_symbol_count": len(symbols),
+            "authority_source": _authority["authority_source"],
             "symbols_updated": n_updated,
             "symbols_skipped": n_skipped,
             "symbols_failed": n_failed,
             "failed_symbols": failed_syms,
+            "failure_class": (
+                "PROVIDER_BACKFILL_FAILURE" if failed_syms else None
+            ),
+            "failed_symbol_count": failure_evidence["failed_symbol_count"],
+            "failure_reason_counts": failure_evidence["failure_reason_counts"],
+            "first_n_failures": failure_evidence["first_n_failures"],
             "duration_seconds": duration_s,
             "status": status,
             "recovery_hint": (
@@ -1267,6 +1396,13 @@ def check_cold_cache_on_startup() -> Dict[str, Any]:
             "was_fully_cold": is_fully_cold,
             "cold_symbol_count": len(cold_set),
             "total_symbols": total,
+            "universe_key": universe_key,
+            "universe_id": universe_id,
+            "universe_version": universe_version,
+            "universe_exact_set_hash": universe_hash,
+            "resolved_symbol_count": len(symbols),
+            "authority_source": _authority["authority_source"],
+            "failure_class": "PROVIDER_BACKFILL_EXCEPTION",
             "error": str(exc)[:300],
             "recovery_hint": "POST /api/ohlcv-cache/backfill",
         }

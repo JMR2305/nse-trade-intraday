@@ -466,6 +466,14 @@ def backfill_all_symbols(
     updated: List[str] = []
     skipped: List[str] = []
     failed: List[str] = []
+    # Task978ZL — bounded non-secret per-symbol failure detail so a 50/50
+    # style failure is diagnosable from the result payload alone.
+    failure_details: Dict[str, Dict[str, str]] = {}
+
+    def _record_failure(sym: str, reason: str) -> None:
+        failed.append(sym.upper())
+        if len(failure_details) < 50:
+            failure_details[sym.upper()] = {"reason": str(reason)[:120]}
 
     # Check which symbols already have adequate fresh cache
     status = get_cache_status(symbols) if not force else {}
@@ -505,7 +513,7 @@ def backfill_all_symbols(
                         if n > 0:
                             updated.append(sym.upper())
                         else:
-                            failed.append(sym.upper())
+                            _record_failure(sym, "empty_or_write_rejected")
                     else:
                         # Per-symbol fallback
                         _res = _fetch_single_yfinance(sym, period, interval)
@@ -513,10 +521,10 @@ def backfill_all_symbols(
                             write_symbol_to_cache(sym, _res, source="yfinance")
                             updated.append(sym.upper())
                         else:
-                            failed.append(sym.upper())
+                            _record_failure(sym, "provider_fetch_empty")
                 except Exception as exc:
                     logger.warning("backfill_all_symbols(%s): %s", sym, exc)
-                    failed.append(sym.upper())
+                    _record_failure(sym, f"exception: {exc}")
         except Exception as exc:
             logger.warning("backfill_all_symbols bulk download failed: %s", exc)
             # Fall back to per-symbol
@@ -527,10 +535,10 @@ def backfill_all_symbols(
                         write_symbol_to_cache(sym, df, source="yfinance")
                         updated.append(sym.upper())
                     else:
-                        failed.append(sym.upper())
+                        _record_failure(sym, "provider_fetch_empty")
                 except Exception as e2:
                     logger.warning("backfill per-symbol fallback(%s): %s", sym, e2)
-                    failed.append(sym.upper())
+                    _record_failure(sym, f"exception: {e2}")
 
     duration = round(time.monotonic() - t0, 2)
     status_str = "SUCCESS" if not failed else ("PARTIAL" if updated else "FAILED")
@@ -551,6 +559,7 @@ def backfill_all_symbols(
         "symbols_skipped": len(skipped),
         "symbols_failed": len(failed),
         "failed_symbols": failed,
+        "failure_details": failure_details,
         "skipped_symbols": skipped,
         "duration_seconds": duration,
         "status": status_str,

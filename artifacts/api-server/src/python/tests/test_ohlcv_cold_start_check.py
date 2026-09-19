@@ -80,7 +80,7 @@ _COLD_START_KV_ATTRS = (
 )
 
 # Names installed per-test that must be cleaned up after this suite.
-_PER_TEST_STUB_NAMES = ("ohlcv_cache_store", "config")
+_PER_TEST_STUB_NAMES = ("ohlcv_cache_store", "config", "runtime_universe", "universe_version_store")
 
 
 def teardown_module(module: object) -> None:  # noqa: ARG001
@@ -239,9 +239,11 @@ class ColdStartTestCase(unittest.TestCase):
 
     def setUp(self) -> None:  # noqa: N802
         _KV.reset()
-        # config: install a fresh stub for every test so each test gets the
-        # canonical NIFTY_50 symbol list; per-test overrides are isolated.
-        _make_stub("config").NIFTY_50 = SYMBOLS_50
+        # Authority: install a fresh durable-universe stub for every test so
+        # each test resolves a canonical authority set; per-test overrides
+        # are isolated (Task978ZL — the cold-start path binds to the durable
+        # authority, not config.NIFTY_50).
+        _install_authority_stubs(SYMBOLS_50)
         store = sys.modules["phase20_store"]
         # Save current attribute values (may be from another test file's stub).
         self._orig_store_attrs: Dict[str, Any] = {
@@ -284,6 +286,68 @@ class ColdStartTestCase(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 SYMBOLS_50 = [f"SYM{i:02d}" for i in range(50)]
+
+# Task978ZL — canonical durable-authority fixture (CUSTOM_LOW_PRICE_SECTOR,
+# universe_id 3, version 1, 23 members, exact hash from the reviewed manifest).
+CANONICAL_23 = [
+    "BANKBARODA", "BANKINDIA", "CANBK", "FEDERALBNK", "IDFCFIRSTB",
+    "KTKBANK", "MAHABANK", "PNB", "UNIONBANK", "COALINDIA",
+    "GAIL", "HUDCO", "IRCON", "IRFC", "MRPL",
+    "NBCC", "NMDC", "NTPC", "PFC", "RECLTD",
+    "RVNL", "SAIL", "WIPRO",
+]
+CANONICAL_HASH = "22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016"
+
+
+def _install_authority_stubs(
+    symbols: List[str],
+    *,
+    universe_key: str = "CUSTOM_LOW_PRICE_SECTOR",
+    universe_id: int = 3,
+    universe_version: int = 1,
+    raise_error: Optional[Exception] = None,
+) -> None:
+    """Stub runtime_universe + universe_version_store so the cold-start path
+    resolves a controlled durable authority (or fails, for fail-closed tests).
+
+    The resolved set is hash-verified exactly as runtime_universe._compact
+    would verify it, so the stub exercises the same integrity contract.
+    """
+    import hashlib
+
+    def _hash(syms: List[str]) -> str:
+        norm = sorted({str(s).upper().strip() for s in syms if str(s).strip()})
+        return hashlib.sha256("|".join(norm).encode("utf-8")).hexdigest()
+
+    ru = _make_stub("runtime_universe")
+
+    class _RUU(RuntimeError):
+        pass
+
+    ru.RuntimeUniverseUnavailable = _RUU
+    if raise_error is not None:
+        def _resolve(now=None):
+            raise raise_error
+    else:
+        def _resolve(now=None):
+            return {
+                "natural_session": "2026-09-19",
+                "universe_key": universe_key,
+                "universe_id": universe_id,
+                "version": universe_version,
+                "enabled_symbols": list(symbols),
+                "symbol_count": len(symbols),
+                "exact_set_hash": _hash(symbols),
+                "effective_from": "2026-09-19T03:30:00+00:00",
+                "pinned_at": "2026-09-19T03:31:00+00:00",
+            }
+    ru.resolve_active_universe = _resolve
+
+    uvs = _make_stub("universe_version_store")
+    uvs.normalize_symbols = lambda syms: sorted(
+        {str(s).upper().strip() for s in syms if str(s).strip()}
+    )
+    uvs.CUSTOM_UNIVERSE_KEY = "CUSTOM_LOW_PRICE_SECTOR"
 
 _CLAIM_KEY_PREFIX    = "ohlcv_cold_start_backfill:"
 _DONE_KEY_PREFIX     = "ohlcv_cold_start_backfill_done:"
@@ -1071,17 +1135,22 @@ class TestColdCacheCheckGuards(ColdStartTestCase):
         self.assertFalse(result.get("ran"))
         self.assertIn("error", result)
 
-    def test_config_import_error_returns_error_dict(self):
-        # Remove config so import fails
-        orig = sys.modules.pop("config", None)
-        sys.modules["config"] = types.ModuleType("config")  # empty module, no NIFTY_50
-        try:
-            result = sched.check_cold_cache_on_startup()
-            self.assertFalse(result.get("ran"))
-            self.assertIn("error", result)
-        finally:
-            if orig is not None:
-                sys.modules["config"] = orig
+    def test_authority_unavailable_fails_closed(self):
+        # Task978ZL — unresolvable durable authority must fail closed with a
+        # structured UNIVERSE_AUTHORITY_UNAVAILABLE result, never a silent
+        # NIFTY_50 fallback or any backfill run.
+        _install_authority_stubs(
+            SYMBOLS_50, raise_error=RuntimeError("durable authority unreachable")
+        )
+        cache_mod = _install_cache_stubs(summary=_cold_summary())
+        result = sched.check_cold_cache_on_startup()
+        self.assertFalse(result.get("ran"))
+        self.assertEqual(result.get("failure_class"), "UNIVERSE_AUTHORITY_UNAVAILABLE")
+        self.assertEqual(result.get("action"), "authority_unavailable")
+        self.assertIn("error", result)
+        # No backfill attempted, no claim acquired, no fallback symbols used.
+        cache_mod.backfill_all_symbols.assert_not_called()
+        self.assertEqual(len(_KV._data), 0)
 
     def test_ensure_tables_called_when_not_disabled(self):
         cache_mod = _install_cache_stubs(summary=_warm_summary())
@@ -1221,6 +1290,132 @@ class TestColdCacheCheckIdempotency(ColdStartTestCase):
         with patch("time.sleep"):
             r2 = sched.check_cold_cache_on_startup()
         self.assertEqual(r2.get("reason"), "completed_by_peer")
+
+
+# ---------------------------------------------------------------------------
+# Task978ZL — cold-start authority binding regressions
+# ---------------------------------------------------------------------------
+
+class TestColdCacheAuthorityBinding(ColdStartTestCase):
+    """Task978ZL: cold-start binds to the durable canonical universe authority.
+
+    A. resolves the canonical durable 23-symbol universe
+    B. static config.NIFTY_50 is NOT used when durable authority resolves
+    C. exact symbol set is passed to cold-cache inspection/backfill
+    D. universe id/version/key propagate to evidence
+    E. unavailable durable authority fails closed
+    F. no silent NIFTY_50 fallback
+    H. provider failure produces bounded structured diagnostics
+    """
+
+    def test_A_resolves_canonical_23(self):
+        _install_authority_stubs(CANONICAL_23)
+        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=23))
+        result = sched.check_cold_cache_on_startup()
+        self.assertTrue(result.get("ran"))
+        self.assertEqual(result.get("resolved_symbol_count"), 23)
+        self.assertEqual(result.get("universe_key"), "CUSTOM_LOW_PRICE_SECTOR")
+
+    def test_B_static_nifty50_not_used(self):
+        """A stale/wrong config.NIFTY_50 must be invisible to the cold-start path."""
+        _install_authority_stubs(CANONICAL_23)
+        # Deliberately poison the legacy config stub — if the implementation
+        # still read config.NIFTY_50, the resolved set would be SYM00..SYM49.
+        _make_stub("config").NIFTY_50 = SYMBOLS_50
+        captured: Dict[str, Any] = {}
+
+        def _capture_summary(symbols):
+            captured["symbols"] = list(symbols)
+            return _cold_summary(n_uncached=len(symbols))
+
+        cache_mod = _install_cache_stubs()
+        cache_mod.get_overall_cache_summary = MagicMock(side_effect=_capture_summary)
+        _install_cache_stubs()
+        import sys as _sys
+        _sys.modules["ohlcv_cache_store"].get_overall_cache_summary = MagicMock(
+            side_effect=_capture_summary)
+        result = sched.check_cold_cache_on_startup()
+        self.assertTrue(result.get("ran"))
+        self.assertEqual(sorted(captured["symbols"]), sorted(CANONICAL_23))
+        self.assertNotIn("SYM00", captured["symbols"])
+
+    def test_C_exact_symbol_set_passed_to_backfill(self):
+        _install_authority_stubs(CANONICAL_23)
+        cache_mod = _install_cache_stubs(summary=_cold_summary(n_uncached=23))
+        result = sched.check_cold_cache_on_startup()
+        args, kwargs = cache_mod.backfill_all_symbols.call_args
+        passed = list(args[0]) if args else list(kwargs.get("symbols", []))
+        self.assertEqual(len(passed), 23)
+        self.assertEqual(sorted(passed), sorted(CANONICAL_23))
+
+    def test_D_universe_identity_propagates_to_evidence(self):
+        _install_authority_stubs(
+            CANONICAL_23, universe_key="CUSTOM_LOW_PRICE_SECTOR",
+            universe_id=3, universe_version=1,
+        )
+        _install_cache_stubs(summary=_cold_summary(n_uncached=23))
+        result = sched.check_cold_cache_on_startup()
+        self.assertEqual(result.get("universe_key"), "CUSTOM_LOW_PRICE_SECTOR")
+        self.assertEqual(result.get("universe_id"), 3)
+        self.assertEqual(result.get("universe_version"), 1)
+        self.assertTrue(result.get("universe_exact_set_hash"))
+        self.assertEqual(
+            result.get("authority_source"),
+            "runtime_universe.resolve_active_universe",
+        )
+
+    def test_E_unavailable_authority_fails_closed(self):
+        _install_authority_stubs(
+            SYMBOLS_50, raise_error=RuntimeError("authority down")
+        )
+        cache_mod = _install_cache_stubs(summary=_cold_summary())
+        result = sched.check_cold_cache_on_startup()
+        self.assertFalse(result.get("ran"))
+        self.assertEqual(result.get("failure_class"), "UNIVERSE_AUTHORITY_UNAVAILABLE")
+        cache_mod.backfill_all_symbols.assert_not_called()
+        # No claim/lease/done keys may be written on authority failure.
+        self.assertEqual(len(_KV._data), 0)
+
+    def test_F_no_silent_nifty50_fallback(self):
+        """Authority failure must NOT silently resolve the legacy 50-symbol list."""
+        _install_authority_stubs(
+            SYMBOLS_50, raise_error=RuntimeError("authority down")
+        )
+        _make_stub("config").NIFTY_50 = SYMBOLS_50
+        result = sched.check_cold_cache_on_startup()
+        self.assertFalse(result.get("ran"))
+        self.assertNotIn("total_symbols", result)  # never got as far as a symbol list
+        self.assertEqual(result.get("failure_class"), "UNIVERSE_AUTHORITY_UNAVAILABLE")
+
+    def test_H_provider_failure_bounded_diagnostics(self):
+        failing = CANONICAL_23[:10]
+        bf = _backfill_ok(n_updated=13, n_failed=0)
+        bf["symbols_requested"] = 23
+        bf["symbols_failed"] = len(failing)
+        bf["failed_symbols"] = failing
+        bf["status"] = "FAILED"
+        bf["failure_details"] = {
+            s: {"reason": "provider_fetch_empty"} for s in failing
+        }
+        _install_authority_stubs(CANONICAL_23)
+        _install_cache_stubs(summary=_cold_summary(n_uncached=23), backfill_result=bf)
+        result = sched.check_cold_cache_on_startup()
+        self.assertEqual(result.get("action"), "backfill")
+        self.assertEqual(result.get("failure_class"), "PROVIDER_BACKFILL_FAILURE")
+        self.assertEqual(result.get("failed_symbol_count"), 10)
+        self.assertEqual(
+            result.get("failure_reason_counts"), {"provider_fetch_empty": 10}
+        )
+        self.assertEqual(len(result.get("first_n_failures")), 5)  # bounded to 5
+        # No raw provider payloads may leak into the evidence.
+        self.assertNotIn("failure_details", result)
+
+    def test_success_backfill_has_no_failure_class(self):
+        _install_authority_stubs(CANONICAL_23)
+        _install_cache_stubs(summary=_cold_summary(n_uncached=23))
+        result = sched.check_cold_cache_on_startup()
+        self.assertIsNone(result.get("failure_class"))
+        self.assertEqual(result.get("failed_symbol_count"), 0)
 
 
 if __name__ == "__main__":

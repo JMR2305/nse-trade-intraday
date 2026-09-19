@@ -171,6 +171,25 @@ TASK978ZI_REVIEWED_BLOBS = {
     'artifacts/api-server/src/routes/commissioningKiteAuth.test.ts':
         '525e2253c0b9afe0eb97ca66abe02282825da0bf',
 }
+# Task978ZL permits only the reviewed cold-start OHLCV authority-binding
+# correction: the startup cache warm-up resolves the durable, versioned,
+# hash-verified runtime universe authority (runtime_universe.resolve_active_universe)
+# instead of the static config.NIFTY_50 legacy list, fails closed with a
+# structured UNIVERSE_AUTHORITY_UNAVAILABLE result when the authority cannot be
+# resolved, and emits bounded non-secret provider-failure evidence. The exact
+# ZL-corrected blobs must be present at validation HEAD. No scheduler,
+# trading, order, or universe-content change is authorized. Path-only or
+# future-content trust is intentionally prohibited.
+TASK978ZL_REVIEWED_BLOBS = {
+    'artifacts/api-server/src/python/phase20_scheduler.py':
+        '698bfbc034565c1a200ed864a3c152a1bd1659fd',
+    'artifacts/api-server/src/python/ohlcv_cache_store.py':
+        'c6b2f0342c0e46374c3caeaa813842268677cfeb',
+    'artifacts/api-server/src/python/tests/test_ohlcv_cold_start_check.py':
+        '083701ffdc933a66c64f94adac7fa6c283590a08',
+    'scripts/task978zl_cold_start_native_validation.py':
+        '03ce893be229b0be8842db40adaae199f4c5594e',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -409,7 +428,7 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
@@ -478,6 +497,12 @@ def identity():
     for path, zi_blob in TASK978ZI_REVIEWED_BLOBS.items():
         if git('ls-tree', head, '--', path) != f'100644 blob {zi_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZI candidate content: {path}')
+    for path in TASK978ZL_REVIEWED_BLOBS:
+        if git('ls-tree', ancestor, '--', path):
+            raise RuntimeError(f'Unexpected Task978ZL file in reviewed base: {path}')
+    for path, zl_blob in TASK978ZL_REVIEWED_BLOBS.items():
+        if git('ls-tree', head, '--', path) != f'100644 blob {zl_blob}\t{path}':
+            raise RuntimeError(f'Unexpected Task978ZL candidate content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -533,6 +558,9 @@ def identity():
              'task978zi_exact_commissioning_auth_blobs': {
                  'reviewed_commit': TASK978T_REVIEWED_COMMIT,
                  'blobs': TASK978ZI_REVIEWED_BLOBS,
+             },
+             'task978zl_exact_cold_start_authority_blobs': {
+                 'blobs': TASK978ZL_REVIEWED_BLOBS,
              },
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
