@@ -90,11 +90,11 @@ class Task978CandidateIdentity(unittest.TestCase):
     commits or changing the checkout. Only the proof output is redirected.
     """
 
-    # Task978ZI: the reviewed commissioning-safe Kite authentication routes
-    # commit. The Task978ZG reviewed commit (8d87d747...) remains the pinned
+    # Task978ZL: the reviewed cold-start OHLCV authority-binding correction
+    # commit. The Task978ZI reviewed commit (568bb555...) remains the pinned
     # reviewed base for every historical blob; this candidate carries the
-    # exact TASK978ZI commissioning-auth blobs on top of the authorized tree.
-    CANDIDATE = '568bb555b01caeccf49657af9928e1295bed3afd'
+    # exact TASK978ZL cold-start authority blobs on top of the authorized tree.
+    CANDIDATE = '0a30bea847386f298522038622b418524ba4a7f4'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -502,6 +502,55 @@ class Task978CandidateIdentity(unittest.TestCase):
         for path in ['artifacts/api-server/src/routes/kite.ts',
                      'artifacts/api-server/src/routes/trading.ts',
                      'artifacts/api-server/src/routes/controlledPaperEntry.ts']:
+            with self.subTest(path=path), \
+                    self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+                self.run_identity(extra=[path])
+
+    def test_task978zl_cold_start_authority_files_are_exactly_blob_pinned(self):
+        self.assertEqual(len(ci_report.TASK978ZL_REVIEWED_BLOBS), 4)
+        proof = self.run_identity()
+        self.assertEqual(proof['task978zl_exact_cold_start_authority_blobs'], {
+            'blobs': ci_report.TASK978ZL_REVIEWED_BLOBS,
+        })
+        ancestor = proof['reviewed_ancestor']
+        NEW_ZL_PATH = 'scripts/task978zl_cold_start_native_validation.py'
+        for path, blob in ci_report.TASK978ZL_REVIEWED_BLOBS.items():
+            with self.subTest(path=path):
+                # The native validation runner is new; every other ZL path is
+                # a correction of a file that already exists in the reviewed
+                # base with a different blob.
+                ancestor_entry = ci_report.git('ls-tree', ancestor, '--', path)
+                if path == NEW_ZL_PATH:
+                    self.assertEqual(ancestor_entry, '')
+                else:
+                    self.assertTrue(ancestor_entry, 'ZL path missing from reviewed base')
+                    self.assertNotEqual(ancestor_entry, f'100644 blob {blob}\t{path}',
+                                        'ZL blob must differ from the reviewed base')
+                # The exact ZL-corrected blob must be present at the candidate.
+                self.assertEqual(
+                    ci_report.git('ls-tree', self.CANDIDATE, '--', path),
+                    f'100644 blob {blob}\t{path}',
+                )
+
+    def test_task978zl_wrong_corrected_content_is_rejected(self):
+        for path, blob in ci_report.TASK978ZL_REVIEWED_BLOBS.items():
+            for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                          f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
+                with self.subTest(path=path, entry=entry), \
+                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZL'):
+                    self.run_identity(overrides={
+                        ('ls-tree', self.CANDIDATE, '--', path): entry,
+                    })
+
+    def test_task978zl_allowance_is_not_a_wildcard(self):
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(
+                extra=['artifacts/api-server/src/python/task978zl_unreviewed.py'])
+
+    def test_task978zl_does_not_authorize_trading_or_order_paths(self):
+        for path in ['artifacts/api-server/src/python/phase20_executor.py',
+                     'artifacts/api-server/src/python/phase20_gates.py',
+                     'artifacts/api-server/src/python/broker_client.py']:
             with self.subTest(path=path), \
                     self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
                 self.run_identity(extra=[path])

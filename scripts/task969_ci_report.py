@@ -497,9 +497,6 @@ def identity():
     for path, zi_blob in TASK978ZI_REVIEWED_BLOBS.items():
         if git('ls-tree', head, '--', path) != f'100644 blob {zi_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZI candidate content: {path}')
-    for path in TASK978ZL_REVIEWED_BLOBS:
-        if git('ls-tree', ancestor, '--', path):
-            raise RuntimeError(f'Unexpected Task978ZL file in reviewed base: {path}')
     for path, zl_blob in TASK978ZL_REVIEWED_BLOBS.items():
         if git('ls-tree', head, '--', path) != f'100644 blob {zl_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZL candidate content: {path}')
@@ -517,6 +514,14 @@ def identity():
                                 capture_output=True).returncode == 0
         before = git('rev-parse', f'{ancestor}:{path}') if exists else None
         after = git('rev-parse', f'{head}:{path}')
+        # Task978ZL corrects this previously reviewed test on top of the
+        # Task974 after blob; the exact ZL head blob is pinned by
+        # TASK978ZL_REVIEWED_BLOBS, so only the reviewed-base blob is
+        # enforced here (same layering precedent as Task978ZG).
+        if path in TASK978ZL_REVIEWED_BLOBS:
+            if before != expected_before:
+                raise RuntimeError(f'Unexpected Task974 test content: {path}')
+            continue
         if (before, after) != (expected_before, expected_after):
             raise RuntimeError(f'Unexpected Task974 test content: {path}')
     for path in SOURCE_CORRECTIONS:
