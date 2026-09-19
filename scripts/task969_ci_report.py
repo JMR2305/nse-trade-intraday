@@ -153,6 +153,24 @@ TASK978ZG_REVIEWED_BLOBS = {
     'scripts/test_task978r_clean_authority.py':
         '95a032a6503f36d4e7f11f74ab49804ec1fa3999',
 }
+# Task978ZI permits only the reviewed commissioning-safe Kite authentication
+# routes: while HEALTH_ONLY_NO_SCHEDULERS=true the commissioning router
+# additionally mounts exactly GET /api/kite/login and GET /api/kite/callback
+# (env-only request-token transfer to the reviewed main.py kite_exchange
+# subprocess, durable phase20_kv["kite_token_v1"] persistence, fail-closed
+# non-secret responses) plus the dedicated boundary regression suite. The
+# commissioning router blob is corrected on top of the Task978T reviewed
+# blob, and the new files must be absent from the reviewed base. No scheduler,
+# normal Kite, trading, or order route is authorized. Path-only or
+# future-content trust is intentionally prohibited.
+TASK978ZI_REVIEWED_BLOBS = {
+    'artifacts/api-server/src/routes/commissioning.ts':
+        'da3e2f9b1fd3f5877ee15a832d947e6c65824fa6',
+    'artifacts/api-server/src/routes/commissioningKiteAuth.ts':
+        'd5b2d58a416c091c0954159e479e3d3887387136',
+    'artifacts/api-server/src/routes/commissioningKiteAuth.test.ts':
+        '525e2253c0b9afe0eb97ca66abe02282825da0bf',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -391,7 +409,7 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
@@ -422,6 +440,11 @@ def identity():
         expected_entry = f'100644 blob {expected_blob}\t{path}'
         if git('ls-tree', TASK978T_REVIEWED_COMMIT, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978T reviewed content: {path}')
+        if path in TASK978ZI_REVIEWED_BLOBS:
+            # Task978ZI supersedes candidate-HEAD content for this path; the
+            # exact T-reviewed blob must therefore remain pinned at the
+            # Task978T reviewed commit (checked above).
+            continue
         if git('ls-tree', head, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978T candidate content: {path}')
     if TASK978ZA_REVIEWED_COMMIT not in git('rev-list', 'HEAD').splitlines():
@@ -449,6 +472,12 @@ def identity():
     for path, zg_blob in TASK978ZG_REVIEWED_BLOBS.items():
         if git('ls-tree', head, '--', path) != f'100644 blob {zg_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZG corrected content: {path}')
+    for path in TASK978ZI_REVIEWED_BLOBS:
+        if git('ls-tree', ancestor, '--', path):
+            raise RuntimeError(f'Unexpected Task978ZI file in reviewed base: {path}')
+    for path, zi_blob in TASK978ZI_REVIEWED_BLOBS.items():
+        if git('ls-tree', head, '--', path) != f'100644 blob {zi_blob}\t{path}':
+            raise RuntimeError(f'Unexpected Task978ZI candidate content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -500,6 +529,10 @@ def identity():
              'task978za_exact_bootstrap_blobs': {
                  'reviewed_commit': TASK978ZA_REVIEWED_COMMIT,
                  'blobs': TASK978ZA_REVIEWED_BLOBS,
+             },
+             'task978zi_exact_commissioning_auth_blobs': {
+                 'reviewed_commit': TASK978T_REVIEWED_COMMIT,
+                 'blobs': TASK978ZI_REVIEWED_BLOBS,
              },
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
