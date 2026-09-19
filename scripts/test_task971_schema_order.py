@@ -90,12 +90,11 @@ class Task978CandidateIdentity(unittest.TestCase):
     commits or changing the checkout. Only the proof output is redirected.
     """
 
-    # Task978ZG: the reviewed repository-locked-driver bootstrap alignment
-    # commit. The Task978ZA reviewed commit (8d87d747...) remains the pinned
-    # reviewed base for every historical blob; this candidate carries the exact
-    # TASK978ZC, TASK978ZD, and TASK978ZG corrected blobs on top of the
-    # authorized tree.
-    CANDIDATE = 'afc3c58b017c8b81f16e7fd6689ab3192f2c7945'
+    # Task978ZI: the reviewed commissioning-safe Kite authentication routes
+    # commit. The Task978ZG reviewed commit (8d87d747...) remains the pinned
+    # reviewed base for every historical blob; this candidate carries the
+    # exact TASK978ZI commissioning-auth blobs on top of the authorized tree.
+    CANDIDATE = '568bb555b01caeccf49657af9928e1295bed3afd'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -242,10 +241,33 @@ class Task978CandidateIdentity(unittest.TestCase):
         for path, blob in ci_report.TASK978T_REVIEWED_BLOBS.items():
             with self.subTest(path=path):
                 expected = f'100644 blob {blob}\t{path}'
-                self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
+                # Task978ZI supersedes candidate-HEAD content for the
+                # commissioning router; the T-reviewed blob remains pinned at
+                # the Task978T reviewed commit instead.
+                if path in ci_report.TASK978ZI_REVIEWED_BLOBS:
+                    self.assertEqual(
+                        ci_report.git('ls-tree', ci_report.TASK978T_REVIEWED_COMMIT, '--', path),
+                        expected,
+                    )
+                else:
+                    self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
 
     def test_task978t_content_mode_and_deletion_are_rejected(self):
         for path, blob in ci_report.TASK978T_REVIEWED_BLOBS.items():
+            if path in ci_report.TASK978ZI_REVIEWED_BLOBS:
+                # T content for ZI-superseded paths is pinned at the T
+                # reviewed commit; tampering must be rejected there.
+                # Candidate-HEAD content for these paths is exercised by the
+                # Task978ZI rejection tests.
+                entries = ['', f'100644 blob {"0" * 40}\t{path}',
+                           f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']
+                for entry in entries:
+                    with self.subTest(path=path, entry=entry), \
+                            self.assertRaisesRegex(RuntimeError, 'Unexpected Task978T reviewed'):
+                        self.run_identity(overrides={
+                            ('ls-tree', ci_report.TASK978T_REVIEWED_COMMIT, '--', path): entry,
+                        })
+                continue
             for entry in ['', f'100644 blob {"0" * 40}\t{path}',
                           f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
                 with self.subTest(path=path, entry=entry), \
@@ -440,6 +462,49 @@ class Task978CandidateIdentity(unittest.TestCase):
     def test_task978zg_allowance_is_not_a_wildcard(self):
         with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
             self.run_identity(extra=['scripts/task978zg_unreviewed.py'])
+
+    def test_task978zi_commissioning_auth_files_are_exactly_blob_pinned(self):
+        self.assertEqual(len(ci_report.TASK978ZI_REVIEWED_BLOBS), 3)
+        proof = self.run_identity()
+        self.assertEqual(proof['task978zi_exact_commissioning_auth_blobs'], {
+            'reviewed_commit': ci_report.TASK978T_REVIEWED_COMMIT,
+            'blobs': ci_report.TASK978ZI_REVIEWED_BLOBS,
+        })
+        for path, blob in ci_report.TASK978ZI_REVIEWED_BLOBS.items():
+            with self.subTest(path=path):
+                # Every ZI path must be absent from the reviewed base; the
+                # commissioning router was introduced by Task978T and is
+                # corrected, the auth router and its suite are new.
+                if path == 'artifacts/api-server/src/routes/commissioning.ts':
+                    self.assertIn(path, ci_report.TASK978T_REVIEWED_BLOBS,
+                                  'Task978ZI only corrects previously reviewed commissioning blobs')
+                self.assertEqual(
+                    ci_report.git('ls-tree', self.CANDIDATE, '--', path),
+                    f'100644 blob {blob}\t{path}',
+                )
+
+    def test_task978zi_wrong_corrected_content_is_rejected(self):
+        for path, blob in ci_report.TASK978ZI_REVIEWED_BLOBS.items():
+            for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                          f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}']:
+                with self.subTest(path=path, entry=entry), \
+                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZI'):
+                    self.run_identity(overrides={
+                        ('ls-tree', self.CANDIDATE, '--', path): entry,
+                    })
+
+    def test_task978zi_allowance_is_not_a_wildcard(self):
+        with self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+            self.run_identity(
+                extra=['artifacts/api-server/src/routes/commissioningKiteUnreviewed.ts'])
+
+    def test_task978zi_does_not_authorize_kite_trading_or_order_routes(self):
+        for path in ['artifacts/api-server/src/routes/kite.ts',
+                     'artifacts/api-server/src/routes/trading.ts',
+                     'artifacts/api-server/src/routes/controlledPaperEntry.ts']:
+            with self.subTest(path=path), \
+                    self.assertRaisesRegex(RuntimeError, 'Unexpected application/source'):
+                self.run_identity(extra=[path])
 
     def test_arbitrary_application_addition_or_edit_is_rejected(self):
         for path in ['artifacts/api-server/src/task978_unreviewed.ts',
