@@ -347,11 +347,12 @@ def _validate_actual_runtime_resolver(validation_url: str) -> dict[str, Any]:
                 )
                 database_order = [item[0] for item in cur.fetchall()]
         python_order = universe_version_store.normalize_symbols(config.NIFTY_50)
-        if database_order == python_order:
-            raise AssertionError("native ICU ordering did not expose the prior comparison defect")
+        deliberately_reordered = list(reversed(database_order))
+        if deliberately_reordered == database_order:
+            raise AssertionError("native NIFTY set cannot exercise reordered membership")
         if not universe_version_store._matches_exact_symbol_set(
             python_order,
-            database_order,
+            deliberately_reordered,
             universe_version_store.exact_set_hash(python_order),
         ):
             raise AssertionError("NIFTY exact-set verification depends on database ordering")

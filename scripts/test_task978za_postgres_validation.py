@@ -71,6 +71,18 @@ class TestNativeValidationIdentity(unittest.TestCase):
         self.assertIn("aaa_task978zn_corrupt_nifty_member", source)
         self.assertIn('"wrong_persisted_set_rejected": "PASS"', source)
 
+    def test_order_independence_proof_is_deterministic_not_ambient_collation_dependent(self):
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn("deliberately_reordered = list(reversed(database_order))", source)
+        self.assertIn(
+            "python_order,\n            deliberately_reordered,",
+            source,
+        )
+        self.assertNotIn(
+            'raise AssertionError("native ICU ordering did not expose the prior comparison defect")',
+            source,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
