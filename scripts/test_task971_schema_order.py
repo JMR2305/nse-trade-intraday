@@ -97,7 +97,7 @@ class Task978CandidateIdentity(unittest.TestCase):
     # commit. The Task978ZI reviewed commit (568bb555...) remains the pinned
     # reviewed base for every historical blob; this candidate carries the
     # exact TASK978ZL cold-start authority blobs on top of the authorized tree.
-    CANDIDATE = 'ed186f197ab72a70e0bcd05ad98ffc44a0389df6'
+    CANDIDATE = '0dc539886e60b2e5be2035a2de8ba31a3265fdd2'
     ANCESTOR = 'ce294619cb39fe9fa9a5051aff0933766e21081b'
     TASK976_PATHS = (
         'TASK976_ZB5R4_DIAGNOSTIC_EVIDENCE.md',
@@ -352,7 +352,6 @@ class Task978CandidateIdentity(unittest.TestCase):
             'reviewed_commit': ci_report.TASK978ZN_REVIEWED_COMMIT,
             'blobs': ci_report.TASK978ZN_REVIEWED_BLOBS,
         })
-        self.assertEqual(ci_report.TASK978ZN_REVIEWED_COMMIT, self.CANDIDATE)
         self.assertEqual(len(ci_report.TASK978ZN_REVIEWED_BLOBS), 6)
         for path, blob in ci_report.TASK978ZN_REVIEWED_BLOBS.items():
             with self.subTest(path=path):
@@ -361,7 +360,8 @@ class Task978CandidateIdentity(unittest.TestCase):
                     ci_report.git('ls-tree', ci_report.TASK978ZN_REVIEWED_COMMIT, '--', path),
                     expected,
                 )
-                self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
+                if path not in ci_report.TASK978ZN_R7_REVIEWED_BLOBS:
+                    self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
 
     def test_task978zn_content_mode_type_and_deletion_are_rejected(self):
         for path, blob in ci_report.TASK978ZN_REVIEWED_BLOBS.items():
@@ -386,6 +386,45 @@ class Task978CandidateIdentity(unittest.TestCase):
             self.run_identity(extra=[
                 'artifacts/api-server/src/python/task978zn_unreviewed.py'
             ])
+
+    def test_task978zn_r7_validator_files_are_exactly_blob_pinned(self):
+        proof = self.run_identity()
+        self.assertEqual(proof['task978zn_r7_exact_validator_blobs'], {
+            'reviewed_commit': ci_report.TASK978ZN_R7_REVIEWED_COMMIT,
+            'blobs': ci_report.TASK978ZN_R7_REVIEWED_BLOBS,
+        })
+        self.assertEqual(ci_report.TASK978ZN_R7_REVIEWED_COMMIT, self.CANDIDATE)
+        self.assertEqual(len(ci_report.TASK978ZN_R7_REVIEWED_BLOBS), 2)
+        for path, blob in ci_report.TASK978ZN_R7_REVIEWED_BLOBS.items():
+            with self.subTest(path=path):
+                expected = f'100644 blob {blob}\t{path}'
+                self.assertEqual(
+                    ci_report.git('ls-tree', ci_report.TASK978ZN_R7_REVIEWED_COMMIT, '--', path),
+                    expected,
+                )
+                self.assertEqual(ci_report.git('ls-tree', self.CANDIDATE, '--', path), expected)
+
+    def test_task978zn_r7_content_mode_type_and_deletion_are_rejected(self):
+        for path, blob in ci_report.TASK978ZN_R7_REVIEWED_BLOBS.items():
+            for entry in ['', f'100644 blob {"0" * 40}\t{path}',
+                          f'100755 blob {blob}\t{path}', f'120000 blob {blob}\t{path}',
+                          f'040000 tree {blob}\t{path}']:
+                with self.subTest(path=path, entry=entry), \
+                        self.assertRaisesRegex(RuntimeError, 'Unexpected Task978ZN-R7'):
+                    self.run_identity(overrides={
+                        ('ls-tree', self.CANDIDATE, '--', path): entry,
+                    })
+
+    def test_task978zn_r7_reviewed_commit_must_remain_in_candidate_lineage(self):
+        ancestry = ci_report.git('rev-list', self.CANDIDATE).splitlines()
+        without_reviewed = '\n'.join(
+            commit for commit in ancestry
+            if commit != ci_report.TASK978ZN_R7_REVIEWED_COMMIT)
+        with self.assertRaisesRegex(
+                RuntimeError, 'Task978ZN-R7 reviewed commit absent from ancestry'):
+            self.run_identity(overrides={
+                ('rev-list', self.CANDIDATE): without_reviewed,
+            })
 
     def test_task978zn_preserves_historical_task971_source_correction(self):
         path = PYTHON_SCHEMA
