@@ -190,6 +190,26 @@ TASK978ZL_REVIEWED_BLOBS = {
     'scripts/task978zl_cold_start_native_validation.py':
         '03ce893be229b0be8842db40adaae199f4c5594e',
 }
+# Task978ZN permits only the reviewed durable custom-universe resolution
+# repair and its exact unit/native-validator regressions. Require the reviewed
+# repair commit in ancestry and every regular-file blob both at that commit and
+# at validation HEAD. Historical Task971 and Task978ZA content remains pinned
+# at its earlier reviewed layer.
+TASK978ZN_REVIEWED_COMMIT = 'ed186f197ab72a70e0bcd05ad98ffc44a0389df6'
+TASK978ZN_REVIEWED_BLOBS = {
+    'artifacts/api-server/src/python/runtime_universe.py':
+        '4c96fecddd82b949663ae48f244cd49f04d588b7',
+    'artifacts/api-server/src/python/universe_version_store.py':
+        'e52a314f18eb4d58bccdf25c225f7362d375ea8a',
+    'artifacts/api-server/src/python/tests/unit/test_runtime_universe.py':
+        '6fd7b22a0a2737802c080b7daac6f907a01ee8f2',
+    'artifacts/api-server/src/python/tests/unit/test_universe_version_store.py':
+        '5d61ac8e7e63267ed554dfafad50a78d6774a6f5',
+    'scripts/task978za_postgres_validation.py':
+        'c3899221ef0a61de33835bf05a50d1f7be3ff587',
+    'scripts/test_task978za_postgres_validation.py':
+        'a2dcec0eac916ebdb3aa4ed1daa30b6ea4d7d1d4',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -428,7 +448,7 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
@@ -472,7 +492,7 @@ def identity():
         expected_entry = f'100644 blob {expected_blob}\t{path}'
         if git('ls-tree', TASK978ZA_REVIEWED_COMMIT, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978ZA reviewed content: {path}')
-        if path not in TASK978ZC_REVIEWED_BLOBS and git('ls-tree', head, '--', path) != expected_entry:
+        if path not in TASK978ZC_REVIEWED_BLOBS and path not in TASK978ZN_REVIEWED_BLOBS and git('ls-tree', head, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978ZA candidate content: {path}')
     for path, corrected_blob in TASK978ZC_REVIEWED_BLOBS.items():
         if path in TASK978ZD_REVIEWED_BLOBS:
@@ -500,6 +520,14 @@ def identity():
     for path, zl_blob in TASK978ZL_REVIEWED_BLOBS.items():
         if git('ls-tree', head, '--', path) != f'100644 blob {zl_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZL candidate content: {path}')
+    if TASK978ZN_REVIEWED_COMMIT not in git('rev-list', 'HEAD').splitlines():
+        raise RuntimeError('Task978ZN reviewed commit absent from ancestry')
+    for path, zn_blob in TASK978ZN_REVIEWED_BLOBS.items():
+        expected_entry = f'100644 blob {zn_blob}\t{path}'
+        if git('ls-tree', TASK978ZN_REVIEWED_COMMIT, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978ZN reviewed content: {path}')
+        if git('ls-tree', head, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978ZN candidate content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -526,16 +554,18 @@ def identity():
             raise RuntimeError(f'Unexpected Task974 test content: {path}')
     for path in SOURCE_CORRECTIONS:
         before = git('show', f'{ancestor}:{path}')
-        after = git('show', f'{head}:{path}')
+        after_ref = (f'{TASK978ZN_REVIEWED_COMMIT}^:{path}'
+                     if path in TASK978ZN_REVIEWED_BLOBS else f'{head}:{path}')
+        after = git('show', after_ref)
         verify_source_correction(path, before, after)
         # Check raw git blobs as well; strip() must not mask trailing edits.
         raw_before = subprocess.check_output(['git', 'show', f'{ancestor}:{path}'], cwd=ROOT)
-        raw_after = subprocess.check_output(['git', 'show', f'{head}:{path}'], cwd=ROOT)
+        raw_after = subprocess.check_output(['git', 'show', after_ref], cwd=ROOT)
         old, new = SOURCE_CORRECTIONS[path]
         if raw_after != raw_before.replace(old.encode(), new.encode(), 1):
             raise RuntimeError(f'Unexpected Task971 raw source edit: {path}')
         corrections[path] = {'before_blob': git('rev-parse', f'{ancestor}:{path}'),
-                             'after_blob': git('rev-parse', f'{head}:{path}'),
+                             'after_blob': git('rev-parse', after_ref),
                              'sha256': hashlib.sha256(raw_after).hexdigest()}
     if git('diff', '--name-only', 'HEAD'):
         raise RuntimeError('Tracked worktree differs from workflow HEAD')
@@ -566,6 +596,10 @@ def identity():
              },
              'task978zl_exact_cold_start_authority_blobs': {
                  'blobs': TASK978ZL_REVIEWED_BLOBS,
+             },
+             'task978zn_exact_repair_blobs': {
+                 'reviewed_commit': TASK978ZN_REVIEWED_COMMIT,
+                 'blobs': TASK978ZN_REVIEWED_BLOBS,
              },
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
