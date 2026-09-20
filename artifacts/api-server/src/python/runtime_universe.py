@@ -166,12 +166,13 @@ def resolve_active_universe(now: Optional[datetime] = None) -> Dict[str, Any]:
             # The version authority owns the additive pin-table bootstrap so a
             # fresh durable deployment can make its first safe session claim.
             versions._ensure_schema(conn)
-            versions.ensure_builtin_nifty_baseline(conn)
             existing = _load_pin(conn, session_date)
             if existing:
                 return _compact(existing)
 
             universe_key = _configured_key_at_session_boundary(conn, effective_at)
+            if universe_key == versions.NIFTY_UNIVERSE_KEY:
+                versions.ensure_builtin_nifty_baseline(conn)
             resolved = versions.resolve_enabled_symbols(
                 universe_key=universe_key,
                 effective_at=effective_at,

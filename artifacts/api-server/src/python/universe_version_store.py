@@ -367,9 +367,9 @@ def ensure_builtin_nifty_baseline(conn: Any) -> None:
             (universe_id,),
         )
         persisted_symbols = [row[0] for row in cur.fetchall()]
-        if (
-            persisted_symbols != symbols
-            or exact_set_hash(persisted_symbols) != symbol_hash
+        if not (
+            # Semantic equality is independent of PostgreSQL collation order.
+            _matches_exact_symbol_set(symbols, persisted_symbols, symbol_hash)
         ):
             raise RuntimeError(
                 "NIFTY_50 baseline exact-set verification failed before activation"
@@ -536,6 +536,25 @@ def exact_set_hash(symbols: Iterable[Any]) -> str:
     """Hash the canonical, sorted enabled symbol set."""
     canonical = "\n".join(normalize_symbols(symbols))
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _matches_exact_symbol_set(
+    expected_symbols: Iterable[Any],
+    persisted_symbols: Iterable[Any],
+    expected_hash: str,
+) -> bool:
+    """Compare one persisted exact set without depending on database ordering."""
+    try:
+        expected = normalize_symbols(expected_symbols)
+        persisted_raw = list(persisted_symbols)
+        persisted = [normalize_symbol(symbol) for symbol in persisted_raw]
+        return (
+            len(persisted_raw) == len(expected)
+            and sorted(persisted) == expected
+            and exact_set_hash(persisted_raw) == expected_hash
+        )
+    except (TypeError, ValueError):
+        return False
 
 
 def _iso(value: Any) -> Optional[str]:

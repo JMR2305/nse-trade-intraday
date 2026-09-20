@@ -214,6 +214,62 @@ class TestBaselineImport(unittest.TestCase):
         self.assertEqual(inserts, [])
 
 
+class TestBuiltinNiftyBaselineActivation(unittest.TestCase):
+    def _db(self, persisted_symbols):
+        cur = MagicMock()
+        cur.__enter__ = MagicMock(return_value=cur)
+        cur.__exit__ = MagicMock(return_value=False)
+        cur.fetchall.side_effect = [[], [(symbol,) for symbol in persisted_symbols]]
+        cur.fetchone.side_effect = [None, (77,), (88,)]
+        cur.rowcount = 1
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+        return conn
+
+    def test_baseline_activation_verifies_set_without_collation_ordering(self):
+        import config
+        import universe_version_store as store
+
+        symbols = ["M&M", "AXISBANK", "WIPRO"]
+        conn = self._db(list(reversed(store.normalize_symbols(symbols))))
+        with patch.object(config, "NIFTY_50", symbols), patch.object(
+            config, "SECTOR_MAP", {"BANK": ["AXISBANK"], "AUTO": ["M&M"], "IT": ["WIPRO"]}
+        ):
+            store.ensure_builtin_nifty_baseline(conn)
+
+        conn.commit.assert_called_once_with()
+
+    def test_baseline_activation_still_fails_on_wrong_persisted_set(self):
+        import config
+        import universe_version_store as store
+
+        symbols = ["M&M", "AXISBANK", "WIPRO"]
+        conn = self._db(["AXISBANK", "RELIANCE", "WIPRO"])
+        with patch.object(config, "NIFTY_50", symbols), patch.object(
+            config, "SECTOR_MAP", {"BANK": ["AXISBANK"], "AUTO": ["M&M"], "IT": ["WIPRO"]}
+        ):
+            with self.assertRaisesRegex(RuntimeError, "exact-set verification failed"):
+                store.ensure_builtin_nifty_baseline(conn)
+
+    def test_semantic_verifier_rejects_all_exact_set_drift_classes(self):
+        import universe_version_store as store
+
+        expected = ["M&M", "AXISBANK", "WIPRO"]
+        expected_hash = store.exact_set_hash(expected)
+        invalid = {
+            "duplicate": ["M&M", "M&M", "WIPRO"],
+            "missing": ["M&M", "AXISBANK"],
+            "extra": ["M&M", "AXISBANK", "RELIANCE", "WIPRO"],
+            "substitution": ["M&M", "RELIANCE", "WIPRO"],
+        }
+        for name, persisted in invalid.items():
+            with self.subTest(name=name):
+                self.assertFalse(
+                    store._matches_exact_symbol_set(expected, persisted, expected_hash)
+                )
+        self.assertFalse(store._matches_exact_symbol_set(expected, expected, "0" * 64))
+
+
 class TestAuditContract(unittest.TestCase):
     def test_unknown_audit_action_is_rejected(self):
         import universe_version_store as store

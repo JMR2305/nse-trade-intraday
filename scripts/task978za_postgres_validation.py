@@ -13,8 +13,10 @@ import json
 import os
 import pathlib
 import sys
+from datetime import datetime, time, timedelta
 from typing import Any
 from urllib.parse import SplitResult, urlsplit, urlunsplit
+from zoneinfo import ZoneInfo
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -246,6 +248,141 @@ def _assert_clean_authority(conn: Any, snapshot: dict[str, Any]) -> None:
         raise AssertionError("clean-authority provenance is absent")
 
 
+def _validate_actual_runtime_resolver(validation_url: str) -> dict[str, Any]:
+    """Exercise the real resolver and baseline verifier against native PG16."""
+    python_root = ROOT / "artifacts" / "api-server" / "src" / "python"
+    prior_database_url = os.environ.get("DATABASE_URL")
+    prior_selector = os.environ.get("ACTIVE_INTRADAY_UNIVERSE")
+    os.environ["DATABASE_URL"] = validation_url
+    os.environ["ACTIVE_INTRADAY_UNIVERSE"] = "CUSTOM_LOW_PRICE_SECTOR"
+    sys.path.insert(0, str(python_root))
+    try:
+        import psycopg2
+        import config
+        import runtime_universe
+        import universe_version_store
+
+        tomorrow = datetime.now(ZoneInfo("Asia/Kolkata")).date() + timedelta(days=1)
+        probe_time = datetime.combine(
+            tomorrow, time(10, 0), tzinfo=ZoneInfo("Asia/Kolkata")
+        )
+        first = runtime_universe.resolve_active_universe(probe_time)
+        second = runtime_universe.resolve_active_universe(probe_time)
+        expected_hash = "22e5751f25686718f5572041834ce998b7c5ce9844d3b573bc3841749fe77016"
+        expected = {
+            "universe_key": "CUSTOM_LOW_PRICE_SECTOR",
+            "universe_id": 3,
+            "version": 1,
+            "symbol_count": 23,
+            "exact_set_hash": expected_hash,
+        }
+        for key, value in expected.items():
+            if first.get(key) != value:
+                raise AssertionError(f"actual resolver {key} differs: {first.get(key)!r}")
+        if first != second:
+            raise AssertionError("same-session resolution did not reuse the identical pin")
+
+        with psycopg2.connect(validation_url) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT count(*) FROM runtime_universe_session_pins "
+                    "WHERE natural_session = %s AND universe_id = 3 AND universe_version = 1 "
+                    "AND universe_set_hash = %s",
+                    (tomorrow.isoformat(), expected_hash),
+                )
+                pin_count = cur.fetchone()[0]
+                if pin_count != 1:
+                    raise AssertionError("actual resolver did not create exactly one canonical pin")
+                cur.execute(
+                    "SELECT count(*) FROM trading_universes WHERE universe_key = 'NIFTY_50'"
+                )
+                if cur.fetchone()[0] != 0:
+                    raise AssertionError("custom resolution unexpectedly created NIFTY authority")
+
+            # Install the corruption probe and all attempted NIFTY rows in one
+            # transaction. The expected Python validation failure is followed
+            # by rollback, leaving no probe object or incorrect membership.
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    CREATE FUNCTION task978zn_corrupt_nifty_member()
+                    RETURNS trigger AS $$
+                    BEGIN
+                      IF NEW.symbol = 'WIPRO' AND EXISTS (
+                        SELECT 1 FROM trading_universes
+                        WHERE id = NEW.universe_id AND universe_key = 'NIFTY_50'
+                      ) THEN
+                        NEW.symbol := 'ZZZBAD';
+                      END IF;
+                      RETURN NEW;
+                    END;
+                    $$ LANGUAGE plpgsql
+                    """
+                )
+                cur.execute(
+                    """
+                    CREATE TRIGGER aaa_task978zn_corrupt_nifty_member
+                    BEFORE INSERT ON trading_universe_members
+                    FOR EACH ROW EXECUTE FUNCTION task978zn_corrupt_nifty_member()
+                    """
+                )
+            try:
+                universe_version_store.ensure_builtin_nifty_baseline(conn)
+            except RuntimeError as exc:
+                wrong_set_rejected = "exact-set verification failed" in str(exc)
+                conn.rollback()
+            else:
+                wrong_set_rejected = False
+                conn.rollback()
+            if not wrong_set_rejected:
+                raise AssertionError("incorrect persisted NIFTY membership was not rejected")
+
+            universe_version_store.ensure_builtin_nifty_baseline(conn)
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT m.symbol FROM trading_universe_members m "
+                    "JOIN trading_universes u ON u.id = m.universe_id "
+                    "WHERE u.universe_key = 'NIFTY_50' AND u.status = 'ACTIVE' "
+                    "AND m.enabled = TRUE ORDER BY m.symbol"
+                )
+                database_order = [item[0] for item in cur.fetchall()]
+        python_order = universe_version_store.normalize_symbols(config.NIFTY_50)
+        if database_order == python_order:
+            raise AssertionError("native ICU ordering did not expose the prior comparison defect")
+        if not universe_version_store._matches_exact_symbol_set(
+            python_order,
+            database_order,
+            universe_version_store.exact_set_hash(python_order),
+        ):
+            raise AssertionError("NIFTY exact-set verification depends on database ordering")
+        return {
+            "resolution": "PASS",
+            "universe": first["universe_key"],
+            "universe_id": first["universe_id"],
+            "version": first["version"],
+            "symbol_count": first["symbol_count"],
+            "exact_set_hash": first["exact_set_hash"],
+            "pin_created": "PASS",
+            "session_pin_count": pin_count,
+            "same_session_pin_reused": "PASS",
+            "session_pin_count_after_second_resolution": pin_count,
+            "nifty_authority_created_during_custom_resolution": False,
+            "collation_independent_exact_set": "PASS",
+            "wrong_persisted_set_rejected": "PASS",
+        }
+    finally:
+        if sys.path and sys.path[0] == str(python_root):
+            sys.path.pop(0)
+        if prior_database_url is None:
+            os.environ.pop("DATABASE_URL", None)
+        else:
+            os.environ["DATABASE_URL"] = prior_database_url
+        if prior_selector is None:
+            os.environ.pop("ACTIVE_INTRADAY_UNIVERSE", None)
+        else:
+            os.environ["ACTIVE_INTRADAY_UNIVERSE"] = prior_selector
+
+
 def run(source_url: str) -> dict[str, Any]:
     identity = derive_validation_identity(source_url)
     sys.path.insert(0, str(SCRIPT_DIR))
@@ -273,7 +410,10 @@ def run(source_url: str) -> dict[str, Any]:
             cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (identity.validation_database,))
             if cur.fetchone():
                 raise AssertionError("disposable validation database already exists; refusing to overwrite")
-            cur.execute(f'CREATE DATABASE "{identity.validation_database}"')
+            cur.execute(
+                f'CREATE DATABASE "{identity.validation_database}" '
+                "LOCALE_PROVIDER icu ICU_LOCALE 'en-US' TEMPLATE template0"
+            )
             created = True
 
         bootstrap_module.bootstrap(
@@ -300,6 +440,7 @@ def run(source_url: str) -> dict[str, Any]:
             raise AssertionError("second bootstrap changed the PostgreSQL catalog")
         if content_first != content_second:
             raise AssertionError("second bootstrap changed clean-authority content")
+        runtime_resolution = _validate_actual_runtime_resolver(identity.validation_url)
         evidence.update({
             "status": "PASS",
             "postgresql_major": 16,
@@ -312,6 +453,7 @@ def run(source_url: str) -> dict[str, Any]:
             "content_fingerprint": _sha256(content_first),
             "historical_fabrication": 0,
             "runtime_side_effects": 0,
+            "actual_runtime_resolver": runtime_resolution,
         })
         EVIDENCE_PATH.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return evidence

@@ -63,6 +63,14 @@ class TestNativeValidationIdentity(unittest.TestCase):
         )
         self.assertIn("task978za_postgres_validation.py", task969)
 
+    def test_native_validator_exercises_actual_resolver_and_both_set_paths(self):
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn("runtime_universe.resolve_active_universe(probe_time)", source)
+        self.assertIn("LOCALE_PROVIDER icu ICU_LOCALE 'en-US'", source)
+        self.assertIn("ensure_builtin_nifty_baseline(conn)", source)
+        self.assertIn("aaa_task978zn_corrupt_nifty_member", source)
+        self.assertIn('"wrong_persisted_set_rejected": "PASS"', source)
+
 
 if __name__ == "__main__":
     unittest.main()

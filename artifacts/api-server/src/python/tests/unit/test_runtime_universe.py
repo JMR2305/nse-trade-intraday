@@ -57,6 +57,11 @@ def test_existing_session_pin_wins_over_a_later_configuration_change(ist_time):
         patch.object(runtime, "_load_pin", return_value=pin),
         patch.object(runtime, "_configured_key",
                      side_effect=AssertionError("existing pin must be used")),
+        patch.object(
+            versions,
+            "ensure_builtin_nifty_baseline",
+            side_effect=AssertionError("existing pin must precede NIFTY bootstrap"),
+        ),
     ):
         got = runtime.resolve_active_universe(
             datetime(2026, 8, 26, *ist_time, tzinfo=runtime._IST)
@@ -64,6 +69,136 @@ def test_existing_session_pin_wins_over_a_later_configuration_change(ist_time):
 
     assert got["version"] == 7
     assert got["enabled_symbols"] == ["IRFC", "WIPRO"]
+
+
+def test_custom_universe_resolves_without_nifty_baseline_prerequisite():
+    import runtime_universe as runtime
+    import universe_version_store as versions
+
+    conn = MagicMock()
+    pinned = _context()
+    pinned["exact_set_hash"] = versions.exact_set_hash(pinned["enabled_symbols"])
+
+    @contextmanager
+    def connection():
+        yield conn
+
+    with (
+        patch.object(versions, "_db_available", return_value=True),
+        patch.object(versions, "_connect", connection),
+        patch.object(runtime, "_configured_key_at_session_boundary",
+                     return_value="CUSTOM_LOW_PRICE_SECTOR"),
+        patch.object(runtime, "_load_pin", side_effect=[None, pinned]),
+        patch.object(versions, "resolve_enabled_symbols", return_value=_resolved()),
+        patch.object(
+            versions,
+            "ensure_builtin_nifty_baseline",
+            side_effect=AssertionError("custom authority must not require NIFTY"),
+        ),
+    ):
+        got = runtime.resolve_active_universe(
+            datetime(2026, 8, 26, 10, 30, tzinfo=timezone.utc)
+        )
+
+    assert got["universe_key"] == "CUSTOM_LOW_PRICE_SECTOR"
+    assert got["version"] == 7
+
+
+def test_configured_nifty_still_fails_closed_when_baseline_verification_fails():
+    import runtime_universe as runtime
+    import universe_version_store as versions
+
+    conn = MagicMock()
+
+    @contextmanager
+    def connection():
+        yield conn
+
+    with (
+        patch.object(versions, "_db_available", return_value=True),
+        patch.object(versions, "_connect", connection),
+        patch.object(runtime, "_load_pin", return_value=None),
+        patch.object(runtime, "_configured_key_at_session_boundary", return_value="NIFTY_50"),
+        patch.object(
+            versions,
+            "ensure_builtin_nifty_baseline",
+            side_effect=RuntimeError("baseline verification failed"),
+        ) as bootstrap,
+        patch.object(versions, "resolve_enabled_symbols") as resolve,
+    ):
+        with pytest.raises(runtime.RuntimeUniverseUnavailable, match="baseline verification failed"):
+            runtime.resolve_active_universe(
+                datetime(2026, 8, 26, 10, 30, tzinfo=timezone.utc)
+            )
+
+    bootstrap.assert_called_once_with(conn)
+    resolve.assert_not_called()
+
+
+def test_missing_custom_authority_fails_closed_without_nifty_substitution():
+    import runtime_universe as runtime
+    import universe_version_store as versions
+
+    conn = MagicMock()
+
+    @contextmanager
+    def connection():
+        yield conn
+
+    with (
+        patch.object(versions, "_db_available", return_value=True),
+        patch.object(versions, "_connect", connection),
+        patch.object(runtime, "_load_pin", return_value=None),
+        patch.object(runtime, "_configured_key_at_session_boundary",
+                     return_value="CUSTOM_LOW_PRICE_SECTOR"),
+        patch.object(versions, "ensure_builtin_nifty_baseline") as bootstrap,
+        patch.object(
+            versions,
+            "resolve_enabled_symbols",
+            return_value={"success": False, "error": "revision_integrity_mismatch"},
+        ) as resolve,
+    ):
+        with pytest.raises(runtime.RuntimeUniverseUnavailable, match="revision_integrity_mismatch"):
+            runtime.resolve_active_universe(
+                datetime(2026, 8, 26, 10, 30, tzinfo=timezone.utc)
+            )
+
+    bootstrap.assert_not_called()
+    assert resolve.call_args.kwargs["universe_key"] == "CUSTOM_LOW_PRICE_SECTOR"
+
+
+def test_same_session_repeated_resolution_reuses_identical_pin():
+    import runtime_universe as runtime
+    import universe_version_store as versions
+
+    conn = MagicMock()
+    pinned = _context()
+    pinned["exact_set_hash"] = versions.exact_set_hash(pinned["enabled_symbols"])
+
+    @contextmanager
+    def connection():
+        yield conn
+
+    with (
+        patch.object(versions, "_db_available", return_value=True),
+        patch.object(versions, "_connect", connection),
+        patch.object(runtime, "_load_pin", side_effect=[None, pinned, pinned]),
+        patch.object(runtime, "_configured_key_at_session_boundary",
+                     return_value="CUSTOM_LOW_PRICE_SECTOR") as configured,
+        patch.object(versions, "resolve_enabled_symbols", return_value=_resolved()) as resolve,
+        patch.object(versions, "ensure_builtin_nifty_baseline") as bootstrap,
+    ):
+        first = runtime.resolve_active_universe(
+            datetime(2026, 8, 26, 10, 30, tzinfo=timezone.utc)
+        )
+        second = runtime.resolve_active_universe(
+            datetime(2026, 8, 26, 10, 31, tzinfo=timezone.utc)
+        )
+
+    assert first == second
+    configured.assert_called_once()
+    resolve.assert_called_once()
+    bootstrap.assert_not_called()
 
 
 @pytest.mark.parametrize("ist_time", [(8, 59, 59), (9, 0, 0), (9, 0, 1)])
