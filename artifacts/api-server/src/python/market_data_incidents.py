@@ -244,13 +244,18 @@ def health_for_scan_snapshot(scan: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     current_universe = None
     instruments = get_cached_instruments()
     if active_mode == "CUSTOM_LOW_PRICE_SECTOR":
-        from custom_universe_store import get_active_symbol_metadata, get_active_symbols
-        current_universe = get_active_symbols()
-        metadata = get_active_symbol_metadata()
-        instruments = [
-            {"symbol": symbol, "token": metadata.get(symbol, {}).get("instrument_token")}
-            for symbol in current_universe
-        ]
+        # The canonical scanner already persisted the exact versioned authority
+        # that it resolved and pinned for this scan.  Do not replace it with the
+        # legacy custom_universe_master, which is not the runtime authority and
+        # may legitimately be empty in a clean reconstructed installation.
+        # A mismatched historical scan remains fail-closed as an empty current
+        # universe rather than being presented as the configured authority.
+        current_universe = (
+            scan.get("universe") or []
+            if isinstance(scan, dict)
+            and str(scan.get("universe_mode") or "") == active_mode
+            else []
+        )
     health = build_market_data_health(
         scan if isinstance(scan, dict) else None,
         cached_session_metadata(),

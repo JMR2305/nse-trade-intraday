@@ -86,6 +86,60 @@ class _Connection:
 
 
 class MarketDataIncidentClassificationTests(unittest.TestCase):
+    def test_custom_scan_health_uses_the_persisted_scan_authority_not_legacy_master(self):
+        scan = {
+            "scan_id": "scheduled-custom-1",
+            "snapshot_ts": "2026-09-21T07:53:48Z",
+            "trigger_origin": "SCHEDULED",
+            "universe_mode": "CUSTOM_LOW_PRICE_SECTOR",
+            "universe": ["BANKBARODA", "WIPRO"],
+            "recommendations": [
+                {
+                    "symbol": symbol,
+                    "data_source": "yfinance",
+                    "current_price_source": "yfinance_daily_bars",
+                    "execution_price_source": "yfinance_daily_bars",
+                }
+                for symbol in ("BANKBARODA", "WIPRO")
+            ],
+        }
+        config = types.ModuleType("config")
+        config.get_active_intraday_universe = lambda: types.SimpleNamespace(
+            value="CUSTOM_LOW_PRICE_SECTOR")
+        instruments = types.ModuleType("kite_instrument_cache")
+        instruments.get_cached_instruments = lambda: [
+            {"symbol": "BANKBARODA", "token": 1},
+            {"symbol": "WIPRO", "token": 2},
+        ]
+        session = types.ModuleType("kite_session_manager")
+        session.cached_session_metadata = lambda: {
+            "kite_connected": True, "session_fresh": True}
+        hours = types.ModuleType("market_hours")
+        hours.market_status = lambda: {"state": "OPEN"}
+        legacy = types.ModuleType("custom_universe_store")
+        legacy.get_active_symbols = lambda: self.fail(
+            "legacy custom-universe master must not replace scan authority")
+        legacy.get_active_symbol_metadata = lambda: self.fail(
+            "legacy custom-universe metadata must not replace instrument cache")
+
+        with patch.dict(sys.modules, {
+            "config": config,
+            "kite_instrument_cache": instruments,
+            "kite_session_manager": session,
+            "market_hours": hours,
+            "custom_universe_store": legacy,
+        }):
+            health = incidents.health_for_scan_snapshot(scan)
+
+        self.assertEqual(health["active_universe_count"], 2)
+        self.assertEqual(health["valid_token_count"], 2)
+        self.assertEqual(health["symbols_fallback"], 2)
+        self.assertEqual(health["symbols_unavailable"], 0)
+        self.assertEqual(health["current_quote_provider"], "YFINANCE")
+        classified = incidents.classify_health(health)
+        self.assertTrue(classified["affected"])
+        self.assertEqual(classified["severity"], "WARNING")
+
     def test_missing_scan_evidence_is_not_treated_as_healthy(self):
         result = incidents.classify_health(None)
         self.assertTrue(result["affected"])
