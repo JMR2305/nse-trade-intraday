@@ -232,6 +232,15 @@ TASK978ZQ_REVIEWED_BLOBS = {
     'artifacts/api-server/src/python/tests/unit/test_market_data_incidents.py':
         '33fd5806ad649ebcce8e0667a83fe13d2c6e4659',
 }
+# Task978ZR authorizes only the reviewed deterministic alpha-generator test
+# fixture (R15 application candidate). Require the reviewed candidate commit
+# in ancestry and the exact regular-file blob at validation HEAD; no other
+# application/test path is unlocked by this layer.
+TASK978ZR_REVIEWED_COMMIT = '5676932f3da87ce90d8a64f873542ffef2b7d530'
+TASK978ZR_REVIEWED_BLOBS = {
+    'artifacts/api-server/src/python/tests/test_alpha_generator.py':
+        '8a9893c2097f6685f4fa30dc80618f88386f4e32',
+}
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -470,7 +479,7 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys() - TASK978ZN_R7_REVIEWED_BLOBS.keys() - TASK978ZQ_REVIEWED_BLOBS.keys()
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys() - TASK978ZN_R7_REVIEWED_BLOBS.keys() - TASK978ZQ_REVIEWED_BLOBS.keys() - TASK978ZR_REVIEWED_BLOBS.keys()
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
@@ -566,6 +575,14 @@ def identity():
             raise RuntimeError(f'Unexpected Task978ZQ reviewed content: {path}')
         if git('ls-tree', head, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978ZQ candidate content: {path}')
+    if TASK978ZR_REVIEWED_COMMIT not in git('rev-list', 'HEAD').splitlines():
+        raise RuntimeError('Task978ZR reviewed commit absent from ancestry')
+    for path, zr_blob in TASK978ZR_REVIEWED_BLOBS.items():
+        expected_entry = f'100644 blob {zr_blob}\t{path}'
+        if git('ls-tree', TASK978ZR_REVIEWED_COMMIT, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978ZR reviewed content: {path}')
+        if git('ls-tree', head, '--', path) != expected_entry:
+            raise RuntimeError(f'Unexpected Task978ZR candidate content: {path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -646,6 +663,10 @@ def identity():
              'task978zq_exact_incident_blobs': {
                  'reviewed_commit': TASK978ZQ_REVIEWED_COMMIT,
                  'blobs': TASK978ZQ_REVIEWED_BLOBS,
+             },
+             'task978zr_exact_alpha_fixture_blobs': {
+                 'reviewed_commit': TASK978ZR_REVIEWED_COMMIT,
+                 'blobs': TASK978ZR_REVIEWED_BLOBS,
              },
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
