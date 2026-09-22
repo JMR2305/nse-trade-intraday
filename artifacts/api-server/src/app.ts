@@ -8,6 +8,7 @@ import {
   healthOnlyNoSchedulers,
   loadRouterForMode,
 } from "./lib/commissioningMode";
+import { mountDashboardSpa } from "./dashboardSpa";
 
 const commissioningMode = healthOnlyNoSchedulers();
 const router = await loadRouterForMode(commissioningMode);
@@ -126,6 +127,14 @@ if (!commissioningMode) {
 }
 
 app.use("/api", requestMetricsMiddleware, router);
+
+// The dashboard is a client-routed SPA. Static assets are served normally,
+// while dashboard-scoped navigation paths receive index.html so direct loads
+// and browser refreshes can be resolved by Wouter. This is deliberately
+// mounted after /api and matches only /trading-dashboard paths.
+if (!commissioningMode) {
+  mountDashboardSpa(app);
+}
 
 // Global error handler — honest JSON errors, no stack traces leaked.
 //
