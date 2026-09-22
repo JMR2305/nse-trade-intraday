@@ -105,13 +105,10 @@ check("snap above_vwap True", ag._snap(t, "above_vwap", False) is True)
 # ── Tests: _rs_outperforms_nifty ──────────────────────────────────────────────
 print("_rs_outperforms_nifty:")
 import pandas as pd
-import numpy as np
 
 def _fake_prices(n=80, start=100.0, drift=0.001):
     dates = pd.date_range("2023-10-01", periods=n, freq="B")
-    prices = [start]
-    for _ in range(n - 1):
-        prices.append(prices[-1] * (1 + drift + np.random.normal(0, 0.01)))
+    prices = [start * ((1 + drift) ** i) for i in range(n)]
     return pd.DataFrame({"Close": prices}, index=dates)
 
 # Symbol outperforms NIFTY
