@@ -136,6 +136,36 @@ def automatic_paper_entry_allowed(ts: Optional[datetime] = None) -> bool:
     return bool(automatic_paper_entry_status(ts).get("allowed"))
 
 
+def _durable_auto_paper_entries_enabled() -> bool:
+    """Read the confirmed durable entry gate without creating any DB state."""
+    from phase20_store import _connect, db_available
+
+    if not db_available():
+        return False
+    conn = None
+    try:
+        conn = _connect()
+        with conn.cursor() as cur:
+            cur.execute("SELECT data FROM phase20_settings WHERE id = 1")
+            row = cur.fetchone()
+        stored = row[0] if row and row[0] else {}
+        if isinstance(stored, str):
+            stored = json.loads(stored)
+        return bool(
+            isinstance(stored, dict)
+            and stored.get("auto_paper_entries") is True
+            and stored.get("auto_paper_entries_confirmed_at")
+        )
+    except Exception:
+        return False
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def next_transition(ts: Optional[datetime] = None) -> Dict[str, Any]:
     """Next session boundary (open or close) from the given time."""
     t = (ts.astimezone(IST) if ts else now_ist())
@@ -173,13 +203,11 @@ def market_status(ts: Optional[datetime] = None) -> Dict[str, Any]:
     t = (ts.astimezone(IST) if ts else now_ist())
     state = market_state(t)
     entry_status = automatic_paper_entry_status(t)
-    try:
-        from phase20_store import get_settings
-        automatic_entry_enabled = get_settings().get("auto_paper_entries") is True
-        settings_reason = None
-    except Exception:
-        automatic_entry_enabled = False
-        settings_reason = "Durable automatic-entry setting unavailable; failed closed"
+    automatic_entry_enabled = _durable_auto_paper_entries_enabled()
+    settings_reason = (
+        None if automatic_entry_enabled
+        else "Durable automatic-entry setting unavailable or disabled; failed closed"
+    )
     automatic_entry_allowed = bool(entry_status["allowed"] and automatic_entry_enabled)
     automatic_entry_reason = (
         entry_status["reason"]

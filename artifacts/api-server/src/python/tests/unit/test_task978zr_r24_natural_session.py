@@ -33,7 +33,7 @@ def _evidence(opens=None, ltps=None, missing=None):
 
 def test_0920_keeps_actual_open_and_ltp_distinct():
     from certified_quote_authority import certified_prices
-    with patch("kite_quote_provider.get_quotes",
+    with patch("kite_quote_provider._fetch_quotes_from_kite",
                return_value={"IRFC": _quote(ltp=101, opening=97)}):
         got = certified_prices(["IRFC"], require_open=True)
     assert got["open_prices"] == {"IRFC": 97.0}
@@ -44,7 +44,7 @@ def test_legacy_price_key_is_not_required_for_ltp():
     from certified_quote_authority import certified_prices
     row = _quote()
     assert "price" not in row
-    with patch("kite_quote_provider.get_quotes", return_value={"IRFC": row}):
+    with patch("kite_quote_provider._fetch_quotes_from_kite", return_value={"IRFC": row}):
         assert certified_prices(["IRFC"])["ltp_prices"] == {"IRFC": 101.0}
 
 
@@ -54,7 +54,7 @@ def test_legacy_price_key_is_not_required_for_ltp():
 ])
 def test_non_live_or_wrong_provenance_is_rejected(source, quality):
     from certified_quote_authority import certified_prices
-    with patch("kite_quote_provider.get_quotes",
+    with patch("kite_quote_provider._fetch_quotes_from_kite",
                return_value={"IRFC": _quote(source=source, quality=quality)}):
         got = certified_prices(["IRFC"], require_open=True)
     assert got["status"] == "INCOMPLETE"
@@ -65,14 +65,14 @@ def test_non_live_or_wrong_provenance_is_rejected(source, quality):
                                            (101, 0), (101, None)])
 def test_zero_negative_or_non_numeric_required_values_are_rejected(ltp, opening):
     from certified_quote_authority import certified_prices
-    with patch("kite_quote_provider.get_quotes",
+    with patch("kite_quote_provider._fetch_quotes_from_kite",
                return_value={"IRFC": _quote(ltp=ltp, opening=opening)}):
         assert certified_prices(["IRFC"], require_open=True)["status"] == "INCOMPLETE"
 
 
 def test_missing_or_substituted_exact_symbol_stays_missing():
     from certified_quote_authority import certified_prices
-    with patch("kite_quote_provider.get_quotes",
+    with patch("kite_quote_provider._fetch_quotes_from_kite",
                return_value={"IRFC": _quote(symbol="WIPRO")}):
         got = certified_prices(["IRFC"])
     assert got["missing_symbols"] == ["IRFC"]
@@ -83,7 +83,7 @@ def test_custom_symbol_bypasses_legacy_nifty_whitelist_without_substitution():
     import live_quote_service
     from certified_quote_authority import certified_prices
     assert live_quote_service.is_allowed_symbol("IRFC") is False
-    with patch("kite_quote_provider.get_quotes",
+    with patch("kite_quote_provider._fetch_quotes_from_kite",
                return_value={"IRFC": _quote()}):
         got = certified_prices(["IRFC"])
     assert got["status"] == "COMPLETE"
@@ -92,17 +92,28 @@ def test_custom_symbol_bypasses_legacy_nifty_whitelist_without_substitution():
 
 def test_full_23_live_coverage_is_complete_and_partial_is_incomplete():
     from certified_quote_authority import certified_prices
-    with patch("kite_quote_provider.get_quotes",
+    with patch("kite_quote_provider._fetch_quotes_from_kite",
                return_value={s: _quote(s) for s in CANONICAL}):
         complete = certified_prices(CANONICAL)
     assert complete["requested_count"] == complete["live_count"] == 23
     assert complete["status"] == "COMPLETE"
-    with patch("kite_quote_provider.get_quotes",
+    with patch("kite_quote_provider._fetch_quotes_from_kite",
                return_value={s: _quote(s) for s in CANONICAL[:-1]}):
         partial = certified_prices(CANONICAL)
     assert partial["live_count"] == 22
     assert partial["missing_symbols"] == ["WIPRO"]
     assert partial["status"] == "INCOMPLETE"
+
+
+def test_certified_quote_failure_never_invokes_yfinance_fallback():
+    from certified_quote_authority import certified_prices
+    with (patch("kite_quote_provider._fetch_quotes_from_kite",
+                side_effect=RuntimeError("kite unavailable")),
+          patch("kite_quote_provider._yfinance_fallback_ltp") as fallback):
+        got = certified_prices(["IRFC"])
+    assert got["status"] == "INCOMPLETE"
+    assert got["missing_symbols"] == ["IRFC"]
+    fallback.assert_not_called()
 
 
 def test_phase5a_0920_passes_open_and_ltp_to_independent_fields():
@@ -178,12 +189,12 @@ def test_phase5b_incomplete_checkpoint_exposes_exact_accounting():
 def test_health_auto_entry_requires_window_and_durable_enablement():
     import market_hours
     open_time = datetime(2026, 1, 2, 10, 0, tzinfo=market_hours.IST)
-    with patch("phase20_store.get_settings", return_value={"auto_paper_entries": False}):
+    with patch("market_hours._durable_auto_paper_entries_enabled", return_value=False):
         disabled = market_hours.market_status(open_time)
     assert disabled["market_window_allows_paper_entry"] is True
     assert disabled["automatic_paper_entry_enabled"] is False
     assert disabled["automatic_paper_entry_allowed"] is False
-    with patch("phase20_store.get_settings", return_value={"auto_paper_entries": True}):
+    with patch("market_hours._durable_auto_paper_entries_enabled", return_value=True):
         enabled = market_hours.market_status(open_time)
     assert enabled["automatic_paper_entry_allowed"] is True
 
@@ -191,10 +202,73 @@ def test_health_auto_entry_requires_window_and_durable_enablement():
 def test_health_auto_entry_fails_closed_when_settings_unreadable():
     import market_hours
     open_time = datetime(2026, 1, 2, 10, 0, tzinfo=market_hours.IST)
-    with patch("phase20_store.get_settings", side_effect=RuntimeError("unavailable")):
+    with patch("market_hours._durable_auto_paper_entries_enabled", return_value=False):
         got = market_hours.market_status(open_time)
     assert got["automatic_paper_entry_allowed"] is False
     assert "unavailable" in got["automatic_paper_entry_reason"].lower()
+
+
+def _settings_connection(data):
+    cursor = MagicMock()
+    cursor.fetchone.return_value = (data,)
+    cursor.__enter__.return_value = cursor
+    cursor.__exit__.return_value = False
+    connection = MagicMock()
+    connection.cursor.return_value = cursor
+    return connection, cursor
+
+
+def test_passive_health_settings_read_is_select_only_without_schema_ensure():
+    import market_hours
+    import phase20_store
+    open_time = datetime(2026, 1, 2, 10, 0, tzinfo=market_hours.IST)
+    connection, cursor = _settings_connection({
+        "auto_paper_entries": True,
+        "auto_paper_entries_confirmed_at": "2026-01-02T03:00:00Z",
+    })
+    with (patch.object(phase20_store, "db_available", return_value=True),
+          patch.object(phase20_store, "_connect", return_value=connection),
+          patch.object(phase20_store, "_ensure_schema",
+                       side_effect=AssertionError("health must not ensure schema")),
+          patch.object(phase20_store, "get_settings",
+                       side_effect=AssertionError("health must not use mutating reader"))):
+        got = market_hours.market_status(open_time)
+    assert got["automatic_paper_entry_enabled"] is True
+    assert got["automatic_paper_entry_allowed"] is True
+    sql = " ".join(str(call) for call in cursor.execute.call_args_list).upper()
+    assert "SELECT" in sql
+    assert not any(word in sql for word in
+                   ("CREATE", "ALTER", "INSERT", "UPDATE", "DELETE"))
+
+
+@pytest.mark.parametrize("data", [
+    {"auto_paper_entries": False},
+    {"auto_paper_entries": True, "auto_paper_entries_confirmed_at": None},
+])
+def test_passive_health_requires_durable_false_or_confirmation_to_stay_disabled(data):
+    import market_hours
+    import phase20_store
+    open_time = datetime(2026, 1, 2, 10, 0, tzinfo=market_hours.IST)
+    connection, _ = _settings_connection(data)
+    with (patch.object(phase20_store, "db_available", return_value=True),
+          patch.object(phase20_store, "_connect", return_value=connection)):
+        got = market_hours.market_status(open_time)
+    assert got["market_window_allows_paper_entry"] is True
+    assert got["automatic_paper_entry_enabled"] is False
+    assert got["automatic_paper_entry_allowed"] is False
+
+
+def test_passive_health_settings_unavailable_fails_closed_without_schema_write():
+    import market_hours
+    import phase20_store
+    open_time = datetime(2026, 1, 2, 10, 0, tzinfo=market_hours.IST)
+    with (patch.object(phase20_store, "db_available", return_value=True),
+          patch.object(phase20_store, "_connect", side_effect=RuntimeError("db down")),
+          patch.object(phase20_store, "_ensure_schema") as ensure):
+        got = market_hours.market_status(open_time)
+    assert got["automatic_paper_entry_enabled"] is False
+    assert got["automatic_paper_entry_allowed"] is False
+    ensure.assert_not_called()
 
 
 def _pin():

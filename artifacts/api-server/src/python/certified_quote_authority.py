@@ -1,8 +1,9 @@
 """Fail-closed Kite-live quote extraction for certification checkpoints.
 
 ``kite_quote_provider`` intentionally supports a Yahoo fallback for
-non-certifying consumers.  This adapter rejects that fallback and exposes only
-exact-symbol, positive, explicitly Kite-live values to Phase5 evidence.
+non-certifying consumers.  This adapter bypasses that fallback entirely and
+exposes only exact-symbol, positive, explicitly Kite-live values to Phase5
+evidence.
 """
 from __future__ import annotations
 
@@ -22,8 +23,8 @@ def certified_prices(symbols: Iterable[str], *, require_open: bool = False) -> D
                             if str(symbol).strip()]
     requested = list(dict.fromkeys(requested))
     try:
-        from kite_quote_provider import get_quotes
-        rows = get_quotes(requested, force_refresh=True)
+        from kite_quote_provider import _fetch_quotes_from_kite
+        rows = _fetch_quotes_from_kite(requested)
     except Exception:
         rows = {}
 
