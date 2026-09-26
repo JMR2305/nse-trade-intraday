@@ -431,16 +431,11 @@ class PreOpenScheduler:
                 return False
             snaps = db_mod.get_session_snapshots(self.session_id, str(collection_batch_id))
 
-            # Attempt to get actual prices from live quote service
-            try:
-                from live_quote_service import get_quotes
-                symbols = [s.get("symbol") for s in snaps if s.get("symbol")]
-                quotes = get_quotes(symbols, force=True)
-                actual = {sym: float(q.get("price", 0))
-                          for sym, q in (quotes.get("quotes") or {}).items()
-                          if q.get("price")}
-            except Exception:
-                actual = {}
+            from certified_quote_authority import certified_prices
+            symbols = [s.get("symbol") for s in snaps if s.get("symbol")]
+            quote_evidence = certified_prices(symbols, require_open=True)
+            actual = quote_evidence["open_prices"]
+            prices_0920 = quote_evidence["ltp_prices"]
 
             from preopen_reconciliation import reconcile_session
 
@@ -455,7 +450,7 @@ class PreOpenScheduler:
             result = reconcile_session(
                 self.session_id, snaps,
                 actual_prices=actual,
-                prices_0920=actual,   # best-effort: same quotes
+                prices_0920=prices_0920,
                 prices_0930={},
                 watchlist_symbols=wl_syms,
             )
@@ -466,7 +461,10 @@ class PreOpenScheduler:
                 "reconciled_at": _now_ist().isoformat(),
             }):
                 raise RuntimeError("Could not durably mark pre-open session RECONCILED")
-            self._emit(SchedulerPhase.DONE, {"reconciliation": result})
+            self._emit(SchedulerPhase.DONE, {
+                "reconciliation": result,
+                "quote_evidence": quote_evidence,
+            })
             return True
         except Exception as e:
             self._emit(SchedulerPhase.ERROR, {"error": f"reconcile failed: {e}"})
@@ -506,16 +504,10 @@ class PreOpenScheduler:
                 return False
             snaps = db_mod.get_session_snapshots(self.session_id, str(collection_batch_id))
 
-            # Fetch live quotes at 09:30
-            try:
-                from live_quote_service import get_quotes
-                symbols = [s.get("symbol") for s in snaps if s.get("symbol")]
-                quotes = get_quotes(symbols, force=True)
-                prices_0930 = {sym: float(q.get("price", 0))
-                               for sym, q in (quotes.get("quotes") or {}).items()
-                               if q.get("price")}
-            except Exception:
-                prices_0930 = {}
+            from certified_quote_authority import certified_prices
+            symbols = [s.get("symbol") for s in snaps if s.get("symbol")]
+            quote_evidence = certified_prices(symbols)
+            prices_0930 = quote_evidence["ltp_prices"]
 
             if prices_0930:
                 db_mod.update_reconciliation_0930(self.session_id, prices_0930)
@@ -529,6 +521,7 @@ class PreOpenScheduler:
             self._emit(SchedulerPhase.DONE, {
                 "step": "0930",
                 "prices_patched": len(prices_0930),
+                "quote_evidence": quote_evidence,
             })
             return True
         except Exception as e:

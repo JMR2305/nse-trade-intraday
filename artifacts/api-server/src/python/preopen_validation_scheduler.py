@@ -47,14 +47,10 @@ def _is_market_holiday(date_str: str) -> bool:
         return False
 
 
-def _fetch_prices(symbols: List[str]) -> Dict[str, Optional[float]]:
-    """Attempt to get current LTP for each symbol. Returns {} on failure."""
-    try:
-        from market_data import get_multiple_ltp
-        prices = get_multiple_ltp(symbols)
-        return {sym: float(p) for sym, p in prices.items() if p is not None}
-    except Exception:
-        return {}
+def _fetch_prices(symbols: List[str], *, require_open: bool = False) -> Dict[str, Any]:
+    """Return exact Kite-live coverage evidence for one checkpoint."""
+    from certified_quote_authority import certified_prices
+    return certified_prices(symbols, require_open=require_open)
 
 
 def _fetch_eod_data(symbols: List[str]) -> Dict[str, Dict[str, Optional[float]]]:
@@ -170,7 +166,9 @@ class PreOpenValidationScheduler:
     def _record_price_checkpoint(self, records: list, checkpoint: str) -> None:
         """Fetch and record prices for all candidates at a given checkpoint."""
         symbols = [r.symbol for r in records if r.symbol]
-        prices  = _fetch_prices(symbols)
+        evidence = _fetch_prices(symbols, require_open=checkpoint == "actual_open")
+        prices = (evidence["open_prices"] if checkpoint == "actual_open"
+                  else evidence["ltp_prices"])
         import preopen_validation_db as db
 
         for r in records:
@@ -185,6 +183,13 @@ class PreOpenValidationScheduler:
             "checkpoint": checkpoint,
             "fetched":    len(prices),
             "symbols":    len(symbols),
+            "requested_count": evidence["requested_count"],
+            "live_count": evidence["live_count"],
+            "missing_count": evidence["missing_count"],
+            "missing_symbols": evidence["missing_symbols"],
+            "provider": evidence["provider"],
+            "provenance": evidence["provenance"],
+            "status": evidence["status"],
         })
 
     def _record_eod(self, records: list) -> None:

@@ -173,6 +173,19 @@ def market_status(ts: Optional[datetime] = None) -> Dict[str, Any]:
     t = (ts.astimezone(IST) if ts else now_ist())
     state = market_state(t)
     entry_status = automatic_paper_entry_status(t)
+    try:
+        from phase20_store import get_settings
+        automatic_entry_enabled = get_settings().get("auto_paper_entries") is True
+        settings_reason = None
+    except Exception:
+        automatic_entry_enabled = False
+        settings_reason = "Durable automatic-entry setting unavailable; failed closed"
+    automatic_entry_allowed = bool(entry_status["allowed"] and automatic_entry_enabled)
+    automatic_entry_reason = (
+        entry_status["reason"]
+        or (None if automatic_entry_enabled else settings_reason or
+            "Durable auto_paper_entries is disabled")
+    )
     holidays = _load_holidays()
     holiday_name = is_holiday(t.date(), holidays)
     upcoming: List[Dict[str, str]] = []
@@ -196,8 +209,10 @@ def market_status(ts: Optional[datetime] = None) -> Dict[str, Any]:
             "post_close": "16:00",
             "automatic_paper_entry_cutoff": PAPER_ENTRY_CUTOFF.strftime("%H:%M"),
         },
-        "automatic_paper_entry_allowed": entry_status["allowed"],
-        "automatic_paper_entry_reason": entry_status["reason"],
+        "market_window_allows_paper_entry": entry_status["allowed"],
+        "automatic_paper_entry_enabled": automatic_entry_enabled,
+        "automatic_paper_entry_allowed": automatic_entry_allowed,
+        "automatic_paper_entry_reason": automatic_entry_reason,
         "holiday_today": holiday_name,
         "next_transition": next_transition(t),
         "upcoming_holidays": upcoming,

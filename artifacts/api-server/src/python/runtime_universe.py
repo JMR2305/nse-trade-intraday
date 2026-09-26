@@ -149,6 +149,23 @@ def _configured_key_at_session_boundary(conn: Any, effective_at: datetime) -> st
     return key
 
 
+def get_pinned_universe_for_session(now: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+    """Read and validate an existing pin without creating schema or a pin."""
+    session_date, _ = _session_clock(now)
+    if not versions._db_available():
+        raise RuntimeUniverseUnavailable("Durable runtime universe authority is unavailable")
+    try:
+        with versions._connect() as conn:
+            pinned = _load_pin(conn, session_date)
+        return _compact(pinned) if pinned else None
+    except RuntimeUniverseUnavailable:
+        raise
+    except Exception as exc:
+        raise RuntimeUniverseUnavailable(
+            f"Durable runtime universe pin is unavailable: {exc}"
+        ) from exc
+
+
 def resolve_active_universe(now: Optional[datetime] = None) -> Dict[str, Any]:
     """Return the exact durable universe pinned for the server's IST session.
 

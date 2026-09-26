@@ -952,19 +952,23 @@ def main():
             _session = cached_session_metadata()
             _active_mode = get_active_intraday_universe().value
             _current_universe = None
+            _universe_authority = None
             _current_instruments = get_cached_instruments()
             if _active_mode == "CUSTOM_LOW_PRICE_SECTOR":
-                from custom_universe_store import (
-                    get_active_symbol_metadata,
-                    get_active_symbols,
+                from runtime_universe import get_pinned_universe_for_session
+                try:
+                    _universe_authority = get_pinned_universe_for_session()
+                except Exception:
+                    _universe_authority = None
+                _current_universe = list(
+                    (_universe_authority or {}).get("enabled_symbols") or []
                 )
-                _current_universe = get_active_symbols()
-                _current_metadata = get_active_symbol_metadata()
-                # Coverage is authoritative only when the current custom-master
-                # row itself has a durable mapping, never when an unrelated
-                # global cache happens to contain the same symbol.
+                _tokens = {
+                    str(row.get("symbol") or "").upper(): row.get("token")
+                    for row in _current_instruments if isinstance(row, dict)
+                }
                 _current_instruments = [
-                    {"symbol": symbol, "token": _current_metadata.get(symbol, {}).get("instrument_token")}
+                    {"symbol": symbol, "token": _tokens.get(symbol)}
                     for symbol in _current_universe
                 ]
             result = {
@@ -983,6 +987,7 @@ def main():
                     current_universe=_current_universe,
                     active_universe=_active_mode,
                     market_state=_market.get("state"),
+                    universe_authority=_universe_authority,
                 ),
                 "kite_session": _session,
                 "label": "PAPER / LIVE DATA VALIDATION",

@@ -70,6 +70,7 @@ def build_market_data_health(
     current_universe: Optional[Iterable[Any]] = None,
     active_universe: Optional[str] = None,
     market_state: Optional[str] = None,
+    universe_authority: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the health contract without fetching quotes, profiles, or tokens."""
     now = now or datetime.now(timezone.utc)
@@ -205,9 +206,14 @@ def build_market_data_health(
         and kite_quote_timestamps_fresh
         and certifying_scheduled_scan
     )
+    authority = universe_authority if isinstance(universe_authority, dict) else {}
     return {
         "active_universe": active_universe or "UNKNOWN",
         "active_universe_count": active,
+        "universe_id": authority.get("universe_id"),
+        "universe_version": authority.get("version"),
+        "universe_set_hash": authority.get("exact_set_hash"),
+        "universe_pin_present": bool(authority),
         "kite_connected": kite_connected,
         "valid_token_count": valid_tokens,
         "missing_token_count": len(missing_symbols),
