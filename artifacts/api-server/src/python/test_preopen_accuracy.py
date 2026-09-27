@@ -375,11 +375,16 @@ class TestScheduler0930Phase(unittest.TestCase):
         """When quotes available, update_reconciliation_0930 is called."""
         import preopen_db as db
 
-        mock_quotes_result = {
-            "quotes": {
-                "SBIN": {"price": 1022.5},
-                "TCS": {"price": 3450.0},
-            }
+        mock_quote_evidence = {
+            "open_prices": {},
+            "ltp_prices": {"SBIN": 1022.5, "TCS": 3450.0},
+            "requested_count": 2,
+            "live_count": 2,
+            "missing_count": 0,
+            "missing_symbols": [],
+            "provider": "kite_quote_provider",
+            "provenance": "kite_live/LIVE",
+            "status": "COMPLETE",
         }
 
         with (
@@ -393,12 +398,10 @@ class TestScheduler0930Phase(unittest.TestCase):
             }),
             patch.object(db, "update_reconciliation_0930") as mock_update,
             patch.object(db, "upsert_session", return_value=True),
+            patch("certified_quote_authority.certified_prices",
+                  return_value=mock_quote_evidence),
         ):
-            # Patch the import inside the method
-            mock_lqs = MagicMock()
-            mock_lqs.get_quotes.return_value = mock_quotes_result
-            with patch.dict(sys.modules, {"live_quote_service": mock_lqs}):
-                self.scheduler._phase_09_30_post_open_reconcile()
+            self.scheduler._phase_09_30_post_open_reconcile()
 
             mock_update.assert_called_once()
             db.get_session_snapshots.assert_called_once_with(
@@ -567,7 +570,17 @@ class TestTickDrivenReconcile0930(unittest.TestCase):
         import preopen_intelligence_tick as tick
         import preopen_db as db
 
-        mock_quotes = {"quotes": {"SBIN": {"price": 1022.0}, "TCS": {"price": 3450.0}}}
+        mock_quote_evidence = {
+            "open_prices": {},
+            "ltp_prices": {"SBIN": 1022.0, "TCS": 3450.0},
+            "requested_count": 2,
+            "live_count": 2,
+            "missing_count": 0,
+            "missing_symbols": [],
+            "provider": "kite_quote_provider",
+            "provenance": "kite_live/LIVE",
+            "status": "COMPLETE",
+        }
 
         with (
             patch.object(db, "get_session_snapshots", return_value=[
@@ -580,11 +593,10 @@ class TestTickDrivenReconcile0930(unittest.TestCase):
             }),
             patch.object(db, "update_reconciliation_0930") as mock_update,
             patch.object(db, "upsert_session", return_value=True) as mock_upsert,
+            patch("certified_quote_authority.certified_prices",
+                  return_value=mock_quote_evidence),
         ):
-            mock_lqs = MagicMock()
-            mock_lqs.get_quotes.return_value = mock_quotes
-            with patch.dict(sys.modules, {"live_quote_service": mock_lqs}):
-                result = tick._run_reconcile_0930("sess-001", "2026-07-29")
+            result = tick._run_reconcile_0930("sess-001", "2026-07-29")
 
         self.assertTrue(result.get("success"), f"Expected success, got: {result}")
         mock_update.assert_called_once()
