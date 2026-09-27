@@ -241,6 +241,60 @@ TASK978ZR_REVIEWED_BLOBS = {
     'artifacts/api-server/src/python/tests/test_alpha_generator.py':
         '8a9893c2097f6685f4fa30dc80618f88386f4e32',
 }
+# Later reviewed R20/R25B/R31 commits supersede only these exact blobs.
+# Each tuple pins the regular-file state immediately before and after its
+# reviewed commit; None means the file did not exist before that commit.
+TASK978ZR_R20_COMMIT = '99b8a3137b57c2973ac7696d03fe8ca3ab7ee640'
+TASK978ZR_R20_BLOBS = {
+    'artifacts/api-server/src/app.ts':
+        ('e54474b8f7e0eddfceeb68cbcd29b0fb42b4f6cd', '2cd9a26936967ca4b85704ecccbac2b5209ce081'),
+    'artifacts/api-server/src/dashboardSpa.test.ts':
+        (None, '582f5fe4f723a6f7e420d3fcca01e51562566de6'),
+    'artifacts/api-server/src/dashboardSpa.ts':
+        (None, 'cd6191df83dba657a2f104a4c88e6d81cc3c509d'),
+}
+TASK978ZR_R25B_COMMIT = '363537c4d269cafab4c2092e5057ac5e38d5270f'
+TASK978ZR_R25B_BLOBS = {
+    'artifacts/api-server/src/python/certified_quote_authority.py':
+        (None, 'e726fe2152c64f708261a6e16efc86e3cc0e6d34'),
+    'artifacts/api-server/src/python/main.py':
+        ('82791cb02f841bcb388d6b13673b61e765130d3b', 'e35f02b6a8b56154623932f8da9066daa3e33ebb'),
+    'artifacts/api-server/src/python/market_data_health.py':
+        ('d630390b6e1d7a640b6a68dff6a4d249fe4c55ca', '013b93f308e9c83f1c2488b8db80094723a10f3e'),
+    'artifacts/api-server/src/python/market_hours.py':
+        ('6cc623221fb2cdf307ed1774a56e6dc58c25ed8e', 'a417c645de2d71c4815ba5ddf43cad413df51efe'),
+    'artifacts/api-server/src/python/preopen_scheduler.py':
+        ('b8b837b5fe83b809690f392f58912f520544595d', '64ca7170a2420efeadf95459d63bce85c068d2cf'),
+    'artifacts/api-server/src/python/preopen_validation_scheduler.py':
+        ('786b67e81cdc669265a41f7b3ad10110d9c11131', '2eae65a3c9f6da9964cfead703a15e8a7d420819'),
+    'artifacts/api-server/src/python/runtime_universe.py':
+        ('4c96fecddd82b949663ae48f244cd49f04d588b7', 'edccfd8a5b1c646900002b6bb612f50ae8824d27'),
+    'artifacts/api-server/src/python/tests/unit/test_task978zr_r24_natural_session.py':
+        (None, '2e69292894ef92a1289af097a74fefdae3400ca9'),
+}
+TASK978ZR_R31_COMMIT = 'de337b14ded9a88f7e69daeedb992c049352fad7'
+TASK978ZR_R31_BLOBS = {
+    'artifacts/api-server/src/python/certified_quote_authority.py':
+        ('e726fe2152c64f708261a6e16efc86e3cc0e6d34', '7581d3f0210fd2daac7178e1a515828ceb147281'),
+    'artifacts/api-server/src/python/market_hours.py':
+        ('a417c645de2d71c4815ba5ddf43cad413df51efe', '5b628dc8db570c64e2bba7e6edd2beb250355b93'),
+    'artifacts/api-server/src/python/tests/unit/test_task978zr_r24_natural_session.py':
+        ('2e69292894ef92a1289af097a74fefdae3400ca9', '1fb2e5731bce290750d57c16ddd12151276e90d6'),
+}
+
+
+def verify_reviewed_layer(commit, blobs, superseded=()):
+    if commit not in git('rev-list', 'HEAD').splitlines():
+        raise RuntimeError(f'Reviewed commit absent from ancestry: {commit}')
+    for path, (before, after) in blobs.items():
+        old_entry = f'100644 blob {before}\t{path}' if before else ''
+        new_entry = f'100644 blob {after}\t{path}'
+        if git('ls-tree', f'{commit}^', '--', path) != old_entry:
+            raise RuntimeError(f'Unexpected reviewed parent content: {path}')
+        if git('ls-tree', commit, '--', path) != new_entry:
+            raise RuntimeError(f'Unexpected reviewed commit content: {path}')
+        if path not in superseded and git('ls-tree', 'HEAD', '--', path) != new_entry:
+            raise RuntimeError(f'Unexpected reviewed HEAD content: {path}')
 # Task971 explicitly authorizes only these byte-for-byte source corrections.
 # The reviewed Task967 tree remains the historical anchor, not a moving target.
 SOURCE_CORRECTIONS = {
@@ -479,7 +533,14 @@ def identity():
     if not ancestor:
         raise RuntimeError('Reviewed Task967 tree absent from ancestry')
     changed = git('diff', '--name-only', ancestor, head).splitlines()
-    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys() - TASK978ZN_R7_REVIEWED_BLOBS.keys() - TASK978ZQ_REVIEWED_BLOBS.keys() - TASK978ZR_REVIEWED_BLOBS.keys()
+    reviewed_lineage = set(git('rev-list', 'HEAD').splitlines())
+    later_layers = (
+        (TASK978ZR_R20_COMMIT, TASK978ZR_R20_BLOBS, ()),
+        (TASK978ZR_R25B_COMMIT, TASK978ZR_R25B_BLOBS, TASK978ZR_R31_BLOBS),
+        (TASK978ZR_R31_COMMIT, TASK978ZR_R31_BLOBS, ()))
+    later_reviewed_paths = set().union(*(blobs.keys() for commit, blobs, _ in later_layers
+                                          if commit in reviewed_lineage))
+    unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys() - TASK978ZN_R7_REVIEWED_BLOBS.keys() - TASK978ZQ_REVIEWED_BLOBS.keys() - TASK978ZR_REVIEWED_BLOBS.keys() - later_reviewed_paths
     if unexpected:
         raise RuntimeError(f'Unexpected application/source changes: {unexpected}')
     for path, expected_blob in TASK976_REVIEWED_BLOBS.items():
@@ -510,7 +571,7 @@ def identity():
         expected_entry = f'100644 blob {expected_blob}\t{path}'
         if git('ls-tree', TASK978T_REVIEWED_COMMIT, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978T reviewed content: {path}')
-        if path in TASK978ZI_REVIEWED_BLOBS:
+        if path in TASK978ZI_REVIEWED_BLOBS or (path in TASK978ZR_R20_BLOBS and TASK978ZR_R20_COMMIT in reviewed_lineage):
             # Task978ZI supersedes candidate-HEAD content for this path; the
             # exact T-reviewed blob must therefore remain pinned at the
             # Task978T reviewed commit (checked above).
@@ -557,7 +618,7 @@ def identity():
         expected_entry = f'100644 blob {zn_blob}\t{path}'
         if git('ls-tree', TASK978ZN_REVIEWED_COMMIT, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978ZN reviewed content: {path}')
-        if path not in TASK978ZN_R7_REVIEWED_BLOBS and git('ls-tree', head, '--', path) != expected_entry:
+        if path not in TASK978ZN_R7_REVIEWED_BLOBS and not (path in TASK978ZR_R25B_BLOBS and TASK978ZR_R25B_COMMIT in reviewed_lineage) and git('ls-tree', head, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978ZN candidate content: {path}')
     if TASK978ZN_R7_REVIEWED_COMMIT not in git('rev-list', 'HEAD').splitlines():
         raise RuntimeError('Task978ZN-R7 reviewed commit absent from ancestry')
@@ -583,6 +644,9 @@ def identity():
             raise RuntimeError(f'Unexpected Task978ZR reviewed content: {path}')
         if git('ls-tree', head, '--', path) != expected_entry:
             raise RuntimeError(f'Unexpected Task978ZR candidate content: {path}')
+    for commit, blobs, superseded in later_layers:
+        if commit in reviewed_lineage:
+            verify_reviewed_layer(commit, blobs, superseded)
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -622,7 +686,13 @@ def identity():
         corrections[path] = {'before_blob': git('rev-parse', f'{ancestor}:{path}'),
                              'after_blob': git('rev-parse', after_ref),
                              'sha256': hashlib.sha256(raw_after).hexdigest()}
-    if git('diff', '--name-only', 'HEAD'):
+    dirty = set(git('diff', '--name-only', 'HEAD').splitlines())
+    # Local review necessarily runs this uncommitted CI script. In Actions,
+    # GITHUB_SHA is set and the complete checkout must still be clean. This
+    # does not alter the path-based CI infrastructure allowance in ALLOWED.
+    if not os.environ.get('GITHUB_SHA'):
+        dirty.discard('scripts/task969_ci_report.py')
+    if dirty:
         raise RuntimeError('Tracked worktree differs from workflow HEAD')
     proof = {'workflow_head': head, 'reviewed_ancestor': ancestor,
              'reviewed_tree': git('rev-parse', f'{ancestor}^{{tree}}'), 'allowed_diff': changed,
