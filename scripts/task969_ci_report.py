@@ -281,6 +281,11 @@ TASK978ZR_R31_BLOBS = {
     'artifacts/api-server/src/python/tests/unit/test_task978zr_r24_natural_session.py':
         ('2e69292894ef92a1289af097a74fefdae3400ca9', '1fb2e5731bce290750d57c16ddd12151276e90d6'),
 }
+TASK978ZR_R36_COMMIT = '51ff047d1a6a011dbbe52ff5941e4711abdb843e'
+TASK978ZR_R36_BLOBS = {
+    'artifacts/api-server/src/python/test_preopen_accuracy.py':
+        ('d55df920560e3fbb3853ad08f5b418d307819232', '35a40ade4a73b09d14cde9f5a3dec8d021fa5c28'),
+}
 
 
 def verify_reviewed_layer(commit, blobs, superseded=()):
@@ -537,7 +542,8 @@ def identity():
     later_layers = (
         (TASK978ZR_R20_COMMIT, TASK978ZR_R20_BLOBS, ()),
         (TASK978ZR_R25B_COMMIT, TASK978ZR_R25B_BLOBS, TASK978ZR_R31_BLOBS),
-        (TASK978ZR_R31_COMMIT, TASK978ZR_R31_BLOBS, ()))
+        (TASK978ZR_R31_COMMIT, TASK978ZR_R31_BLOBS, ()),
+        (TASK978ZR_R36_COMMIT, TASK978ZR_R36_BLOBS, ()))
     later_reviewed_paths = set().union(*(blobs.keys() for commit, blobs, _ in later_layers
                                           if commit in reviewed_lineage))
     unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys() - TASK978ZN_R7_REVIEWED_BLOBS.keys() - TASK978ZQ_REVIEWED_BLOBS.keys() - TASK978ZR_REVIEWED_BLOBS.keys() - later_reviewed_paths
