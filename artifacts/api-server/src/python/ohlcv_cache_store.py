@@ -46,6 +46,135 @@ MAX_CACHE_AGE_DAYS = STALE_DAYS
 # yfinance "6mo" typically returns 122-126 bars; 120 is the safe lower bound.
 MIN_BARS_REQUIRED = 120   # ~6 calendar months accounting for NSE holidays
 
+# ── Task978ZR R37 — bounded backfill / rate-limit hardening constants ─────────
+# All timing is injectable via module attributes so offline tests never sleep.
+# Serialized small batches (never threads=True) — a cold-start backfill must
+# not storm Yahoo with a provider-wide fan-out that trips IP-level limits.
+_BACKFILL_BATCH_SIZE = 5          # symbols per serialized batch
+_BACKFILL_MAX_ATTEMPTS = 2        # bounded per-symbol retries inside Yahoo phase
+_BACKFILL_COOLDOWN_S = 20.0       # pause after a detected rate-limit response
+_BACKFILL_BATCH_PAUSE_S = 1.0     # polite pause between batches (0 disables)
+_SLEEP = time.sleep               # injectable in tests: module._SLEEP = fake
+_KITE_PACING_S = 0.35             # conservative pacing between Kite calls
+
+
+def _looks_rate_limited(exc: Exception) -> bool:
+    """Heuristic detection of provider-wide rate limiting from exception text.
+
+    yfinance surfaces 429s / "Too Many Requests" / "rate limit" in error text.
+    Never raises. Detection is intentionally conservative: matching strings
+    must clearly indicate throttling, not a bad symbol or empty payload.
+    """
+    try:
+        text = str(exc).lower()
+        if not text:
+            return False
+        markers = (
+            "rate limit",
+            "ratelimit",
+            "too many requests",
+            "429",
+            "yfratelimiterror",
+        )
+        return any(m in text for m in markers)
+    except Exception:
+        return False
+
+
+# ── Task978ZR R37 — read-only Kite historical fallback ───────────────────────
+
+def _kite_historical_available() -> bool:
+    """True when ZERODHA_API_KEY and a resolvable access token exist.
+
+    Credential resolution mirrors the established read-only precedent in
+    kite_quote_provider._resolve_creds (durable token store first, env
+    fallback, env-token expiry honored). NO order APIs are touched — this
+    helper only ever calls kite.historical_data (read-only market data).
+    Never raises.
+    """
+    try:
+        if not os.environ.get("ZERODHA_API_KEY"):
+            return False
+        import kite_token_store
+        token, from_store = kite_token_store.resolve_preferred_token()
+        if token and not from_store:
+            # Env-fallback token: honor the same daily-expiry check as quotes.
+            ts = os.environ.get("ZERODHA_TOKEN_TIMESTAMP") or ""
+            if ts:
+                expiry = kite_token_store.token_expiry_utc(ts)
+                if expiry is None:
+                    return False
+                if datetime.now(timezone.utc) >= expiry:
+                    return False
+        return bool(token)
+    except Exception:
+        return False
+
+
+def _fetch_single_kite_historical(
+    symbol: str,
+    period_days: int = 250,
+    interval: str = "day",
+) -> Optional[pd.DataFrame]:
+    """READ-ONLY daily-candle fetch from Kite historical_data for one symbol.
+
+    Instrument tokens come exclusively from the validated instrument cache
+    (kite_instrument_cache.get_token). Returns a DataFrame with the same
+    lowercase OHLCV column contract as _fetch_single_yfinance, or None on any
+    failure/insufficient data. Never raises. Requests are conservatively paced.
+    """
+    try:
+        import kite_instrument_cache
+        token = kite_instrument_cache.get_token(symbol)
+        if not token:
+            logger.info(
+                "kite_historical(%s): no validated instrument token — skip",
+                symbol,
+            )
+            return None
+        from kiteconnect import KiteConnect
+        import kite_token_store
+        api_key = os.environ.get("ZERODHA_API_KEY") or ""
+        access_token, _ = kite_token_store.resolve_preferred_token()
+        if not api_key or not access_token:
+            return None
+        kite = KiteConnect(api_key=api_key)
+        kite.set_access_token(access_token)
+        to_dt = datetime.now(timezone.utc).replace(tzinfo=None)
+        from_dt = to_dt - timedelta(days=period_days)
+        _SLEEP(_KITE_PACING_S)  # conservative pacing between Kite requests
+        raw = kite.historical_data(token, from_dt, to_dt, interval)
+        if not raw:
+            return None
+        df = pd.DataFrame(raw)
+        if df.empty or "date" not in df.columns:
+            return None
+        df = df.rename(
+            columns={
+                "open": "open", "high": "high", "low": "low",
+                "close": "close", "volume": "volume",
+            }
+        )
+        needed = {"open", "high", "low", "close"}
+        if not needed.issubset(set(df.columns)):
+            return None
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date")
+        df = df.dropna(subset=["open", "high", "low", "close"])
+        if df.empty:
+            return None
+        if "volume" not in df.columns:
+            df["volume"] = 0
+        df.index.name = None
+        return df
+    except Exception as exc:
+        logger.warning(
+            "kite_historical(%s) failed (no credentials echoed): %s",
+            symbol, str(exc)[:120],
+        )
+        return None
+
+
 # ── DB helpers ────────────────────────────────────────────────────────────────
 
 def _db_available() -> bool:
@@ -471,9 +600,15 @@ def backfill_all_symbols(
     failure_details: Dict[str, Dict[str, str]] = {}
 
     def _record_failure(sym: str, reason: str) -> None:
-        failed.append(sym.upper())
+        sym_u = sym.upper()
+        # Task978ZR R37: a symbol is counted failed at most once even across
+        # bounded retry passes — failure_details keeps the LATEST reason.
+        if sym_u in failure_details:
+            failure_details[sym_u] = {"reason": str(reason)[:120]}
+            return
+        failed.append(sym_u)
         if len(failure_details) < 50:
-            failure_details[sym.upper()] = {"reason": str(reason)[:120]}
+            failure_details[sym_u] = {"reason": str(reason)[:120]}
 
     # Check which symbols already have adequate fresh cache
     status = get_cache_status(symbols) if not force else {}
@@ -487,58 +622,135 @@ def backfill_all_symbols(
         else:
             symbols_to_fetch.append(sym)
 
-    if symbols_to_fetch:
-        try:
-            import yfinance as yf
-            tickers = [s.upper() + ".NS" for s in symbols_to_fetch]
-            bulk = yf.download(
-                tickers, period=period, interval=interval,
-                progress=False, auto_adjust=True,
-                group_by="ticker", threads=True,
-            )
-            for sym, tick in zip(symbols_to_fetch, tickers):
-                try:
-                    if isinstance(bulk.columns, pd.MultiIndex) and \
-                            tick in bulk.columns.get_level_values(0):
-                        df_raw = bulk[tick].copy()
-                    elif len(symbols_to_fetch) == 1:
-                        df_raw = bulk.copy()
-                    else:
-                        df_raw = None
+    # Task978ZR R37 — bounded serialized backfill (provider-hammering removed)
+    # ---------------------------------------------------------------------
+    # Old behavior (R37H root cause): yf.download(threads=True) bulk fan-out,
+    # and on ANY bulk exception an IMMEDIATE unbounded per-symbol storm over
+    # all remaining symbols with zero rate-limit detection, zero cooldown, and
+    # zero retry bound. That pattern trips IP-wide Yahoo limits and keeps
+    # hammering while limited.
+    #
+    # New behavior:
+    #   1. serialized small batches (no threads), polite inter-batch pause
+    #   2. per-symbol single-shot fetch; a rate-limited response raises a
+    #      _RateLimited sentinel handled by the batch loop, not by hammering
+    #   3. ONE bounded retry pass over remaining symbols after ONE cooldown
+    #   4. remaining symbols after bounded Yahoo retries fall back to the
+    #      READ-ONLY Kite historical adapter (daily candles only)
+    #   5. every success persists immediately — partial progress is preserved
 
-                    if df_raw is not None:
-                        df_raw.columns = [c.lower() for c in df_raw.columns]
-                        df_raw = df_raw.dropna()
-                        n = write_symbol_to_cache(sym, df_raw, source="yfinance")
+    rate_limited = False
+    rate_limit_events = 0
+    cooldown_disposition = "not_triggered"
+    provider_used = "none"
+    kite_fetched: List[str] = []
+    attempts = 0
+
+    if symbols_to_fetch:
+        def _batched(seq: List[str]) -> Generator[List[str], None, None]:
+            for i in range(0, len(seq), _BACKFILL_BATCH_SIZE):
+                yield seq[i:i + _BACKFILL_BATCH_SIZE]
+
+        def _run_yahoo_pass(pending: List[str]) -> List[str]:
+            """One serialized pass over pending symbols. Returns still-missing.
+            No sleeps on success path except the polite inter-batch pause."""
+            nonlocal rate_limited, rate_limit_events, provider_used
+            still_missing: List[str] = []
+            for batch in _batched(pending):
+                batch_rated = False
+                for sym in batch:
+                    try:
+                        df = _fetch_single_yfinance(sym, period, interval)
+                    except Exception as exc:
+                        if _looks_rate_limited(exc):
+                            rate_limited = True
+                            rate_limit_events += 1
+                            batch_rated = True
+                            # Provider-wide limit detected — stop issuing
+                            # requests immediately (no hammering).
+                            still_missing.append(sym)
+                            break
+                        logger.warning("backfill yahoo(%s): %s", sym, str(exc)[:120])
+                        still_missing.append(sym)
+                        continue
+                    if df is not None:
+                        n = write_symbol_to_cache(sym, df, source="yfinance")
                         if n > 0:
+                            provider_used = "yfinance" if provider_used == "none" else provider_used
                             updated.append(sym.upper())
                         else:
                             _record_failure(sym, "empty_or_write_rejected")
+                            still_missing.append(sym)
                     else:
-                        # Per-symbol fallback
-                        _res = _fetch_single_yfinance(sym, period, interval)
-                        if _res is not None:
-                            write_symbol_to_cache(sym, _res, source="yfinance")
-                            updated.append(sym.upper())
-                        else:
-                            _record_failure(sym, "provider_fetch_empty")
-                except Exception as exc:
-                    logger.warning("backfill_all_symbols(%s): %s", sym, exc)
-                    _record_failure(sym, f"exception: {exc}")
-        except Exception as exc:
-            logger.warning("backfill_all_symbols bulk download failed: %s", exc)
-            # Fall back to per-symbol
-            for sym in symbols_to_fetch:
-                try:
-                    df = _fetch_single_yfinance(sym, period, interval)
-                    if df is not None:
-                        write_symbol_to_cache(sym, df, source="yfinance")
+                        still_missing.append(sym)
+                if batch_rated:
+                    # Symbols later in this pass (later batch items and every
+                    # following batch) are not hammered; a single cooldown then
+                    # ONE bounded retry pass covers them.
+                    break
+                if _BACKFILL_BATCH_PAUSE_S > 0:
+                    _SLEEP(_BACKFILL_BATCH_PAUSE_S)
+            # Any symbols never attempted (deferred after a rate-limit break)
+            # must be carried into still_missing so they are retried once and,
+            # if still failing, reported as explicit failures — never silently
+            # dropped.
+            handled = {s.upper() for s in still_missing} | {u for u in updated}
+            for s in pending:
+                if s.upper() not in handled:
+                    still_missing.append(s)
+            # de-dup while preserving order, excluding updated symbols
+            seen = set()
+            ordered_missing = []
+            updated_set = {u for u in updated}
+            for s in still_missing:
+                s_u = s.upper()
+                if s_u not in seen and s_u not in updated_set:
+                    seen.add(s_u)
+                    ordered_missing.append(s)
+            return ordered_missing
+
+        remaining = _run_yahoo_pass(list(symbols_to_fetch))
+
+        # ONE bounded cooldown + ONE bounded retry pass for rate-limit case.
+        attempts = 1
+        if remaining and rate_limited:
+            cooldown_disposition = "single_cooldown_then_bounded_retry"
+            _SLEEP(_BACKFILL_COOLDOWN_S)
+            remaining = _run_yahoo_pass(remaining)
+            attempts += 1
+        elif remaining:
+            # Non-rate-limit failures: one bounded immediate retry pass.
+            cooldown_disposition = "single_bounded_retry_no_cooldown"
+            remaining = _run_yahoo_pass(remaining)
+            attempts += 1
+
+        # Kite historical fallback — READ-ONLY, only for still-remaining symbols.
+        if remaining and _kite_historical_available():
+            cooldown_disposition = (
+                cooldown_disposition + "+kite_historical_fallback"
+                if cooldown_disposition != "not_triggered"
+                else "kite_historical_fallback"
+            )
+            still_after_kite: List[str] = []
+            for sym in remaining:
+                df = _fetch_single_kite_historical(sym)
+                if df is not None:
+                    n = write_symbol_to_cache(sym, df, source="kite_historical")
+                    if n > 0:
+                        kite_fetched.append(sym.upper())
                         updated.append(sym.upper())
+                        provider_used = "kite_historical" if provider_used == "none" else provider_used
                     else:
-                        _record_failure(sym, "provider_fetch_empty")
-                except Exception as e2:
-                    logger.warning("backfill per-symbol fallback(%s): %s", sym, e2)
-                    _record_failure(sym, f"exception: {e2}")
+                        _record_failure(sym, "kite_write_rejected")
+                        still_after_kite.append(sym)
+                else:
+                    still_after_kite.append(sym)
+            remaining = still_after_kite
+
+        for sym in remaining:
+            sym_u = sym.upper()
+            if sym_u not in updated and sym_u not in failed:
+                _record_failure(sym, "provider_fetch_empty_after_bounded_retries")
 
     duration = round(time.monotonic() - t0, 2)
     status_str = "SUCCESS" if not failed else ("PARTIAL" if updated else "FAILED")
@@ -563,13 +775,27 @@ def backfill_all_symbols(
         "skipped_symbols": skipped,
         "duration_seconds": duration,
         "status": status_str,
+        # Task978ZR R37 structured provider/rate-limit evidence
+        "provider": provider_used,
+        "rate_limited": rate_limited,
+        "attempts": attempts,
+        "rate_limit_events": rate_limit_events,
+        "cooldown_disposition": cooldown_disposition,
+        "kite_historical_used": bool(kite_fetched),
+        "kite_symbols_fetched": kite_fetched,
     }
 
 
 def _fetch_single_yfinance(
     symbol: str, period: str, interval: str
 ) -> Optional[pd.DataFrame]:
-    """Single-symbol yfinance fetch. Returns cleaned DataFrame or None."""
+    """Single-symbol yfinance fetch. Returns cleaned DataFrame or None.
+
+    Task978ZR R37: provider-wide rate-limit responses are RE-RAISED (not
+    swallowed) so the bounded backfill loop can detect throttling, pause, and
+    defer remaining symbols instead of hammering the provider. All other
+    errors still return None and never raise.
+    """
     try:
         import yfinance as yf
         ticker = symbol.upper() + ".NS"
@@ -582,5 +808,7 @@ def _fetch_single_yfinance(
         df.columns = [str(c).lower() for c in df.columns]
         df = df.dropna()
         return df if not df.empty else None
-    except Exception:
+    except Exception as exc:
+        if _looks_rate_limited(exc):
+            raise
         return None
