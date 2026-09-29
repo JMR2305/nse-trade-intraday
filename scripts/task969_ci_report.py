@@ -286,6 +286,28 @@ TASK978ZR_R36_BLOBS = {
     'artifacts/api-server/src/python/test_preopen_accuracy.py':
         ('d55df920560e3fbb3853ad08f5b418d307819232', '35a40ade4a73b09d14cde9f5a3dec8d021fa5c28'),
 }
+# Task978ZR R37I permits only the reviewed OHLCV bootstrap provider-fallback
+# hardening: the cold-start backfill replaces the threaded Yahoo bulk fan-out
+# and its immediate unbounded per-symbol re-fan-out (the Task978ZR R37H rate-
+# limit root cause) with serialized bounded batches, explicit provider rate-
+# limit detection, one cooldown plus one bounded retry pass, structured non-
+# secret provider evidence (provider/rate_limited/attempts/cooldown disposi-
+# tion), and a READ-ONLY Kite historical daily-candle fallback that consumes
+# the existing validated instrument-cache/token-store authority only (no
+# order API, no WebSocket, no session mutation, no credentials in logs).
+# Cache-first resume semantics and per-symbol immediate persistence are
+# preserved. The new offline test file must exist; no scheduler, trading,
+# order, or universe-content change is authorized. Path-only or future-
+# content trust is intentionally prohibited. This layer supersedes the
+# Task978ZL-corrected blob for ohlcv_cache_store.py.
+TASK978ZR_R37I_COMMIT = '0ea838186b709df6926cfa9054a1ef2709b5d7d1'
+TASK978ZR_R37I_BLOBS = {
+    'artifacts/api-server/src/python/ohlcv_cache_store.py':
+        ('c6b2f0342c0e46374c3caeaa813842268677cfeb',
+         '6185d14825b1e3c61457cc8a57cfc5a17dbc3901'),
+    'artifacts/api-server/src/python/tests/test_ohlcv_backfill_hardening.py':
+        (None, 'f2cbb559479f5d8848f05c5b66c272fb963b2cfd'),
+}
 
 
 def verify_reviewed_layer(commit, blobs, superseded=()):
@@ -543,7 +565,8 @@ def identity():
         (TASK978ZR_R20_COMMIT, TASK978ZR_R20_BLOBS, ()),
         (TASK978ZR_R25B_COMMIT, TASK978ZR_R25B_BLOBS, TASK978ZR_R31_BLOBS),
         (TASK978ZR_R31_COMMIT, TASK978ZR_R31_BLOBS, ()),
-        (TASK978ZR_R36_COMMIT, TASK978ZR_R36_BLOBS, ()))
+        (TASK978ZR_R36_COMMIT, TASK978ZR_R36_BLOBS, ()),
+        (TASK978ZR_R37I_COMMIT, TASK978ZR_R37I_BLOBS, ()))
     later_reviewed_paths = set().union(*(blobs.keys() for commit, blobs, _ in later_layers
                                           if commit in reviewed_lineage))
     unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys() - TASK978ZN_R7_REVIEWED_BLOBS.keys() - TASK978ZQ_REVIEWED_BLOBS.keys() - TASK978ZR_REVIEWED_BLOBS.keys() - later_reviewed_paths
@@ -616,6 +639,11 @@ def identity():
         if git('ls-tree', head, '--', path) != f'100644 blob {zi_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZI candidate content: {path}')
     for path, zl_blob in TASK978ZL_REVIEWED_BLOBS.items():
+        if path in TASK978ZR_R37I_BLOBS and TASK978ZR_R37I_COMMIT in reviewed_lineage:
+            # Task978ZR R37I supersedes candidate-HEAD content for this path
+            # (same layering precedent as Task978ZG); the exact ZL blob stays
+            # pinned in TASK978ZL_REVIEWED_BLOBS for historical audit.
+            continue
         if git('ls-tree', head, '--', path) != f'100644 blob {zl_blob}\t{path}':
             raise RuntimeError(f'Unexpected Task978ZL candidate content: {path}')
     if TASK978ZN_REVIEWED_COMMIT not in git('rev-list', 'HEAD').splitlines():
