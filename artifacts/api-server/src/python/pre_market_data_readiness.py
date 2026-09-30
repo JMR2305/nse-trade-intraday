@@ -10,10 +10,12 @@ Outputs one of three verdicts:
   BLOCKED           — critical cache gaps; BUY orders should be blocked
 
 BLOCKED criteria:
+  * durable runtime universe unavailable (fail-closed; no legacy fallback)
   * >20% of symbols have missing required bars
   * cache is older than MAX_CACHE_AGE_DAYS for more than 20% of symbols
   * Kite LTP is unavailable (no live execution price)
-  * company master has fewer than 80% of universe mapped
+  * company master has fewer than 80% of universe mapped (NIFTY mode) or
+    durable versioned-universe member set mismatches (custom mode)
 
 Advisory-only. Never raises. PAPER TRADING ONLY.
 """
@@ -36,18 +38,55 @@ def _today_ist() -> date:
     return datetime.now(timezone.utc).astimezone(_IST).date()
 
 
+def _resolve_runtime_universe() -> Dict[str, Any]:
+    """Resolve the exact durable runtime universe. Never raises.
+
+    This is the ONLY default membership authority for the readiness check —
+    the same runtime_universe.resolve_active_universe() authority used by the
+    market scan path. There is deliberately NO legacy config.NIFTY_50 fallback:
+    resolution failure must fail closed (BLOCKED), never evaluate a stale
+    50-symbol list.
+    """
+    try:
+        from runtime_universe import resolve_active_universe
+        context = resolve_active_universe()
+    except Exception as exc:
+        return {"success": False, "error": str(exc)[:200]}
+    symbols = list(context.get("enabled_symbols") or [])
+    if not symbols or int(context.get("symbol_count") or 0) != len(symbols):
+        return {
+            "success": False,
+            "error": "resolved universe symbol set is empty or inconsistent",
+        }
+    return {"success": True, "context": context, "symbols": symbols}
+
+
 def run_pre_market_readiness_check(symbols: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Full pre-market data readiness check.
     Returns {verdict, reasons, checks, timestamp}.
     Never raises.
+
+    Symbol authority:
+      * symbols explicitly supplied → exactly that list is evaluated.
+      * symbols is None → the exact durable runtime universe resolved via
+        runtime_universe.resolve_active_universe() (same authority as the
+        scheduled market scan). Resolution failure fails closed BLOCKED;
+        there is no legacy config.NIFTY_50 fallback.
     """
-    try:
-        if symbols is None:
-            from config import NIFTY_50
-            symbols = list(NIFTY_50)
-    except Exception as exc:
-        return _result("BLOCKED", [f"config.NIFTY_50 unavailable: {exc!s:.80}"], {})
+    runtime_ctx: Optional[Dict[str, Any]] = None
+    if symbols is not None:
+        symbols = list(symbols)
+    else:
+        resolved = _resolve_runtime_universe()
+        if not resolved.get("success"):
+            return _result(
+                "BLOCKED",
+                [f"Durable runtime universe unavailable: {resolved.get('error', 'unknown')!s:.120}"],
+                {},
+            )
+        runtime_ctx = resolved["context"]
+        symbols = resolved["symbols"]
 
     total = len(symbols)
     checks: Dict[str, Any] = {}
@@ -120,22 +159,73 @@ def run_pre_market_readiness_check(symbols: Optional[List[str]] = None) -> Dict[
         checks["kite_session"] = {"error": str(exc)[:200], "verified": False}
         warnings.append("Kite session check failed — assume unverified")
 
-    # ── 3. Company master completeness ───────────────────────────────────────
+    # ── 3. Metadata coverage ────────────────────────────────────────────────
+    # Authority follows the resolved universe:
+    #   * runtime-resolved NIFTY_50 mode → existing nifty50 company master.
+    #   * runtime-resolved custom mode → exact durable versioned-universe
+    #     enabled member set for the SAME resolved universe identity
+    #     (SELECT-only read; the NIFTY-specific company master store is NOT
+    #     the membership authority for custom universes).
+    #   * explicit symbol list → legacy NIFTY company-master semantics.
     try:
-        from nifty50_company_master_store import get_missing_symbols
-        missing_master = get_missing_symbols(symbols)
-        master_coverage = 1.0 - len(missing_master) / total if total else 0.0
-        checks["company_master"] = {
-            "coverage_pct": round(master_coverage * 100, 1),
-            "missing_symbols": missing_master,
-        }
-        if master_coverage < COMPANY_MASTER_MIN_PCT:
-            reasons.append(
-                f"Company master covers only {master_coverage*100:.0f}% of universe — "
-                f"run bootstrap to populate"
+        if runtime_ctx is not None and str(runtime_ctx.get("universe_key")) != "NIFTY_50":
+            from universe_version_store import (
+                exact_set_hash,
+                get_members,
+                normalize_symbols,
             )
-        elif missing_master:
-            warnings.append(f"{len(missing_master)} symbols not in company master")
+            resolved_syms = normalize_symbols(symbols)
+            members = get_members(
+                universe_key=str(runtime_ctx.get("universe_key")),
+                version=int(runtime_ctx.get("version") or 0),
+                enabled_only=True,
+            )
+            member_syms = normalize_symbols(
+                [str(m.get("symbol") or "") for m in members if m.get("symbol")]
+            )
+            if exact_set_hash(member_syms) != exact_set_hash(resolved_syms):
+                missing = sorted(set(resolved_syms) - set(member_syms))
+                unexpected = sorted(set(member_syms) - set(resolved_syms))
+                checks["company_master"] = {
+                    "metadata_source": "versioned_universe_members",
+                    "universe_id": runtime_ctx.get("universe_id"),
+                    "version": runtime_ctx.get("version"),
+                    "expected_count": len(resolved_syms),
+                    "member_count": len(member_syms),
+                    "missing_symbols": missing,
+                    "unexpected_symbols": unexpected,
+                    "coverage_pct": 0.0,
+                }
+                reasons.append(
+                    "Durable universe member set does not match the resolved "
+                    f"runtime universe (expected {len(resolved_syms)}, "
+                    f"found {len(member_syms)})"
+                )
+            else:
+                checks["company_master"] = {
+                    "metadata_source": "versioned_universe_members",
+                    "universe_id": runtime_ctx.get("universe_id"),
+                    "version": runtime_ctx.get("version"),
+                    "expected_count": len(resolved_syms),
+                    "member_count": len(member_syms),
+                    "missing_symbols": [],
+                    "coverage_pct": 100.0,
+                }
+        else:
+            from nifty50_company_master_store import get_missing_symbols
+            missing_master = get_missing_symbols(symbols)
+            master_coverage = 1.0 - len(missing_master) / total if total else 0.0
+            checks["company_master"] = {
+                "coverage_pct": round(master_coverage * 100, 1),
+                "missing_symbols": missing_master,
+            }
+            if master_coverage < COMPANY_MASTER_MIN_PCT:
+                reasons.append(
+                    f"Company master covers only {master_coverage*100:.0f}% of universe — "
+                    f"run bootstrap to populate"
+                )
+            elif missing_master:
+                warnings.append(f"{len(missing_master)} symbols not in company master")
     except Exception as exc:
         checks["company_master"] = {"error": str(exc)[:200]}
         warnings.append("Company master check failed")
@@ -171,11 +261,23 @@ def run_pre_market_readiness_check(symbols: Optional[List[str]] = None) -> Dict[
 
     # ── 6. Operational entry blockers (read-only, all fail closed) ─────────
     try:
-        from config import get_active_intraday_universe
-        checks["active_universe"] = {
-            "mode": str(get_active_intraday_universe()),
-            "symbols_considered": total,
-        }
+        if runtime_ctx is not None:
+            checks["active_universe"] = {
+                "authority_source": "runtime_universe.resolve_active_universe",
+                "universe_key": runtime_ctx.get("universe_key"),
+                "universe_id": runtime_ctx.get("universe_id"),
+                "universe_version": runtime_ctx.get("version"),
+                "natural_session": runtime_ctx.get("natural_session"),
+                "symbol_count": total,
+                "exact_set_hash": runtime_ctx.get("exact_set_hash"),
+                "symbols_considered": total,
+            }
+        else:
+            from config import get_active_intraday_universe
+            checks["active_universe"] = {
+                "mode": str(get_active_intraday_universe()),
+                "symbols_considered": total,
+            }
     except Exception as exc:
         checks["active_universe"] = {"error": str(exc)[:200]}
         warnings.append("Active universe check failed")
