@@ -3531,17 +3531,66 @@ router.get("/ops-centre/journey/:symbol", async (req, res) => {
 //
 // In-flight coalescing: the snapshot is expensive (10–30 s, 12 parallel agent threads).
 // Concurrent callers (e.g. two browser tabs opening simultaneously) share one Python process
-// instead of each spawning their own. No result cache — the 30 s React Query refetch interval
-// already limits frequency; we only deduplicate simultaneous spawns.
+// instead of each spawning their own.
+//
+// Last-good reuse (Task978ZR R37N): the most recent successful, valid snapshot is kept in
+// memory and served immediately (with explicit snapshot_delivery metadata) when a new
+// generation would otherwise make the UI wait 10–30 s — e.g. mobile browsers whose fetches
+// die when backgrounded. Failures never destroy the cached snapshot and never fabricate
+// data: with no last-good snapshot, errors remain truthful 500s. Cache age is bounded by
+// SNAPSHOT_LAST_GOOD_TTL_MS; a background refresh re-validates the cache via the existing
+// in-flight dedup so bursts never spawn duplicate Python generations.
+const SNAPSHOT_LAST_GOOD_TTL_MS = 5 * 60_000; // 5 min — well beyond the 30 s UI refresh cadence
+// A cached snapshot younger than this is NOT revalidated in the background —
+// aligned with the UI staleTime (20 s) so 30 s poll bursts never churn Python
+// subprocesses right after a completed generation.
+const SNAPSHOT_REVALIDATE_MIN_AGE_MS = 20_000;
 let snapshotInFlight: Promise<unknown> | null = null;
+let lastGoodSnapshot: { data: Record<string, unknown>; at: number } | null = null;
 
-router.get("/ops-centre/snapshot", async (_req, res) => {
+export function clearSnapshotCache(opts?: { force?: boolean }): void {
+  lastGoodSnapshot = null;
+}
+
+router.get("/ops-centre/snapshot", async (req, res) => {
+  const forceRefresh = req.query.refresh === "1";
+  const cacheFresh = lastGoodSnapshot !== null &&
+    Date.now() - lastGoodSnapshot.at < SNAPSHOT_LAST_GOOD_TTL_MS;
+
+  // Last-good fast path: serve the cached snapshot immediately (with delivery
+  // metadata) and revalidate in the background using the existing in-flight
+  // dedup. Never triggered on the first-ever load (no cache → truthful wait).
+  if (!forceRefresh && cacheFresh && lastGoodSnapshot) {
+    const ageSeconds = Math.round((Date.now() - lastGoodSnapshot.at) / 1000);
+    if (!snapshotInFlight && ageSeconds * 1000 >= SNAPSHOT_REVALIDATE_MIN_AGE_MS) {
+      snapshotInFlight = runPython(["ops_centre_snapshot"])
+        .then((fresh) => {
+          lastGoodSnapshot = { data: fresh as Record<string, unknown>, at: Date.now() };
+          clearPlatformCache();   // fresh KV written — next platform poll gets new cache_ts
+        })
+        .catch(() => {
+          // Failed background refresh: last-good cache survives untouched.
+        })
+        .finally(() => { snapshotInFlight = null; });
+    }
+    res.json({
+      ...lastGoodSnapshot.data,
+      snapshot_delivery: {
+        cached: true,
+        age_seconds: ageSeconds,
+        refresh_in_flight: snapshotInFlight !== null,
+      },
+ });
+    return;
+  }
+
   try {
     if (!snapshotInFlight) {
       snapshotInFlight = runPython(["ops_centre_snapshot"])
         .finally(() => { snapshotInFlight = null; });
     }
     const data = await snapshotInFlight;
+    lastGoodSnapshot = { data: data as Record<string, unknown>, at: Date.now() };
     clearPlatformCache();   // fresh KV written — next platform poll gets new cache_ts
     res.json(data);
 
@@ -3559,6 +3608,22 @@ router.get("/ops-centre/snapshot", async (_req, res) => {
       }
     })();
   } catch (err: unknown) {
+    // A failed generation never destroys the last-good snapshot: if one exists
+    // (even past TTL), serve it truthfully marked stale instead of a fake 200
+    // fresh payload or a hard error that blanks the UI.
+    if (lastGoodSnapshot) {
+      const ageSeconds = Math.round((Date.now() - lastGoodSnapshot.at) / 1000);
+      res.json({
+        ...lastGoodSnapshot.data,
+        snapshot_delivery: {
+          cached: true,
+          age_seconds: ageSeconds,
+          refresh_in_flight: false,
+          stale_after_error: true,
+        },
+      });
+      return;
+    }
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
   }
 });

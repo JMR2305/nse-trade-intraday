@@ -101,6 +101,7 @@ describe("Platform cache — Node.js cache invalidation (Task #325)", () => {
   let server: Server;
   let port: number;
   let clearPlatformCache: () => void;
+  let clearSnapshotCache: (opts?: { force?: boolean }) => void;
   let eventBus: import("../lib/events.js")["eventBus"];
 
   // HTTP helper — always against the local test server
@@ -142,6 +143,9 @@ describe("Platform cache — Node.js cache invalidation (Task #325)", () => {
       import("../lib/events.js"),
     ]);
     clearPlatformCache = routesMod.clearPlatformCache;
+    clearSnapshotCache = (routesMod as unknown as {
+      clearSnapshotCache: typeof clearSnapshotCache;
+    }).clearSnapshotCache;
     eventBus = eventsMod.eventBus;
 
     await new Promise<void>((resolve) => {
@@ -156,7 +160,10 @@ describe("Platform cache — Node.js cache invalidation (Task #325)", () => {
 
   beforeEach(() => {
     // Always start each test with an empty cache and a clean spawn call log.
+    // The snapshot route also keeps a last-good cache (Task978ZR R37N); clear
+    // it too so each test exercises the no-cache generation path as designed.
     clearPlatformCache();
+    clearSnapshotCache({ force: true });
     mockSpawn.mockClear();
     mockSpawn.mockImplementation(defaultSpawnImpl);
   });
@@ -272,14 +279,21 @@ describe("Platform cache — Node.js cache invalidation (Task #325)", () => {
     expect(r3.body).toEqual(r1.body);
   });
 
-  // ── 7. Sequential snapshot requests each get their own spawn ──────────────
+  // ── 7. Sequential snapshot requests (Task978ZR R37N last-good reuse) ──────
 
-  it("spawns Python for each sequential (non-concurrent) snapshot request", async () => {
-    // Requests that arrive after the previous one resolves are NOT coalesced —
-    // each is a fresh spawn (no result cache, only in-flight dedup).
+  it("serves an immediate sequential snapshot request from the last-good cache, regenerating only after invalidation", async () => {
+    // First request generates and populates the last-good cache.
     await get("/api/ops-centre/snapshot");
-    await get("/api/ops-centre/snapshot");
+    expect(spawnCount("ops_centre_snapshot")).toBe(1);
 
+    // An immediate second request is served from the last-good cache —
+    // no new Python generation (R37N resilience behaviour).
+    await get("/api/ops-centre/snapshot");
+    expect(spawnCount("ops_centre_snapshot")).toBe(1);
+
+    // After the last-good cache is invalidated, the next request generates again.
+    clearSnapshotCache({ force: true });
+    await get("/api/ops-centre/snapshot");
     expect(spawnCount("ops_centre_snapshot")).toBe(2);
   });
 

@@ -1374,9 +1374,10 @@ export default function AIOperationsCentrePage() {
   // killed every request. Extended to 60 s so the response can land in time.
   const {
     data: snapshotData,
-    isLoading: snapshotLoading,
+    isLoading: snapshotIsLoading,
     isFetching: snapshotFetching,
     isError: snapshotError,
+    failureCount: snapshotFailureCount,
     dataUpdatedAt: snapshotUpdatedAt,
     refetch: refetchSnapshot,
   } = useQuery<OpsSnapshot>({
@@ -1385,7 +1386,16 @@ export default function AIOperationsCentrePage() {
     refetchInterval: 30_000,
     staleTime: 20_000,
     retry: 2,
+    // Keep the last good snapshot rendered through background refetches and
+    // failures (Task978ZR R37N) — never blank the page mid-refresh.
+    placeholderData: (prev) => prev,
   });
+
+  // isLoading is TRUE only for the true first load with no snapshot data yet.
+  // Once any valid snapshot has landed, background refreshes and errors keep
+  // the previous snapshot visible — skeleton states must never come back.
+  const snapshotLoading = snapshotIsLoading && !snapshotData;
+  const snapshotRefreshFailed = snapshotError && !!snapshotData && snapshotFailureCount > 0;
 
   // After a full snapshot lands, its platform section supersedes the fast one
   // (it has the freshly-computed health_pct, not the cached value).
@@ -1493,6 +1503,19 @@ export default function AIOperationsCentrePage() {
               className="flex-shrink-0 px-3 py-1.5 text-xs rounded-lg bg-rose-900/40 border border-rose-700/40 text-rose-300 hover:bg-rose-800/40 transition-colors">
               Retry
             </button>
+          </div>
+        )}
+        {/* Non-blocking warning: a background refresh failed but the last
+            valid snapshot stays rendered below (Task978ZR R37N). */}
+        {snapshotRefreshFailed && (
+          <div className="flex items-center gap-3 rounded-xl border border-amber-800/40 bg-amber-950/20 px-4 py-3">
+            <XCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-amber-300">Snapshot refresh failed — showing last valid snapshot</p>
+              <p className="text-[11px] text-slate-500 mt-0.5">
+                Data below may be out of date. Refreshing continues automatically every 30 seconds.
+              </p>
+            </div>
           </div>
         )}
 
