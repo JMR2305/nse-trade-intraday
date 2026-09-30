@@ -309,6 +309,25 @@ TASK978ZR_R37I_BLOBS = {
         (None, 'f2cbb559479f5d8848f05c5b66c272fb963b2cfd'),
 }
 
+# Task978ZR R37N reviewed layer — premarket readiness authority alignment.
+# run_pre_market_readiness_check() must default to the durable runtime-universe
+# authority (runtime_universe.resolve_active_universe(), same authority as the
+# scheduled market scan), fail closed on resolver failure with NO legacy
+# config.NIFTY_50 fallback, read custom-universe metadata coverage from the
+# exact versioned-universe enabled member set (SELECT-only), preserve
+# explicit-symbol callers and NIFTY-mode company-master semantics, and leave
+# every scan/scheduler/execution path byte-identical. Only the readiness
+# module and its new offline test file changed. Path-only or future-content
+# trust is intentionally prohibited.
+TASK978ZR_R37N_COMMIT = 'f1f3bb7acceacb31959902c86086b8fdd96f765a'
+TASK978ZR_R37N_BLOBS = {
+    'artifacts/api-server/src/python/pre_market_data_readiness.py':
+        ('751b5864775f778b58147138410be8504f995d9f',
+         '6164d70c9b3d136f5b8f21e46eb4d0e6b6919a50'),
+    'artifacts/api-server/src/python/tests/unit/test_task978zr_r37n_premarket_readiness_authority.py':
+        (None, '9db68bddc39d72b3981b432c438165507e648b62'),
+}
+
 
 def verify_reviewed_layer(commit, blobs, superseded=()):
     if commit not in git('rev-list', 'HEAD').splitlines():
@@ -566,7 +585,8 @@ def identity():
         (TASK978ZR_R25B_COMMIT, TASK978ZR_R25B_BLOBS, TASK978ZR_R31_BLOBS),
         (TASK978ZR_R31_COMMIT, TASK978ZR_R31_BLOBS, ()),
         (TASK978ZR_R36_COMMIT, TASK978ZR_R36_BLOBS, ()),
-        (TASK978ZR_R37I_COMMIT, TASK978ZR_R37I_BLOBS, ()))
+        (TASK978ZR_R37I_COMMIT, TASK978ZR_R37I_BLOBS, ()),
+        (TASK978ZR_R37N_COMMIT, TASK978ZR_R37N_BLOBS, ()))
     later_reviewed_paths = set().union(*(blobs.keys() for commit, blobs, _ in later_layers
                                           if commit in reviewed_lineage))
     unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys() - TASK978ZN_R7_REVIEWED_BLOBS.keys() - TASK978ZQ_REVIEWED_BLOBS.keys() - TASK978ZR_REVIEWED_BLOBS.keys() - later_reviewed_paths
