@@ -327,6 +327,36 @@ TASK978ZR_R37N_BLOBS = {
     'artifacts/api-server/src/python/tests/unit/test_task978zr_r37n_premarket_readiness_authority.py':
         (None, '9db68bddc39d72b3981b432c438165507e648b62'),
 }
+# Task978ZR R37P reviewed layer — AI Operations Centre snapshot delivery
+# repair: /api/ops-centre/snapshot gains a process-local in-memory last-good
+# cache (bounded 5-minute TTL, 20-second revalidation min-age aligned with the
+# UI staleTime) served with explicit snapshot_delivery metadata; failed
+# generations never overwrite or destroy the last-good snapshot and a no-cache
+# failure remains a truthful 500; the existing snapshotInFlight coalescing is
+# preserved so at most one Python generation runs at a time. The frontend
+# retains the previous snapshot through background refetches and failures
+# (placeholderData), shows the full skeleton only when no snapshot data has
+# ever loaded, and adds a non-blocking amber warning when a background refresh
+# fails after a good snapshot. No scheduler, scan, provider, execution, order,
+# or universe-content change is authorized. Only these two source files and
+# their three exact test files changed. Path-only or future-content trust is
+# intentionally prohibited.
+TASK978ZR_R37P_COMMIT = '893721a8960ff209df3ea3ef3da38f2a4c934f82'
+TASK978ZR_R37P_BLOBS = {
+    'artifacts/api-server/src/routes/trading.ts':
+        ('38ea1a5045031ff767bbdf28fa16649dc216a711',
+         'a3250d7bf5216a6ecf045b8b21135c12f9658d60'),
+    'artifacts/api-server/src/routes/platform-cache.test.ts':
+        ('94737f7f985db05921ceb785004bfb7ac14709fb',
+         '1f785b362b0cd9f712c584be6a5885cca44dddf0'),
+    'artifacts/api-server/src/routes/ops-snapshot-last-good.test.ts':
+        (None, '2b11aa69ea126a9e6619dd53ffe9dccbb4c5f6ce'),
+    'artifacts/trading-dashboard/src/pages/AIOperationsCentrePage.tsx':
+        ('b8ddb2ae8312e79a2a46a5ef4be0756267aebaff',
+         '61c32dc68e794080a1d9f3498ed4a341abaab7aa'),
+    'artifacts/trading-dashboard/src/pages/AIOperationsCentrePage.snapshot.test.tsx':
+        (None, 'b3be84612cfa7ffdcaea962a0ac74b0580f097a4'),
+}
 
 
 def verify_reviewed_layer(commit, blobs, superseded=()):
@@ -586,7 +616,8 @@ def identity():
         (TASK978ZR_R31_COMMIT, TASK978ZR_R31_BLOBS, ()),
         (TASK978ZR_R36_COMMIT, TASK978ZR_R36_BLOBS, ()),
         (TASK978ZR_R37I_COMMIT, TASK978ZR_R37I_BLOBS, ()),
-        (TASK978ZR_R37N_COMMIT, TASK978ZR_R37N_BLOBS, ()))
+        (TASK978ZR_R37N_COMMIT, TASK978ZR_R37N_BLOBS, ()),
+        (TASK978ZR_R37P_COMMIT, TASK978ZR_R37P_BLOBS, ()))
     later_reviewed_paths = set().union(*(blobs.keys() for commit, blobs, _ in later_layers
                                           if commit in reviewed_lineage))
     unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys() - TASK978ZN_R7_REVIEWED_BLOBS.keys() - TASK978ZQ_REVIEWED_BLOBS.keys() - TASK978ZR_REVIEWED_BLOBS.keys() - later_reviewed_paths
