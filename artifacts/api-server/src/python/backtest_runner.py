@@ -31,6 +31,7 @@ import time
 from datetime import datetime, timedelta, date, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+import math
 import pandas as pd
 
 import backtest_portfolio as bp
@@ -43,6 +44,86 @@ DEFAULT_SETTINGS = {             # same knobs phase20 uses
     "slippage_pct": 0.15,
     "charges_pct": 0.12,
 }
+
+# Execution-cost settings mirror the phase20 executor's wire format. This is the
+# single canonical source for fill/charges derived settings.
+EXECUTION_SETTINGS_DEFAULTS = {
+    "fill_model": "NEXT_QUOTE",
+    "slippage_pct": 0.15,
+    "charges_pct": 0.12,
+}
+
+SUPPORTED_EXECUTION_MODELS = ("LAST_TRADED_PRICE", "NEXT_QUOTE", "SLIPPAGE_ADJUSTED")
+
+_EXEC_COST_BOUNDS = {
+    "slippage_pct": (0.0, 5.0),
+    "charges_pct": (0.0, 50.0),
+}
+
+
+def resolve_execution_settings(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Resolve run-level execution settings from persisted configuration.
+
+    Precedence: explicit cfg["execution_settings"] > legacy defaults.
+
+    Strict validation:
+      - fill_model must be one of SUPPORTED_EXECUTION_MODELS
+      - slippage_pct / charges_pct must be finite numbers in range
+      - booleans, NaN, Inf and out-of-range values are errors
+      - unknown keys are an error (never a silent fallback to defaults)
+
+    A missing block falls back to EXECUTION_SETTINGS_DEFAULTS so ordinary
+    historical backtests behave exactly as before; there is no accidental
+    default because an explicit block is malformed.
+    """
+    raw = cfg.get("execution_settings")
+    if not isinstance(raw, dict):
+        return dict(EXECUTION_SETTINGS_DEFAULTS)
+
+    out: Dict[str, Any] = {}
+    seen = set()
+
+    model = raw.get("fill_model")
+    if model in SUPPORTED_EXECUTION_MODELS:
+        out["fill_model"] = model
+        seen.add("fill_model")
+    else:
+        raise ValueError(
+            "invalid execution_settings: fill_model must be one of "
+            + ", ".join(SUPPORTED_EXECUTION_MODELS)
+            + f"; got {model!r}"
+        )
+
+    for k, (lo, hi) in _EXEC_COST_BOUNDS.items():
+        v = raw.get(k)
+        if v is None:
+            out[k] = EXECUTION_SETTINGS_DEFAULTS[k]
+            seen.add(k)
+            continue
+        if not isinstance(v, (int, float)) or isinstance(v, bool):
+            raise ValueError(
+                f"invalid execution_settings: {k} must be a finite number; got {v!r}"
+            )
+        f = float(v)
+        if not math.isfinite(f):
+            raise ValueError(f"invalid execution_settings: {k} must be finite; got {v!r}")
+        if f < lo or f > hi:
+            raise ValueError(
+                f"invalid execution_settings: {k} out of range ({lo}, {hi}]; got {f}"
+            )
+        out[k] = f
+        seen.add(k)
+
+    unknown = sorted(set(raw.keys()) - seen)
+    if unknown:
+        raise ValueError(
+            "invalid execution_settings: unknown key(s): "
+            + ", ".join(repr(k) for k in unknown)
+        )
+
+    return out
+
 
 # Settings-driven position sizing (Capital Deployment Fix).
 # Defaults preserve historical behaviour EXACTLY: 1% risk, 25% cap,
@@ -326,7 +407,8 @@ def _fetch_result(symbol: str, df: Optional[pd.DataFrame], ts: str):
 
 def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str,
                sizing: Optional[Dict[str, Any]] = None,
-               mark: Optional[float] = None) -> Tuple[float, Optional[str]]:
+               mark: Optional[float] = None,
+               execution_settings: Optional[Dict[str, Any]] = None) -> Tuple[float, Optional[str]]:
     """
     Enter a BUY-class recommendation into the backtest ledger.
 
@@ -342,6 +424,7 @@ def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str,
     """
     from phase20_executor import compute_fill, compute_charges
     s = sizing or DEFAULT_SIZING
+    fs = execution_settings if execution_settings is not None else DEFAULT_SETTINGS
     entry, stop = float(rec.entry_price), float(rec.stop_loss)
     per_share_risk = entry - stop
     if entry <= 0 or per_share_risk <= 0:
@@ -388,9 +471,9 @@ def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str,
              payload={"reason": "Position size < 1 share for available cash",
                       "cash": round(cash, 2)})
         return cash, None
-    fill = compute_fill(entry, DEFAULT_SETTINGS, side="BUY")
+    fill = compute_fill(entry, fs, side="BUY")
     fill_price = fill["fill_price"]
-    charges = compute_charges(fill_price * qty, DEFAULT_SETTINGS)
+    charges = compute_charges(fill_price * qty, fs)
     cost = fill_price * qty + charges
     if cost > cash:
         ev = "SCALE_IN_REJECTED" if scale_in else "ORDER_REJECTED"
@@ -428,7 +511,7 @@ def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str,
     emit("ORDER_SUBMITTED", "EXECUTION", scan_id=scan_id, symbol=rec.symbol,
          mode="BACKTEST", run_id=run_id,
          payload={"qty": qty, "signal_price": entry, "tranche": tranche,
-                  "fill_model": DEFAULT_SETTINGS["fill_model"]})
+                  "fill_model": fs["fill_model"]})
     trade_id = bp.open_trade({
         "run_id": run_id, "scan_id": scan_id, "symbol": rec.symbol,
         "strategy_id": rec.strategy_id, "strategy_name": rec.strategy_name,
@@ -638,6 +721,7 @@ def execute_run(run_id: str) -> Dict[str, Any]:
     start = str(cfg.get("start"))[:10]
     end = str(cfg.get("end"))[:10]
     capital = float(cfg.get("capital") or 100000.0)
+    execution_settings = resolve_execution_settings(cfg)
     universe = resolve_universe(cfg)
     if not universe:
         reason = (
@@ -820,7 +904,8 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                     bar = bars.get(str(rec.symbol).upper())
                     cash, _tid = _try_enter(
                         run_id, scan_id, rec, cash, ts_iso, sizing=sizing,
-                        mark=float(bar["close"]) if bar else None)
+                        mark=float(bar["close"]) if bar else None,
+                        execution_settings=execution_settings)
 
             # ── Every 5 ticks: flush events + cancel/stale check + heartbeat ──
             # Heartbeat MUST run every 5 ticks or the 30-min stale watchdog will
@@ -954,11 +1039,16 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         # RUNNING (single conditional UPDATE, rowcount-checked).  If a watchdog
         # marked the run STALE between the last checkpoint and here, the write
         # is a no-op and we exit without overwriting the watchdog's state.
+        # Persist a copy of the resolved execution settings so a later
+        # certification step can prove fill_model / slippage_pct /
+        # charges_pct without inferring them from source defaults.
+        completed_config = dict(cfg)
+        completed_config["execution_settings"] = dict(execution_settings)
         _written = bp.complete_run(
             run_id,
-            config={**cfg, "cash_by_tick": cash_log,
-                    "learning_fingerprint": learning_fp},
-            metrics=metrics, missed=missed,
+            config=completed_config,
+            metrics={**metrics, "execution_settings": dict(execution_settings)},
+            missed=missed,
             progress={"phase": "DONE", "done": tick_count,
                       "total": tick_count},
         )
