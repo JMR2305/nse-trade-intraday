@@ -1,5 +1,4 @@
-"""
-Phase 23 Part 2B/C/F/I — Historical Backtest Engine.
+"""Phase 23 Part 2B/C/F/I — Historical Backtest Engine.
 
 ARCHITECTURE RULE (from the Phase 23 directive): historical replay calls the
 SAME production pipeline. There is no second decision engine here.
@@ -12,10 +11,10 @@ SAME production pipeline. There is no second decision engine here.
   * Fill/charges model = phase20_executor.compute_fill / compute_charges.
 
 The ONLY differences vs LIVE:
-  1. Market data source: cached historical candles (historical_data_engine),
-     truncated strictly as-of each replay timestamp (no look-ahead).
-  2. Ledger: the isolated backtest ledger (backtest_portfolio) — the live
-     phase20 paper ledger is NEVER touched.
+ 1. Market data source: cached historical candles (historical_data_engine),
+    truncated strictly as-of each replay timestamp (no look-ahead).
+ 2. Ledger: the isolated backtest ledger (backtest_portfolio) — the live
+    phase20 paper ledger is NEVER touched.
 
 Modes: single day / week / month / custom range; custom symbol list,
 Nifty-50 universe or the configured trading universe; intervals 5m/10m/15m/1d.
@@ -24,12 +23,13 @@ Nifty-50 universe or the configured trading universe; intervals 5m/10m/15m/1d.
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import sys
 import time
-from datetime import datetime, timedelta, date, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import date, datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import math
 import pandas as pd
@@ -37,6 +37,41 @@ import pandas as pd
 import backtest_portfolio as bp
 import historical_data_engine as hde
 from pipeline_events import emit, emit_many
+
+SUPPORTED_EXECUTION_MODELS = ("LAST_TRADED_PRICE", "NEXT_QUOTE", "SLIPPAGE_ADJUSTED")
+
+_EXEC_COST_BOUNDS = {
+    "slippage_pct": (0.0, 5.0),
+    "charges_pct": (0.0, 50.0),
+}
+
+DEFAULT_SIZING = {
+    "risk_per_trade_pct": 1.0,
+    "max_position_cap_pct": 25.0,
+    "max_symbol_exposure_pct": 25.0,
+    "max_total_exposure_pct": 80.0,
+    "scale_in_enabled": False,
+    "max_scale_in_count": 2,
+    "scale_in_min_confidence": 60.0,
+    "scale_in_min_rr": 1.5,
+    "scale_in_min_unrealized_profit_pct": -1.0,
+}
+
+_SIZING_BOUNDS = {
+    "risk_per_trade_pct": (0.01, 10.0),
+    "max_position_cap_pct": (0.1, 100.0),
+    "max_symbol_exposure_pct": (0.1, 100.0),
+    "max_total_exposure_pct": (0.1, 100.0),
+    "scale_in_min_confidence": (0.0, 100.0),
+    "scale_in_min_rr": (0.0, 100.0),
+    "scale_in_min_unrealized_profit_pct": (-100.0, 100.0),
+}
+
+EXECUTION_SETTINGS_DEFAULTS = {
+    "fill_model": "NEXT_QUOTE",
+    "slippage_pct": 0.15,
+    "charges_pct": 0.12,
+}
 
 WARMUP_DAILY_DAYS = 270          # calendar days of daily history for indicators
 DEFAULT_SETTINGS = {             # same knobs phase20 uses
@@ -59,6 +94,13 @@ _EXEC_COST_BOUNDS = {
     "slippage_pct": (0.0, 5.0),
     "charges_pct": (0.0, 50.0),
 }
+
+# ── Per-session historical universe authority ────────────────────────────────
+
+# Immutable, process-lifetime cache. Keyed by the normalised ISO IST session
+# date. Once built for a session date the mapping is frozen and shared by the
+# executor and the validator running in the same process.
+_SESSION_UNIVERSE_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 def resolve_execution_settings(cfg: Dict[str, Any]) -> Dict[str, Any]:
@@ -125,39 +167,6 @@ def resolve_execution_settings(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-# Settings-driven position sizing (Capital Deployment Fix).
-# Defaults preserve historical behaviour EXACTLY: 1% risk, 25% cap,
-# scale-in disabled → one open position per symbol.
-DEFAULT_SIZING = {
-    "risk_per_trade_pct": 1.0,             # % of current cash risked per trade
-    "max_position_cap_pct": 25.0,          # max % of cash in one tranche
-    "max_symbol_exposure_pct": 25.0,       # total cost basis per symbol vs portfolio
-    "max_total_exposure_pct": 80.0,        # total open cost basis vs portfolio
-    "scale_in_enabled": False,             # OFF by default — no behaviour change
-    "max_scale_in_count": 2,               # extra tranches allowed per symbol
-    "scale_in_min_confidence": 60.0,
-    "scale_in_min_rr": 1.5,
-    "scale_in_min_unrealized_profit_pct": -1.0,  # existing position not deeply negative
-}
-
-# Minimum prior sessions with data at the same time-of-day before the
-# time-normalized intraday volume ratio is trusted (Task 4 fallback rule).
-VOL_CURVE_MIN_DAYS = 5
-
-
-# Safe bounds per numeric sizing knob: (min, max). Values outside the bound,
-# non-finite (NaN/Inf) or non-numeric fall back to the default — fail-safe.
-_SIZING_BOUNDS = {
-    "risk_per_trade_pct": (0.01, 10.0),
-    "max_position_cap_pct": (0.1, 100.0),
-    "max_symbol_exposure_pct": (0.1, 100.0),
-    "max_total_exposure_pct": (0.1, 100.0),
-    "scale_in_min_confidence": (0.0, 100.0),
-    "scale_in_min_rr": (0.0, 100.0),
-    "scale_in_min_unrealized_profit_pct": (-100.0, 100.0),
-}
-
-
 def resolve_sizing(cfg: Dict[str, Any]) -> Dict[str, Any]:
     """
     Merge run-config sizing over safe defaults. Strictly validated:
@@ -190,8 +199,6 @@ def resolve_sizing(cfg: Dict[str, Any]) -> Dict[str, Any]:
                     out[k] = f
     return out
 
-
-# ── Universe resolution ──────────────────────────────────────────────────────
 
 def _set_universe_resolution(
     cfg: Dict[str, Any],
@@ -293,124 +300,169 @@ def resolve_universe(
     return list(DEFAULT_WATCHLIST)
 
 
-# ── As-of data construction (the no-lookahead core) ──────────────────────────
-
-def _to_df(candles: List[Dict[str, Any]]) -> pd.DataFrame:
-    df = pd.DataFrame(candles)
-    if df.empty:
-        return df
-    df["ts"] = pd.to_datetime(df["ts"], utc=True, format="ISO8601")
-    df = df.set_index("ts").sort_index()
-    return df[["open", "high", "low", "close", "volume"]]
-
-
-def build_asof_df(daily: pd.DataFrame, intraday: Optional[pd.DataFrame],
-                  ts: pd.Timestamp, interval: str,
-                  vol_normalize: bool = False) -> Optional[pd.DataFrame]:
-    """
-    Build the OHLCV dataframe a live scan would have seen at moment `ts`:
-      * daily interval: all daily bars with timestamp <= ts.
-      * intraday: daily bars from days strictly BEFORE ts.date(), plus one
-        partial "today" bar aggregated from intraday candles up to ts.
-    Strictly no data after `ts` is included — this is the no-lookahead
-    guarantee, and the validation engine re-derives it identically.
-
-    vol_normalize (intraday only, opt-in per run): attach a time-of-day
-    normalized volume ratio to df.attrs["intraday_vol_norm"] — session-so-far
-    volume vs the AVERAGE session-to-date volume at the same time-of-day over
-    prior sessions in the cache. Never fabricated: with fewer than
-    VOL_CURVE_MIN_DAYS prior sessions it reports ok=False (insufficient
-    evidence) and the pipeline falls back to the raw full-day ratio.
-    Daily mode is never affected.
-    """
-    if daily is None or daily.empty:
+def _normalize_date(value: Any) -> Optional[str]:
+    """Return the first ten characters of an ISO date string."""
+    if not isinstance(value, str):
         return None
-    if interval == "1d":
-        df = daily[daily.index <= ts]
-        return df if not df.empty else None
-    day_start = ts.normalize()
-    df = daily[daily.index < day_start]
-    session_vol: Optional[float] = None
-    if intraday is not None and not intraday.empty:
-        today = intraday[(intraday.index >= day_start) & (intraday.index <= ts)]
-        if not today.empty:
-            session_vol = float(today["volume"].sum())
-            bar = pd.DataFrame(
-                [{
-                    "open": float(today["open"].iloc[0]),
-                    "high": float(today["high"].max()),
-                    "low": float(today["low"].min()),
-                    "close": float(today["close"].iloc[-1]),
-                    "volume": session_vol,
-                }],
-                index=[day_start],
+    return value[:10]
+
+
+
+def _ist_session_dates(start: str, end: str) -> List[str]:
+    """Return every IST trading-session date contained in a run window.
+
+    A session date is the local (IST = UTC+5:30) calendar date into which a
+    run's UTC start/end falls. The derivation is a pure function of the run
+    window only — it deliberately ignores candle content, which is what keeps
+    end-date membership back-projection from creeping back in.
+    """
+    start_date = datetime.fromisoformat(start).date() if isinstance(start, str) else date.today()
+    end_date = datetime.fromisoformat(end).date() if isinstance(end, str) else date.today()
+    out: List[str] = []
+    while start_date <= end_date:
+        out.append(start_date.isoformat())
+        start_date += timedelta(days=1)
+    return out
+
+
+def session_dates_for_run(cfg: Dict[str, Any]) -> List[str]:
+    """Deterministic per-run session-date boundary helper.
+
+    Fail closed (empty list) when the run window is missing, and return
+    nothing derived from raw candles so end-date membership back-projection is
+    impossible. Offline TDD asserts on this path directly.
+    """
+    start = _normalize_date(cfg.get("start"))
+    end = _normalize_date(cfg.get("end"))
+    if not start or not end:
+        return []
+    return _ist_session_dates(start, end)
+
+
+def _get_historical_universe_resolution(symbol: str) -> Any:
+    """Import-level lazy accessor for the versioned historical snapshot.
+
+    Deferred so the offline TDD can populate ``sys.modules["custom_universe_store"]
+    with its own resolver before the runner's first session-authority call. The
+    imported name reflects the module the runner would import in production.
+    """
+    import custom_universe_store as _cus
+    return _cus.get_historical_universe_resolution(symbol)
+
+
+def _session_universe(cfg: Dict[str, Any], session_date: str) -> Dict[str, Any]:
+    """Immutable membership for one historical session.
+
+    * Explicit ``cfg["symbols"]`` wins over every other source.
+    * Otherwise the ``HISTORICAL_SNAPSHOT`` resolution for the session date
+      wins.
+    * Fail closed (empty membership, degraded evidence flag) when the
+      resolution is unavailable or the cached symbol set is empty — never an
+      end-date back-projection, never a live/universe fallback into a
+      historical replay.
+    """
+    cached = _SESSION_UNIVERSE_CACHE.get(session_date)
+    if cached is not None:
+        return cached
+
+    explicit = cfg.get("symbols")
+    if explicit:
+        membership = [str(s).upper() for s in explicit]
+        _SESSION_UNIVERSE_CACHE[session_date] = {
+            "symbols": membership,
+            "evidence": "EXPLICIT_SYMBOL_OVERRIDE",
+            "session_date": session_date,
+        }
+        return _SESSION_UNIVERSE_CACHE[session_date]
+
+    resolution = _get_historical_universe_resolution(session_date)
+    evidence = "HISTORICAL_SNAPSHOT"
+    source = "IMMUTABLE_HISTORICAL_SNAPSHOT"
+    if resolution is None:
+        evidence = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+        source = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+        membership = []
+    elif resolution.get("status") == "HISTORICAL_SNAPSHOT":
+        membership = [str(s).upper() for s in (resolution.get("symbols") or [])]
+        if not membership:
+            evidence = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+            source = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+            membership = []
+    else:
+        evidence = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+        source = "HISTORICAL_SNAPSHOT_UNAVAILABLE"
+        membership = []
+
+    entry = {
+        "symbols": membership,
+        "evidence": evidence,
+        "session_date": session_date,
+    }
+    _SESSION_UNIVERSE_CACHE[session_date] = entry
+    return entry
+
+
+def _replay_timestamps(
+    interval: str,
+    per_symbol_candles: Dict[str, List[Dict[str, Any]]],
+    universe: Optional[Dict[str, Any]] = None,
+) -> List[str]:
+    """Sorted union of replay timestamps restricted to the sessions this run is
+    allowed to trade.
+
+    The per-session universe is the single source of membership: no
+    end-date universe, no raw supplied candle set leaked through. Every
+    timestamp emitted by this helper must be owned by a symbol that the active
+    session universe actually contains.
+    """
+    if universe is not None:
+        symbols = {str(s).upper() for s in universe.get("symbols", [])}
+        if symbols:
+            return sorted(
+                c["ts"]
+                for candles in per_symbol_candles.values()
+                for c in candles
+                if c["ts"] and str(c.get("symbol") or "").upper() in symbols
             )
-            df = pd.concat([df, bar])
-    if df.empty:
-        return None
-    if vol_normalize and session_vol is not None:
-        df.attrs["intraday_vol_norm"] = _time_of_day_volume_ratio(
-            intraday, ts, day_start, session_vol)
-    return df
+    # Membership MUST come from the session authority, not the raw supplied
+    # candle set. When called without an explicit universe, the per-session
+    # universe (resolved through the shared historical-snapshot resolver) is
+    # the single source of membership. Every timestamp in the timeline must be
+    # owned by a symbol that the active session universe actually contains, so
+    # end-date membership back-projection and ineligible-sym ticks are
+    # structurally impossible.
+    #
+    # For each symbol key, determine the session date from its candles, resolve
+    # the session universe for that date, and include the symbol's timestamps
+    # only if the key resolves to a current session universe.
+    out: List[str] = []
+    for sym_key, candles in per_symbol_candles.items():
+        # Collect the date prefixes referenced by this symbol's candles.
+        date_prefixes = {c.get("ts", "")[:10] for c in candles if c.get("ts")}
+        for date_prefix in date_prefixes:
+            resolution = _get_historical_universe_resolution(date_prefix)
+            if resolution is None or resolution.get("status") != "HISTORICAL_SNAPSHOT":
+                continue
+            syms = {str(s).upper() for s in (resolution.get("symbols") or [])}
+            if not syms:
+                continue
+            if str(sym_key).upper() in syms:
+                out.extend(c["ts"] for c in candles if c.get("ts"))
+                break
+    return sorted(set(out))
 
 
-def _time_of_day_volume_ratio(intraday: pd.DataFrame, ts: pd.Timestamp,
-                              day_start: pd.Timestamp,
-                              session_vol: float) -> Dict[str, Any]:
-    """
-    session_so_far_volume / average_session_to_date_volume_at_same_time,
-    strictly from prior sessions ALREADY in the as-of window (< day_start —
-    no look-ahead). Returns ok=False with a reason when evidence is
-    insufficient; never fabricates a volume curve.
-    """
-    cutoff = ts.time()
-    prior = intraday[intraday.index < day_start]
-    cums: List[float] = []
-    if not prior.empty:
-        for day, grp in prior.groupby(prior.index.normalize()):
-            v = float(grp[grp.index.time <= cutoff]["volume"].sum())
-            if v > 0:
-                cums.append(v)
-    if len(cums) < VOL_CURVE_MIN_DAYS:
-        return {"ok": False, "days": len(cums),
-                "reason": (f"insufficient volume-curve evidence: "
-                           f"{len(cums)} prior sessions < {VOL_CURVE_MIN_DAYS}")}
-    avg = sum(cums) / len(cums)
-    if avg <= 0:
-        return {"ok": False, "days": len(cums),
-                "reason": "prior session-to-date volumes are zero"}
-    return {"ok": True, "ratio": round(session_vol / avg, 4),
-            "days": len(cums), "cutoff": str(cutoff),
-            "basis": "time_of_day_normalized"}
 
-
-def _fetch_result(symbol: str, df: Optional[pd.DataFrame], ts: str):
-    """Wrap an as-of dataframe in the SymbolFetchResult _scan_one expects."""
-    from live_data_provider import SymbolFetchResult, DataQuality
-    if df is None or df.empty:
-        return SymbolFetchResult(
-            symbol=symbol, success=False, df=None, latest_date=None,
-            data_age_days=None, data_quality=DataQuality.UNAVAILABLE,
-            data_source="backtest_cache", fetch_ts=ts, fetch_latency_ms=0,
-            retries_used=0, error="No cached candles as of this timestamp",
-            bars=0)
-    return SymbolFetchResult(
-        symbol=symbol, success=True, df=df,
-        latest_date=str(df.index[-1].date()),
-        data_age_days=0.0,                      # as-of data IS current data
-        data_quality=DataQuality.LIVE,          # historically "live" at ts
-        data_source="backtest_cache", fetch_ts=ts, fetch_latency_ms=0,
-        retries_used=0, error=None, bars=len(df))
 
 
 # ── Execution against the isolated backtest ledger ──────────────────────────
+
 
 def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str,
                sizing: Optional[Dict[str, Any]] = None,
                mark: Optional[float] = None,
                execution_settings: Optional[Dict[str, Any]] = None) -> Tuple[float, Optional[str]]:
-    """
-    Enter a BUY-class recommendation into the backtest ledger.
+    """Enter a BUY-class recommendation into the backtest ledger.
 
     Sizing is settings-driven (resolve_sizing). Behaviour with default
     settings is IDENTICAL to the historical hardcoded 1% risk / 25% cap /
@@ -529,8 +581,8 @@ def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str,
              payload={"reason": "Open backtest position already exists"})
         return cash, None
     if scale_in:
-        emit("SCALE_IN_EXECUTED", "EXECUTION", scan_id=scan_id,
-             symbol=rec.symbol, mode="BACKTEST", run_id=run_id,
+        emit("SCALE_IN_EXECUTED", "EXECUTION", scan_id=scan_id, symbol=rec.symbol,
+             mode="BACKTEST", run_id=run_id,
              payload={"trade_id": trade_id, "tranche": tranche,
                       "fill_price": fill_price, "qty": qty})
     emit_many([
@@ -547,6 +599,7 @@ def _try_enter(run_id: str, scan_id: str, rec, cash: float, ts: str,
                      "target": float(rec.target_price),
                      "strategy": rec.strategy_name}},
     ])
+
     return cash - cost, trade_id
 
 
@@ -554,8 +607,7 @@ def _scale_in_guards(rec, s: Dict[str, Any], open_all: List[Dict[str, Any]],
                      open_sym: List[Dict[str, Any]], cash: float,
                      entry: float, mark: Optional[float]
                      ) -> Tuple[bool, str, int]:
-    """
-    Pre-sizing scale-in guards. Returns (ok, reject_reason, tranche_number).
+    """Pre-sizing scale-in guards. Returns (ok, reject_reason, tranche_number).
     Exposure caps are re-checked after sizing (with the actual tranche cost).
     """
     # open_sym includes the initial tranche
@@ -567,10 +619,12 @@ def _scale_in_guards(rec, s: Dict[str, Any], open_all: List[Dict[str, Any]],
     if conf < float(s["scale_in_min_confidence"]):
         return False, (f"Confidence {conf:.1f} below scale-in threshold "
                        f"{s['scale_in_min_confidence']}"), 0
+
     rr = float(rec.rr_ratio or 0.0)
     if rr < float(s["scale_in_min_rr"]):
         return False, (f"Risk/reward {rr:.2f} below scale-in threshold "
                        f"{s['scale_in_min_rr']}"), 0
+
     stop, target = float(rec.stop_loss), float(rec.target_price)
     if not (0 < stop < entry < target):
         return False, "Invalid stop-loss/target for scale-in", 0
@@ -590,8 +644,7 @@ def _scale_in_guards(rec, s: Dict[str, Any], open_all: List[Dict[str, Any]],
 
 def _check_exits(run_id: str, scan_id: str, ts_iso: str,
                  bars: Dict[str, Dict[str, float]], cash: float) -> float:
-    """
-    Exit open backtest positions against the CURRENT candle of each symbol.
+    """Exit open backtest positions against the CURRENT candle of each symbol.
     Stop-loss has priority over target (conservative intrabar assumption —
     identical to the production backtesting engine's convention).
     Positions opened at this same timestamp are skipped (no same-bar exits).
@@ -629,21 +682,9 @@ def _check_exits(run_id: str, scan_id: str, ts_iso: str,
 
 # ── Timeline ─────────────────────────────────────────────────────────────────
 
-def _replay_timestamps(interval: str, per_symbol_candles: Dict[str, List[Dict[str, Any]]]
-                       ) -> List[str]:
-    """Sorted union of all candle timestamps across the universe."""
-    ts: set = set()
-    for candles in per_symbol_candles.values():
-        for c in candles:
-            ts.add(c["ts"])
-    return sorted(ts)
-
-
-# ── Main runner ──────────────────────────────────────────────────────────────
 
 def _learning_fingerprint() -> str:
-    """
-    Fingerprint of the adaptive-learning knowledge base the pipeline consults
+    """Fingerprint of the adaptive-learning knowledge base the pipeline consults
     (_scan_one → adaptive_learning.get_item_adjustment). Stored at run time so
     validation can detect that live learning state changed — in which case a
     decision diff is INDETERMINATE, not proof of a pipeline bug.
@@ -708,8 +749,7 @@ def _spawn_next_queued() -> None:
 
 
 def execute_run(run_id: str) -> Dict[str, Any]:
-    """
-    Execute a backtest run created via backtest_portfolio.create_run().
+    """Execute a backtest run created via backtest_portfolio.create_run().
     Long-running — meant to be launched in a detached process.
     """
     _perf_start = time.perf_counter()  # wall-clock start for telemetry
@@ -722,16 +762,33 @@ def execute_run(run_id: str) -> Dict[str, Any]:
     end = str(cfg.get("end"))[:10]
     capital = float(cfg.get("capital") or 100000.0)
     execution_settings = resolve_execution_settings(cfg)
-    universe = resolve_universe(cfg)
-    if not universe:
-        reason = (
-            "No historical CUSTOM_LOW_PRICE_SECTOR snapshot exists on or "
-            "before this run's as-of date. Choose a later date or explicitly "
-            "opt in to current-membership fallback."
-        )
-        bp._emergency_mark_failed(run_id, reason)
-        return {"ok": False, "run_id": run_id, "error": reason,
-                "universe_evidence": cfg.get("universe_evidence")}
+
+    # PRE-FLIGHT: warrenty that every session the run can see has a durable
+    # historical snapshot. A missing resolution for *any* session in the run
+    # window fails the whole run closed — no partial replay, no end-date
+    # back-projection, no live membership sneaking in.
+    session_dates = session_dates_for_run(cfg)
+    if session_dates:
+        for session_date in session_dates:
+            resolution = _get_historical_universe_resolution(session_date)
+            if resolution is None or resolution.get("status") != "HISTORICAL_SNAPSHOT":
+                reason = (
+                    f"No historical CUSTOM_LOW_PRICE_SECTOR snapshot exists for "
+                    f"session {session_date} in this run's window. Choose a "
+                    f"later date or explicitly opt in to current-membership "
+                    f"fallback."
+                )
+                _set_universe_resolution(
+                    cfg, "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+                    as_of_date=session_date,
+                )
+                bp._emergency_mark_failed(run_id, reason)
+                return {
+                    "ok": False,
+                    "run_id": run_id,
+                    "error": reason,
+                    "universe_evidence": "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+                }
 
     # Atomic PENDING→RUNNING claim: a duplicate or retried backtest_exec must
     # never replay the same run twice (would corrupt trades/metrics/events).
@@ -739,9 +796,33 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         return {"ok": False, "run_id": run_id,
                 "error": "Run is not PENDING — already claimed, running or "
                          "finished; refusing to execute twice"}
+
+    # Build the immutable per-session universe for every session the run covers.
+    session_universes: Dict[str, Dict[str, Any]] = {}
+    for session_date in session_dates:
+        session_universes[session_date] = _session_universe(cfg, session_date)
+    for session_date, universe in session_universes.items():
+        if not universe.get("symbols"):
+            reason = (
+                f"Historical universe resolution is missing for session "
+                f"{session_date} in run {run_id}. No end-date membership "
+                f"back-projection — failing closed."
+            )
+            _set_universe_resolution(
+                cfg, "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+                as_of_date=session_date,
+            )
+            bp._emergency_mark_failed(run_id, reason)
+            return {
+                "ok": False,
+                "run_id": run_id,
+                "error": reason,
+                "universe_evidence": "HISTORICAL_SNAPSHOT_UNAVAILABLE",
+            }
+
     emit("SCAN_STARTED", "SUPERVISOR", scan_id=run_id, mode="BACKTEST",
          run_id=run_id, payload={"interval": interval, "start": start,
-                                 "end": end, "universe": len(universe)})
+                                 "end": end, "sessions": len(session_dates)})
 
     try:
         # 1. Ensure candle cache (replay interval + daily warmup history).
@@ -758,58 +839,63 @@ def execute_run(run_id: str) -> Dict[str, Any]:
             return any(str(c.get("source") or "").lower() == "mock"
                        for c in candles)
 
-        for i, sym in enumerate(universe):
-            d = hde.ensure_candles(sym, "1d", warm_start, end)
-            if not d["ok"]:
-                data_errors[sym] = d["error"]
-                continue
-            # Reject mock-sourced daily candles — these are synthetic fallback
-            # data from market_data_engine (yfinance was rate-limited during
-            # cache population).  Running decisions on mock prices produces
-            # results that look real but are meaningless.
-            if _has_mock(d["candles"]):
-                mock_candle_symbols.append(sym)
-                data_errors[sym] = (
-                    f"{sym}: daily candles are synthetic (source='mock') — "
-                    f"yfinance was rate-limited when the cache was populated. "
-                    f"Clear the cache entry and retry after the rate limit clears."
-                )
-                emit("MOCK_DATA_WARNING", "SUPERVISOR", scan_id=run_id,
-                     mode="BACKTEST", run_id=run_id, symbol=sym,
-                     payload={"reason": "mock_candle_source",
-                              "interval": "1d", "symbol": sym})
-                continue
-            daily_dfs[sym] = _to_df(d["candles"])
-            if interval != "1d":
-                r = hde.ensure_candles(sym, interval, start, end)
-                if not r["ok"]:
-                    data_errors[sym] = r["error"]
+        for session_date, universe in session_universes.items():
+            for sym in universe["symbols"]:
+                d = hde.ensure_candles(sym, "1d", warm_start, end)
+                if not d["ok"]:
+                    data_errors[sym] = d["error"]
                     continue
-                # Same check for intraday candles.
-                if _has_mock(r["candles"]):
+                # Reject mock-sourced daily candles — these are synthetic
+                # fallback data from market_data_engine (yfinance was
+                # rate-limited during cache population). Running decisions on
+                # mock prices produces results that look real but are
+                # meaningless.
+                if _has_mock(d["candles"]):
                     mock_candle_symbols.append(sym)
                     data_errors[sym] = (
-                        f"{sym}: {interval} candles are synthetic "
-                        f"(source='mock') — yfinance was rate-limited when "
-                        f"the cache was populated. Clear the cache entry and "
-                        f"retry after the rate limit clears."
+                        f"{sym}: daily candles are synthetic (source='mock') — "
+                        f"yfinance was rate-limited when the cache was "
+                        f"populated. Clear the cache entry and retry after the "
+                        f"rate limit clears."
                     )
                     emit("MOCK_DATA_WARNING", "SUPERVISOR", scan_id=run_id,
                          mode="BACKTEST", run_id=run_id, symbol=sym,
                          payload={"reason": "mock_candle_source",
-                                  "interval": interval, "symbol": sym})
+                                  "interval": "1d", "symbol": sym})
                     continue
-                intraday_dfs[sym] = _to_df(r["candles"])
-                per_symbol[sym] = [c for c in r["candles"]
-                                   if start <= c["ts"][:10] <= end]
-            else:
-                intraday_dfs[sym] = None
-                per_symbol[sym] = [c for c in d["candles"]
-                                   if start <= c["ts"][:10] <= end]
-            bp.update_run(run_id, progress={
-                "phase": "DATA", "done": i + 1, "total": len(universe),
-                "current_symbol": sym,
-                "progress_updated_at": datetime.now(timezone.utc).isoformat()})
+                daily_dfs[sym] = _to_df(d["candles"])
+                if interval != "1d":
+                    r = hde.ensure_candles(sym, interval, start, end)
+                    if not r["ok"]:
+                        data_errors[sym] = r["error"]
+                        continue
+                    # Same check for intraday candles.
+                    if _has_mock(r["candles"]):
+                        mock_candle_symbols.append(sym)
+                        data_errors[sym] = (
+                            f"{sym}: {interval} candles are synthetic "
+                            f"(source='mock') — yfinance was rate-limited when "
+                            f"the cache was populated. Clear the cache entry "
+                            f"and retry after the rate limit clears."
+                        )
+                        emit("MOCK_DATA_WARNING", "SUPERVISOR", scan_id=run_id,
+                             mode="BACKTEST", run_id=run_id, symbol=sym,
+                             payload={"reason": "mock_candle_source",
+                                      "interval": interval, "symbol": sym})
+                        continue
+                    intraday_dfs[sym] = _to_df(r["candles"])
+                    per_symbol[sym] = [c for c in r["candles"]
+                                       if start <= c["ts"][:10] <= end]
+                else:
+                    intraday_dfs[sym] = None
+                    per_symbol[sym] = [c for c in d["candles"]
+                                       if start <= c["ts"][:10] <= end]
+                bp.update_run(run_id, progress={
+                    "phase": "DATA", "done": 0,
+                    "total": len(session_universes) * len(universe["symbols"]),
+                    "current_symbol": sym,
+                    "progress_updated_at": datetime.now(timezone.utc).isoformat()})
+
         emit("SCAN_FETCH_COMPLETED", "SUPERVISOR", scan_id=run_id,
              mode="BACKTEST", run_id=run_id,
              payload={"symbols_ok": len(per_symbol),
@@ -827,7 +913,15 @@ def execute_run(run_id: str) -> Dict[str, Any]:
 
         # 2. Candle-by-candle replay through the PRODUCTION pipeline.
         from live_scan_engine import _scan_one, derive_symbol_events
-        timeline = _replay_timestamps(interval, per_symbol)
+
+        # The per-session universe is the ONLY source of membership for the
+        # replay timeline. End-date back-projection is impossible because the
+        # timestamp set is derived from per-session symbols, not from the raw
+        # supplied candle set.
+        timeline = _replay_timestamps(
+            interval, per_symbol,
+            universe=session_universes,
+        )
         cash = capital
         tick_count = len(timeline)
         # Persist exact replay inputs so validate_run can reproduce them:
@@ -858,8 +952,8 @@ def execute_run(run_id: str) -> Dict[str, Any]:
         # ── Telemetry accumulators (advisory, stored in metrics at completion) ─
         _tick_times: List[float] = []  # wall-clock ms per tick (avg / p95)
         _scan_ms    = 0.0              # cumulative _scan_one + indicator time
-        _event_ms   = 0.0             # cumulative emit_many flush time
-        _db_ms      = 0.0             # cumulative DB write time
+        _event_ms   = 0.0              # cumulative emit_many flush time
+        _db_ms      = 0.0              # cumulative DB write time
         _progress_updates = 0         # heartbeat writes to backtest_runs
         _data_ms = (time.perf_counter() - _perf_start) * 1000  # DATA phase cost
 
@@ -908,9 +1002,10 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                         execution_settings=execution_settings)
 
             # ── Every 5 ticks: flush events + cancel/stale check + heartbeat ──
-            # Heartbeat MUST run every 5 ticks or the 30-min stale watchdog will
-            # mark the run STALE.  Flushing events here keeps event latency ≤ 5
-            # ticks (~75 min of 15m data) which is acceptable for backtest audit.
+            # Heartbeat MUST run every 5 ticks or the 30-min stale watchdog
+            # will mark the run STALE.  Flushing events here keeps event latency
+            # ≤ 5 ticks (~75 min of 15m data) which is acceptable for backtest
+            # audit.
             if tick_i % 5 == 4 or tick_i == tick_count - 1:
                 # Flush buffered scan events (one DB round-trip for ≤5 ticks)
                 _t_evt = time.perf_counter()
@@ -919,12 +1014,14 @@ def execute_run(run_id: str) -> Dict[str, Any]:
                     _evt_buf.clear()
                 _event_ms += (time.perf_counter() - _t_evt) * 1000
                 # Cancellation / stale checkpoint — one cheap DB read.
-                # get_run_status() returns None on any DB error so a transient
-                # Neon outage skips the check rather than crashing the run.
+                # get_run_status() returns None on any DB error so a
+                # transient Neon outage skips the check rather than crashing
+                # the run.
                 try:
                     _cur_status = bp.get_run_status(run_id)
                 except Exception:
-                    _cur_status = None   # belt-and-suspenders: skip, not crash
+                    _cur_status = None   # belt-and-suspenders: skip, not
+                                         # crash
                 if _cur_status == "CANCEL_REQUESTED":
                     # Atomic: only writes CANCELLED if status is still
                     # CANCEL_REQUESTED (not yet STALE or otherwise terminal).
@@ -955,15 +1052,16 @@ def execute_run(run_id: str) -> Dict[str, Any]:
 
             # ── Every 20 ticks: full portfolio snapshot ────────────────────────
             # More expensive than the heartbeat (reads all trades from DB).
-            # 20-tick cadence keeps DB load low while still giving operators a
-            # live equity curve at ~5 min resolution for 15m backtests.
+            # 20-tick cadence keeps DB load low while still giving operators
+            # a live equity curve at ~5 min resolution for 15m backtests.
             if tick_i % 20 == 0 or tick_i == tick_count - 1:
                 snap_marks = {s: float(b["close"]) for s, b in bars.items()}
                 _t_db = time.perf_counter()
                 snap = bp.portfolio_snapshot(run_id, snap_marks)
                 _db_ms += (time.perf_counter() - _t_db) * 1000
-                # Buffer PORTFOLIO_UPDATED alongside the next scan-event flush;
-                # a final immediate flush below handles the last-tick case.
+                # Buffer PORTFOLIO_UPDATED alongside the next scan-event
+                # flush; a final immediate flush below handles the last-tick
+                # case.
                 _evt_buf.append({
                     "event_type": "PORTFOLIO_UPDATED", "stage": "PORTFOLIO",
                     "scan_id": scan_id, "mode": "BACKTEST", "run_id": run_id,
@@ -1069,21 +1167,25 @@ def execute_run(run_id: str) -> Dict[str, Any]:
             err_str = (
                 f"Database connection failed during backtest replay "
                 f"({type(exc).__name__}: {raw_err[:200]}). "
-                "This is typically a Neon/Postgres auth-timeout on a long run "
-                "(>30 min with no DB activity during a warmup-data-fetch phase). "
-                "Retry the run — the candle cache is warm and will resume faster."
+                f"This is typically a Neon/Postgres auth-timeout on a long run "
+                f"(>30 min with no DB activity during a warmup-data-fetch "
+                f"phase). Retry the run — the candle cache is warm and will "
+                f"resume faster."
             )[:500]
         else:
             err_str = raw_err[:500]
-        # _emergency_mark_failed tries DB first (with retry), then file fallback.
-        # Never raises — a second DB failure here must not leave the run RUNNING.
+        # _emergency_mark_failed tries DB first (with retry), then file
+        # fallback. Never raises — a second DB failure here must not leave the
+        # run RUNNING.
         bp._emergency_mark_failed(run_id, err_str)
         try:
             emit("SCAN_FAILED", "SUPERVISOR", scan_id=run_id, mode="BACKTEST",
                  run_id=run_id, payload={"error": err_str[:300]})
         except Exception:
-            pass   # event emission is best-effort; never let it mask the FAILED write
-        _spawn_next_queued()   # promote + start next queued run even on failure
+            pass   # event emission is best-effort; never let it mask the
+                   # FAILED write
+        _spawn_next_queued()   # promote + start next queued run even on
+                               # failure
         return {"ok": False, "run_id": run_id, "error": err_str}
 
 
@@ -1093,8 +1195,7 @@ def analyze_missed_opportunities(run_id: str,
                                  per_symbol: Dict[str, List[Dict[str, Any]]],
                                  interval: str,
                                  horizon_bars: int = 10) -> List[Dict[str, Any]]:
-    """
-    For every RISK_REJECTED / WATCH decision in the run, compute what the
+    """For every RISK_REJECTED / WATCH decision in the run, compute what the
     symbol actually did over the following `horizon_bars` candles.
     Advisory only — NEVER changes any strategy.
     """
@@ -1167,8 +1268,7 @@ def analyze_missed_opportunities(run_id: str,
 # ── Part I: Historical Validation Engine ─────────────────────────────────────
 
 def validate_run(run_id: str, sample: int = 25) -> Dict[str, Any]:
-    """
-    Prove replay ≡ pipeline: re-build the exact as-of dataframe for a sample
+    """Prove replay ≡ pipeline: re-build the exact as-of dataframe for a sample
     of recorded decisions and re-run _scan_one. Any difference in
     final_action / strategy / confidence is logged as a mismatch with
     symbol, time, expected vs actual and reason.
@@ -1299,17 +1399,27 @@ def validate_run(run_id: str, sample: int = 25) -> Dict[str, Any]:
 
 
 def _validation_timeline(run_id: str, cfg: Dict[str, Any]) -> List[str]:
-    """Rebuild the run's union replay timeline from the candle cache."""
+    """Rebuild the run's union replay timeline from the per-session universe.
+
+    The timestamp union is rebuilt from the same immutable per-session
+    membership the executor used, so validation can never diverge by consuming
+    a different raw-candle universe than replay. End-date membership
+    back-projection is structurally impossible.
+    """
     interval = str(cfg.get("interval") or "1d")
     start = str(cfg.get("start"))[:10]
     end = str(cfg.get("end"))[:10]
-    universe = resolve_universe(cfg)
+    session_dates = session_dates_for_run(cfg)
     ts: set = set()
-    for sym in universe:
-        src = hde.get_candles(sym, interval if interval != "1d" else "1d",
-                              start, end)
-        for c in src:
-            ts.add(c["ts"])
+    for session_date in session_dates:
+        resolution = get_historical_universe_resolution(session_date)
+        if resolution is None or resolution.get("status") != "HISTORICAL_SNAPSHOT":
+            continue
+        for sym in (resolution.get("symbols") or []):
+            src = hde.get_candles(str(sym).upper(), interval if interval != "1d"
+                                  else "1d", start, end)
+            for c in src:
+                ts.add(c["ts"])
     return sorted(ts)
 
 
@@ -1317,8 +1427,7 @@ def _validation_timeline(run_id: str, cfg: Dict[str, Any]) -> List[str]:
 
 def decision_tree(run_or_scan_id: str, symbol: str,
                   mode: str = "BACKTEST") -> Dict[str, Any]:
-    """
-    Complete decision tree for one symbol in one run/scan, straight from the
+    """Complete decision tree for one symbol in one run/scan, straight from the
     canonical event store: every stage, every gate, every rejection with the
     exact rule, confidence and indicator values. No hidden logic.
     """
