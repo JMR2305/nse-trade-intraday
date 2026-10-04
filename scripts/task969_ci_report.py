@@ -359,6 +359,31 @@ TASK978ZR_R37P_BLOBS = {
 }
 
 
+# Task978ZR R38B reviewed layer — historical data audit and backtest harness
+# design report. Reviewed report layer, published as a regular file by R38B;
+# the legacy Task969 reviewer must not classify it as an application/source
+# change beneath R38B.
+TASK978ZR_R38B_COMMIT = 'd2feecef9e74a5ecad420fd846a1ca306b0baca5'
+TASK978ZR_R38B_BLOBS = {
+    'TASK978ZR_R38B_REPORT.md':
+        (None, '3e4d84c2dfe3f5824238ee7fdea4e6684d9b2a1e'),
+}
+
+# Task978ZR R3A reviewed layer — execution-settings authority (execution
+# settings factory plus its execution-settings unit regression). The two
+# reviewed paths are exactly the R3A source change and its new ADD test file;
+# the reviewed R3A commit carries the exact parent/new blob semantics below
+# and the new test file is an ADD at the reviewed commit, absent from the
+# reviewed parent.
+TASK978ZR_R3A_COMMIT = '390b40cf8558bf1e3f4e8c57a038723bdf18609a'
+TASK978ZR_R3A_BLOBS = {
+    'artifacts/api-server/src/python/backtest_runner.py':
+        ('6ce723f05a66abde394d450fcbc62c94cabde065',
+         '625dd8e18294efce7665ac9f1186d564e14cef77'),
+    'artifacts/api-server/src/python/tests/unit/test_task978zr_r3a_execution_settings.py':
+        (None, '90bd51627e5e973614e7caa2f3344772505c9e17'),
+}
+
 def verify_reviewed_layer(commit, blobs, superseded=()):
     if commit not in git('rev-list', 'HEAD').splitlines():
         raise RuntimeError(f'Reviewed commit absent from ancestry: {commit}')
@@ -617,7 +642,10 @@ def identity():
         (TASK978ZR_R36_COMMIT, TASK978ZR_R36_BLOBS, ()),
         (TASK978ZR_R37I_COMMIT, TASK978ZR_R37I_BLOBS, ()),
         (TASK978ZR_R37N_COMMIT, TASK978ZR_R37N_BLOBS, ()),
-        (TASK978ZR_R37P_COMMIT, TASK978ZR_R37P_BLOBS, ()))
+        (TASK978ZR_R37P_COMMIT, TASK978ZR_R37P_BLOBS, ()),
+        (TASK978ZR_R38B_COMMIT, TASK978ZR_R38B_BLOBS, ()),
+        (TASK978ZR_R3A_COMMIT, TASK978ZR_R3A_BLOBS, ())
+    )
     later_reviewed_paths = set().union(*(blobs.keys() for commit, blobs, _ in later_layers
                                           if commit in reviewed_lineage))
     unexpected = set(changed) - ALLOWED - SOURCE_CORRECTIONS.keys() - {TASK972_TEST_PATH, TASK973_QUEUE_PATH} - TASK974_TEST_BLOBS.keys() - TASK976_REVIEWED_BLOBS.keys() - TASK978E2_REVIEWED_BLOBS.keys() - TASK978J_REVIEWED_BLOBS.keys() - TASK978T_REVIEWED_BLOBS.keys() - TASK978ZA_REVIEWED_BLOBS.keys() - TASK978ZC_REVIEWED_BLOBS.keys() - TASK978ZD_REVIEWED_BLOBS.keys() - TASK978ZI_REVIEWED_BLOBS.keys() - TASK978ZL_REVIEWED_BLOBS.keys() - TASK978ZN_REVIEWED_BLOBS.keys() - TASK978ZN_R7_REVIEWED_BLOBS.keys() - TASK978ZQ_REVIEWED_BLOBS.keys() - TASK978ZR_REVIEWED_BLOBS.keys() - later_reviewed_paths
