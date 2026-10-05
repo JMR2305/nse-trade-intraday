@@ -384,6 +384,19 @@ TASK978ZR_R3A_BLOBS = {
         (None, '90bd51627e5e973614e7caa2f3344772505c9e17'),
 }
 
+# Task978ZR R3B reviewed layer — per-session historical universe authority
+# repair published on top of R3A. The single reviewed path replaces the R3A
+# backtest-runner blob with the independently reviewed, published S2 content;
+# the reviewed R3B commit carries the exact parent/new blob semantics below.
+# Path-only or future-content trust is intentionally prohibited.
+TASK978ZR_R3B_COMMIT = '4ced2d63310b08d517ae5fc27d26b0f122249492'
+TASK978ZR_R3B_BLOBS = {
+    'artifacts/api-server/src/python/backtest_runner.py':
+        ('625dd8e18294efce7665ac9f1186d564e14cef77',
+         'a180e029704c5612708f78a2481bd3636178e03e'),
+}
+
+
 def verify_reviewed_layer(commit, blobs, superseded=()):
     if commit not in git('rev-list', 'HEAD').splitlines():
         raise RuntimeError(f'Reviewed commit absent from ancestry: {commit}')
@@ -644,7 +657,9 @@ def identity():
         (TASK978ZR_R37N_COMMIT, TASK978ZR_R37N_BLOBS, ()),
         (TASK978ZR_R37P_COMMIT, TASK978ZR_R37P_BLOBS, ()),
         (TASK978ZR_R38B_COMMIT, TASK978ZR_R38B_BLOBS, ()),
-        (TASK978ZR_R3A_COMMIT, TASK978ZR_R3A_BLOBS, ())
+        (TASK978ZR_R3A_COMMIT, TASK978ZR_R3A_BLOBS,
+         ('artifacts/api-server/src/python/backtest_runner.py',)),
+        (TASK978ZR_R3B_COMMIT, TASK978ZR_R3B_BLOBS, ())
     )
     later_reviewed_paths = set().union(*(blobs.keys() for commit, blobs, _ in later_layers
                                           if commit in reviewed_lineage))
@@ -760,6 +775,14 @@ def identity():
     for commit, blobs, superseded in later_layers:
         if commit in reviewed_lineage:
             verify_reviewed_layer(commit, blobs, superseded)
+    # Task978ZR R3B/S2: unconditionally pin the published reviewed backtest
+    # runner at candidate HEAD (same precedent as Task978ZI/ZQ/ZN-R7), so the
+    # reviewed layer cannot be evaded by dropping the R3B commit from the
+    # checked-out lineage or by unreviewed content on the review branch.
+    r3b_path = next(iter(TASK978ZR_R3B_BLOBS))
+    r3b_after = TASK978ZR_R3B_BLOBS[r3b_path][1]
+    if git('ls-tree', head, '--', r3b_path) != f'100644 blob {r3b_after}\t{r3b_path}':
+        raise RuntimeError(f'Unexpected R3B/S2 reviewed HEAD content: {r3b_path}')
     test_blobs = (git('rev-parse', f'{ancestor}:{TASK972_TEST_PATH}'),
                   git('rev-parse', f'{head}:{TASK972_TEST_PATH}'))
     if test_blobs != TASK972_TEST_BLOBS:
@@ -851,6 +874,10 @@ def identity():
                  'reviewed_commit': TASK978ZR_REVIEWED_COMMIT,
                  'blobs': TASK978ZR_REVIEWED_BLOBS,
              },
+             'r3b_s2_reviewed_layer': {
+                 'commit': TASK978ZR_R3B_COMMIT,
+                 'path': next(iter(TASK978ZR_R3B_BLOBS)),
+                 'blob': next(iter(TASK978ZR_R3B_BLOBS.values()))[1]},
              'task971_exact_source_corrections': corrections,
              'task972_exact_test_correction': {'path': TASK972_TEST_PATH,
                  'before_blob': test_blobs[0], 'after_blob': test_blobs[1]},
